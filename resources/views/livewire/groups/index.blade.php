@@ -558,13 +558,13 @@ new class extends Component {
         $student = Student::query()->findOrFail($validated['roster_student_id']);
         $this->authorizeScopedStudentAccess($student);
 
-        $duplicateEnrollmentExists = Enrollment::query()
+        $duplicateEnrollmentExists = Enrollment::withTrashed()
             ->where('student_id', $student->id)
-            ->where('group_id', $group->id)
+            ->forCourseOfGroup($group->id)
             ->exists();
 
         if ($duplicateEnrollmentExists) {
-            $this->addError('roster_student_id', __('crud.enrollments.errors.already_enrolled'));
+            $this->addError('roster_student_id', __('crud.enrollments.errors.already_enrolled_course'));
 
             return;
         }
@@ -601,7 +601,7 @@ new class extends Component {
         return $this->scopeStudentsQuery(Student::query())
             ->where('status', 'active')
             ->whereDoesntHave('enrollments', function ($enrollmentQuery) {
-                $enrollmentQuery->where('group_id', $this->rosterGroupId);
+                $enrollmentQuery->withTrashed()->forCourseOfGroup((int) $this->rosterGroupId);
             });
     }
 

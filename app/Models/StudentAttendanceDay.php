@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasSingleOpenAttendanceDay;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Illuminate\Support\Carbon;
 class StudentAttendanceDay extends Model
 {
     use HasFactory;
+    use HasSingleOpenAttendanceDay;
 
     protected $fillable = [
         'attendance_date',

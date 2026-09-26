@@ -347,8 +347,9 @@ class ManagementCrudTest extends TestCase
             'enrolled_at' => '2026-08-10',
             'status' => 'active',
         ]);
+        $historicalStudent = Student::create(['first_name' => 'Historical', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'status' => 'active']);
         $historicalEnrollment = Enrollment::create([
-            'student_id' => $student->id,
+            'student_id' => $historicalStudent->id,
             'group_id' => $inactiveGroup->id,
             'enrolled_at' => '2026-08-01',
             'left_at' => '2026-08-05',
@@ -600,8 +601,9 @@ class ManagementCrudTest extends TestCase
             'left_at' => '2026-07-31',
             'status' => 'completed',
         ]);
+        $historicalStudent = Student::create(['first_name' => 'Historical', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'status' => 'active']);
         $historicalEnrollment = Enrollment::create([
-            'student_id' => $student->id,
+            'student_id' => $historicalStudent->id,
             'group_id' => $historicalGroup->id,
             'enrolled_at' => '2025-08-01',
             'left_at' => '2026-06-01',
@@ -936,9 +938,9 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-student-account-username', false)
             ->assertSee('data-student-account-password', false)
             ->assertDontSee('wire:model="account_email"', false)
-            ->assertDontSee('wire:model="account_is_active"', false)
+            ->assertSee('wire:model="account_is_active"', false)
             ->assertDontSee('wire:click="generateAccountPassword"', false)
-            ->assertDontSee('wire:submit="saveAccount"', false)
+            ->assertSee('wire:submit="saveAccount"', false)
             ->set('account_password', 'StudentPass123!')
             ->call('saveAccount')
             ->assertHasNoErrors();
@@ -1244,11 +1246,13 @@ class ManagementCrudTest extends TestCase
             ->assertSee('data-student-parent-row', false)
             ->assertSee('min-h-[2.875rem]', false)
             ->assertSee('wire:blur="commitCurrentJuz"', false)
-            ->assertSee('wire:keydown.enter.prevent="commitCurrentJuz"', false)
+            ->assertSee('wire:keydown.space.prevent.stop="commitCurrentJuz"', false)
+            ->assertSee('x-on:keydown.enter.prevent.stop=""', false)
+            ->assertSee('x-on:keydown.tab.prevent.stop=""', false)
             ->assertSee(__('crud.students.form.placeholders.enter_memorized_juz'))
             ->assertDontSee(__('crud.students.form.grade_calculated_help'))
             ->assertDontSee(__('crud.students.form.external_memorized_juzs_help'))
-            ->assertSee('wire:keydown.tab="addExternalMemorizedJuz"', false)
+            ->assertSee('wire:keydown.space.prevent.stop="addExternalMemorizedJuz"', false)
             ->set('birth_date', '2014')
             ->assertSet('grade_level_id', $calculatedGrade->id)
             ->set('external_memorized_juz_input', '31')
@@ -2505,7 +2509,8 @@ class ManagementCrudTest extends TestCase
         $group->update(['is_active' => false]);
 
         Volt::test('groups.show', ['group' => $group->fresh()])
-            ->assertSee('data-group-copy-summary', false)
+            ->assertDontSee('data-group-copy-summary', false)
+            ->assertDontSee('wire:model="progressDate"', false)
             ->assertDontSee('data-group-hero-copy-action', false)
             ->set('progressDate', '2026-09-10')
             ->call('copyProgress')
@@ -3268,6 +3273,7 @@ class ManagementCrudTest extends TestCase
         $this->assertSame([
             'id' => null,
             'date' => '2026-10-15',
+            'end_date' => null,
             'name' => 'Mid-course gathering',
             'color' => '#a37326',
         ], $component->get('calendarRows')[0]);

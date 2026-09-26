@@ -10,6 +10,13 @@ return [
         'generated_password' => 'Generated password',
     ],
     'profile_accounts' => [
+        'username_locked' => 'Student and parent usernames cannot be changed.',
+        'view_account' => 'View account',
+        'existing_label' => 'Login account',
+        'new_login' => 'Create a new login',
+        'existing_help' => 'If this person already has an account, select it to use the same login for all their profiles.',
+        'existing_unavailable' => 'This account already has a profile of this type or is no longer available.',
+        'shared_help' => 'This login is shared across this person’s profiles. Account changes affect all of them.',
         'title' => 'Account access',
         'description' => 'Manage the linked login account separately from the profile details.',
         'fields' => [
@@ -29,6 +36,7 @@ return [
             'generate_password' => 'Generate password',
         ],
         'help' => [
+            'current_password_unavailable' => 'The current password cannot be displayed. Leave this field blank to keep it, or enter a new password.',
             'username' => 'Leave blank to keep the current username or auto-generate one for a new account.',
             'email' => 'Leave blank to keep the current email or auto-generate a system email for a new account.',
             'password' => 'Enter a new password only when you want to reset it for the user.',
@@ -43,6 +51,13 @@ return [
         ],
     ],
     'users' => [
+        'standalone' => 'Administrative accounts',
+        'directory_help' => 'Edit student, parent and teacher accounts from their profile pages. Manage standalone administrative accounts here.',
+        'creation_help' => 'Create student, parent and teacher accounts from their own pages. Their profile roles are assigned automatically.',
+        'shared_permissions' => 'Access control',
+        'open_student' => 'Open student',
+        'open_parent' => 'Open parent',
+        'open_teacher' => 'Open teacher',
         'title' => 'Users',
         'subtitle' => 'Manage login accounts, assign roles, and add direct permissions beyond the user’s main role.',
         'stats' => [
@@ -51,7 +66,7 @@ return [
             'linked_profiles' => 'Linked profiles',
         ],
         'form' => [
-            'create' => 'New user',
+            'create' => 'New administrative account',
             'edit' => 'Edit user',
             'save_create' => 'Create user',
             'save_update' => 'Update user',
@@ -74,6 +89,7 @@ return [
             'finance_signature_empty' => 'No signature uploaded',
         ],
         'messages' => [
+            'permissions_saved' => 'Account permissions updated successfully.',
             'created' => 'User created successfully.',
             'updated' => 'User updated successfully.',
             'deleted' => 'User deleted successfully.',

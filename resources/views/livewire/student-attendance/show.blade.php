@@ -18,7 +18,7 @@ new class extends Component
 
     public StudentAttendanceDay $currentDay;
 
-    public string $manual_group_id = '';
+    public array $manual_group_ids = [];
 
     public bool $showManualGroupModal = false;
 
@@ -45,7 +45,7 @@ new class extends Component
                 ? $query->whereRaw('1 = 0')
                 : $this->dayGroupAttendanceDaysQuery($query),
         ]);
-        $existingGroupIds = $day->groupAttendanceDays
+        $existingGroupIds = $day->groupAttendanceDays()
             ->pluck('group_id')
             ->filter()
             ->values()
@@ -60,7 +60,7 @@ new class extends Component
                 Group::query()
                     ->with(['course', 'teacher'])
                     ->where('is_active', true)
-                    ->when($day->course_id, fn ($query) => $query->where('course_id', $day->course_id))
+                    ->where('course_id', $day->course_id)
                     ->when($existingGroupIds !== [], fn ($query) => $query->whereNotIn('id', $existingGroupIds))
                     ->orderBy('name')
             )->get(),
@@ -150,80 +150,137 @@ new class extends Component
     public function addManualGroup(): void
     {
         $this->authorizePermission('attendance.student.take');
-        if (! $this->ensureDayIsEditable()) {
+        if (! $this->ensureDayIsOpen()) {
             return;
         }
 
         $validated = $this->validate(
-            ['manual_group_id' => ['required', 'integer', 'exists:groups,id']],
+            [
+                'manual_group_ids' => ['required', 'array', 'min:1'],
+                'manual_group_ids.*' => ['required', 'integer', 'distinct', 'exists:groups,id'],
+            ],
             [],
-            ['manual_group_id' => __('workflow.student_attendance.day_details.manual_add.group')],
+            [
+                'manual_group_ids' => __('workflow.student_attendance.day_details.manual_add.group'),
+                'manual_group_ids.*' => __('workflow.student_attendance.day_details.manual_add.group'),
+            ],
         );
 
-        $group = $this->scopeGroupsQuery(
-            Group::query()
-                ->with(['course', 'teacher'])
-                ->where('is_active', true)
-                ->whereKey((int) $validated['manual_group_id'])
-        )->first();
+        $added = DB::transaction(function () use ($validated): bool {
+            $this->currentDay = StudentAttendanceDay::query()->lockForUpdate()->findOrFail($this->currentDay->id);
+            if (! $this->ensureDayIsOpen()) {
+                return false;
+            }
 
-        if (! $group) {
-            $this->addError('manual_group_id', __('workflow.student_attendance.day_details.manual_add.errors.unavailable'));
+            $groups = $this->scopeGroupsQuery(
+                Group::query()
+                    ->with(['course', 'teacher'])
+                    ->where('is_active', true)
+                    ->where('course_id', $this->currentDay->course_id)
+                    ->whereKey($validated['manual_group_ids'])
+            )->get();
 
+            if ($groups->count() !== count($validated['manual_group_ids'])) {
+                $this->addError('manual_group_ids', __('workflow.student_attendance.day_details.manual_add.errors.unavailable'));
+
+                return false;
+            }
+
+            if ($this->currentDay->groupAttendanceDays()->whereIn('group_id', $groups->modelKeys())->exists()) {
+                $this->addError('manual_group_ids', __('workflow.student_attendance.day_details.manual_add.errors.exists'));
+
+                return false;
+            }
+
+            $this->currentDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+                $this->currentDay->attendance_date->format('Y-m-d'),
+                $groups,
+                auth()->user(),
+                $this->currentDay->notes,
+                'open',
+                $this->defaultStudentAttendanceStatusId(),
+                $this->currentDay->course_id,
+            );
+
+            return true;
+        });
+
+        if (! $added) {
             return;
         }
 
-        $alreadyExists = $this->currentDay
-            ->groupAttendanceDays()
-            ->where('group_id', $group->id)
-            ->exists();
-
-        if ($alreadyExists) {
-            $this->addError('manual_group_id', __('workflow.student_attendance.day_details.manual_add.errors.exists'));
-
-            return;
-        }
-
-        if ($this->currentDay->fresh()->status === 'closed') {
-            $this->addError('manual_group_id', __('workflow.student_attendance.messages.closed_day_locked'));
-
-            return;
-        }
-
-        $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
-            $this->currentDay->attendance_date->format('Y-m-d'),
-            collect([$group]),
-            auth()->user(),
-            $this->currentDay->notes,
-            'open',
-            $this->defaultStudentAttendanceStatusId(),
-        );
-
-        $this->currentDay = $day;
-        $this->manual_group_id = '';
-        $this->showManualGroupModal = false;
-        $this->resetValidation('manual_group_id');
-
+        $this->closeManualGroupModal();
         session()->flash('status', __('workflow.student_attendance.day_details.manual_add.messages.added'));
+    }
+
+    public function removeGroup(int $groupDayId): void
+    {
+        $this->authorizePermission('attendance.student.take');
+
+        $removed = DB::transaction(function () use ($groupDayId): bool {
+            $this->currentDay = StudentAttendanceDay::query()->lockForUpdate()->findOrFail($this->currentDay->id);
+            if (! $this->ensureDayIsOpen()) {
+                return false;
+            }
+
+            $groupDay = $this->scopeGroupAttendanceDaysQuery($this->currentDay->groupAttendanceDays())
+                ->with('records')->findOrFail($groupDayId);
+            $enrollmentIds = $groupDay->records->pluck('enrollment_id')->filter()->unique();
+            $ledger = app(PointLedgerService::class);
+
+            foreach ($groupDay->records as $record) {
+                $ledger->voidSourceTransactions(
+                    'student_attendance_record',
+                    $record->id,
+                    __('workflow.student_attendance.messages.deleted_void_reason'),
+                );
+            }
+
+            $groupDay->records()->delete();
+            $groupDay->delete();
+            Enrollment::query()->with('student')->whereKey($enrollmentIds)->get()
+                ->each(fn (Enrollment $enrollment) => $ledger->syncEnrollmentCaches($enrollment));
+
+            return true;
+        });
+
+        if ($removed) {
+            session()->flash('status', __('workflow.student_attendance.day_details.remove_group.removed'));
+        }
     }
 
     public function openManualGroupModal(): void
     {
         $this->authorizePermission('attendance.student.take');
-        if (! $this->ensureDayIsEditable()) {
+        if (! $this->ensureDayIsOpen()) {
             return;
         }
 
-        $this->manual_group_id = '';
+        $this->manual_group_ids = [];
         $this->showManualGroupModal = true;
-        $this->resetValidation('manual_group_id');
+        $this->resetValidation();
     }
 
     public function closeManualGroupModal(): void
     {
-        $this->manual_group_id = '';
+        $this->manual_group_ids = [];
         $this->showManualGroupModal = false;
-        $this->resetValidation('manual_group_id');
+        $this->resetValidation();
+    }
+
+    protected function ensureDayIsOpen(): bool
+    {
+        if (! $this->ensureDayIsEditable()) {
+            return false;
+        }
+
+        if ($this->currentDay->fresh()->status === 'closed') {
+            $this->addError('day', __('workflow.student_attendance.messages.closed_day_locked'));
+
+            return false;
+        }
+
+        return true;
     }
 
     protected function defaultStudentAttendanceStatusId(): ?int
@@ -286,22 +343,30 @@ new class extends Component
                 compact
             >
                 <form wire:submit="addManualGroup" class="space-y-4">
-                    <div>
-                        <label for="manual-attendance-group" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.day_details.manual_add.group') }}</label>
-                        <select id="manual-attendance-group" wire:model="manual_group_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                            <option value="">{{ __('workflow.student_attendance.day_details.manual_add.select_group') }}</option>
+                    <fieldset>
+                        <legend class="mb-3 text-sm font-medium">{{ __('workflow.student_attendance.day_details.manual_add.group') }}</legend>
+                        <div class="attendance-group-picker" data-attendance-group-picker>
                             @foreach ($availableExtraGroups as $group)
-                                <option value="{{ $group->id }}">{{ $group->name }}</option>
+                                <label class="attendance-group-picker__option" wire:key="attendance-extra-group-{{ $group->id }}">
+                                    <input type="checkbox" wire:model="manual_group_ids" value="{{ $group->id }}">
+                                    <span class="min-w-0">
+                                        <span class="block font-semibold">{{ $group->name }}</span>
+                                        <span class="mt-1 block text-xs text-neutral-400">{{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span>
+                                    </span>
+                                </label>
                             @endforeach
-                        </select>
-                        @error('manual_group_id')
+                        </div>
+                        @error('manual_group_ids')
+                            <div class="mt-2 text-sm text-red-400">{{ $message }}</div>
+                        @enderror
+                        @error('manual_group_ids.*')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
-                    </div>
+                    </fieldset>
 
                     <div class="admin-action-cluster admin-action-cluster--end">
                         <button type="button" wire:click="closeManualGroupModal" class="pill-link pill-link--compact">{{ __('crud.common.actions.cancel') }}</button>
-                        <button type="submit" class="pill-link pill-link--accent pill-link--compact">{{ __('workflow.student_attendance.day_details.manual_add.action') }}</button>
+                        <button type="submit" class="pill-link pill-link--accent pill-link--compact" wire:loading.attr="disabled" wire:target="addManualGroup" @disabled($availableExtraGroups->isEmpty())>{{ __('workflow.student_attendance.day_details.manual_add.action') }}</button>
                     </div>
                 </form>
             </x-admin.modal>
@@ -309,7 +374,7 @@ new class extends Component
     @endif
 
     <section class="surface-table">
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.day_details.table.title') }} · {{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($dayRecord->groupAttendanceDays->count())]) }}</div>
@@ -321,8 +386,8 @@ new class extends Component
                             <x-quick-attendance-icon />
                         </a>
                     @endif
-                    @if ($canAddManualGroup)
-                        <x-add-action-button wire:click="openManualGroupModal" wire:key="student-attendance-add-group-action-{{ $dayRecord->id }}" :label="__('workflow.student_attendance.day_details.manual_add.action')" :accent="false" @disabled($availableExtraGroups->isEmpty()) />
+                    @if ($canAddManualGroup && $availableExtraGroups->isNotEmpty())
+                        <x-add-action-button wire:click="openManualGroupModal" wire:key="student-attendance-add-group-action-{{ $dayRecord->id }}" :label="__('workflow.student_attendance.day_details.manual_add.action')" :accent="false" data-student-attendance-add-groups-action />
                     @endif
                     @if ($canToggleDayStatus)
                         @php
@@ -349,37 +414,33 @@ new class extends Component
             @endif
         </div>
 
-        @if ($canAddManualGroup && $availableExtraGroups->isEmpty())
-            <div class="px-5 pt-4 text-sm text-neutral-400">{{ __('workflow.student_attendance.day_details.manual_add.empty') }}</div>
-        @endif
-
         @if ($dayRecord->groupAttendanceDays->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.day_details.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="attendance-day-groups-table text-sm">
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
                             <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($dayRecord->groupAttendanceDays as $groupDay)
-                            <tr>
+                            <tr wire:key="attendance-day-group-{{ $groupDay->id }}">
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $groupDay->group?->name ?: __('workflow.common.no_group') }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     {{ $groupDay->group?->teacher ? $groupDay->group->teacher->first_name.' '.$groupDay->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="flex justify-end">
+                                    <div class="flex justify-end gap-2">
                                         <x-open-action-button :href="route('student-attendance.mark', $groupDay)" wire:navigate :label="__('workflow.student_attendance.day_details.table.open')" />
                                     </div>
                                 </td>

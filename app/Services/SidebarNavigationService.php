@@ -15,15 +15,20 @@ class SidebarNavigationService
     {
         return [
             'platform' => ['title_key' => 'ui.nav.platform', 'sort_order' => 10],
-            'people' => ['title_key' => 'ui.nav.people', 'sort_order' => 20],
-            'academics' => ['title_key' => 'ui.nav.academics', 'sort_order' => 30],
-            'tracking_attendance' => ['title_key' => 'ui.nav.tracking_attendance', 'sort_order' => 40],
-            'tracking_quran' => ['title_key' => 'ui.nav.tracking_quran', 'sort_order' => 50],
-            'tracking_performance' => ['title_key' => 'ui.nav.tracking_performance', 'sort_order' => 60],
-            'tracking_tools' => ['title_key' => 'ui.nav.tracking_tools', 'sort_order' => 70],
+            'registration' => ['title_key' => 'ui.nav.registration', 'sort_order' => 20],
+            'tracking_attendance' => ['title_key' => 'ui.nav.tracking_attendance', 'sort_order' => 30],
+            'memorization_entry' => ['title_key' => 'ui.nav.memorization_entry', 'sort_order' => 40],
+            'tracking_quran' => ['title_key' => 'ui.nav.memorization_tracking', 'sort_order' => 50],
+            'tracking_performance' => ['title_key' => 'ui.nav.points_group', 'sort_order' => 60],
+            'tracking_tools' => ['title_key' => 'ui.nav.notes_group', 'sort_order' => 70],
             'finance' => ['title_key' => 'ui.nav.finance', 'sort_order' => 80],
-            'configuration' => ['title_key' => 'ui.nav.configuration', 'sort_order' => 90],
-            'identity_tools' => ['title_key' => 'ui.nav.identity_tools', 'sort_order' => 100],
+            'identity_tools' => ['title_key' => 'ui.nav.cards_group', 'sort_order' => 90],
+            'activities' => ['title_key' => 'ui.nav.activities', 'sort_order' => 100],
+            'designs' => ['title_key' => 'ui.nav.designs', 'sort_order' => 110],
+            'academics' => ['title_key' => 'ui.nav.courses', 'sort_order' => 120],
+            'people' => ['title_key' => 'ui.nav.users', 'sort_order' => 130],
+            'database' => ['title_key' => 'ui.nav.database', 'sort_order' => 140],
+            'configuration' => ['title_key' => 'ui.nav.configuration', 'sort_order' => 150],
         ];
     }
 
@@ -31,37 +36,37 @@ class SidebarNavigationService
     {
         return [
             'dashboard' => $this->item('ui.nav.dashboard', 'home', 'dashboard', ['dashboard'], 'platform', 10),
-            'reports' => $this->item('ui.nav.reports', 'chart-bar', 'reports.index', ['reports.*'], 'platform', 20, ['reports.view']),
+            'reports' => $this->item('ui.nav.reports', 'chart-bar', 'reports.index', ['reports.*'], 'platform', 30, ['reports.view']),
 
             'users' => $this->item('ui.nav.users', 'user-group', 'users.index', ['users.*'], 'people', 10, ['users.view']),
-            'parents' => $this->item('ui.nav.parents', 'parents-couple', 'parents.index', ['parents.*'], 'people', 20, ['parents.view']),
-            'teachers' => $this->item('ui.nav.teachers', 'male-teacher', 'teachers.index', ['teachers.*'], 'people', 30, ['teachers.view']),
-            'students' => $this->item('ui.nav.students', 'student-graduates', 'students.index', ['students.index', 'students.files', 'students.bulk-photos'], 'people', 40, ['students.view']),
-            'student_progress' => $this->item('ui.nav.student_progress', 'presentation-chart-line', 'students.progress', ['students.progress'], 'people', 50, ['students.view']),
-            'community_contacts' => $this->item('ui.nav.community_contacts', 'landline-phone', 'community-contacts.index', ['community-contacts.*'], 'people', 70, ['community-contacts.view']),
+            'parents' => $this->item('ui.nav.parents', 'parents-couple', 'parents.index', ['parents.*'], 'people', 30, ['parents.view']),
+            'teachers' => $this->item('ui.nav.teachers', 'male-teacher', 'teachers.index', ['teachers.*'], 'people', 20, ['teachers.view']),
+            'students' => $this->item('ui.nav.students', 'student-graduates', 'students.index', ['students.index', 'students.files', 'students.bulk-photos'], 'registration', 20, ['students.view']),
+            'student_progress' => $this->item('ui.nav.student_progress', 'presentation-chart-line', 'students.progress', ['students.progress'], 'platform', 20, ['students.view']),
+            'community_contacts' => $this->item('ui.nav.community_contacts', 'landline-phone', 'community-contacts.index', ['community-contacts.*'], 'activities', 30, ['community-contacts.view']),
 
             'courses' => $this->item('ui.nav.courses', 'mosque', 'courses.index', ['courses.*'], 'academics', 10, ['courses.view']),
             'groups' => $this->item('ui.nav.groups', 'people-circle', 'groups.index', ['groups.*'], 'academics', 20, ['groups.view']),
-            'curricula' => $this->item('ui.nav.curricula', 'books-leaning', 'curricula.index', ['curricula.*'], 'academics', 25),
-            'enrollments' => $this->item('ui.nav.enrollments', 'enrollment-add', 'enrollments.index', ['enrollments.*'], 'academics', 30, ['enrollments.view']),
+            'curricula' => $this->item('ui.nav.curricula', 'books-leaning', 'curricula.index', ['curricula.*'], 'platform', 40),
+            'enrollments' => $this->item('ui.nav.enrollments', 'enrollment-add', 'enrollments.index', ['enrollments.*'], 'registration', 10, ['enrollments.view']),
 
             'student_attendance' => $this->item('ui.nav.student_attendance', 'clipboard-student', 'student-attendance.index', ['student-attendance.*', 'groups.attendance', 'barcode-actions.import'], 'tracking_attendance', 10, ['attendance.student.view']),
             'teacher_attendance' => $this->item('ui.nav.teacher_attendance', 'clipboard-person', 'teacher-attendance.index', ['teacher-attendance.*'], 'tracking_attendance', 20, ['attendance.teacher.view']),
 
             'memorization' => $this->item('ui.nav.memorization', 'quran-stand', 'memorization.index', ['memorization.index', 'enrollments.memorization'], 'tracking_quran', 10, ['memorization.view']),
-            'enter_memorize' => $this->item('ui.nav.enter_memorize', 'pencil-square', 'memorization.quick-entry', ['memorization.quick-entry'], 'tracking_quran', 20, ['memorization.record']),
-            'quran_tests_quick_entry' => $this->item('ui.nav.quran_tests_quick_entry', 'book-open-pencil', 'saber-entry.index', ['saber-entry.*'], 'tracking_quran', 25, ['quran-tests.quick-entry']),
-            'quran_partial_tests' => $this->item('ui.nav.quran_partial_tests', 'squares-2x2', 'quran-partial-tests.index', ['quran-partial-tests.*'], 'tracking_quran', 30, ['quran-partial-tests.view']),
-            'quran_final_tests' => $this->item('ui.nav.quran_final_tests', 'check-badge', 'quran-final-tests.index', ['quran-final-tests.*'], 'tracking_quran', 40, ['quran-final-tests.view']),
-            'quran_tests' => $this->item('ui.nav.quran_tests', 'certificate-landscape', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 50, ['quran-awqaf-tests.view']),
+            'enter_memorize' => $this->item('ui.nav.enter_memorize', 'pencil-square', 'memorization.quick-entry', ['memorization.quick-entry'], 'memorization_entry', 10, ['memorization.record']),
+            'quran_tests_quick_entry' => $this->item('ui.nav.quran_tests_quick_entry', 'book-open-pencil', 'saber-entry.index', ['saber-entry.*'], 'memorization_entry', 20, ['quran-tests.quick-entry']),
+            'quran_partial_tests' => $this->item('ui.nav.quran_partial_tests', 'squares-2x2', 'quran-partial-tests.index', ['quran-partial-tests.*'], 'tracking_quran', 20, ['quran-partial-tests.view']),
+            'quran_final_tests' => $this->item('ui.nav.quran_final_tests', 'check-badge', 'quran-final-tests.index', ['quran-final-tests.*'], 'tracking_quran', 30, ['quran-final-tests.view']),
+            'quran_tests' => $this->item('ui.nav.quran_tests', 'certificate-landscape', 'quran-tests.index', ['quran-tests.*', 'enrollments.quran-tests'], 'tracking_quran', 40, ['quran-awqaf-tests.view']),
 
             'assessments' => $this->item('ui.nav.assessments', 'assessment-review', 'assessments.index', ['assessments.*'], 'tracking_performance', 10, ['assessments.view']),
             'point_ledger' => $this->item('ui.nav.point_ledger', 'achievement-star', 'points.index', ['points.*', 'enrollments.points'], 'tracking_performance', 20, ['points.view']),
 
             'student_notes' => $this->item('ui.nav.student_notes', 'note-document', 'student-notes.index', ['student-notes.*'], 'tracking_tools', 10, ['student-notes.view']),
 
-            'activities' => $this->item('ui.nav.activities', 'sparkles', 'activities.index', ['activities.index', 'activities.finance'], 'academics', 40, ['activities.view']),
-            'family_activities' => $this->item('ui.nav.family_activities', 'heart', 'activities.family', ['activities.family'], 'academics', 50, ['activities.responses.view']),
+            'activities' => $this->item('ui.nav.activities', 'sparkles', 'activities.index', ['activities.index', 'activities.finance'], 'activities', 10, ['activities.view']),
+            'family_activities' => $this->item('ui.nav.family_activities', 'heart', 'activities.family', ['activities.family'], 'activities', 20, ['activities.responses.view']),
             'finance_dashboard' => $this->item('ui.nav.finance_dashboard', 'finance-dashboard', 'finance.dashboard', ['finance.dashboard', 'finance.cash-box.*'], 'finance', 10, ['finance.reports.view']),
             'finance_expense_requests' => $this->item('ui.nav.finance_expense_requests', 'expense-receipt', 'finance.expense-requests.index', ['finance.expense-requests.*'], 'finance', 20, ['finance.expense-requests.view']),
             'finance_revenue_requests' => $this->item('ui.nav.finance_income', 'income-hand', 'finance.revenue-requests.index', ['finance.revenue-requests.*'], 'finance', 30, ['finance.revenue-requests.view']),
@@ -71,12 +76,12 @@ class SidebarNavigationService
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
-            'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'configuration', 20, ['website.manage']),
-            'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'configuration', 30, ['data-quality.view']),
-            'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'configuration', 40, ['data-audit.view']),
+            'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'designs', 10, ['website.manage']),
+            'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'database', 10, ['data-quality.view']),
+            'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'database', 20, ['data-audit.view']),
 
-            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'identity_tools', 10, ['id-cards.view']),
-            'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 20, ['id-cards.print']),
+            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'designs', 20, ['id-cards.view']),
+            'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 10, ['id-cards.print']),
         ];
     }
 
@@ -280,7 +285,7 @@ class SidebarNavigationService
                     'href' => $teacherGroup ? route('groups.show', $teacherGroup) : route($itemDefinition['route_name']),
                     'current' => request()->routeIs(...$itemDefinition['current_patterns']),
                     'sort_order' => $isTeacherCurriculum
-                        ? 30
+                        ? 40
                         : ($settings['items'][$itemKey]['sort_order'] ?? $itemDefinition['sort_order']),
                 ];
             }

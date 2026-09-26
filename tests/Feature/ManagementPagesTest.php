@@ -220,7 +220,7 @@ class ManagementPagesTest extends TestCase
             'livewire/settings/website-pages.blade.php' => 3,
             'livewire/settings/website-navigation.blade.php' => 3,
             'livewire/settings/website.blade.php' => 2,
-            'livewire/curricula/index.blade.php' => 2,
+            'livewire/curricula/index.blade.php' => 1,
             'livewire/curricula/show.blade.php' => 2,
             'livewire/groups/show.blade.php' => 1,
             'livewire/student-attendance/show.blade.php' => 1,
@@ -1511,9 +1511,9 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-student-progress-awqaf-save-action', $studentProgressView);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-action]', $styles);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-status]', $styles);
-        $this->assertStringContainsString('.student-juz-progress-table .mobile-record-card [data-juz-progress-status]', $styles);
-        $this->assertStringContainsString('.student-juz-progress-table .mobile-record-card__actions [data-juz-progress-action]', $styles);
-        $this->assertStringContainsString('grid-template-columns: 0.45rem minmax(0, 1fr) 0.45rem;', $styles);
+        $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
+        $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);
+        $this->assertStringNotContainsString('mobile-record-card', $studentProgressView);
         $this->assertStringContainsString('flex: 0 0 0.45rem;', $styles);
         $this->assertStringContainsString('data-student-progress-missing-pages', $studentProgressView);
         $this->assertStringContainsString('student-progress-missing-pages__table', $studentProgressView);
@@ -2269,7 +2269,7 @@ class ManagementPagesTest extends TestCase
         ]);
 
         $otherGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Other Teacher Course', 'is_active' => true])->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $otherTeacher->id,
             'name' => 'Other Group',

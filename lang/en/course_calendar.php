@@ -6,10 +6,17 @@ return [
     'start' => 'Course start',
     'end' => 'Course end',
     'week' => 'Week',
+    'events' => 'Calendar events',
     'manager' => [
+        'single_day' => 'Single day',
+        'date_range' => 'Date range',
+        'color_option' => 'Colour :number',
         'title' => ':course Calendar',
         'fields' => [
             'date' => 'Date',
+            'start_date' => 'From',
+            'end_date' => 'To',
+            'end_date_optional' => 'To (optional)',
             'name' => 'Name',
             'color' => 'Colour',
         ],
@@ -17,7 +24,10 @@ return [
             'name' => 'Addition name',
         ],
         'actions' => [
+            'choose_dates' => 'Choose dates',
+            'done' => 'Done',
             'add' => 'Add to calendar',
+            'choose_color' => 'Choose a colour',
             'save' => 'Save calendar additions',
             'open_pdf' => 'Open course calendar',
         ],
@@ -26,7 +36,9 @@ return [
             'saved' => 'Course calendar additions saved successfully.',
         ],
         'errors' => [
+            'color_used' => 'This colour is already assigned to another event.',
             'date_range' => 'The date must be within the course dates.',
+            'end_before_start' => 'The end date must be on or after the start date.',
             'duplicate' => 'This addition already exists on the same date.',
         ],
     ],

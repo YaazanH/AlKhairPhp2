@@ -56,7 +56,7 @@ new class extends Component {
     {
         $group = Group::query()->with(['course', 'academicYear', 'teacher', 'assistantTeacher', 'gradeLevel', 'curriculum'])->withCount(['enrollments as active_students_count' => fn ($q) => $q->where('status', 'active')])->findOrFail($this->currentGroup->id);
         $roster = $this->scopeEnrollmentsQuery(Enrollment::query())->where('group_id', $group->id)->where('status', 'active')->with(['student.parentProfile', 'student.gradeLevel', 'student.quranCurrentJuz', 'student.user'])->orderByDesc('enrolled_at')->paginate(10, ['*'], 'rosterPage');
-        $availableStudents = $this->scopeStudentsQuery(Student::query())->where('status', 'active')->whereDoesntHave('enrollments', fn ($q) => $q->where('group_id', $group->id)->where('status', 'active'))->orderBy('first_name')->orderBy('last_name')->get();
+        $availableStudents = $this->scopeStudentsQuery(Student::query())->where('status', 'active')->whereDoesntHave('enrollments', fn ($q) => $q->withTrashed()->forCourseOfGroup($group->id))->orderBy('first_name')->orderBy('last_name')->get();
 
         return [
             'groupRecord' => $group,
@@ -172,6 +172,24 @@ new class extends Component {
         session()->flash('status', __('crud.groups.messages.deactivated'));
     }
 
+    public function reactivate(): void
+    {
+        $this->authorizePermission('groups.update');
+        $group = $this->currentGroup->fresh(['course', 'academicYear']);
+        $this->authorizeScopedGroupAccess($group);
+
+        if ($group->course_finished_at || ! $group->course?->is_active
+            || $group->course->finished_at || ! $group->academicYear?->is_active) {
+            $this->addError('group', __('crud.groups.errors.course_archived'));
+
+            return;
+        }
+
+        $group->update(['is_active' => true]);
+        $this->currentGroup = $group;
+        session()->flash('status', __('crud.groups.messages.reactivated'));
+    }
+
     public function closeEdit(): void { $this->showEditModal = false; $this->resetValidation(); }
     public function closeSchedules(): void { $this->showScheduleModal = false; $this->resetSchedule(); $this->resetValidation(); }
     public function closeAddStudent(): void { $this->showAddStudentModal = false; $this->roster_student_id = ''; $this->resetValidation(); }
@@ -256,6 +274,7 @@ new class extends Component {
         $student = Student::query()->findOrFail($data['roster_student_id']);
         $this->authorizeScopedStudentAccess($student);
         $enrollment = Enrollment::withTrashed()->firstOrNew(['group_id' => $this->currentGroup->id, 'student_id' => $data['roster_student_id']]);
+        Enrollment::assertStudentCanJoinGroup($student->id, $this->currentGroup->id, $enrollment->getKey(), 'roster_student_id');
         if ($enrollment->trashed()) $enrollment->restore();
         $enrollment->fill(['enrolled_at' => $data['roster_enrolled_at'], 'status' => 'active', 'left_at' => null])->save();
         $this->resetPage('rosterPage');
@@ -440,8 +459,16 @@ new class extends Component {
     $canCopyGroup = $groupIsEditable
         && (bool) auth()->user()?->can('groups.create')
         && (bool) auth()->user()?->can('groups.update');
-    $canCopyGroupSummary = auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()) ?? false;
-    $showGroupActionStack = $canManageGroup || $canCopyGroup || $canCopyGroupSummary;
+    $canCopyGroupSummary = $groupIsEditable
+        && ! $groupRecord->course?->finished_at
+        && (auth()->user()?->hasAnyRole(RoleRegistry::unrestrictedRoles()) ?? false);
+    $canReactivateGroup = ! $groupRecord->is_active
+        && ! $groupRecord->course_finished_at
+        && $groupRecord->course?->is_active
+        && ! $groupRecord->course?->finished_at
+        && $groupRecord->academicYear?->is_active
+        && auth()->user()?->can('groups.update');
+    $showGroupActionStack = $canManageGroup || $canCopyGroup || $canCopyGroupSummary || $canReactivateGroup;
 @endphp
 
 <div class="page-stack">
@@ -476,8 +503,13 @@ new class extends Component {
 
                 @if($showGroupActionStack)
                     <div class="group-show-action-stack flex max-w-full flex-col gap-3">
-                        @if($canManageGroup || $canCopyGroup)
+                        @if($canManageGroup || $canCopyGroup || $canReactivateGroup)
                             <div class="group-show-actions surface-panel flex max-w-full items-center gap-2 p-3">
+                                @if($canReactivateGroup)
+                                    <button type="button" wire:click="reactivate" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.courses.actions.reactivate') }}" aria-label="{{ __('crud.courses.actions.reactivate') }}" data-group-reactivate-action>
+                                        <x-admin-action-icon name="restore-point" />
+                                    </button>
+                                @endif
                                 @if($canManageGroup)
                                     <x-edit-action-button wire:click="openEdit" :label="__('crud.common.actions.edit')" data-group-hero-edit-action />
                                 @endif
@@ -520,7 +552,7 @@ new class extends Component {
                     @if ($groupIsEditable)
                         <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}" data-group-roster-pdf-action><x-pdf-export-icon /></a>
                     @endif
-                    @if (! $groupRecord->course_finished_at && ($groupRecord->course?->is_active ?? true))
+                    @if ($groupIsEditable)
                         @can('enrollments.create')
                             <x-add-action-button wire:click="$set('showAddStudentModal', true)" :label="__('crud.groups.roster.add_student')" />
                         @endcan

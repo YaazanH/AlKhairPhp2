@@ -624,46 +624,7 @@ new class extends Component
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
             @error('awqaf')<div class="flash-error mx-5 mb-4 px-4 py-3 text-sm">{{ $message }}</div>@enderror
             @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
-                <div class="responsive-records-mobile">
-                    @foreach ($quranJuzProgress as $row)
-                        @php($showMissingPagesAction = ! $row->memorized_externally && $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
-                        @php($showAwqafAction = $row->enrollment && ($row->final_passed || $row->memorized_externally) && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
-                        <article class="mobile-record-card">
-                            <div class="mobile-record-card__header">
-                                <div class="mobile-record-card__title">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</div>
-                                <span class="status-chip {{ $row->memorized_externally ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status) }}" data-juz-progress-status>{{ $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)) }}</span>
-                            </div>
-
-                            <dl class="mobile-record-card__details mobile-record-card__details--three">
-                                <div>
-                                    <dt>{{ __('workflow.student_progress.juz_progress.headers.pages') }}</dt>
-                                    <dd>{{ $row->memorized_externally ? '—' : number_format($row->memorized_pages) }}</dd>
-                                </div>
-                                <div>
-                                    <dt>{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</dt>
-                                    <dd>@if (! $row->memorized_externally && $row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@else — @endif</dd>
-                                </div>
-                                <div>
-                                    <dt>{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</dt>
-                                    <dd>{{ ! $row->memorized_externally && $row->latest_final_score !== null ? \App\Support\PercentageFormatter::format($row->latest_final_score) : '—' }}</dd>
-                                </div>
-                            </dl>
-
-                            @if ($row->awqaf_passed || $showMissingPagesAction || $showAwqafAction)
-                                <div class="mobile-record-card__actions">
-                                    @if ($row->awqaf_passed)
-                                        <span class="text-sm text-emerald-300">تم سبره بالأوقاف{{ $row->awqaf_passed_on ? ' · '.$row->awqaf_passed_on->format('d-m-Y') : '' }}</span>
-                                    @else
-                                        @if ($showMissingPagesAction)<button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact" data-juz-progress-action>{{ __('workflow.student_progress.juz_progress.show_missing') }}</button>@endif
-                                        @if ($showAwqafAction)<button type="button" wire:click="openAwqafTest({{ $row->juz->id }})" class="pill-link pill-link--compact" data-juz-progress-action>{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</button>@endif
-                                    @endif
-                                </div>
-                            @endif
-                        </article>
-                    @endforeach
-                </div>
-
-                <div class="responsive-records-desktop table-scroll-region overflow-x-auto" data-table-scroll-region><table class="w-full table-fixed text-sm" data-student-progress-juz-table><thead><tr>
+                <div class="table-scroll-region overflow-x-auto" data-table-scroll-region><table class="w-full text-sm" data-student-progress-juz-table><thead><tr>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>

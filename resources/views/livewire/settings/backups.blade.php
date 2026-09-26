@@ -52,13 +52,14 @@ new class extends Component {
         ];
     }
 
-    public function createBackup(): void
+    public function createBackup(string $scope = SystemBackup::SCOPE_DATABASE): void
     {
         $this->authorizePermission('backups.manage');
         $this->resetErrorBag('backup');
 
         try {
-            app(SystemBackupService::class)->create(auth()->user());
+            abort_unless(in_array($scope, [SystemBackup::SCOPE_DATABASE, SystemBackup::SCOPE_FILES], true), 422);
+            app(SystemBackupService::class)->create(auth()->user(), scope: $scope);
             $this->resetPage();
             session()->flash('status', __('backups.messages.created'));
         } catch (\Throwable $exception) {
@@ -340,6 +341,9 @@ new class extends Component {
             </div>
             <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="text-xs font-semibold text-neutral-400">{{ __('backups.stats.next_scheduled') }}</div>
+                @if ($frequency !== 'disabled' && $health['scheduler_running'])
+                    <div class="mt-1 text-xs text-emerald-400" data-backup-scheduler-status>{{ __('backups.stats.scheduler_running') }}</div>
+                @endif
                 <div class="mt-2 text-sm font-semibold text-white">
                     @if ($nextScheduledAt)
                         <bdi dir="ltr">{{ $nextScheduledAt->format('d-m-Y H:i') }}</bdi>
@@ -374,6 +378,9 @@ new class extends Component {
                 <button type="button" wire:click="createBackup" wire:loading.attr="disabled" wire:target="createBackup" class="admin-icon-button admin-icon-button--accent disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create') }}" aria-label="{{ __('backups.actions.create') }}" data-backup-create-action>
                     <x-admin-action-icon name="backup-upload" />
                 </button>
+                <button type="button" wire:click="createBackup('files')" wire:loading.attr="disabled" wire:target="createBackup" class="admin-icon-button disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create_files') }}" aria-label="{{ __('backups.actions.create_files') }}" data-backup-files-create-action>
+                    <x-admin-action-icon name="documents-backup" />
+                </button>
                 <button type="button" wire:click="openFileRestore" wire:confirm="{{ __('backups.confirmations.open_file_restore') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('backups.actions.restore_from_file') }}" aria-label="{{ __('backups.actions.restore_from_file') }}" data-backup-file-restore-action>
                     <x-admin-action-icon name="cloud-upload" />
                 </button>
@@ -403,7 +410,7 @@ new class extends Component {
                             </td>
                             <td class="px-5 py-3">{{ __('backups.triggers.'.$backup->trigger) }}</td>
                             <td class="px-5 py-3">
-                                <div>{{ $backup->includes_files ? __('backups.table.database_and_files') : __('backups.table.database_only') }}</div>
+                                <div>{{ __('backups.scopes.'.$backup->scope) }}</div>
                                 @if ($backup->includes_files)
                                     <div class="mt-1 text-xs text-neutral-500">{{ __('backups.table.files_count', ['count' => number_format((int) data_get($backup->manifest_summary, 'files_count', 0))]) }}</div>
                                 @endif

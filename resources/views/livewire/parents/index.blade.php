@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Livewire\Concerns\LinksExistingProfileAccounts;
 use App\Models\DataQualityResolution;
 use App\Models\FatherJob;
 use App\Models\ParentProfile;
@@ -24,6 +25,7 @@ new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
+    use LinksExistingProfileAccounts;
     use WithPagination;
 
     public ?int $editingId = null;
@@ -53,6 +55,8 @@ new class extends Component {
     public bool $showFormModal = false;
     public bool $showAccountModal = false;
     public bool $showAccountViewModal = false;
+
+    public bool $showPasswordModal = false;
     public string $account_father_name = '';
     public bool $showChildrenModal = false;
     public bool $showBulkStatusModal = false;
@@ -202,7 +206,7 @@ new class extends Component {
                 ]);
 
             if ($this->bulk_sync_accounts && $accountIds !== []) {
-                User::query()
+                app(ManagedUserService::class)->exclusiveAccountsQuery('parent')
                     ->whereIn('id', $accountIds)
                     ->update([
                         'is_active' => $this->bulk_status_action === 'activate',
@@ -254,6 +258,11 @@ new class extends Component {
 
     public function save(): void
     {
+        DB::transaction(fn () => $this->saveProfile());
+    }
+
+    protected function saveProfile(): void
+    {
         $this->authorizePermission($this->editingId ? 'parents.update' : 'parents.create');
         $qualityIssue = null;
         $editingParent = null;
@@ -267,6 +276,7 @@ new class extends Component {
         foreach (['father_phone', 'mother_phone', 'home_phone'] as $phoneField) {
             $this->{$phoneField} = PhoneNumberFormatter::normalize($this->{$phoneField}) ?? '';
         }
+        $existingAccount = $this->selectedExistingAccount('parent');
         $validated = $this->validate();
 
         foreach (['father_work', 'father_phone', 'mother_name', 'mother_phone', 'home_phone', 'address', 'notes'] as $field) {
@@ -296,7 +306,7 @@ new class extends Component {
             $validated,
         );
 
-        $result = app(ManagedUserService::class)->syncLinkedUser(
+        $result = $existingAccount ? app(ManagedUserService::class)->reuseLinkedUser($existingAccount, 'parent') : app(ManagedUserService::class)->syncLinkedUser(
             $parent->user,
             [
                 'name' => $validated['father_name'],
@@ -336,6 +346,7 @@ new class extends Component {
 
     public function edit(int $parentId): void
     {
+        $this->existingAccountId = null;
         $this->authorizePermission('parents.update');
 
         $parent = ParentProfile::query()->findOrFail($parentId);
@@ -363,15 +374,19 @@ new class extends Component {
 
         $parent = ParentProfile::query()->findOrFail($parentId);
         $this->authorizeScopedParentAccess($parent);
+        abort_unless($this->canManageProfileLogin($parent->user, 'parent'), 403);
         app(ParentNumberService::class)->syncParent($parent);
         $parent->refresh();
 
         $this->accountParentId = $parent->id;
-        $this->account_username = $parent->parent_number ?? ($parent->user?->username ?? '');
+        $this->account_username = $parent->user?->username ?? ($parent->parent_number ?? '');
         $this->account_email = $parent->user?->email ?? '';
         $this->account_password = '';
         $this->account_is_active = $parent->user?->is_active ?? $parent->is_active;
-        $this->issued_password = $parent->user?->issued_password;
+        $this->issued_password = $parent->user?->currentIssuedPassword();
+        $this->showFormModal = false;
+        $this->showAccountViewModal = false;
+        $this->showPasswordModal = false;
         $this->showAccountModal = true;
 
         $this->resetValidation([
@@ -387,10 +402,62 @@ new class extends Component {
         $this->authorizePermission('parents.view');
         $parent = ParentProfile::query()->with('user')->findOrFail($parentId);
         $this->authorizeScopedParentAccess($parent);
+        abort_unless($this->canManageProfileLogin($parent->user, 'parent'), 403);
+        $this->accountParentId = $parent->id;
         $this->account_father_name = $parent->father_name;
-        $this->account_username = $parent->parent_number ?? ($parent->user?->username ?? '');
-        $this->issued_password = $parent->user?->issued_password;
+        $this->account_username = $parent->user?->username ?? ($parent->parent_number ?? '');
+        $this->issued_password = $parent->user?->currentIssuedPassword();
+        $this->showFormModal = false;
+        $this->showAccountModal = false;
+        $this->showPasswordModal = false;
         $this->showAccountViewModal = true;
+    }
+
+    public function openPasswordModal(): void
+    {
+        $this->authorizePermission('parents.update');
+        $parent = ParentProfile::query()->with('user')->findOrFail($this->accountParentId);
+        $this->authorizeScopedParentAccess($parent);
+        abort_unless($this->canManageProfileLogin($parent->user, 'parent'), 403);
+
+        $this->account_password = $parent->user?->currentIssuedPassword() ?? '';
+        $this->showFormModal = false;
+        $this->showAccountModal = false;
+        $this->showAccountViewModal = false;
+        $this->showPasswordModal = true;
+        $this->resetValidation('account_password');
+    }
+
+    public function savePassword(): void
+    {
+        $this->authorizePermission('parents.update');
+        $parent = ParentProfile::query()->with('user')->findOrFail($this->accountParentId);
+        $this->authorizeScopedParentAccess($parent);
+        abort_unless($this->canManageProfileLogin($parent->user, 'parent'), 403);
+
+        $currentPassword = $parent->user?->currentIssuedPassword();
+        if ($this->account_password !== $currentPassword && filled($this->account_password)) {
+            $validated = $this->validate(['account_password' => ['required', 'string', 'min:8']]);
+            if ($parent->user) {
+                $parent->user->update([
+                    'password' => $validated['account_password'],
+                    'issued_password' => $validated['account_password'],
+                ]);
+            } else {
+                $result = app(ManagedUserService::class)->syncLinkedUser(null, [
+                    'name' => $parent->father_name,
+                    'username' => $parent->parent_number,
+                    'password' => $validated['account_password'],
+                    'is_active' => $parent->is_active,
+                ], 'parent', true);
+                $parent->user()->associate($result['user']);
+                $parent->save();
+            }
+        }
+
+        $this->account_password = '';
+        $this->viewAccount($parent->id);
+        session()->flash('status', __('access.profile_accounts.messages.saved'));
     }
 
     public function openChildrenModal(int $parentId): void
@@ -443,7 +510,7 @@ new class extends Component {
             $parent->user,
             [
                 'name' => $parent->father_name,
-                'username' => $parent->parent_number ?: ($validated['account_username'] ?: null),
+                'username' => $parent->user?->username ?: ($parent->parent_number ?: null),
                 'email' => $validated['account_email'] ?: null,
                 'phone' => $parent->father_phone ?: ($parent->mother_phone ?: ($parent->home_phone ?: null)),
                 'phones' => [
@@ -455,6 +522,7 @@ new class extends Component {
                 'is_active' => (bool) $validated['account_is_active'],
             ],
             'parent',
+            true,
         );
 
         $parent->user()->associate($result['user']);
@@ -501,6 +569,7 @@ new class extends Component {
 
     public function cancel(): void
     {
+        $this->existingAccountId = null;
         $this->editingId = null;
         $this->editParent = null;
         $this->qualityIssueKey = '';
@@ -586,7 +655,7 @@ new class extends Component {
 
         $linkedUser = $parent->user;
         $parent->delete();
-        $linkedUser?->delete();
+        app(ManagedUserService::class)->removeProfileAccount($linkedUser, 'parent');
 
         if ($this->editingId === $parentId) {
             $this->cancel();
@@ -649,7 +718,7 @@ new class extends Component {
         }
 
         $accounts = $this->bulk_sync_accounts
-            ? User::query()
+            ? app(ManagedUserService::class)->exclusiveAccountsQuery('parent')
                 ->whereIn('id', ParentProfile::query()->whereIn('id', $targets)->whereNotNull('user_id')->pluck('user_id'))
                 ->where('is_active', $this->bulk_status_action !== 'activate')
                 ->count()
@@ -840,7 +909,9 @@ new class extends Component {
                         </dl>
 
                         <div class="mobile-record-card__actions">
-                            <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
+                            @if ($this->canManageProfileLogin($parent->user, 'parent'))
+                        <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
+                    @endif
                             @can('students.view')
                                 @if ($parent->students_count > 0)
                                     <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.parents.children.action') }}" aria-label="{{ __('crud.parents.children.action') }}" data-parent-children-action><flux:icon.parents-couple /></button>
@@ -886,7 +957,9 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
+                                        @if ($this->canManageProfileLogin($parent->user, 'parent'))
+                        <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
+                    @endif
                                         @can('students.view')
                                             @if ($parent->students_count > 0)
                                                 <button type="button" wire:click="openChildrenModal({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.parents.children.action') }}" aria-label="{{ __('crud.parents.children.action') }}" data-parent-children-action><flux:icon.parents-couple /></button>
@@ -1090,9 +1163,11 @@ new class extends Component {
                 </button>
                 @if($editingId)
                     @can('parents.update')
+                        @if ($this->canManageProfileLogin(\App\Models\ParentProfile::find($editingId)?->user, 'parent'))
                         <button type="button" wire:click="openAccountModal({{ $editingId }})" class="admin-icon-button admin-modal-action-button" title="{{ __('access.profile_accounts.title') }}" aria-label="{{ __('access.profile_accounts.title') }}" data-parent-form-account-action>
                             <x-admin-action-icon name="account" class="admin-modal-action__icon" />
                         </button>
+                    @endif
                     @endcan
                     @can('parents.delete')
                         <x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-parent-form-delete-action />
@@ -1158,13 +1233,29 @@ new class extends Component {
     </x-admin.modal>
 
     <x-admin.modal :show="$showAccountViewModal" :title="__('access.profile_accounts.title')" close-method="$set('showAccountViewModal', false)" max-width="2xl">
+        <x-slot:headerActions>
+            @can('parents.update')
+                <button type="button" wire:click="openPasswordModal" class="admin-modal__close" title="{{ __('access.profile_accounts.sections.password') }}" aria-label="{{ __('access.profile_accounts.sections.password') }}" data-parent-password-edit-action><x-admin-action-icon name="edit" class="size-5" /></button>
+            @endcan
+        </x-slot:headerActions>
         <div class="rounded-3xl border border-white/15 bg-white p-8 text-neutral-900 shadow-xl" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
             <div class="text-center text-2xl font-bold">{{ $account_father_name }}</div>
             <div class="mt-8 grid grid-cols-[auto_1fr] gap-x-5 gap-y-4 text-lg">
                 <div class="font-semibold">{{ __('access.profile_accounts.fields.username') }}</div><div class="font-mono">{{ $account_username ?: __('crud.common.not_available') }}</div>
-                <div class="font-semibold">{{ __('access.profile_accounts.fields.password') }}</div><div class="font-mono">{{ $issued_password ?: __('access.profile_accounts.empty.issued_password') }}</div>
+                <div class="font-semibold">{{ __('access.profile_accounts.fields.password') }}</div><div class="min-w-0 break-words">@if($issued_password)<bdi dir="ltr" class="font-mono">{{ $issued_password }}</bdi>@else<span class="text-base leading-relaxed">{{ __('access.profile_accounts.empty.issued_password') }}</span>@endif</div>
             </div>
         </div>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showPasswordModal" :title="__('access.profile_accounts.fields.password')" :dismissible="false" max-width="sm">
+        <x-slot:headerActions>
+            <button type="submit" form="parent-password-form" class="admin-icon-button admin-icon-button--accent" title="{{ __('access.profile_accounts.actions.save') }}" aria-label="{{ __('access.profile_accounts.actions.save') }}" data-parent-password-save-action><x-admin-action-icon name="save" /></button>
+        </x-slot:headerActions>
+        <form id="parent-password-form" wire:submit="savePassword" data-parent-password-form>
+            <label for="parent-account-password" class="mb-2 block text-sm font-medium">{{ __('access.profile_accounts.fields.password') }}</label>
+            <input id="parent-account-password" wire:model="account_password" style="text-align: right" type="text" autocomplete="off" dir="ltr" class="w-full rounded-xl px-4 py-3 text-base">
+            @error('account_password') <div class="mt-2 text-sm text-red-400">{{ $message }}</div> @enderror
+        </form>
     </x-admin.modal>
 
     <x-admin.modal
@@ -1174,7 +1265,13 @@ new class extends Component {
         close-method="closeAccountModal"
         max-width="4xl"
     >
+        <x-slot:headerActions>
+            <button type="button" wire:click="openPasswordModal" class="admin-modal__close" title="{{ __('access.profile_accounts.sections.password') }}" aria-label="{{ __('access.profile_accounts.sections.password') }}" data-parent-password-edit-action><x-admin-action-icon name="edit" class="size-5" /></button>
+        </x-slot:headerActions>
         <form wire:submit="saveAccount" class="space-y-4">
+            @if ($showAccountModal && $accountParentId)
+                <x-shared-profile-login-notice :user="\App\Models\ParentProfile::find($accountParentId)?->user" profile="parent" />
+            @endif
             <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <div class="text-sm font-semibold text-white">{{ __('access.profile_accounts.sections.identity') }}</div>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
@@ -1205,26 +1302,9 @@ new class extends Component {
 
             <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <div class="text-sm font-semibold text-white">{{ __('access.profile_accounts.sections.password') }}</div>
-                <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('access.profile_accounts.help.issued_password') }}</p>
-
-                <div class="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-                    <div>
-                        <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.issued_password') }}</label>
-                        <input type="text" readonly value="{{ $issued_password ?: __('access.profile_accounts.empty.issued_password') }}" class="w-full rounded-xl px-4 py-3 text-sm">
-                    </div>
-
-                    <div class="flex items-end">
-                        <button type="button" wire:click="generateAccountPassword" class="pill-link pill-link--compact">{{ __('access.profile_accounts.actions.generate_password') }}</button>
-                    </div>
-                </div>
-
                 <div class="mt-4">
-                    <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.password') }}</label>
-                    <input wire:model="account_password" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('account_password')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                    <div class="mt-1 text-xs text-neutral-500">{{ __('access.profile_accounts.help.password') }}</div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.issued_password') }}</label>
+                    <input type="text" readonly value="{{ $issued_password ?: __('access.profile_accounts.empty.issued_password') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                 </div>
             </div>
 

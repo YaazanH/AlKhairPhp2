@@ -24,12 +24,19 @@ class SystemBackup extends Model
 
     public const TRIGGER_IMPORTED = 'imported';
 
+    public const SCOPE_DATABASE = 'database';
+
+    public const SCOPE_FILES = 'files';
+
+    public const SCOPE_FULL = 'full';
+
     protected $fillable = [
         'uuid',
         'disk',
         'file_path',
         'filename',
         'trigger',
+        'scope',
         'status',
         'includes_files',
         'encrypted',

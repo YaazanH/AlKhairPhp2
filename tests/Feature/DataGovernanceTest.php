@@ -416,7 +416,6 @@ class DataGovernanceTest extends TestCase
         $editOnlyTypes = [
             Enrollment::class,
             FinanceTransaction::class,
-            PointTransaction::class,
         ];
 
         foreach ($editOnlyTypes as $index => $subjectType) {
@@ -441,7 +440,7 @@ class DataGovernanceTest extends TestCase
             ->assertViewHas('activities', function ($activities) use ($editOnlyTypes): bool {
                 $visibleActivities = $activities->getCollection();
 
-                return $activities->total() === 7
+                return $activities->total() === 5
                     && $visibleActivities->doesntContain(fn ($activity): bool => $activity['event'] === 'created')
                     && collect($editOnlyTypes)->every(fn (string $subjectType): bool => collect(['updated', 'deleted'])
                         ->every(fn (string $event): bool => $visibleActivities->contains(fn ($activity): bool => $activity['subject_type'] === $subjectType

@@ -940,7 +940,7 @@ class IdCardBuilderTest extends TestCase
         $oldGroup = Group::query()->create([
             'academic_year_id' => $academicYear->id,
             'capacity' => 12,
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Historical Quran Course', 'is_active' => true])->id,
             'is_active' => true,
             'monthly_fee' => 20,
             'name' => 'Old Group',

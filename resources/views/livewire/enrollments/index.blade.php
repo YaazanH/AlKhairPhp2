@@ -259,14 +259,14 @@ new class extends Component {
             return;
         }
 
-        $duplicateEnrollmentExists = Enrollment::query()
+        $duplicateEnrollmentExists = Enrollment::withTrashed()
             ->where('student_id', $validated['student_id'])
-            ->where('group_id', $validated['group_id'])
+            ->forCourseOfGroup((int) $validated['group_id'])
             ->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))
             ->exists();
 
         if ($duplicateEnrollmentExists) {
-            $this->addError('student_id', __('crud.enrollments.errors.already_enrolled'));
+            $this->addError('student_id', __('crud.enrollments.errors.already_enrolled_course'));
 
             return;
         }
@@ -377,7 +377,7 @@ new class extends Component {
             ->when($this->group_id, function ($query) {
                 $query->whereDoesntHave('enrollments', function ($enrollmentQuery) {
                     $enrollmentQuery
-                        ->where('group_id', $this->group_id)
+                        ->withTrashed()->forCourseOfGroup((int) $this->group_id)
                         ->when($this->editingId, fn ($innerQuery) => $innerQuery->whereKeyNot($this->editingId));
                 });
             });

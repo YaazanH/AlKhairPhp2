@@ -1314,6 +1314,12 @@ class FinanceAndActivitiesTest extends TestCase
             ->where('pair_uuid', $exchange->pair_uuid)
             ->orderBy('id')
             ->get();
+        $exchangeCategoryId = FinanceCategory::query()->where('type', 'exchange')->where('is_active', true)->orderBy('name')->value('id');
+        $this->assertNotNull($exchangeCategoryId);
+        $this->assertSame([$exchangeCategoryId, $exchangeCategoryId], $exchangeTransactions->pluck('finance_category_id')->all());
+        $exchangeTransactions[0]->update(['finance_category_id' => null]);
+        (require database_path('migrations/2026_09_26_020000_fill_missing_exchange_categories.php'))->up();
+        $this->assertSame($exchangeCategoryId, $exchangeTransactions[0]->fresh()->finance_category_id);
         $this->assertSame('EXC-000001', data_get($exchangeTransactions[0]->metadata, 'reference'));
         $this->assertSame('EXC-000001', $exchangeTransactions[0]->special_transaction_no);
         $this->assertSame('[خارج] Test exchange', $exchangeTransactions[0]->description);

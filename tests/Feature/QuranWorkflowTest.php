@@ -841,7 +841,7 @@ class QuranWorkflowTest extends TestCase
         ]);
 
         $otherGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Other Teacher Access Course', 'is_active' => true])->id,
             'academic_year_id' => $yearId,
             'teacher_id' => $otherTeacher->id,
             'name' => 'Other Group',

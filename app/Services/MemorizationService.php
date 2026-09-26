@@ -10,6 +10,7 @@ use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use LogicException;
@@ -34,7 +35,16 @@ class MemorizationService
             $previousEnrollmentId = $session?->enrollment_id;
             $previousRecordedOn = $session?->recorded_on?->toDateString();
             $recordedByUserId = $validated['recorded_by_user_id'] ?? $session?->recorded_by_user_id ?? auth()->id();
-            $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
+            if (array_key_exists('page_numbers', $validated)) {
+                Validator::make($validated, [
+                    'page_numbers' => ['required', 'array', 'min:1', 'max:604'],
+                    'page_numbers.*' => ['required', 'integer', 'between:1,604', 'distinct'],
+                ])->validate();
+                $pageNumbers = array_map('intval', $validated['page_numbers']);
+                sort($pageNumbers);
+            } else {
+                $pageNumbers = range((int) $validated['from_page'], (int) $validated['to_page']);
+            }
             $duplicatePages = $this->findDuplicatePages($enrollment, $pageNumbers, $validated['entry_type'], $session);
 
             if ($skipDuplicatePages) {

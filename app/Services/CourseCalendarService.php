@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Course;
 use App\Models\CourseCalendarEntry;
+use App\Support\CourseCalendarPalette;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -41,8 +42,26 @@ class CourseCalendarService
             ->unique()
             ->values()
             ->all();
-        $calendarEntries = $this->calendarEntries($course)
-            ->groupBy(fn (CourseCalendarEntry $entry): string => $entry->date->toDateString());
+        $eventRows = $this->calendarEntries($course)->sortBy([['date', 'asc'], ['name', 'asc'], ['id', 'asc']])
+            ->values()->map(fn (CourseCalendarEntry $entry): array => [
+                'name' => $entry->name,
+                'color' => $entry->color,
+                'starts_on' => CarbonImmutable::parse($entry->date),
+                'ends_on' => CarbonImmutable::parse($entry->end_date ?? $entry->date),
+            ])->all();
+        $events = collect(CourseCalendarPalette::uniqueRows($eventRows))
+            ->filter(fn (array $event): bool => $event['starts_on']->lte($endsOn) && $event['ends_on']->gte($startsOn))
+            ->map(fn (array $event): array => array_merge($event, [
+                'starts_on' => $event['starts_on']->max($startsOn),
+                'ends_on' => $event['ends_on']->min($endsOn),
+            ]))->values();
+        $calendarEntries = collect();
+        foreach ($events as $event) {
+            for ($date = $event['starts_on']; $date->lte($event['ends_on']); $date = $date->addDay()) {
+                $key = $date->toDateString();
+                $calendarEntries->put($key, $calendarEntries->get($key, collect())->push($event));
+            }
+        }
 
         $months = [];
         $month = $startsOn->startOfMonth();
@@ -94,6 +113,18 @@ class CourseCalendarService
             },
         };
 
+        $legend = collect();
+        if ($layout !== 'large') {
+            $legend = collect([[
+                'name' => __('course_calendar.start'), 'color' => CourseCalendarPalette::START_COLOR,
+                'starts_on' => $startsOn, 'ends_on' => $startsOn,
+            ]])->concat($events);
+            $totalWeeks = collect(array_chunk($months, $columns))->sum(fn (array $row): int => max(array_map(fn (array $month): int => count($month['weeks']), $row)));
+            $monthHeadingAndGap = $layout === 'compact' ? 16.5 : 12.0;
+            $availableHeight = 249 - $rowCount * $monthHeadingAndGap;
+            $cellHeight = min($cellHeight, max(3.2, floor(($availableHeight / max(1, $totalWeeks)) * 10) / 10));
+        }
+
         $sizedMonths = [];
 
         foreach (array_chunk($months, $columns) as $monthRow) {
@@ -120,13 +151,14 @@ class CourseCalendarService
             'columns' => $columns,
             'row_count' => $rowCount,
             'cell_height_mm' => $cellHeight,
+            'legend' => $legend->values()->all(),
             'pages' => [$months],
         ];
     }
 
     /**
      * @param  array<int, int>  $scheduledDays
-     * @param  Collection<string, Collection<int, CourseCalendarEntry>>  $calendarEntries
+     * @param  Collection<string, Collection<int, array<string, mixed>>>  $calendarEntries
      * @return array{name: string, year: int, weeks: array<int, array{number: int|null, days: array<int, array<string, mixed>>}>}
      */
     private function buildMonth(
@@ -160,11 +192,9 @@ class CourseCalendarService
                     'is_start' => $date->isSameDay($startsOn),
                     'is_end' => $date->isSameDay($endsOn),
                     'comments' => $inMonth
-                        ? $dateEntries->map(fn (CourseCalendarEntry $entry): array => [
-                            'name' => $entry->name,
-                            'color' => preg_match('/^#[0-9A-Fa-f]{6}$/', $entry->color)
-                                ? strtolower($entry->color)
-                                : '#3f8067',
+                        ? $dateEntries->map(fn (array $entry): array => [
+                            'name' => $entry['name'],
+                            'color' => $entry['color'],
                         ])->values()->all()
                         : [],
                 ];

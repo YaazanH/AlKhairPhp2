@@ -1202,8 +1202,11 @@ class DashboardTest extends TestCase
             'is_active' => true,
         ]);
 
+        $historicalCourse = $course->replicate();
+        $historicalCourse->name = 'Historical Course';
+        $historicalCourse->save();
         $inactiveGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => $historicalCourse->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $teacher->id,
             'name' => 'Inactive Group',

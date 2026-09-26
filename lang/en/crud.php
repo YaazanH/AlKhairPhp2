@@ -321,6 +321,7 @@ return [
             'updated' => 'Course updated successfully.',
             'deleted' => 'Course deleted successfully.',
             'copied' => 'Course metadata and group metadata were copied without students, enrolments, or operational records.',
+            'reactivated' => 'Group reactivated successfully.',
             'deactivated' => 'Course and groups were finished; enrolments, assessments, and attendance were archived successfully.',
             'reactivated' => 'The course and the records changed by finishing it were reactivated successfully.',
         ],
@@ -410,7 +411,7 @@ return [
             'student_phone_help' => 'Optional. Used for login or contact when needed.',
             'group_help' => 'A matching group for the selected grade is picked automatically when available, and you can still choose any other group manually.',
             'grade_calculated_help' => 'Calculated automatically from the birth year and current academic year; you can correct it manually.',
-            'external_memorized_juzs_help' => 'Type a juz number and press Tab or Enter. Use × on a chip to remove it.',
+            'external_memorized_juzs_help' => 'Type a juz number and press Space to save it. Use × on a chip to remove it.',
             'placeholders' => [
                 'select_parent' => 'Select parent',
                 'select_gender' => 'Select gender',
@@ -841,6 +842,7 @@ return [
             'deleted' => 'Enrolment deleted successfully.',
         ],
         'errors' => [
+            'already_enrolled_course' => 'This student is already enrolled in this course. Edit the existing enrolment to move groups.',
             'already_enrolled' => 'This student is already enrolled in the selected group.',
             'already_active' => 'This student already has an active enrolment. Complete or cancel it before creating another one.',
             'inactive_student' => 'Only active students can be enrolled.',

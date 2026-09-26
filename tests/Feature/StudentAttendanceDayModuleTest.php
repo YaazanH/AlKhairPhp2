@@ -19,6 +19,7 @@ use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Services\StudentAttendanceDayService;
 use App\Services\TeacherAttendanceDayService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Livewire\Volt\Volt;
@@ -197,7 +198,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             ]);
     }
 
-    public function test_manager_can_add_extra_group_to_attendance_day_manually(): void
+    public function test_manager_can_add_multiple_extra_groups_to_attendance_day_manually(): void
     {
         $this->seed();
 
@@ -221,6 +222,9 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $scheduledEnrollment = $this->makeEnrollment($teacher->id, 'Scheduled Group', true, $course);
         $extraEnrollment = $this->makeEnrollment($teacher->id, 'Extra Group', true, $course);
+        $secondExtraEnrollment = $this->makeEnrollment($teacher->id, 'Second Extra Group', true, $course);
+        $inactiveEnrollment = $this->makeEnrollment($teacher->id, 'Inactive Extra Group', false, $course);
+        $otherCourseEnrollment = $this->makeEnrollment($teacher->id, 'Other Course Extra Group');
         $this->scheduleGroupForDate($scheduledEnrollment->group, '2026-10-06');
 
         $this->actingAs($manager);
@@ -249,16 +253,143 @@ class StudentAttendanceDayModuleTest extends TestCase
         ]);
 
         Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->assertSee('data-student-attendance-add-groups-action', false)
             ->call('openManualGroupModal')
             ->assertSee('admin-modal__dialog--xl admin-modal__dialog--compact', false)
-            ->set('manual_group_id', (string) $extraEnrollment->group_id)
+            ->assertSee('data-attendance-group-picker', false)
+            ->assertSee($extraEnrollment->group->name)
+            ->assertSee($secondExtraEnrollment->group->name)
+            ->assertDontSee($inactiveEnrollment->group->name)
+            ->assertDontSee($otherCourseEnrollment->group->name)
+            ->set('manual_group_ids', [(string) $extraEnrollment->group_id, (string) $secondExtraEnrollment->group_id])
             ->call('addManualGroup')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('showManualGroupModal', false)
+            ->assertSet('manual_group_ids', [])
+            ->assertDontSee('data-student-attendance-add-groups-action', false)
+            ->assertDontSee('كل المجموعات النشطة ضمن نطاقك مضافة لهذا اليوم.');
 
         $this->assertDatabaseHas('group_attendance_days', [
             'student_attendance_day_id' => $day->id,
             'group_id' => $extraEnrollment->group_id,
         ]);
+        $this->assertDatabaseHas('group_attendance_days', [
+            'student_attendance_day_id' => $day->id,
+            'group_id' => $secondExtraEnrollment->group_id,
+        ]);
+        $this->assertSame(3, $day->groupAttendanceDays()->count());
+        foreach ([$extraEnrollment, $secondExtraEnrollment] as $enrollment) {
+            $this->assertDatabaseHas('student_attendance_records', [
+                'enrollment_id' => $enrollment->id,
+                'attendance_status_id' => AttendanceStatus::query()->where('code', 'present')->value('id'),
+            ]);
+        }
+    }
+
+    public function test_manual_group_selection_rejects_duplicates_and_unavailable_groups_without_partial_additions(): void
+    {
+        $this->seed();
+        [$user, $teacher, $scheduled] = $this->teacherContext('group-picker-scope');
+        $extra = $this->makeEnrollment($teacher->id, 'Available Extra', true, $scheduled->group->course);
+        $inactive = $this->makeEnrollment($teacher->id, 'Inactive Extra', false, $scheduled->group->course);
+        $otherCourse = $this->makeEnrollment($teacher->id, 'Wrong Course');
+        [, $otherTeacher] = $this->teacherContext('other-group-picker-scope', otherTeacher: true);
+        $outOfScope = $this->makeEnrollment($otherTeacher->id, 'Unassigned Extra', true, $scheduled->group->course);
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay('2026-10-06', collect([$scheduled->group]), $user);
+
+        $component = Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->call('openManualGroupModal')
+            ->assertSee($extra->group->name)
+            ->assertDontSee($outOfScope->group->name);
+
+        foreach ([$inactive, $otherCourse, $outOfScope, $scheduled] as $invalid) {
+            $component->set('manual_group_ids', [$extra->group_id, $invalid->group_id])
+                ->call('addManualGroup')->assertHasErrors('manual_group_ids');
+            $this->assertSame(1, $day->groupAttendanceDays()->count());
+        }
+
+        $component->set('manual_group_ids', [])->call('addManualGroup')->assertHasErrors('manual_group_ids');
+        $component->set('manual_group_ids', [$extra->group_id, $extra->group_id])
+            ->call('addManualGroup')->assertHasErrors('manual_group_ids.0');
+        $this->assertSame(1, $day->groupAttendanceDays()->count());
+    }
+
+    public function test_removing_a_group_only_removes_that_days_records_and_points_and_allows_readding(): void
+    {
+        $this->seed();
+        [$user, $teacher, $enrollment] = $this->teacherContext('removable-group');
+        $remaining = $this->makeEnrollment($teacher->id, 'Remaining Group', true, $enrollment->group->course);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $service = app(StudentAttendanceDayService::class);
+        $previousDay = $service->createOrSyncDay('2026-10-05', collect([$enrollment->group]), $user, null, 'open', $present->id);
+        $previousRecord = $previousDay->groupAttendanceDays->first()->records()->firstOrFail();
+        $day = $service->createOrSyncDay('2026-10-06', collect([$enrollment->group, $remaining->group]), $user, null, 'open', $present->id);
+        $groupDay = $day->groupAttendanceDays->firstWhere('group_id', $enrollment->group_id);
+        $record = $groupDay->records()->firstOrFail();
+        $this->assertSame(4, $enrollment->fresh()->final_points_cached);
+
+        $component = Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->assertDontSee('data-student-attendance-add-groups-action', false)
+            ->call('removeGroup', $groupDay->id)->assertHasNoErrors()
+            ->assertSee('data-student-attendance-add-groups-action', false);
+
+        $this->assertModelMissing($groupDay);
+        $this->assertModelMissing($record);
+        $this->assertModelExists($day);
+        $this->assertModelExists($enrollment);
+        $this->assertModelExists($enrollment->group);
+        $this->assertModelExists($previousRecord);
+        $this->assertSame(2, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(2, $remaining->fresh()->final_points_cached);
+        $this->assertNotNull(PointTransaction::query()->where('source_type', 'student_attendance_record')->where('source_id', $record->id)->firstOrFail()->voided_at);
+        $this->assertSame(1, $day->groupAttendanceDays()->count());
+
+        $component->call('openManualGroupModal')->set('manual_group_ids', [$enrollment->group_id])
+            ->call('addManualGroup')->assertHasNoErrors();
+        $this->assertSame(2, $day->groupAttendanceDays()->count());
+        $this->assertSame(4, $enrollment->fresh()->final_points_cached);
+    }
+
+    public function test_closed_and_archived_days_reject_group_additions_and_removals(): void
+    {
+        $this->seed();
+        [$user, $teacher, $enrollment] = $this->teacherContext('locked-group-day');
+        $extra = $this->makeEnrollment($teacher->id, 'Locked Extra', true, $enrollment->group->course);
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay('2026-10-06', collect([$enrollment->group]), $user);
+        $groupDay = $day->groupAttendanceDays->first();
+
+        foreach ([['status' => 'closed'], ['status' => 'open', 'course_finished_at' => now()]] as $state) {
+            $day->update($state);
+            Volt::test('student-attendance.show', ['studentAttendanceDay' => $day->fresh()])
+                ->assertDontSee('data-student-attendance-add-groups-action', false)
+                ->assertDontSee('data-student-attendance-remove-group-action', false)
+                ->call('openManualGroupModal')->assertSet('showManualGroupModal', false)->assertHasErrors('day')
+                ->set('manual_group_ids', [$extra->group_id])->call('addManualGroup')->assertHasErrors('day')
+                ->call('removeGroup', $groupDay->id)->assertHasErrors('day');
+            $this->assertSame(1, $day->groupAttendanceDays()->count());
+            $this->assertModelExists($groupDay);
+        }
+    }
+
+    public function test_group_removal_cannot_target_another_day_or_an_unassigned_group(): void
+    {
+        $this->seed();
+        [$user, $teacher, $enrollment] = $this->teacherContext('remove-group-scope');
+        [, $otherTeacher] = $this->teacherContext('other-remove-group-scope', otherTeacher: true);
+        $unassigned = $this->makeEnrollment($otherTeacher->id, 'Unassigned Group', true, $enrollment->group->course);
+        $service = app(StudentAttendanceDayService::class);
+        $otherDay = $service->createOrSyncDay('2026-10-05', collect([$enrollment->group]), $user);
+        $day = $service->createOrSyncDay('2026-10-06', collect([$enrollment->group, $unassigned->group]), $user);
+
+        foreach ([$otherDay->groupAttendanceDays->first(), $day->groupAttendanceDays->firstWhere('group_id', $unassigned->group_id)] as $forbidden) {
+            try {
+                Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+                    ->call('removeGroup', $forbidden->id);
+                $this->fail('Groups outside the day or user scope must not be removable.');
+            } catch (ModelNotFoundException) {
+                $this->assertModelExists($forbidden);
+            }
+        }
     }
 
     public function test_day_details_show_total_group_students_separately_from_present_students(): void

@@ -423,12 +423,11 @@ new class extends Component {
                                             </button>
                                         @endif
                                     </div>
-                                    <div class="teacher-curriculum-table-scroll" data-table-scroll-region>
+                                    <div class="teacher-curriculum-table-wrap">
                                         <table class="teacher-curriculum-table" data-teacher-curriculum-table @if($hasChapterNumbers) data-teacher-curriculum-has-chapter @else data-teacher-curriculum-no-chapter @endif>
                                             <thead>
                                                 <tr>
                                                     <th class="teacher-curriculum-completion-column" scope="col" data-teacher-curriculum-completion-column><span class="sr-only">{{ __('curricula.fields.status') }}</span></th>
-                                                    @if($hasChapterNumbers)<th class="teacher-curriculum-chapter" scope="col" data-teacher-curriculum-chapter-column>{{ __('curricula.fields.chapter_number') }}</th>@endif
                                                     <th class="teacher-curriculum-lesson-heading" scope="col">{{ __('curricula.fields.lesson') }}</th>
                                                     <th class="teacher-curriculum-importance-heading" scope="col">{{ __('curricula.fields.importance') }}</th>
                                                 </tr>
@@ -444,7 +443,6 @@ new class extends Component {
                                                         <input type="checkbox" @checked($lesson['status'] === 'taught') wire:click="{{ $lesson['custom'] ? 'toggleCustomLesson('.$lesson['id'].')' : 'toggleLesson('.$lesson['id'].')' }}" class="rounded">
                                                     @endif
                                                     </td>
-                                                    @if($hasChapterNumbers)<td class="teacher-curriculum-chapter" data-teacher-curriculum-chapter-cell>{{ $lesson['chapter_number'] ?: '—' }}</td>@endif
                                                     <td class="teacher-curriculum-lesson-column">
                                                     <div class="teacher-curriculum-lesson-cell">
                                                     <div class="teacher-curriculum-lesson-content">
@@ -452,10 +450,10 @@ new class extends Component {
                                                             @if($lesson['has_topics'])
                                                                 <button type="button" wire:click="toggleTopicLesson({{ $lesson['id'] }})" class="teacher-curriculum-topic-toggle" aria-expanded="{{ $topicsExpanded ? 'true' : 'false' }}" aria-controls="teacher-lesson-topics-{{ $lesson['id'] }}" title="{{ __($topicsExpanded ? 'curricula.actions.collapse_topics' : 'curricula.actions.expand_topics') }}" data-teacher-topic-toggle>
                                                                     <svg class="teacher-curriculum-topic-toggle__icon {{ $topicsExpanded ? 'teacher-curriculum-topic-toggle__icon--expanded' : '' }}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m7 4 6 6-6 6" /></svg>
-                                                                    <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</span>
+                                                                    <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">@if(filled($lesson['chapter_number']))<span class="teacher-curriculum-chapter-prefix" data-teacher-curriculum-chapter-prefix><bdi>{{ $lesson['chapter_number'] }}</bdi> · </span>@endif{{ $lesson['name'] }}</span>
                                                                 </button>
                                                             @else
-                                                                <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</span>
+                                                                <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">@if(filled($lesson['chapter_number']))<span class="teacher-curriculum-chapter-prefix" data-teacher-curriculum-chapter-prefix><bdi>{{ $lesson['chapter_number'] }}</bdi> · </span>@endif{{ $lesson['name'] }}</span>
                                                             @endif
                                                             @if($lesson['taught_on'])<span class="teacher-curriculum-lesson-meta"><bdi dir="ltr">{{ $lesson['taught_on']->format('d-m-Y') }}</bdi><span aria-hidden="true">·</span><span>{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</span></span>@endif
                                                         </div>
@@ -470,7 +468,7 @@ new class extends Component {
                                                     </td>
                                                 </tr>
                                             @empty
-                                                <tr><td colspan="{{ $hasChapterNumbers ? 4 : 3 }}" class="teacher-curriculum-book__empty">{{ __('curricula.table.taught_lessons_hidden') }}</td></tr>
+                                                <tr><td colspan="3" class="teacher-curriculum-book__empty">{{ __('curricula.table.taught_lessons_hidden') }}</td></tr>
                                             @endforelse
                                             </tbody>
                                         </table>

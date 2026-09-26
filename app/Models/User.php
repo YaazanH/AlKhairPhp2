@@ -14,8 +14,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -65,6 +67,29 @@ class User extends Authenticatable // implements MustVerifyEmail
             'issued_password' => 'encrypted',
             'password' => 'hashed',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (User $user): void {
+            if ($user->isDirty('username') && filled($user->getRawOriginal('username')) && $user->hasImmutableUsername()) {
+                throw ValidationException::withMessages(['username' => __('access.profile_accounts.username_locked')]);
+            }
+        });
+    }
+
+    public function hasImmutableUsername(): bool
+    {
+        return $this->hasAnyRole(['student', 'parent'])
+            || $this->studentProfile()->withTrashed()->exists()
+            || $this->parentProfile()->withTrashed()->exists();
+    }
+
+    public function currentIssuedPassword(): ?string
+    {
+        $issued = $this->issued_password;
+
+        return filled($issued) && Hash::check($issued, $this->password) ? $issued : null;
     }
 
     protected function phone(): Attribute

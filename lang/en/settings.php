@@ -402,6 +402,7 @@ return [
             'custom_group' => 'Custom group',
         ],
         'actions' => [
+            'restore_defaults' => 'Restore defaults',
             'add_group' => 'Add group',
             'remove_group' => 'Remove group',
             'save' => 'Save sidebar layout',

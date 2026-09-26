@@ -54,6 +54,19 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    public function test_browser_requests_still_work_after_api_authentication_selects_a_request_guard(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson('/api/user')
+            ->assertOk();
+
+        $this->get('/dashboard')->assertOk();
+
+        $this->assertAuthenticatedAs($user);
+    }
+
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
         $user = User::factory()->create([

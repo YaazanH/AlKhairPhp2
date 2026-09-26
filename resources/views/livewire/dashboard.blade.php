@@ -1305,7 +1305,7 @@ new class extends Component {
                             @endphp
                             <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}">
                                 <div class="dashboard-curriculum-hotbar__identity">
-                                    <a href="{{ route('curricula.index') }}" wire:navigate class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</a>
+                                    <span class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</span>
                                     <div class="dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
                                 </div>
                                 <div class="dashboard-curriculum-hotbar__track">

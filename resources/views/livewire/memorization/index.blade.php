@@ -287,10 +287,19 @@ new class extends Component {
             'to_page' => $validated['to_page'],
         ];
 
+        // Changing metadata must preserve the individually selected pages from quick entry.
+        if ($session && (int) $validated['from_page'] === $session->from_page
+            && (int) $validated['to_page'] === $session->to_page) {
+            $pages = $session->pages()->orderBy('page_no')->pluck('page_no')->all();
+            if ($pages !== []) {
+                $payload['page_numbers'] = $pages;
+            }
+        }
+
         $service = app(MemorizationService::class);
         $duplicatePages = $service->findDuplicatePages(
             $enrollment,
-            range((int) $validated['from_page'], (int) $validated['to_page']),
+            $payload['page_numbers'] ?? range((int) $validated['from_page'], (int) $validated['to_page']),
             $validated['entry_type'],
             $session,
         );
@@ -491,7 +500,7 @@ new class extends Component {
         array $duplicatePages,
         ?MemorizationSession $session = null,
     ): void {
-        $pageNumbers = range((int) $payload['from_page'], (int) $payload['to_page']);
+        $pageNumbers = $payload['page_numbers'] ?? range((int) $payload['from_page'], (int) $payload['to_page']);
 
         $this->duplicatePages = $duplicatePages;
         $this->uniquePages = array_values(array_diff($pageNumbers, $duplicatePages));

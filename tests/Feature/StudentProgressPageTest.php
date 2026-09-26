@@ -466,7 +466,7 @@ class StudentProgressPageTest extends TestCase
         $course = $activeEnrollment->group->course;
 
         $completedGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Completed Progress Course', 'is_active' => true])->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $teacher->id,
             'name' => 'Completed Progress Group',
@@ -474,7 +474,7 @@ class StudentProgressPageTest extends TestCase
             'is_active' => false,
         ]);
         $cancelledGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Cancelled Progress Course', 'is_active' => true])->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $teacher->id,
             'name' => 'Cancelled Progress Group',

@@ -105,14 +105,14 @@ class UserManagementTest extends TestCase
             ->set('username', 'teacher.account')
             ->set('phone', '0922222222')
             ->set('password', 'Password123!')
-            ->set('roles', ['teacher'])
+            ->set('roles', ['manager'])
             ->set('direct_permissions', ['points.create-manual'])
             ->call('save')
             ->assertHasNoErrors();
 
         $user = User::query()->where('username', 'teacher.account')->firstOrFail();
 
-        $this->assertTrue($user->hasRole('teacher'));
+        $this->assertTrue($user->hasRole('manager'));
         $this->assertTrue($user->hasDirectPermission('points.create-manual'));
 
         Volt::test('settings.access-control')
@@ -183,7 +183,7 @@ class UserManagementTest extends TestCase
             ->set('name', 'Generated Account')
             ->set('username', '')
             ->set('password', '')
-            ->set('roles', ['parent'])
+            ->set('roles', ['admin'])
             ->call('save')
             ->assertHasNoErrors();
 
@@ -197,7 +197,7 @@ class UserManagementTest extends TestCase
         $this->assertTrue(Hash::check($user->issued_password, $user->password));
     }
 
-    public function test_user_profile_filter_uses_only_student_parent_and_teacher_profiles(): void
+    public function test_linked_user_profiles_can_be_filtered_but_not_edited_in_users(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -232,6 +232,21 @@ class UserManagementTest extends TestCase
         $teacherUser->refresh();
 
         $this->actingAs($admin);
+
+        foreach ([$studentUser, $parentUser, $teacherUser] as $linkedUser) {
+            Volt::test('users.index')
+                ->assertDontSee('data-user-edit-action="'.$linkedUser->id.'"', false)
+                ->call('edit', $linkedUser->id)->assertForbidden();
+
+            Volt::test('users.index')
+                ->set('editingId', $linkedUser->id)
+                ->set('name', 'Unauthorized profile edit')
+                ->set('roles', [RoleRegistry::ADMIN])
+                ->call('save')->assertForbidden();
+
+            $this->assertSame($linkedUser->name, $linkedUser->fresh()->name);
+            $this->assertFalse($linkedUser->fresh()->hasRole(RoleRegistry::ADMIN));
+        }
 
         Volt::test('users.index')
             ->set('profileFilter', 'student')

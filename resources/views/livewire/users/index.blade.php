@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -74,6 +75,11 @@ new class extends Component
 
     public bool $showFormModal = false;
 
+    public bool $showPermissionsModal = false;
+
+    #[Locked]
+    public ?int $viewingAccountId = null;
+
     public function mount(): void
     {
         $this->authorizePermission('users.view');
@@ -94,6 +100,7 @@ new class extends Component
                         ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'));
                 });
             })
+            ->when($this->profileFilter === 'standalone', fn ($query) => $query->whereDoesntHave('studentProfile')->whereDoesntHave('parentProfile')->whereDoesntHave('teacherProfile')->whereDoesntHave('roles', fn ($roles) => $roles->whereIn('name', RoleRegistry::actorRoles())))
             ->when($this->profileFilter === 'student', fn ($query) => $query->whereHas('studentProfile'))
             ->when($this->profileFilter === 'parent', fn ($query) => $query->whereHas('parentProfile'))
             ->when($this->profileFilter === 'teacher', fn ($query) => $query->whereHas('teacherProfile'))
@@ -103,9 +110,10 @@ new class extends Component
         $filteredCount = (clone $filteredQuery)->count();
 
         return [
+            'viewedAccount' => $this->viewingAccountId ? User::with(['roles', 'teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($this->viewingAccountId) : null,
             'users' => $filteredQuery->paginate($this->perPage),
             'filteredCount' => $filteredCount,
-            'availableRoles' => RoleRegistry::sortCollection(Role::query()->get()),
+            'availableRoles' => RoleRegistry::sortCollection(Role::query()->whereNotIn('name', RoleRegistry::actorRoles())->get()),
             'availableScopeGroups' => Group::query()->with('course')->orderBy('name')->get(),
             'availableScopeParents' => ParentProfile::query()->withCount('students')->orderBy('father_name')->get(),
             'availableScopeStudents' => Student::query()->with('parentProfile')->orderBy('last_name')->orderBy('first_name')->get(),
@@ -151,7 +159,7 @@ new class extends Component
             'finance_signature_upload' => ['nullable', 'file', 'mimes:png', 'max:4096'],
             'is_active' => ['boolean'],
             'roles' => ['required', 'array', 'min:1'],
-            'roles.*' => ['string', Rule::exists('roles', 'name')],
+            'roles.*' => ['string', Rule::notIn(RoleRegistry::actorRoles()), Rule::exists('roles', 'name')],
             'direct_permissions' => ['nullable', 'array'],
             'direct_permissions.*' => ['string', Rule::exists('permissions', 'name')],
             'scope_groups' => ['nullable', 'array'],
@@ -176,12 +184,12 @@ new class extends Component
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'users.update' : 'users.create');
+        $existingUser = $this->editingId ? User::query()->with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($this->editingId) : null;
+        abort_if($existingUser && $this->isProfileAccount($existingUser), 403);
         $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
 
         $validated = $this->validate();
         $accountService = app(ManagedUserService::class);
-        $existingUser = $this->editingId ? User::query()->with('teacherProfile')->findOrFail($this->editingId) : null;
-        abort_if($existingUser?->teacherProfile, 403);
         $username = filled($validated['username'] ?? null)
             ? $accountService->uniqueUsername((string) $validated['username'], $validated['name'], $this->editingId)
             : ($existingUser?->username ?: $accountService->uniqueUsername('', $validated['name'], $this->editingId));
@@ -242,7 +250,7 @@ new class extends Component
         $this->authorizePermission('users.update');
 
         $user = User::query()->with(['roles', 'permissions', 'scopeOverrides', 'studentProfile', 'teacherProfile', 'parentProfile'])->findOrFail($userId);
-        abort_if($user->teacherProfile, 403);
+        abort_if($this->isProfileAccount($user), 403);
 
         $this->editingId = $user->id;
         $this->name = $user->name;
@@ -288,6 +296,8 @@ new class extends Component
         $this->scope_teachers = [];
         $this->scope_parents = [];
         $this->showFormModal = false;
+        $this->showPermissionsModal = false;
+        $this->viewingAccountId = null;
 
         $this->resetValidation();
     }
@@ -304,7 +314,7 @@ new class extends Component
             return;
         }
 
-        if ($user->teacherProfile || $user->parentProfile || $user->studentProfile) {
+        if ($this->isProfileAccount($user)) {
             $this->addError('delete', __('access.users.errors.delete_linked_profile'));
 
             return;
@@ -328,21 +338,78 @@ new class extends Component
         $this->delete($this->editingId);
     }
 
+    public function isProfileAccount(User $user): bool
+    {
+        return $user->teacherProfile || $user->parentProfile || $user->studentProfile
+            || $user->hasAnyRole(RoleRegistry::actorRoles())
+            || $user->teacherProfile()->withTrashed()->exists()
+            || $user->parentProfile()->withTrashed()->exists()
+            || $user->studentProfile()->withTrashed()->exists();
+    }
+
+    public function viewLinkedAccount(int $userId): void
+    {
+        $this->authorizePermission('users.view');
+        $user = User::with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($userId);
+        abort_unless($this->isProfileAccount($user), 403);
+        $this->cancel();
+        $this->viewingAccountId = $user->id;
+    }
+
+    public function closeLinkedAccount(): void
+    {
+        $this->cancel();
+    }
+
+    public function openAccountPermissions(): void
+    {
+        $this->authorizePermission('users.update');
+        abort_unless($this->viewingAccountId, 404);
+        $user = User::with(['roles', 'permissions', 'scopeOverrides'])->findOrFail($this->viewingAccountId);
+        $this->roles = $user->getRoleNames()->diff(RoleRegistry::actorRoles())->values()->all();
+        $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->all();
+        foreach (['groups' => 'group', 'parents' => 'parent', 'students' => 'student', 'teachers' => 'teacher'] as $field => $type) {
+            $this->{'scope_'.$field} = $user->scopeOverrides->where('scope_type', $type)->pluck('scope_id')->map(fn ($id) => (int) $id)->all();
+        }
+        $this->resetValidation();
+        $this->showPermissionsModal = true;
+    }
+
+    public function closeAccountPermissions(): void
+    {
+        $this->showPermissionsModal = false;
+        $this->resetValidation();
+    }
+
+    public function saveAccountPermissions(): void
+    {
+        $this->authorizePermission('users.update');
+        abort_unless($this->viewingAccountId && $this->showPermissionsModal, 404);
+        $rules = collect($this->rules())->filter(fn ($rule, $key) => $key === 'roles' || str_starts_with($key, 'roles.')
+            || $key === 'direct_permissions' || str_starts_with($key, 'direct_permissions.') || str_starts_with($key, 'scope_'))->all();
+        $rules['roles'] = ['array'];
+        $validated = $this->validate($rules);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($validated): void {
+            $user = User::lockForUpdate()->findOrFail($this->viewingAccountId);
+            $profileRoles = $user->getRoleNames()->intersect(RoleRegistry::actorRoles());
+            $user->syncRoles($profileRoles->merge($validated['roles'])->unique()->all());
+            $user->syncPermissions($validated['direct_permissions'] ?? []);
+            app(AccessScopeService::class)->syncUserOverrides($user, [
+                'group' => $validated['scope_groups'] ?? [],
+                'parent' => $validated['scope_parents'] ?? [],
+                'student' => $validated['scope_students'] ?? [],
+                'teacher' => $validated['scope_teachers'] ?? [],
+            ], Auth::id());
+        });
+        $this->closeAccountPermissions();
+        session()->flash('status', __('access.users.messages.permissions_saved'));
+    }
+
     public function profileLabel(User $user): string
     {
-        if ($user->teacherProfile) {
-            return __('ui.roles.teacher');
-        }
-
-        if ($user->parentProfile) {
-            return __('ui.roles.parent');
-        }
-
-        if ($user->studentProfile) {
-            return __('ui.roles.student');
-        }
-
-        return __('crud.common.not_available');
+        return collect(['teacher' => $user->teacherProfile || $user->hasRole('teacher'), 'parent' => $user->parentProfile || $user->hasRole('parent'), 'student' => $user->studentProfile || $user->hasRole('student')])
+            ->filter()->keys()->map(fn ($role) => __('ui.roles.'.$role))->implode(' · ')
+            ?: __('access.users.standalone');
     }
 
     protected function permissionGroupLabel(string $permissionName): string
@@ -432,6 +499,7 @@ new class extends Component
                     <label class="sr-only" for="user-profile-filter">{{ __('access.users.filters.profile') }}</label>
                     <select id="user-profile-filter" wire:model.live="profileFilter" data-user-profile-filter>
                         <option value="all">{{ __('access.users.filters.all_profiles') }}</option>
+                        <option value="standalone">{{ __('access.users.standalone') }}</option>
                         <option value="student">{{ __('ui.roles.student') }}</option>
                         <option value="parent">{{ __('ui.roles.parent') }}</option>
                         <option value="teacher">{{ __('ui.roles.teacher') }}</option>
@@ -514,7 +582,10 @@ new class extends Component
                             </div>
                         </dl>
 
-                        @if (! $user->teacherProfile)
+                        @if ($this->isProfileAccount($user))
+                            <div class="mobile-record-card__actions"><x-user-profile-actions :user="$user" /></div>
+                        @endif
+                        @if (! $this->isProfileAccount($user))
                             @can('users.update')
                                 <div class="mobile-record-card__actions">
                                     <x-edit-action-button wire:click="edit({{ $user->id }})" :label="__('crud.common.actions.edit')" data-user-edit-action="{{ $user->id }}" />
@@ -585,7 +656,10 @@ new class extends Component
                                 <td class="px-6 py-4"><span class="status-chip {{ $user->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $user->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span></td>
                                 <td class="px-6 py-4">
                                     <div class="flex justify-end gap-2">
-                                        @if (! $user->teacherProfile)
+                                        @if ($this->isProfileAccount($user))
+                                            <x-user-profile-actions :user="$user" />
+                                        @endif
+                                        @if (! $this->isProfileAccount($user))
                                             @can('users.update')
                                                 <x-edit-action-button wire:click="edit({{ $user->id }})" :label="__('crud.common.actions.edit')" data-user-edit-action="{{ $user->id }}" />
                                             @endcan
@@ -606,6 +680,55 @@ new class extends Component
         @endif
     </section>
 
+    <x-admin.modal :show="$viewingAccountId !== null && ! $showPermissionsModal" :title="__('access.profile_accounts.view_account')" close-method="closeLinkedAccount" max-width="2xl">
+        <x-slot:headerActions>
+            @can('users.update')
+                <button type="button" wire:click="openAccountPermissions" class="admin-modal__close" title="{{ __('access.users.shared_permissions') }}" aria-label="{{ __('access.users.shared_permissions') }}" data-user-account-permissions-action><x-admin-action-icon name="permissions" class="size-5" /></button>
+            @endcan
+        </x-slot:headerActions>
+        @if ($viewedAccount)
+            <dl class="grid min-w-0 gap-5 sm:grid-cols-2" data-user-readonly-account="{{ $viewedAccount->id }}">
+                @foreach ([
+                    __('access.users.fields.name') => $viewedAccount->name,
+                    __('access.users.fields.username') => $viewedAccount->username,
+                    __('access.users.fields.email') => $viewedAccount->email,
+                    __('access.users.fields.phone') => $viewedAccount->phone,
+                    __('access.users.fields.roles') => $viewedAccount->roles->map(fn ($role) => \Illuminate\Support\Facades\Lang::has('ui.roles.'.$role->name) ? __('ui.roles.'.$role->name) : $role->name)->implode(' · '),
+                    __('access.users.fields.is_active') => $viewedAccount->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive'),
+                ] as $label => $value)
+                    <div class="min-w-0">
+                        <dt class="text-sm text-neutral-400">{{ $label }}</dt>
+                        <dd class="mt-2 break-words font-semibold text-white"><bdi dir="{{ in_array($label, [__('access.users.fields.phone'), __('access.users.fields.username'), __('access.users.fields.email')], true) ? 'ltr' : 'auto' }}">{{ $value ?: __('crud.common.not_available') }}</bdi></dd>
+                    </div>
+                @endforeach
+            </dl>
+        @endif
+    </x-admin.modal>
+
+    <x-admin.modal :show="$showPermissionsModal" :title="__('access.users.shared_permissions')" close-method="closeAccountPermissions" max-width="5xl">
+        <x-slot:headerActions>
+            <button type="submit" form="user-account-permissions-form" class="admin-modal__close" title="{{ __('access.users.form.save_update') }}" aria-label="{{ __('access.users.form.save_update') }}" data-user-account-permissions-save><x-admin-action-icon name="save" class="size-5" /></button>
+        </x-slot:headerActions>
+        <form id="user-account-permissions-form" wire:submit="saveAccountPermissions" class="space-y-4">
+            <div class="text-lg font-semibold">{{ $viewedAccount?->name }}</div>
+            <section class="admin-section-card" data-account-permission-roles>
+                <h3 class="mb-3 font-semibold">{{ __('access.users.fields.roles') }}</h3>
+                <div class="grid gap-3 md:grid-cols-2">
+                    @foreach ($availableRoles as $availableRole)
+                        <label class="flex items-center gap-3 rounded-2xl border border-white/8 px-3 py-3 text-sm">
+                            <input wire:model.live="roles" type="checkbox" value="{{ $availableRole->name }}" class="rounded">
+                            <span><x-admin.role-label :name="$availableRole->name" /></span>
+                        </label>
+                    @endforeach
+                </div>
+            </section>
+            @include('livewire.users.partials.access-overrides')
+            @if ($errors->any())
+                <div class="text-sm text-red-400" role="alert">{{ $errors->first() }}</div>
+            @endif
+        </form>
+    </x-admin.modal>
+
     <x-admin.modal
         :show="$showFormModal"
         :title="$editingId ? __('access.users.form.edit') : __('access.users.form.create')"
@@ -613,6 +736,7 @@ new class extends Component
         max-width="6xl"
     >
         <form wire:submit="save" class="space-y-4" data-user-form>
+            <p class="text-sm text-neutral-400">{{ __('access.users.creation_help') }}</p>
             <section class="admin-section-card" data-user-identity-box>
                 <div class="admin-form-grid" data-user-identity-grid>
                     <div class="admin-form-field">
@@ -719,124 +843,7 @@ new class extends Component
                 </div>
             </details>
 
-            <section class="admin-section-card" data-user-access-overrides-box>
-                <details
-                    class="admin-collapsible"
-                    data-user-direct-permissions
-                    @if ($errors->has('direct_permissions') || $errors->has('direct_permissions.*')) open @endif
-                >
-                    <summary class="admin-collapsible__summary">
-                        <span>{{ __('access.users.fields.permissions') }}</span>
-                        <span class="admin-collapsible__count">{{ count($direct_permissions) }}/{{ $permissionGroups->flatten(1)->count() }}</span>
-                    </summary>
-                    <div>
-                        <div class="space-y-4">
-                        @foreach ($permissionGroups as $group => $permissions)
-                            @php
-                                $selectedPermissionCount = $permissions->pluck('name')->intersect($direct_permissions)->count();
-                            @endphp
-                            <details class="admin-collapsible">
-                                <summary class="admin-collapsible__summary">
-                                    <span>{{ $group }}</span>
-                                    <span class="admin-collapsible__count">{{ $selectedPermissionCount }}/{{ $permissions->count() }}</span>
-                                </summary>
-                                <div class="mt-3 grid gap-3 md:grid-cols-2">
-                                    @foreach ($permissions as $permission)
-                                        <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                            <input wire:model.live="direct_permissions" type="checkbox" value="{{ $permission->name }}" class="mt-0.5 rounded">
-                                            <span>{{ $this->permissionLabel($permission->name) }}</span>
-                                        </label>
-                                    @endforeach
-                                </div>
-                            </details>
-                        @endforeach
-                        </div>
-                    </div>
-                </details>
-                <details
-                    class="admin-collapsible"
-                    data-user-scope-overrides
-                    @if ($errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
-                >
-                    <summary class="admin-collapsible__summary">
-                        <span>{{ __('access.users.sections.scope') }}</span>
-                        <span class="admin-collapsible__count">
-                            {{ count($scope_groups) + count($scope_students) + count($scope_teachers) + count($scope_parents) }}/{{ $availableScopeGroups->count() + $availableScopeStudents->count() + $availableScopeTeachers->count() + $availableScopeParents->count() }}
-                        </span>
-                    </summary>
-                    <div>
-                        <div class="space-y-4">
-                        <details class="admin-collapsible">
-                            <summary class="admin-collapsible__summary">
-                                <span>{{ __('access.users.scopes.groups') }}</span>
-                                <span class="admin-collapsible__count">{{ count($scope_groups) }}/{{ $availableScopeGroups->count() }}</span>
-                            </summary>
-                            <div class="mt-3 grid gap-3 md:grid-cols-2">
-                                @forelse ($availableScopeGroups as $scopeGroup)
-                                    <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                        <input wire:model="scope_groups" type="checkbox" value="{{ $scopeGroup->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeGroup->name }}{{ $scopeGroup->course ? ' | '.$scopeGroup->course->name : '' }}</span>
-                                    </label>
-                                @empty
-                                    <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
-                                @endforelse
-                            </div>
-                        </details>
-
-                        <details class="admin-collapsible">
-                            <summary class="admin-collapsible__summary">
-                                <span>{{ __('access.users.scopes.students') }}</span>
-                                <span class="admin-collapsible__count">{{ count($scope_students) }}/{{ $availableScopeStudents->count() }}</span>
-                            </summary>
-                            <div class="mt-3 grid gap-3 md:grid-cols-2">
-                                @forelse ($availableScopeStudents as $scopeStudent)
-                                    <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                        <input wire:model="scope_students" type="checkbox" value="{{ $scopeStudent->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
-                                    </label>
-                                @empty
-                                    <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
-                                @endforelse
-                            </div>
-                        </details>
-
-                        <details class="admin-collapsible">
-                            <summary class="admin-collapsible__summary">
-                                <span>{{ __('access.users.scopes.teachers') }}</span>
-                                <span class="admin-collapsible__count">{{ count($scope_teachers) }}/{{ $availableScopeTeachers->count() }}</span>
-                            </summary>
-                            <div class="mt-3 grid gap-3 md:grid-cols-2">
-                                @forelse ($availableScopeTeachers as $scopeTeacher)
-                                    <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                        <input wire:model="scope_teachers" type="checkbox" value="{{ $scopeTeacher->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeTeacher->first_name }} {{ $scopeTeacher->last_name }}</span>
-                                    </label>
-                                @empty
-                                    <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
-                                @endforelse
-                            </div>
-                        </details>
-
-                        <details class="admin-collapsible">
-                            <summary class="admin-collapsible__summary">
-                                <span>{{ __('access.users.scopes.parents') }}</span>
-                                <span class="admin-collapsible__count">{{ count($scope_parents) }}/{{ $availableScopeParents->count() }}</span>
-                            </summary>
-                            <div class="mt-3 grid gap-3 md:grid-cols-2">
-                                @forelse ($availableScopeParents as $scopeParent)
-                                    <label class="flex items-start gap-3 text-sm text-neutral-200">
-                                        <input wire:model="scope_parents" type="checkbox" value="{{ $scopeParent->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeParent->father_name }} ({{ $scopeParent->students_count }})</span>
-                                    </label>
-                                @empty
-                                    <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
-                                @endforelse
-                            </div>
-                        </details>
-                        </div>
-                    </div>
-                </details>
-            </section>
+            @include('livewire.users.partials.access-overrides')
 
             <div class="admin-action-cluster admin-action-cluster--end">
                 @if ($editingId)
