@@ -407,6 +407,7 @@ new class extends Component {
                     ->whereNull('enrollment_id')
                     ->orWhereHas('enrollment', fn (Builder $enrollmentQuery) => $enrollmentQuery
                         ->whereNull('course_finished_at')
+                        ->whereHas('group.course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true)->where('awards_points', true))
                         ->whereDoesntHave('group.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at')));
             });
     }
@@ -573,7 +574,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <span class="points-ledger-entered-at" dir="ltr">
-                                        <span>{{ $transaction->entered_at?->format('d-m-Y') }}</span>
+                                        <span>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y')) }}</span>
                                         <span>{{ $transaction->entered_at?->format('H:i') }}</span>
                                     </span>
                                 </td>
@@ -647,7 +648,7 @@ new class extends Component {
                                 <dt>{{ __('workflow.points.workbench.table.headers.entered_at') }}</dt>
                                 <dd>
                                     <span class="points-ledger-entered-at" dir="ltr">
-                                        <span>{{ $transaction->entered_at?->format('d-m-Y') }}</span>
+                                        <span>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y')) }}</span>
                                         <span>{{ $transaction->entered_at?->format('H:i') }}</span>
                                     </span>
                                 </dd>

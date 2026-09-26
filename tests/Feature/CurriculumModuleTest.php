@@ -30,7 +30,7 @@ class CurriculumModuleTest extends TestCase
     public function test_lesson_counts_use_the_requested_arabic_grammar(): void
     {
         $this->assertSame('0 درس', trans_choice('curricula.counts.lessons', 0, ['count' => 0], 'ar'));
-        $this->assertSame('1 درس', trans_choice('curricula.counts.lessons', 1, ['count' => 1], 'ar'));
+        $this->assertSame('درس واحد', trans_choice('curricula.counts.lessons', 1, ['count' => 1], 'ar'));
         $this->assertSame('درسين', trans_choice('curricula.counts.lessons', 2, ['count' => 2], 'ar'));
         $this->assertSame('3 دروس', trans_choice('curricula.counts.lessons', 3, ['count' => 3], 'ar'));
         $this->assertSame('10 دروس', trans_choice('curricula.counts.lessons', 10, ['count' => 10], 'ar'));

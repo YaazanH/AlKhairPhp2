@@ -365,12 +365,8 @@ new class extends Component
     {
         $this->authorizePermission('users.update');
         abort_unless($this->viewingAccountId, 404);
-        $user = User::with(['roles', 'permissions', 'scopeOverrides'])->findOrFail($this->viewingAccountId);
-        $this->roles = $user->getRoleNames()->diff(RoleRegistry::actorRoles())->values()->all();
+        $user = User::with('permissions')->findOrFail($this->viewingAccountId);
         $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->all();
-        foreach (['groups' => 'group', 'parents' => 'parent', 'students' => 'student', 'teachers' => 'teacher'] as $field => $type) {
-            $this->{'scope_'.$field} = $user->scopeOverrides->where('scope_type', $type)->pluck('scope_id')->map(fn ($id) => (int) $id)->all();
-        }
         $this->resetValidation();
         $this->showPermissionsModal = true;
     }
@@ -385,21 +381,13 @@ new class extends Component
     {
         $this->authorizePermission('users.update');
         abort_unless($this->viewingAccountId && $this->showPermissionsModal, 404);
-        $rules = collect($this->rules())->filter(fn ($rule, $key) => $key === 'roles' || str_starts_with($key, 'roles.')
-            || $key === 'direct_permissions' || str_starts_with($key, 'direct_permissions.') || str_starts_with($key, 'scope_'))->all();
-        $rules['roles'] = ['array'];
-        $validated = $this->validate($rules);
+        $validated = $this->validate([
+            'direct_permissions' => ['nullable', 'array'],
+            'direct_permissions.*' => ['string', Rule::exists('permissions', 'name')],
+        ]);
         \Illuminate\Support\Facades\DB::transaction(function () use ($validated): void {
             $user = User::lockForUpdate()->findOrFail($this->viewingAccountId);
-            $profileRoles = $user->getRoleNames()->intersect(RoleRegistry::actorRoles());
-            $user->syncRoles($profileRoles->merge($validated['roles'])->unique()->all());
             $user->syncPermissions($validated['direct_permissions'] ?? []);
-            app(AccessScopeService::class)->syncUserOverrides($user, [
-                'group' => $validated['scope_groups'] ?? [],
-                'parent' => $validated['scope_parents'] ?? [],
-                'student' => $validated['scope_students'] ?? [],
-                'teacher' => $validated['scope_teachers'] ?? [],
-            ], Auth::id());
         });
         $this->closeAccountPermissions();
         session()->flash('status', __('access.users.messages.permissions_saved'));
@@ -680,49 +668,42 @@ new class extends Component
         @endif
     </section>
 
-    <x-admin.modal :show="$viewingAccountId !== null && ! $showPermissionsModal" :title="__('access.profile_accounts.view_account')" close-method="closeLinkedAccount" max-width="2xl">
+    <x-admin.modal :show="$viewingAccountId !== null && ! $showPermissionsModal" :title="__('access.profile_accounts.view_account')" close-method="closeLinkedAccount" max-width="fit" compact>
         <x-slot:headerActions>
             @can('users.update')
                 <button type="button" wire:click="openAccountPermissions" class="admin-modal__close" title="{{ __('access.users.shared_permissions') }}" aria-label="{{ __('access.users.shared_permissions') }}" data-user-account-permissions-action><x-admin-action-icon name="permissions" class="size-5" /></button>
             @endcan
         </x-slot:headerActions>
         @if ($viewedAccount)
-            <dl class="grid min-w-0 gap-5 sm:grid-cols-2" data-user-readonly-account="{{ $viewedAccount->id }}">
-                @foreach ([
+            <dl class="min-w-0 space-y-4" data-user-readonly-account="{{ $viewedAccount->id }}">
+                @foreach (array_chunk([
                     __('access.users.fields.name') => $viewedAccount->name,
                     __('access.users.fields.username') => $viewedAccount->username,
                     __('access.users.fields.email') => $viewedAccount->email,
                     __('access.users.fields.phone') => $viewedAccount->phone,
                     __('access.users.fields.roles') => $viewedAccount->roles->map(fn ($role) => \Illuminate\Support\Facades\Lang::has('ui.roles.'.$role->name) ? __('ui.roles.'.$role->name) : $role->name)->implode(' · '),
                     __('access.users.fields.is_active') => $viewedAccount->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive'),
-                ] as $label => $value)
-                    <div class="min-w-0">
-                        <dt class="text-sm text-neutral-400">{{ $label }}</dt>
-                        <dd class="mt-2 break-words font-semibold text-white"><bdi dir="{{ in_array($label, [__('access.users.fields.phone'), __('access.users.fields.username'), __('access.users.fields.email')], true) ? 'ltr' : 'auto' }}">{{ $value ?: __('crud.common.not_available') }}</bdi></dd>
+                ], 2, true) as $detailsRow)
+                    <div class="grid min-w-0 gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2">
+                        @foreach ($detailsRow as $label => $value)
+                            <div class="min-w-0">
+                                <dt class="kpi-label">{{ $label }}</dt>
+                                <dd class="mt-1 break-words text-white"><bdi dir="{{ in_array($label, [__('access.users.fields.phone'), __('access.users.fields.username'), __('access.users.fields.email')], true) ? 'ltr' : 'auto' }}">{{ $value ?: __('crud.common.not_available') }}</bdi></dd>
+                            </div>
+                        @endforeach
                     </div>
                 @endforeach
             </dl>
         @endif
     </x-admin.modal>
 
-    <x-admin.modal :show="$showPermissionsModal" :title="__('access.users.shared_permissions')" close-method="closeAccountPermissions" max-width="5xl">
+    <x-admin.modal :show="$showPermissionsModal" :title="__('access.users.shared_permissions')" close-method="closeAccountPermissions" :dismissible="false" max-width="5xl">
         <x-slot:headerActions>
             <button type="submit" form="user-account-permissions-form" class="admin-modal__close" title="{{ __('access.users.form.save_update') }}" aria-label="{{ __('access.users.form.save_update') }}" data-user-account-permissions-save><x-admin-action-icon name="save" class="size-5" /></button>
         </x-slot:headerActions>
         <form id="user-account-permissions-form" wire:submit="saveAccountPermissions" class="space-y-4">
             <div class="text-lg font-semibold">{{ $viewedAccount?->name }}</div>
-            <section class="admin-section-card" data-account-permission-roles>
-                <h3 class="mb-3 font-semibold">{{ __('access.users.fields.roles') }}</h3>
-                <div class="grid gap-3 md:grid-cols-2">
-                    @foreach ($availableRoles as $availableRole)
-                        <label class="flex items-center gap-3 rounded-2xl border border-white/8 px-3 py-3 text-sm">
-                            <input wire:model.live="roles" type="checkbox" value="{{ $availableRole->name }}" class="rounded">
-                            <span><x-admin.role-label :name="$availableRole->name" /></span>
-                        </label>
-                    @endforeach
-                </div>
-            </section>
-            @include('livewire.users.partials.access-overrides')
+            @include('livewire.users.partials.access-overrides', ['showScopeOverrides' => false])
             @if ($errors->any())
                 <div class="text-sm text-red-400" role="alert">{{ $errors->first() }}</div>
             @endif

@@ -9,7 +9,7 @@
                             <td class="calendar-legend__badge" width="6mm" style="background-color: {{ $event['color'] }};">&nbsp;</td>
                             <td class="calendar-legend__text">
                                 <div class="calendar-legend__name">{{ $event['name'] }}</div>
-                                <table class="calendar-legend__dates" dir="ltr"><tr><td>{{ $event['starts_on']->format('d-m-Y') }}@if(! $event['starts_on']->isSameDay($event['ends_on'])) &ndash; {{ $event['ends_on']->format('d-m-Y') }}@endif</td></tr></table>
+                                <table class="calendar-legend__dates" dir="ltr"><tr><td>{{ \App\Support\DateDisplay::html($event['starts_on']->format('d-m-Y')) }}@if(! $event['starts_on']->isSameDay($event['ends_on'])) &ndash; {{ \App\Support\DateDisplay::html($event['ends_on']->format('d-m-Y')) }}@endif</td></tr></table>
                             </td>
                         </tr></table>
                     </td>

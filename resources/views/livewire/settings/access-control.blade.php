@@ -125,6 +125,8 @@ new class extends Component {
     {
         $this->authorizePermission('roles.manage');
 
+        abort_if($this->isSystemRole($roleName), 403);
+
         $role = Role::findByName($roleName, 'web');
 
         $this->showPermissionsModal = false;
@@ -148,6 +150,12 @@ new class extends Component {
     {
         $this->authorizePermission('roles.manage');
 
+        if ($this->isSystemRole($this->editing_role)) {
+            $this->addError('role_name', __('access.roles.errors.protected'));
+
+            return;
+        }
+
         $validated = Validator::make(
             ['role_name' => $this->role_name, 'clone_role' => $this->clone_role],
             [
@@ -160,12 +168,6 @@ new class extends Component {
 
         if ($normalizedName === '') {
             $this->addError('role_name', __('validation.required', ['attribute' => __('access.roles.fields.name')]));
-
-            return;
-        }
-
-        if ($this->editing_role !== '' && $this->isSystemRole($this->editing_role) && $normalizedName !== $this->editing_role) {
-            $this->addError('role_name', __('access.roles.errors.protected'));
 
             return;
         }
@@ -253,7 +255,7 @@ new class extends Component {
         if (
             $roleName === $beforeRoleName
             || in_array($roleName, RoleRegistry::fixedBoundaryRoles(), true)
-            || in_array($beforeRoleName, [RoleRegistry::SUPER_ADMIN, RoleRegistry::STUDENT], true)
+            || in_array($beforeRoleName, [RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN, RoleRegistry::MANAGER, RoleRegistry::STUDENT], true)
         ) {
             return;
         }
@@ -360,8 +362,8 @@ new class extends Component {
             ->withCount(['users', 'permissions'])
             ->when(filled($this->role_search), fn ($query) => $query->where('name', 'like', '%'.$this->role_search.'%'))
             ->orderByRaw(
-                'case when name = ? then 0 when name = ? then 2 when name = ? then 3 else 1 end',
-                [RoleRegistry::SUPER_ADMIN, RoleRegistry::PARENT, RoleRegistry::STUDENT],
+                'case when name = ? then 0 when name = ? then 1 when name = ? then 2 when name = ? then 4 when name = ? then 5 else 3 end',
+                [RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN, RoleRegistry::MANAGER, RoleRegistry::PARENT, RoleRegistry::STUDENT],
             )
             ->orderByDesc('level')
             ->orderByRaw("
@@ -422,7 +424,7 @@ new class extends Component {
                             @php
                                 $isSystemRole = RoleRegistry::isSystemRole($role->name);
                                 $hasFixedPosition = in_array($role->name, RoleRegistry::fixedBoundaryRoles(), true);
-                                $canReceiveRoleDrop = ! in_array($role->name, [RoleRegistry::SUPER_ADMIN, RoleRegistry::STUDENT], true);
+                                $canReceiveRoleDrop = ! in_array($role->name, [RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN, RoleRegistry::MANAGER, RoleRegistry::STUDENT], true);
                             @endphp
                             <tr
                                 wire:key="role-row-{{ $role->id }}"
@@ -550,23 +552,24 @@ new class extends Component {
         :show="$showPermissionsModal"
         :title="$selectedRoleRecord ? $this->roleLabel($selectedRoleRecord->name) : ''"
         close-method="closePermissionsModal"
+        :dismissible="false"
         max-width="6xl"
     >
         <x-slot:header-actions>
             @if ($selectedRoleRecord)
+                @unless ($this->isSystemRole($selectedRoleRecord->name))
+                    <button type="button" wire:click="openEditRoleModal('{{ $selectedRoleRecord->name }}')"
+                        class="admin-modal__close" title="{{ __('access.roles.actions.edit') }}" aria-label="{{ __('access.roles.actions.edit') }}"
+                        data-role-edit-action data-permissions-edit-action>
+                        <x-admin-action-icon name="edit" class="size-5" />
+                    </button>
+                @endunless
                 <button type="button" wire:click="save" class="admin-modal__close" title="{{ __('access.roles.actions.save') }}" aria-label="{{ __('access.roles.actions.save') }}" data-permissions-save-icon>
                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 3.75h11.25L19.5 7v13.25H5V3.75Z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
                     </svg>
                 </button>
-                <x-edit-action-button
-                    wire:click="openEditRoleModal('{{ $selectedRoleRecord->name }}')"
-                    :label="__('access.roles.actions.edit')"
-                    class="admin-modal__close"
-                    data-role-edit-action
-                    data-permissions-edit-action
-                />
             @endif
         </x-slot:header-actions>
         @if ($selectedRoleRecord)

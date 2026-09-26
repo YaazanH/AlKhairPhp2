@@ -20,6 +20,7 @@ use App\Services\CourseLifecycleService;
 use App\Services\MemorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class StandaloneMemorizationPageTest extends TestCase
@@ -167,7 +168,15 @@ class StandaloneMemorizationPageTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
-        Volt::test('memorization.quick-entry')
+        $originalJuzId = QuranJuz::where('juz_number', 30)->value('id');
+        $enrollment->student->update(['quran_current_juz_id' => $originalJuzId]);
+
+        Volt::test('memorization.quick-entry')->set('selectedStudentId', $enrollment->student_id)
+            ->call('selectJuz', 2)->set('selectedPages', [22])->call('save')
+            ->assertSet('uniquePages', [])->call('confirmDuplicateSave');
+        $this->assertSame($originalJuzId, $enrollment->student->fresh()->quran_current_juz_id);
+
+        $editor = Volt::test('memorization.quick-entry')
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('selectedJuzNumber', QuranJuz::query()->where('from_page', '<=', 22)->where('to_page', '>=', 22)->value('juz_number'))
             ->set('selectedPages', range(23, 25))
@@ -175,9 +184,12 @@ class StandaloneMemorizationPageTest extends TestCase
             ->assertHasNoErrors()
             ->assertSet('showDuplicateModal', true)
             ->assertSet('duplicatePages', [23, 24])
-            ->assertSet('uniquePages', [25])
-            ->call('confirmDuplicateSave')
+            ->assertSet('uniquePages', [25]);
+        $this->assertSame($originalJuzId, $enrollment->student->fresh()->quran_current_juz_id);
+        $editor->call('confirmDuplicateSave')
             ->assertHasNoErrors();
+
+        $this->assertSame(QuranJuz::where('juz_number', 2)->value('id'), $enrollment->student->fresh()->quran_current_juz_id);
 
         $this->assertDatabaseHas('memorization_sessions', [
             'enrollment_id' => $enrollment->id,
@@ -575,7 +587,7 @@ class StandaloneMemorizationPageTest extends TestCase
         $this->assertSame([22, 23], $enrollment->memorizationSessions()->firstOrFail()->pages()->orderBy('page_no')->pluck('page_no')->all());
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('recordingAdministratorRoles')]
+    #[DataProvider('recordingAdministratorRoles')]
     public function test_administrator_teacher_is_preselected_for_the_chosen_group_and_can_be_overridden(string $role): void
     {
         [, $teacher, $enrollment] = $this->teacherMemorizationContext();
@@ -636,6 +648,77 @@ class StandaloneMemorizationPageTest extends TestCase
             ->set('teacher_id', $inactive->id)->call('save')->assertHasErrors('teacher_id')
             ->set('teacher_id', $teacher->id)->call('save')->assertHasNoErrors();
         $this->assertSame($teacher->id, $enrollment->memorizationSessions()->sole()->teacher_id);
+    }
+
+    public function test_browsing_juzs_only_changes_current_juz_after_saving_a_page(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        $student = $enrollment->student;
+        $juzIds = QuranJuz::pluck('id', 'juz_number');
+        app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id, 'recorded_on' => now()->toDateString(),
+            'entry_type' => 'new', 'from_page' => 582, 'to_page' => 582,
+        ]);
+        $student->update(['quran_current_juz_id' => $juzIds[30]]);
+        $editor = Volt::test('memorization.quick-entry')->set('selectedStudentId', $student->id)
+            ->assertSee('data-memorization-juz-trigger', false)->assertSee('data-juz-choice="2"', false)
+            ->set('selectedPages', [582])->call('navigateJuz', -1)
+            ->assertSet('selectedJuzNumber', 29)->assertSet('selectedPages', [])->assertHasNoErrors();
+        $this->assertSame($juzIds[30], $student->fresh()->quran_current_juz_id);
+        $editor->call('selectJuz', 2)->assertSet('selectedJuzNumber', 2)
+            ->assertSee('data-memorization-page="22"', false)->assertDontSee('data-memorization-page="582"', false)
+            ->set('selectedPages', [22])->call('selectJuz', 2)->assertSet('selectedPages', [22]);
+        $this->assertSame($juzIds[30], $student->fresh()->quran_current_juz_id);
+        Volt::test('memorization.quick-entry')->set('selectedStudentId', $student->id)->assertSet('selectedJuzNumber', 30);
+        $editor->set('selectedPages', [])->call('save')->assertHasErrors('selectedPages');
+        $this->assertSame($juzIds[30], $student->fresh()->quran_current_juz_id);
+        $editor->set('selectedPages', [22]);
+        $editor->call('save')->assertHasNoErrors();
+        $this->assertSame($juzIds[2], $student->fresh()->quran_current_juz_id);
+        $this->assertSame([22], $enrollment->memorizationSessions()->latest('id')->first()->pages()->pluck('page_no')->all());
+    }
+
+    public function test_quick_juz_switch_rejects_excluded_finished_and_invalid_juz_without_changing_student(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        $student = $enrollment->student;
+        $juzIds = QuranJuz::pluck('id', 'juz_number');
+        $student->update(['quran_current_juz_id' => $juzIds[30]]);
+        $student->externalMemorizedJuzs()->attach($juzIds[5]);
+        app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id, 'recorded_on' => '2026-09-26', 'entry_type' => 'new', 'from_page' => 1, 'to_page' => 21,
+        ]);
+        $student->refresh()->update(['quran_current_juz_id' => $juzIds[30]]);
+        $editor = Volt::test('memorization.quick-entry')->set('selectedStudentId', $student->id)
+            ->assertDontSee('data-juz-choice="1"', false)->assertDontSee('data-juz-choice="5"', false);
+        foreach ([0, 1, 5, 31] as $number) {
+            $editor->call('selectJuz', $number)->assertHasErrors('selectedJuzNumber')->assertSet('selectedJuzNumber', 30);
+            $this->assertSame($juzIds[30], $student->fresh()->quran_current_juz_id);
+        }
+        $student->externalMemorizedJuzs()->attach($juzIds[2]);
+        $editor->call('selectJuz', 2)->assertHasErrors('selectedJuzNumber');
+        $this->assertSame($juzIds[30], $student->fresh()->quran_current_juz_id);
+    }
+
+    public function test_automatic_picker_fallback_does_not_change_current_juz(): void
+    {
+        [, , $enrollment] = $this->teacherMemorizationContext();
+        $juzId = QuranJuz::where('juz_number', 30)->value('id');
+        $enrollment->student->update(['quran_current_juz_id' => $juzId]);
+        $enrollment->student->externalMemorizedJuzs()->attach($juzId);
+        Volt::test('memorization.quick-entry')->set('selectedStudentId', $enrollment->student_id)->assertSet('selectedJuzNumber', 29);
+        $this->assertSame($juzId, $enrollment->student->fresh()->quran_current_juz_id);
+    }
+
+    public function test_quick_juz_switch_requires_recording_permission(): void
+    {
+        [$user, , $enrollment] = $this->teacherMemorizationContext();
+        $editor = Volt::test('memorization.quick-entry')->set('selectedStudentId', $enrollment->student_id);
+        $current = $enrollment->student->quran_current_juz_id;
+        $user->syncRoles([]);
+        $user->syncPermissions([]);
+        $editor->call('selectJuz', 2)->assertForbidden();
+        $this->assertSame($current, $enrollment->student->fresh()->quran_current_juz_id);
     }
 
     private function teacherMemorizationContext(): array

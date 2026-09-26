@@ -78,7 +78,7 @@ new class extends Component
 
     public string $calendarName = '';
 
-    public string $calendarColor = '#3f8067';
+    public string $calendarColor = CourseCalendarPalette::COLORS[0];
 
     public ?int $editingCalendarRow = null;
 
@@ -131,7 +131,7 @@ new class extends Component
         return [
             'courses' => $filteredQuery->paginate($this->perPage),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'is_active']),
-            'activeAcademicYears' => AcademicYear::query()->where('is_active', true)->orderByDesc('is_current')->orderByDesc('starts_on')->get(['id', 'name']),
+            'activeAcademicYears' => AcademicYear::query()->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->editingId ? Course::query()->whereKey($this->editingId)->value('academic_year_id') : null))->orderByDesc('is_current')->orderByDesc('starts_on')->get(['id', 'name']),
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => Course::query()->where('is_active', true)->count(),
@@ -179,7 +179,7 @@ new class extends Component
             'academic_year_id' => [
                 'required',
                 'integer',
-                Rule::exists('academic_years', 'id')->where(fn ($query) => $query->where('is_active', true)),
+                Rule::exists('academic_years', 'id')->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->editingId ? Course::query()->whereKey($this->editingId)->value('academic_year_id') : null)),
             ],
             'starts_on' => ['required', 'date'],
             'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
@@ -210,7 +210,12 @@ new class extends Component
             return;
         }
 
-        $validated = $this->validate();
+        try {
+            $validated = $this->validate();
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->showCalendarModal = false;
+            throw $exception;
+        }
         $validated['description'] = $validated['description'] ?: null;
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
@@ -233,6 +238,19 @@ new class extends Component
                 Group::withTrashed()->where('course_id', $course->id)->update([
                     'academic_year_id' => $course->academic_year_id,
                 ]);
+            }
+
+            if ($this->calendarCourseId === $course->id) {
+                try {
+                    $this->persistCourseCalendar();
+                } catch (\Illuminate\Validation\ValidationException $exception) {
+                    $this->showCalendarModal = true;
+                    throw $exception;
+                }
+                if ($this->getErrorBag()->isNotEmpty()) {
+                    $this->showCalendarModal = true;
+                    throw \Illuminate\Validation\ValidationException::withMessages($this->getErrorBag()->toArray());
+                }
             }
 
             return $course;
@@ -277,6 +295,8 @@ new class extends Component
         $this->is_default = $course->is_default;
         $this->awards_points = $course->awards_points;
         $this->editingAcademicYearIsActive = $course->academicYear?->is_active ?? true;
+        $this->loadCourseCalendar($course);
+        $this->showCalendarModal = false;
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -284,6 +304,7 @@ new class extends Component
 
     public function cancel(): void
     {
+        $this->closeCourseCalendar();
         $this->resetFormState();
         $this->showFormModal = false;
         $this->copySetup = false;
@@ -580,10 +601,14 @@ new class extends Component
     {
         $this->authorizePermission('courses.update');
 
-        $course = Course::query()->with('calendarEntries')->findOrFail($courseId);
-        abort_unless($course->awards_points, 404);
-        abort_unless($course->starts_on && $course->ends_on, 422);
+        $course = Course::query()->findOrFail($courseId);
+        abort_unless($course->is_active, 404);
+        $this->edit($courseId);
+        $this->showCalendarModal = true;
+    }
 
+    protected function loadCourseCalendar(Course $course): void
+    {
         $this->calendarCourseId = $course->id;
         $this->calendarRows = $course->calendarEntries
             ->sortBy([['date', 'asc'], ['name', 'asc'], ['id', 'asc']])
@@ -597,7 +622,6 @@ new class extends Component
             ->values()
             ->all();
         $this->calendarRows = CourseCalendarPalette::uniqueRows($this->calendarRows);
-        $this->showCalendarModal = true;
         $this->resetCalendarRow();
         $this->resetValidation();
     }
@@ -608,6 +632,11 @@ new class extends Component
         abort_unless($this->calendarCourseId, 404);
 
         $course = Course::query()->findOrFail($this->calendarCourseId);
+        abort_unless($course->is_active, 404);
+        $this->validateOnly('starts_on');
+        $this->validateOnly('ends_on');
+        $course->starts_on = $this->starts_on;
+        $course->ends_on = $this->ends_on;
         $this->calendarColor = strtolower($this->calendarColor);
         $data = $this->validate([
             'calendarDate' => [
@@ -696,6 +725,11 @@ new class extends Component
     }
 
     public function saveCourseCalendar(): void
+    {
+        $this->save();
+    }
+
+    protected function persistCourseCalendar(): void
     {
         abort_unless($this->calendarCourseId, 404);
         $this->authorizePermission('courses.update');
@@ -790,8 +824,7 @@ new class extends Component
             }
         });
 
-        $this->closeCourseCalendar();
-        session()->flash('status', __('course_calendar.manager.messages.saved'));
+
     }
 
     public function saveCourseCalendarAndOpenPdf(): void
@@ -983,12 +1016,12 @@ new class extends Component
                                     <div class="font-semibold text-white">{{ $course->name }}</div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    {{ $course->starts_on || $course->ends_on
+                                    {{ \App\Support\DateDisplay::html($course->starts_on || $course->ends_on
                                         ? __('crud.courses.table.date_range', [
                                             'start' => $course->starts_on?->format('d-m-Y') ?: __('crud.common.not_available'),
                                             'end' => $course->ends_on?->format('d-m-Y') ?: __('crud.common.not_available'),
                                         ])
-                                        : __('crud.common.not_available') }}
+                                        : __('crud.common.not_available')) }}
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $course->academicYear?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($course->groups_count) }}</td>
@@ -1016,13 +1049,8 @@ new class extends Component
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex flex-nowrap justify-end gap-2">
                                         @can('courses.update')
-                                            @if ($course->is_active && ($course->academicYear?->is_active ?? true))
-                                                <x-edit-action-button wire:click="edit({{ $course->id }})" :label="__('crud.common.actions.edit')" data-course-edit-action />
-                                                @if ($course->awards_points)
-                                                    <button type="button" wire:click="openCourseCalendar({{ $course->id }})" class="admin-icon-button border-teal-300/30 bg-teal-400/10 text-teal-100" title="{{ __('crud.courses.actions.calendar') }}" aria-label="{{ __('crud.courses.actions.calendar') }}" data-course-calendar-action>
-                                                        <x-admin-action-icon name="calendar" />
-                                                    </button>
-                                                @endif
+                                            @if ($course->is_active)
+                                                <x-open-action-button wire:click="edit({{ $course->id }})" :label="__('course_calendar.manager.actions.open_course')" data-course-open-action />
                                             @elseif (! $course->is_active)
                                                 <button type="button" wire:click="openArchive({{ $course->id }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.courses.actions.archive') }}" aria-label="{{ __('crud.courses.actions.archive') }}" data-course-archive-action>
                                                     <x-admin-action-icon name="archive" />
@@ -1047,11 +1075,18 @@ new class extends Component
 
     <x-admin.modal
         :show="$showFormModal"
-        :title="$editingId ? __('crud.courses.form.edit_title') : __('crud.courses.form.create_title')"
+        :title="$editingId ? $name : __('crud.courses.form.create_title')"
         close-method="cancel"
         max-width="3xl"
     >
-        <form wire:submit="save" class="space-y-4">
+        @if ($editingId && ! $copySetup)
+            <div class="course-manager-tabs" role="tablist" aria-label="{{ __('course_calendar.manager.actions.open_course') }}">
+                <button type="button" role="tab" data-modal-action-icon-ignore id="course-details-tab" aria-controls="course-details-panel" aria-selected="{{ $showCalendarModal ? 'false' : 'true' }}" wire:click="$set('showCalendarModal', false)"><x-admin-action-icon name="info" />{{ __('course_calendar.manager.details') }}</button>
+                <button type="button" role="tab" data-modal-action-icon-ignore id="course-calendar-tab" aria-controls="course-calendar-panel" aria-selected="{{ $showCalendarModal ? 'true' : 'false' }}" wire:click="$set('showCalendarModal', true)"><x-admin-action-icon name="calendar" />{{ __('crud.courses.actions.calendar') }}</button>
+            </div>
+        @endif
+        <form wire:submit="save" class="space-y-4" novalidate>
+            <div id="course-details-panel" role="tabpanel" aria-labelledby="course-details-tab" class="space-y-4" @if($showCalendarModal) hidden @endif>
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="course-name" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.name') }}</label>
@@ -1095,51 +1130,15 @@ new class extends Component
                 <label class="flex items-center gap-3 text-sm"><input wire:model="awards_points" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('crud.courses.form.awards_points') }}</span></label>
             </div>
 
-            <div class="admin-action-cluster admin-action-cluster--end course-form-actions" data-course-form-actions>
-                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" aria-label="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" data-course-form-save-action>
-                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
-                </button>
-                @if ($editingId)
-                    @unless($copySetup)
-                        <button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="admin-icon-button admin-modal-action-button border-amber-300/30 bg-amber-400/10 text-amber-100" title="{{ __('crud.courses.actions.finish') }}" aria-label="{{ __('crud.courses.actions.finish') }}" data-course-form-finish-action>
-                            <x-admin-action-icon name="finish-line" class="admin-modal-action__icon" />
-                        </button>
-                        @can('courses.create')
-                            <button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-form-copy-action>
-                                <x-admin-action-icon name="copy" class="admin-modal-action__icon" />
-                            </button>
-                        @endcan
-                    @endunless
-                    @can('courses.delete')
-                        @if($editingCourseCanBeDeleted)<x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-course-form-delete-action />@endif
-                    @endcan
-                @endif
             </div>
-        </form>
-    </x-admin.modal>
-
-    <x-admin.modal
-        :show="$showCalendarModal"
-        :title="__('course_calendar.manager.title', ['course' => $calendarCourse?->name ?? ''])"
-        max-width="3xl"
-    >
-        <x-slot:header-actions>
-            @if ($calendarCourseId)
-                <button type="button" x-on:click="beginCalendarPdf()" wire:click="saveCourseCalendarAndOpenPdf" class="admin-modal__close text-teal-100" title="{{ __('course_calendar.manager.actions.open_pdf') }}" aria-label="{{ __('course_calendar.manager.actions.open_pdf') }}" data-course-calendar-pdf-action>
-                    <x-admin-action-icon name="calendar" class="size-5" />
-                </button>
-            @endif
-            <button type="button" wire:click="saveCourseCalendar" class="admin-modal__close" title="{{ __('course_calendar.manager.actions.save') }}" aria-label="{{ __('course_calendar.manager.actions.save') }}" data-course-calendar-save>
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </x-slot:header-actions>
-
+            @if ($editingId && ! $copySetup)
+                <div id="course-calendar-panel" role="tabpanel" aria-labelledby="course-calendar-tab" @unless($showCalendarModal) hidden @endunless>
         <section class="surface-table settings-record-table overflow-visible" data-course-calendar-entry-table>
             <div class="overflow-visible">
                 <table class="w-full table-fixed text-sm">
                     <thead>
                         <tr>
-                            <th class="w-1/4 px-4 py-3">{{ __('course_calendar.manager.fields.date') }}</th>
+                            <th class="w-[31%] px-4 py-3">{{ __('course_calendar.manager.fields.date') }}</th>
                             <th class="px-4 py-3">{{ __('course_calendar.manager.fields.name') }}</th>
                             <th class="w-24 px-3 py-3">{{ __('course_calendar.manager.fields.color') }}</th>
                             <th class="admin-actions-column w-32 px-2 py-3 text-center">{{ __('crud.common.actions.actions') }}</th>
@@ -1171,7 +1170,7 @@ new class extends Component
                                         </div>
                                     </td>
                                 @else
-                                    <td class="px-4 py-3"><div class="calendar-entry-dates"><bdi dir="ltr">{{ \Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y') }}</bdi>@if(! empty($row['end_date']) && $row['end_date'] !== $row['date'])<span>{{ __('course_calendar.manager.fields.end_date') }}</span><bdi dir="ltr">{{ \Carbon\CarbonImmutable::parse($row['end_date'])->format('d-m-Y') }}</bdi>@endif</div></td>
+                                    <td class="px-4 py-3"><div class="calendar-entry-dates"><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y')) }}</bdi>@if(! empty($row['end_date']) && $row['end_date'] !== $row['date'])<span>{{ __('course_calendar.manager.fields.end_date') }}</span><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['end_date'])->format('d-m-Y')) }}</bdi>@endif</div></td>
                                     <td class="px-4 py-3 font-medium text-white">{{ $row['name'] }}</td>
                                     <td class="px-4 py-3">
                                         <span class="inline-flex items-center gap-2">
@@ -1215,7 +1214,37 @@ new class extends Component
                 </table>
             </div>
         </section>
+                    @error('calendarRows')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
+                    @foreach ($errors->get('calendarRows.*') as $messages) @foreach ($messages as $message)<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@endforeach @endforeach
+                </div>
+            @endif
+            <div class="admin-action-cluster admin-action-cluster--end course-form-actions" data-course-form-actions>
+                <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" aria-label="{{ $editingId ? __('crud.courses.form.update_submit') : __('crud.courses.form.create_submit') }}" data-course-form-save-action>
+                    <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                </button>
+                @if ($calendarCourseId && ! $copySetup)
+                    <button type="button" x-on:click="beginCalendarPdf()" wire:click="saveCourseCalendarAndOpenPdf" class="admin-icon-button admin-modal-action-button" title="{{ __('course_calendar.manager.actions.open_pdf') }}" aria-label="{{ __('course_calendar.manager.actions.open_pdf') }}" data-course-calendar-pdf-action><x-admin-action-icon name="calendar" /></button>
+                @endif
+                @if ($editingId)
+                    @unless($copySetup)
+                        <button type="button" wire:click="deactivate({{ $editingId }})" wire:confirm="{{ __('crud.courses.confirm_deactivate') }}" class="admin-icon-button admin-modal-action-button border-amber-300/30 bg-amber-400/10 text-amber-100" title="{{ __('crud.courses.actions.finish') }}" aria-label="{{ __('crud.courses.actions.finish') }}" data-course-form-finish-action>
+                            <x-admin-action-icon name="finish-line" class="admin-modal-action__icon" />
+                        </button>
+                        @can('courses.create')
+                            <button type="button" wire:click="duplicate({{ $editingId }})" wire:confirm="{{ __('crud.courses.copy.confirm') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-form-copy-action>
+                                <x-admin-action-icon name="copy" class="admin-modal-action__icon" />
+                            </button>
+                        @endcan
+                    @endunless
+                    @can('courses.delete')
+                        @if($editingCourseCanBeDeleted)<x-delete-action-button wire:click="delete({{ $editingId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-course-form-delete-action />@endif
+                    @endcan
+                @endif
+            </div>
+        </form>
     </x-admin.modal>
+
+
 
     <x-admin.modal :show="$showScheduleModal" :title="__('schedules.course.title', ['course' => $schedulingCourse?->name ?? ''])" max-width="3xl">
         <x-slot:header-actions>

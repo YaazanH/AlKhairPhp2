@@ -319,7 +319,7 @@ new class extends Component
             </div>
             <div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-student-attendance-day-date-metric>
                 <div class="text-xs text-neutral-300">{{ __('workflow.student_attendance.form.attendance_date') }}</div>
-                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ $dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available') }}</bdi>
+                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ \App\Support\DateDisplay::html($dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</bdi>
             </div>
         </div>
     </section>

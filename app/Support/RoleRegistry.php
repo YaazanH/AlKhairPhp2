@@ -7,10 +7,15 @@ use Illuminate\Support\Collection;
 class RoleRegistry
 {
     public const SUPER_ADMIN = 'super_admin';
+
     public const ADMIN = 'admin';
+
     public const MANAGER = 'manager';
+
     public const TEACHER = 'teacher';
+
     public const PARENT = 'parent';
+
     public const STUDENT = 'student';
 
     /**
@@ -60,7 +65,7 @@ class RoleRegistry
      */
     public static function fixedBoundaryRoles(): array
     {
-        return [self::SUPER_ADMIN, self::PARENT, self::STUDENT];
+        return [self::SUPER_ADMIN, self::ADMIN, self::MANAGER, self::PARENT, self::STUDENT];
     }
 
     /**
@@ -133,15 +138,15 @@ class RoleRegistry
     public static function pinFixedRolePositions(Collection $roles): Collection
     {
         $roles = $roles->values();
-        $superAdmin = $roles->firstWhere('name', self::SUPER_ADMIN);
+        $topRoles = collect([self::SUPER_ADMIN, self::ADMIN, self::MANAGER])
+            ->map(fn (string $name) => $roles->firstWhere('name', $name))->filter();
         $parent = $roles->firstWhere('name', self::PARENT);
         $student = $roles->firstWhere('name', self::STUDENT);
         $middleRoles = $roles
             ->reject(fn ($role): bool => in_array($role->name ?? null, self::fixedBoundaryRoles(), true))
             ->values();
 
-        return collect([$superAdmin])
-            ->filter()
+        return $topRoles
             ->concat($middleRoles)
             ->when($parent, fn (Collection $ordered) => $ordered->push($parent))
             ->when($student, fn (Collection $ordered) => $ordered->push($student))

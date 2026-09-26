@@ -85,7 +85,7 @@ class SystemBackupTest extends TestCase
         $this->assertSame(2, substr_count($backupView, 'class="grid gap-4 sm:grid-cols-2"'));
         $this->assertSame(4, substr_count($backupView, "format('d-m-Y H:i')"));
         $this->assertStringNotContainsString("format('m-d-Y H:i')", $backupView);
-        $this->assertStringContainsString('<bdi dir="ltr">{{ $backup->verified_at', $backupView);
+        $this->assertStringContainsString('<bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->verified_at', $backupView);
         $this->assertStringContainsString(':dismissible="false" max-width="2xl"', $backupView);
         $this->assertStringContainsString('<x-slot:header-actions>', $backupView);
         $this->assertStringContainsString('form="backup-settings-form"', $backupView);

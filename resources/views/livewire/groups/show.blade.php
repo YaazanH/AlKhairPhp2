@@ -593,7 +593,7 @@ new class extends Component {
                                 <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $enrollment->student?->student_number ?: '—' }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->quranCurrentJuz?->juz_number ?: '—' }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: '—' }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y') ?: '—') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
                             </tr>

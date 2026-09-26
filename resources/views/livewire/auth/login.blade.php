@@ -76,7 +76,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
         throw ValidationException::withMessages([
             'login' => __('auth.throttle', [
-                'seconds' => $seconds,
+                'seconds' => __('counts.seconds', ['count' => $seconds]),
                 'minutes' => ceil($seconds / 60),
             ]),
         ]);

@@ -2426,7 +2426,7 @@ new class extends Component {
                             <button type="button" wire:click="clearCurrentJuz" class="ms-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-white/65 transition hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                         </div>
                     @else
-                        <input id="student-juz" wire:key="student-current-juz-input" wire:model="quran_current_juz_number" wire:blur="commitCurrentJuz" wire:keydown.space.prevent.stop="commitCurrentJuz" x-on:keydown.enter.prevent.stop="" x-on:keydown.tab.prevent.stop="" x-on:focus-current-juz.window="$nextTick(() => $el.focus())" type="number" inputmode="numeric" min="1" max="30" step="1" class="h-[2.875rem] w-full rounded-xl px-4 py-0 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}" data-current-juz-input>
+                        <input id="student-juz" wire:key="student-current-juz-input" wire:model="quran_current_juz_number" wire:blur="commitCurrentJuz" wire:keydown.space.prevent.stop="commitCurrentJuz" x-on:focus-current-juz.window="$nextTick(() => $el.focus())" type="number" inputmode="numeric" min="1" max="30" step="1" class="h-[2.875rem] w-full rounded-xl px-4 py-0 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}" data-current-juz-input>
                     @endif
                     @error('quran_current_juz_number')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2439,9 +2439,6 @@ new class extends Component {
                 <div class="min-w-0">
                     <div class="mb-1 flex items-center justify-between gap-2">
                         <label for="student-external-juz" class="block text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }}</label>
-                        @if ($editingId && $external_memorized_juz_ids !== [] && (auth()->user()->can('quran-partial-tests.record') || auth()->user()->can('quran-final-tests.record')))
-                            <x-add-action-button wire:click="openExternalTestModal" :label="__('crud.students.external_tests.add')" :accent="false" />
-                        @endif
                     </div>
                     <div class="flex min-h-[2.875rem] w-full flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-3 py-1.5 focus-within:border-emerald-400/45 focus-within:ring-2 focus-within:ring-emerald-400/10" data-memorized-juz-input>
                         @foreach (collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids)) as $juz)

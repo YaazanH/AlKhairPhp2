@@ -210,7 +210,7 @@ return [
                 'preview_page' => 'معاينة الصفحة',
                 'hero_media' => 'صورة الترويسة',
                 'visibility' => 'الظهور ومكانها في الترويسة',
-                'section_count' => ':count أقسام',
+                'section_count' => '{0} :count قسم|{1} قسم واحد|{2} قسمين|[3,10] :count أقسام|[11,*] :count قسم|[*,*] :count قسم',
             ],
             'badges' => [
                 'in_navigation' => 'في الترويسة',
@@ -307,7 +307,7 @@ return [
                 'new_root' => 'إضافة رابط رئيسي',
                 'add_child' => 'إضافة عنصر فرعي',
                 'preview_site' => 'معاينة الترويسة',
-                'child_count' => ':count روابط فرعية',
+                'child_count' => '{0} :count رابط فرعي|{1} رابط فرعي واحد|{2} رابطين فرعيين|[3,10] :count روابط فرعية|[11,*] :count رابط فرعي|[*,*] :count رابط فرعي',
                 'linked_page' => 'الصفحة المرتبطة',
                 'custom_target' => 'وجهة مخصصة',
             ],

@@ -45,7 +45,7 @@
                         $textAlign = $element['styling']['text_align'];
                         $textDirection = preg_match('/[\p{Arabic}\p{Hebrew}\p{Syriac}]/u', $textValue) === 1 ? 'rtl' : 'ltr';
                     @endphp
-                    <div style="{{ $positionStyle }}color:{{ $element['styling']['color'] }};direction:{{ $textDirection }};font-size:{{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;font-weight:{{ $element['styling']['font_weight'] }};text-align:{{ $textAlign }};letter-spacing:{{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;line-height:{{ number_format($element['styling']['line_height'], 2, '.', '') }};">{!! nl2br(e($textValue)) !!}</div>
+                    <div style="{{ $positionStyle }}color:{{ $element['styling']['color'] }};direction:{{ $textDirection }};font-size:{{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;font-weight:{{ $element['styling']['font_weight'] }};text-align:{{ $textAlign }};letter-spacing:{{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;line-height:{{ number_format($element['styling']['line_height'], 2, '.', '') }};">{!! nl2br(\App\Support\DateDisplay::html($textValue)->toHtml()) !!}</div>
                 @endif
             @endforeach
         @endif

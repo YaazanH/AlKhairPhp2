@@ -811,7 +811,10 @@ class StudentAttendanceDayModuleTest extends TestCase
         $service->recordEnrollmentStatus($day, $enrollment->fresh(['student', 'group.course']), $present);
 
         $this->assertSame(0, $enrollment->fresh()->final_points_cached);
-        $this->assertSame(0, PointTransaction::query()->where('enrollment_id', $enrollment->id)->whereNull('voided_at')->sum('points'));
+        $this->assertSame(2, PointTransaction::query()->where('enrollment_id', $enrollment->id)->whereNull('voided_at')->sum('points'));
+        $course->update(['awards_points' => true]);
+        $this->assertSame(2, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(1, PointTransaction::query()->where('enrollment_id', $enrollment->id)->effectiveActive()->count());
     }
 
     public function test_manager_can_export_student_attendance_for_a_selected_course_and_period(): void

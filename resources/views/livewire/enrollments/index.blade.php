@@ -559,7 +559,7 @@ new class extends Component {
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                 @can('enrollments.update')
                                     <td class="px-5 py-4 lg:px-6">

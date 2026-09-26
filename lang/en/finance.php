@@ -559,6 +559,7 @@ return [
         'to_base' => '1 :currency = :amount :base',
     ],
     'validation' => [
+        'single_category_type' => 'Only one type is allowed in Exchange and one in Transfer, including inactive types.',
         'invalid_special_reference_prefix' => 'The special reference must use one of these configured prefixes: :prefixes.',
         'cash_box_currency_mismatch' => 'This fund does not support the selected currency.',
         'currency_reference_self' => 'A currency cannot use itself as its exchange-rate reference.',

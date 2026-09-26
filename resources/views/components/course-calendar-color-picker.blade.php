@@ -2,6 +2,7 @@
 
 <div x-data="{
     open: false, top: 0, left: 0,
+    previewColors: @js(collect($colors)->mapWithKeys(fn ($color) => [$color => \App\Support\CourseCalendarPalette::readableColor($color)])->all()),
     toggle() {
         this.open = !this.open;
         if (!this.open) return;
@@ -13,7 +14,7 @@
     }
 }" x-on:resize.window="open = false" x-on:keydown.escape.window="if (open) { $event.stopImmediatePropagation(); open = false; $refs.trigger.focus(); }" data-course-calendar-color-picker>
     <button x-ref="trigger" type="button" x-on:click="toggle()" class="calendar-color-trigger" :aria-expanded="open" aria-haspopup="dialog" aria-label="{{ __('course_calendar.manager.actions.choose_color') }}" title="{{ __('course_calendar.manager.actions.choose_color') }}" data-modal-action-icon-ignore>
-        <span class="calendar-color-trigger__swatch" :style="{ backgroundColor: $wire.calendarColor }" aria-hidden="true"></span>
+        <span class="calendar-color-trigger__swatch" :style="{ backgroundColor: previewColors[$wire.calendarColor] || $wire.calendarColor }" aria-hidden="true"></span>
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
     </button>
     <template x-teleport="body">
@@ -23,7 +24,7 @@
                 @foreach ($colors as $color)
                     <label class="calendar-color-option" title="{{ __('course_calendar.manager.color_option', ['number' => $loop->iteration]) }}">
                         <input :disabled="$wire.calendarRows.some((row, index) => index !== $wire.editingCalendarRow &amp;&amp; row.color.toLowerCase() === '{{ $color }}')" type="radio" name="course-calendar-color" wire:model="calendarColor" value="{{ $color }}" :checked="$wire.calendarColor === '{{ $color }}'" x-on:change="$wire.set('calendarColor', $event.target.value, false)" x-on:click="open = false; $refs.trigger.focus()" x-on:keydown.enter.prevent="open = false; $refs.trigger.focus()" aria-label="{{ __('course_calendar.manager.color_option', ['number' => $loop->iteration]) }}">
-                        <span style="background-color: {{ $color }}" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 10 3 3 7-7" /></svg></span>
+                        <span style="background-color: {{ \App\Support\CourseCalendarPalette::readableColor($color) }}; color: {{ \App\Support\CourseCalendarPalette::TEXT_COLOR }}" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 10 3 3 7-7" /></svg></span>
                     </label>
                 @endforeach
             </div>

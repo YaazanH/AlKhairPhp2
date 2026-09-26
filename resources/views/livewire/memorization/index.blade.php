@@ -600,7 +600,7 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <div class="font-medium text-white">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('d-m-Y') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
                                 <td class="px-5 py-4 text-white lg:px-6">
                                     @if ((int) $session->from_page === (int) $session->to_page)

@@ -34,6 +34,7 @@ use App\Models\User;
 use App\Services\CourseLifecycleService;
 use App\Services\GroupDailySummaryService;
 use App\Services\ParentNumberService;
+use App\Support\CourseCalendarPalette;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -767,7 +768,7 @@ class ManagementCrudTest extends TestCase
         $this->assertDatabaseHas('course_calendar_entries', [
             'course_id' => $copy->id,
             'name' => 'Copied calendar addition',
-            'color' => '#245c46',
+            'color' => CourseCalendarPalette::readableColor('#245c46'),
         ]);
         $this->assertDatabaseHas('group_schedules', [
             'group_id' => $copiedGroup->id,
@@ -3235,26 +3236,27 @@ class ManagementCrudTest extends TestCase
 
         $course = Course::create([
             'name' => 'Calendar additions course',
+            'academic_year_id' => AcademicYear::create(['name' => 'Calendar year', 'starts_on' => '2026-09-01', 'ends_on' => '2027-08-31', 'is_active' => true])->id,
             'starts_on' => '2026-09-01',
             'ends_on' => '2027-05-31',
             'is_active' => true,
         ]);
 
         $component = Volt::test('courses.index')
-            ->assertSee('data-course-calendar-action', false)
+            ->assertSee('data-course-open-action', false)
             ->call('openCourseCalendar', $course->id)
             ->assertSet('showCalendarModal', true)
             ->assertSet('calendarCourseId', $course->id)
-            ->assertSee('data-course-calendar-save', false)
+            ->assertSee('data-course-form-save-action', false)
             ->assertSee('data-course-calendar-pdf-action', false)
             ->set('calendarDate', '2026-08-31')
             ->set('calendarName', 'Before course')
-            ->set('calendarColor', '#245c46')
+            ->set('calendarColor', '#c9ddb0')
             ->call('saveCalendarRow')
             ->assertHasErrors('calendarDate')
             ->set('calendarDate', '2026-10-15')
             ->set('calendarName', 'Mid-course gathering')
-            ->set('calendarColor', '#A37326')
+            ->set('calendarColor', '#ECD9AF')
             ->call('saveCalendarRow')
             ->assertHasNoErrors()
             ->assertSee('data-course-calendar-entry-edit', false)
@@ -3275,7 +3277,7 @@ class ManagementCrudTest extends TestCase
             'date' => '2026-10-15',
             'end_date' => null,
             'name' => 'Mid-course gathering',
-            'color' => '#a37326',
+            'color' => '#ecd9af',
         ], $component->get('calendarRows')[0]);
 
         $component
@@ -3286,13 +3288,13 @@ class ManagementCrudTest extends TestCase
         $entry = $course->calendarEntries()->firstOrFail();
         $this->assertSame('2026-10-15', $entry->date->toDateString());
         $this->assertSame('Mid-course gathering', $entry->name);
-        $this->assertSame('#a37326', $entry->color);
+        $this->assertSame('#ecd9af', $entry->color);
 
         Volt::test('courses.index')
             ->call('openCourseCalendar', $course->id)
             ->call('editCalendarRow', 0)
             ->set('calendarName', 'Updated gathering')
-            ->set('calendarColor', '#3F8067')
+            ->set('calendarColor', '#B8D9CC')
             ->call('saveCourseCalendar')
             ->assertHasNoErrors();
 
@@ -3301,7 +3303,7 @@ class ManagementCrudTest extends TestCase
             'course_id' => $course->id,
             'date' => '2026-10-15 00:00:00',
             'name' => 'Updated gathering',
-            'color' => '#3f8067',
+            'color' => '#b8d9cc',
         ]);
 
         Volt::test('courses.index')
@@ -3311,7 +3313,7 @@ class ManagementCrudTest extends TestCase
             ->assertDispatched('course-calendar-saved', fn ($event, $params) => $params['url'] === route('courses.calendar.pdf', $course));
     }
 
-    public function test_courses_without_points_do_not_offer_the_calendar(): void
+    public function test_courses_without_points_offer_the_combined_course_manager(): void
     {
         $this->signIn();
 
@@ -3324,7 +3326,7 @@ class ManagementCrudTest extends TestCase
         ]);
 
         Volt::test('courses.index')
-            ->assertDontSee('data-course-calendar-action', false);
+            ->assertSee('data-course-open-action', false);
     }
 
     public function test_student_media_component_supports_photo_and_file_uploads(): void

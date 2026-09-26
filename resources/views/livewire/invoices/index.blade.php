@@ -378,7 +378,7 @@ new class extends Component {
                                 <tr>
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="font-semibold text-white">{{ $invoice->invoice_no }}</div>
-                                        <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $invoice->invoiceKind?->name ?: $invoice->invoice_type }} | {{ $invoice->issue_date?->format('d-m-Y') }}</div>
+                                        <div class="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ $invoice->invoiceKind?->name ?: $invoice->invoice_type }} | {{ \App\Support\DateDisplay::html($invoice->issue_date?->format('d-m-Y')) }}</div>
                                     </td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6"><div>{{ $invoice->invoicer_name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $invoice->financeRequest?->request_no ?: '-' }}</div></td>
                                     <td class="px-5 py-4 lg:px-6">

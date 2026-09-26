@@ -572,7 +572,7 @@ new class extends Component
                                     <td class="px-5 py-3"><div class="font-medium">{{ $pointType->name }}</div><div class="text-xs text-neutral-500">{{ $pointType->code }}</div></td>
                                     <td class="px-5 py-3">{{ $pointType->category }}</td>
                                     <td class="px-5 py-3"><span class="{{ $pointType->default_points >= 0 ? 'status-chip status-chip--emerald' : 'status-chip status-chip--rose' }}">{{ $pointType->default_points }}</span></td>
-                                    <td class="px-5 py-3">{{ __('settings.points.labels.point_type_usage', ['policies' => $pointType->policies_count, 'transactions' => $pointType->transactions_count, 'bands' => $pointType->assessment_score_bands_count]) }}</td>
+                                    <td class="px-5 py-3">{{ __('settings.points.labels.point_type_usage', ['policies' => __('counts.policies', ['count' => $pointType->policies_count]), 'transactions' => __('counts.transactions', ['count' => $pointType->transactions_count]), 'bands' => __('counts.bands', ['count' => $pointType->assessment_score_bands_count])]) }}</td>
                                     <td class="px-5 py-3">{{ $pointType->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                     <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editPointType({{ $pointType->id }})" :label="__('crud.common.actions.edit')" data-settings-point-type-edit-action /></div></td>
                                 </tr>
@@ -617,9 +617,9 @@ new class extends Component
                                     <td class="px-5 py-3">
                                         <div>{{ $this->pointPolicyRuleOptions()[$this->pointPolicyRuleKey($pointPolicy->source_type, $pointPolicy->trigger_key)] ?? $pointPolicy->source_type.' / '.$pointPolicy->trigger_key }}</div>
                                         <div class="mt-1 text-xs text-neutral-500">
-                                            {{ $pointPolicy->period_type === 'date_window'
+                                            {{ \App\Support\DateDisplay::html($pointPolicy->period_type === 'date_window'
                                                 ? __('settings.points.labels.date_window', ['from' => $pointPolicy->active_from?->format('d-m-Y') ?: __('crud.common.not_available'), 'to' => $pointPolicy->active_until?->format('d-m-Y') ?: __('crud.common.not_available')])
-                                                : __('settings.points.labels.global_policy') }}
+                                                : __('settings.points.labels.global_policy')) }}
                                         </div>
                                     </td>
                                     <td class="px-5 py-3">{{ __('settings.points.labels.point_policy_range', ['from' => $pointPolicy->from_value ?? __('crud.common.not_available'), 'to' => $pointPolicy->to_value ?? __('crud.common.not_available')]) }}</td>

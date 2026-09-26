@@ -200,6 +200,9 @@ return [
         ],
     ],
     'permission_groups' => [
+        'backups' => 'Backups',
+        'data-audit' => 'Database movements',
+        'data-quality' => 'Data quality',
         'dashboard' => 'Dashboards',
         'users' => 'Users',
         'roles' => 'Roles and permissions',
@@ -238,6 +241,11 @@ return [
         'student-notes' => 'Student notes',
     ],
     'permissions' => [
+        'backups.manage' => 'Manage and restore backups',
+        'data-audit.view' => 'View database movements',
+        'data-quality.view' => 'View data quality',
+        'data-quality.resolve' => 'Resolve data quality issues',
+        'quran-tests.quick-entry' => 'Quick saber entry',
         'dashboard.group-teacher.view' => 'Group Teacher Dashboard',
         'curricula.manage' => 'Manage curricula, subjects, resources, and lessons',
         'curricula.record' => 'Record curriculum lesson progress',

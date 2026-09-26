@@ -46,8 +46,8 @@
         </div>
         <div class="meta-card">
             <span class="meta-label">{{ __('print.invoice.dates') }}</span>
-            <div class="meta-value">{{ __('print.invoice.issued', ['date' => $invoice->issue_date?->format('d-m-Y') ?: '-']) }}</div>
-            <div class="subtitle">{{ __('print.invoice.due', ['date' => $invoice->due_date?->format('d-m-Y') ?: '-']) }}</div>
+            <div class="meta-value">{{ \App\Support\DateDisplay::html(__('print.invoice.issued', ['date' => $invoice->issue_date?->format('d-m-Y') ?: '-'])) }}</div>
+            <div class="subtitle">{{ \App\Support\DateDisplay::html(__('print.invoice.due', ['date' => $invoice->due_date?->format('d-m-Y') ?: '-'])) }}</div>
             <div class="subtitle">{{ __('print.invoice.type', ['type' => $invoiceTypeLabel]) }}</div>
         </div>
     </div>
@@ -102,7 +102,7 @@
             <tbody>
                 @forelse ($invoice->payments as $payment)
                     <tr>
-                        <td>{{ $payment->paid_at?->format('d-m-Y') ?: '-' }}</td>
+                        <td>{{ \App\Support\DateDisplay::html($payment->paid_at?->format('d-m-Y') ?: '-') }}</td>
                         <td>{{ $payment->paymentMethod?->name ?: '-' }}</td>
                         <td>{{ $payment->reference_no ?: '-' }}</td>
                         <td>{{ __('print.states.'.($payment->voided_at ? 'voided' : 'active')) }}</td>

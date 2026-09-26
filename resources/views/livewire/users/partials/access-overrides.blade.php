@@ -32,6 +32,7 @@
                         </div>
                     </div>
                 </details>
+                @if ($showScopeOverrides ?? true)
                 <details
                     class="admin-collapsible"
                     data-user-scope-overrides
@@ -115,4 +116,5 @@
                         </div>
                     </div>
                 </details>
+                @endif
             </section>

@@ -1647,7 +1647,7 @@ new class extends Component
                                 @foreach ($academicYears as $academicYear)
                                     <tr>
                                         <td class="px-5 py-3"><div class="font-medium">{{ $academicYear->name }}</div></td>
-                                        <td class="px-5 py-3">{{ __('settings.organization.labels.date_range', ['start' => $academicYear->starts_on?->format('d-m-Y'), 'end' => $academicYear->ends_on?->format('d-m-Y')]) }}</td>
+                                        <td class="px-5 py-3">{{ \App\Support\DateDisplay::html(__('settings.organization.labels.date_range', ['start' => $academicYear->starts_on?->format('d-m-Y'), 'end' => $academicYear->ends_on?->format('d-m-Y')])) }}</td>
                                         <td class="px-5 py-3">@if ($academicYear->is_current)<span class="status-chip status-chip--emerald">{{ __('settings.organization.labels.current_year') }}</span>@else—@endif</td>
                                         <td class="px-5 py-3">{{ $academicYear->courses_count }}</td>
                                         <td class="px-5 py-3">{{ $academicYear->is_active ? __('settings.common.states.active') : __('settings.common.states.finished') }}</td>
@@ -1694,7 +1694,7 @@ new class extends Component
                                     <tr>
                                         <td class="px-5 py-3 font-medium">{{ $gradeLevel->name }}</td>
                                         <td class="px-5 py-3">{{ $gradeLevel->sort_order }}</td>
-                                        <td class="px-5 py-3">{{ __('settings.organization.labels.grade_level_usage', ['groups' => $gradeLevel->groups_count, 'students' => $gradeLevel->students_count, 'policies' => $gradeLevel->point_policies_count]) }}</td>
+                                        <td class="px-5 py-3">{{ __('settings.organization.labels.grade_level_usage', ['groups' => __('counts.groups', ['count' => $gradeLevel->groups_count]), 'students' => __('counts.students', ['count' => $gradeLevel->students_count]), 'policies' => __('counts.policies', ['count' => $gradeLevel->point_policies_count])]) }}</td>
                                         <td class="px-5 py-3">{{ $gradeLevel->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                         <td class="px-5 py-3">
                                             <div class="flex justify-end gap-2">

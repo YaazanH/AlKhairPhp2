@@ -7,9 +7,11 @@ use App\Models\AppSetting;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
+use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
@@ -21,6 +23,7 @@ use App\Models\QuranJuz;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\User;
@@ -396,7 +399,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString("const clearable = searchInputMode && select.dataset.clearable !== 'false'", $searchableSelectScript);
         $this->assertStringContainsString("'searchPlaceholder' in select.dataset", $searchableSelectScript);
         $this->assertStringContainsString("select.classList.contains('finance-amount-input__currency')", $searchableSelectScript);
-        $this->assertStringContainsString("searchable-select__chevron--input", $searchableSelectScript);
+        $this->assertStringContainsString('searchable-select__chevron--input', $searchableSelectScript);
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
@@ -610,6 +613,48 @@ class StudentProgressPageTest extends TestCase
             'status' => 'passed',
             'attempt_no' => 2,
         ]);
+    }
+
+    public function test_timeline_has_one_page_per_visible_course_and_only_course_milestones(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$parent, $student, $otherStudent] = $this->makeScopedProgressData();
+        $this->actingAs($parent);
+        $component = Volt::test('students.progress', ['student' => $student])
+            ->assertSee('data-student-timeline', false)
+            ->assertDontSeeText('Hidden Quiz');
+        $timeline = $component->viewData('timeline');
+        $this->assertCount(1, $timeline);
+        $this->assertSame(3, $timeline->first()['pages']);
+        $this->assertSame(['start', 'joined', 'memorization'], $timeline->first()['milestones']->pluck('kind')->all());
+        $component->set('selectedStudentId', $otherStudent->id)->assertForbidden();
+    }
+
+    public function test_timeline_shows_attendance_only_with_permission(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$parent, $student] = $this->makeScopedProgressData();
+        $enrollment = Enrollment::where('student_id', $student->id)->firstOrFail();
+        $status = AttendanceStatus::create([
+            'name' => 'Timeline absence', 'code' => 'timeline-absence', 'scope' => 'student',
+            'is_present' => false, 'is_active' => true,
+        ]);
+        $day = GroupAttendanceDay::create([
+            'group_id' => $enrollment->group_id, 'attendance_date' => '2026-09-20', 'status' => 'closed',
+        ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $day->id, 'enrollment_id' => $enrollment->id, 'attendance_status_id' => $status->id,
+        ]);
+        $this->actingAs($parent);
+        $parent->givePermissionTo('attendance.student.view');
+        $component = Volt::test('students.progress', ['student' => $student]);
+        $this->assertSame(0, $component->viewData('timeline')->first()['days']);
+        $this->assertSame(1, $component->viewData('timeline')->first()['absences']);
+        $parent->revokePermissionTo('attendance.student.view');
+        $parent->roles->each(fn ($role) => $role->revokePermissionTo('attendance.student.view'));
+        $parent->unsetRelation('roles')->unsetRelation('permissions');
+        $component = Volt::test('students.progress', ['student' => $student]);
+        $this->assertNull($component->viewData('timeline')->first()['days']);
     }
 
     private function makeScopedProgressData(): array

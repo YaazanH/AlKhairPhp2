@@ -333,7 +333,7 @@ new class extends Component {
                 <div class="text-xs font-semibold text-neutral-400">{{ __('backups.stats.latest_verified') }}</div>
                 <div class="mt-2 text-sm font-semibold text-white">
                     @if ($health['latest_verified'])
-                        <bdi dir="ltr">{{ $health['latest_verified']->verified_at->timezone($backupTimezone)->format('d-m-Y H:i') }}</bdi>
+                        <bdi dir="ltr">{{ \App\Support\DateDisplay::html($health['latest_verified']->verified_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi>
                     @else
                         {{ __('backups.stats.not_available') }}
                     @endif
@@ -346,7 +346,7 @@ new class extends Component {
                 @endif
                 <div class="mt-2 text-sm font-semibold text-white">
                     @if ($nextScheduledAt)
-                        <bdi dir="ltr">{{ $nextScheduledAt->format('d-m-Y H:i') }}</bdi>
+                        <bdi dir="ltr">{{ \App\Support\DateDisplay::html($nextScheduledAt->format('d-m-Y H:i')) }}</bdi>
                     @else
                         {{ __('backups.stats.schedule_disabled') }}
                     @endif
@@ -403,7 +403,7 @@ new class extends Component {
                     @forelse ($backups as $backup)
                         <tr wire:key="system-backup-{{ $backup->id }}">
                             <td class="px-5 py-3">
-                                <div class="font-medium text-white"><bdi dir="ltr">{{ $backup->created_at->timezone($backupTimezone)->format('d-m-Y H:i') }}</bdi></div>
+                                <div class="font-medium text-white"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->created_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi></div>
                                 @if ($backup->creator)
                                     <div class="mt-1 text-xs text-neutral-500">{{ $backup->creator->name }}</div>
                                 @endif
@@ -418,7 +418,7 @@ new class extends Component {
                             <td class="px-5 py-3"><bdi dir="ltr">{{ $this->formatBytes($backup->size_bytes) }}</bdi></td>
                             <td class="px-5 py-3">
                                 @if ($backup->verified_at)
-                                    <div class="text-xs text-neutral-500" data-backup-verification-details><span>{{ __('backups.table.verified_at') }}</span> <bdi dir="ltr">{{ $backup->verified_at->timezone($backupTimezone)->format('d-m-Y H:i') }}</bdi></div>
+                                    <div class="text-xs text-neutral-500" data-backup-verification-details><span>{{ __('backups.table.verified_at') }}</span> <bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->verified_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi></div>
                                 @elseif ($backup->error_message)
                                     <div class="max-w-xs text-xs text-red-300" title="{{ $backup->error_message }}" data-backup-verification-details>{{ __('backups.table.not_verified') }}</div>
                                 @endif

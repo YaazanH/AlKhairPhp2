@@ -451,6 +451,8 @@ return [
             'group_teacher_context' => 'This entry will be attached to teacher: :name.',
             'auto_context' => 'The system saves today\'s date and entry type as new automatically.',
             'picker' => [
+                'choose_juz' => 'Choose a juz',
+                'unavailable_selection' => 'Choose an unfinished juz available for this student.',
                 'unavailable_juz' => 'This juz was memorised elsewhere or has a saber record and is not available for new memorisation here.',
                 'pages' => 'Missing pages',
                 'previous' => 'Previous unfinished juz',

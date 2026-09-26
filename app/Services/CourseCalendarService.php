@@ -95,23 +95,11 @@ class CourseCalendarService
         };
 
         $rowCount = (int) ceil($monthCount / $columns);
-        $cellHeight = match ($layout) {
-            'large' => match ($monthCount) {
-                1 => 47.0,
-                2 => 20.5,
-                default => 11.1,
-            },
-            'compact' => match ($rowCount) {
-                2 => 17.0,
-                3 => 11.5,
-                default => 7.0,
-            },
-            default => match (true) {
-                $rowCount <= 5 => 5.6,
-                $rowCount === 6 => 5.1,
-                default => 4.0,
-            },
-        };
+        $cellHeight = $layout === 'large' ? match ($monthCount) {
+            1 => 47.0,
+            2 => 20.5,
+            default => 11.1,
+        } : 0.0;
 
         $legend = collect();
         if ($layout !== 'large') {
@@ -120,9 +108,10 @@ class CourseCalendarService
                 'starts_on' => $startsOn, 'ends_on' => $startsOn,
             ]])->concat($events);
             $totalWeeks = collect(array_chunk($months, $columns))->sum(fn (array $row): int => max(array_map(fn (array $month): int => count($month['weeks']), $row)));
-            $monthHeadingAndGap = $layout === 'compact' ? 16.5 : 12.0;
+            $monthHeadingAndGap = $layout === 'compact' ? 18.0 : 13.5;
             $availableHeight = 249 - $rowCount * $monthHeadingAndGap;
-            $cellHeight = min($cellHeight, max(3.2, floor(($availableHeight / max(1, $totalWeeks)) * 10) / 10));
+            // Fill the page budget instead of capping long calendars at their old compact cell height.
+            $cellHeight = max(3.2, floor(($availableHeight / max(1, $totalWeeks)) * 10) / 10);
         }
 
         $sizedMonths = [];
@@ -195,6 +184,7 @@ class CourseCalendarService
                         ? $dateEntries->map(fn (array $entry): array => [
                             'name' => $entry['name'],
                             'color' => $entry['color'],
+                            'is_start' => $date->isSameDay($entry['starts_on']),
                         ])->values()->all()
                         : [],
                 ];

@@ -358,7 +358,7 @@ new class extends Component
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('workflow.student_attendance.context.date') }}</dt>
-                            <dd>{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y') }}</dd>
+                            <dd>{{ \App\Support\DateDisplay::html($groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y')) }}</dd>
                         </div>
                     </dl>
                 </div>
@@ -414,7 +414,7 @@ new class extends Component
                                         </div>
                                     </div>
                                 </td>
-                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
                                 <td class="attendance-desktop-only px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)

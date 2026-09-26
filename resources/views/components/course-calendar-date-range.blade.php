@@ -2,7 +2,7 @@
 
 <div x-data="{
     open: false, range: false, top: 0, left: 0,
-    format(date) { return date ? date.split('-').reverse().join('/') : ''; },
+    format(date) { return date ? date.split('-').reverse().join('-') : ''; },
     toggle() {
         this.open = !this.open;
         if (!this.open) return;
@@ -31,14 +31,16 @@
             <div class="calendar-date-range" :class="{ 'calendar-date-range--two': range }">
                 <label>
                     <span x-text="range ? @js(__('course_calendar.manager.fields.start_date')) : @js(__('course_calendar.manager.fields.date'))"></span>
-                    <input wire:model="calendarDate" type="date" min="{{ $course?->starts_on?->format('Y-m-d') }}" max="{{ $course?->ends_on?->format('Y-m-d') }}" aria-label="{{ __('course_calendar.manager.fields.start_date') }}">
+                    <input wire:model="calendarDate" type="date" :min="$wire.starts_on" :max="$wire.ends_on" aria-label="{{ __('course_calendar.manager.fields.start_date') }}">
                 </label>
                 <label x-show="range" x-cloak>
                     <span>{{ __('course_calendar.manager.fields.end_date') }}</span>
-                    <input wire:model="calendarEndDate" type="date" :min="$wire.calendarDate || '{{ $course?->starts_on?->format('Y-m-d') }}'" max="{{ $course?->ends_on?->format('Y-m-d') }}" aria-label="{{ __('course_calendar.manager.fields.end_date') }}">
+                    <input wire:model="calendarEndDate" type="date" :min="$wire.calendarDate || $wire.starts_on" :max="$wire.ends_on" aria-label="{{ __('course_calendar.manager.fields.end_date') }}">
                 </label>
             </div>
-            <button type="button" class="calendar-date-done" x-on:click="open = false; $refs.trigger.focus()" data-modal-action-icon-ignore>{{ __('course_calendar.manager.actions.done') }}</button>
+            <button type="button" class="admin-icon-button admin-icon-button--accent calendar-date-done" x-on:click="open = false; $refs.trigger.focus({ preventScroll: true })" title="{{ __('course_calendar.manager.actions.done') }}" aria-label="{{ __('course_calendar.manager.actions.done') }}" data-modal-action-icon-ignore>
+                <x-admin-action-icon name="finalise" />
+            </button>
         </div>
     </template>
 </div>

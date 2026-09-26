@@ -371,7 +371,7 @@ new class extends Component
                                 <td class="px-5 py-4 text-white lg:px-6">
                                     <div class="flex flex-col items-start font-semibold">
                                         <span class="text-xs font-medium text-neutral-400">{{ $day->attendance_date?->locale(app()->getLocale())->translatedFormat('l') }}</span>
-                                        <span class="mt-1">{{ $day->attendance_date?->format('d-m-Y') }}</span>
+                                        <span class="mt-1">{{ \App\Support\DateDisplay::html($day->attendance_date?->format('d-m-Y')) }}</span>
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
@@ -427,7 +427,7 @@ new class extends Component
                 </div>
 
                 <div class="flex h-12 min-h-12 box-border items-center self-end rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
-                    {{ number_format($scheduledGroupCount) }} {{ app()->isLocale('ar') && $scheduledGroupCount > 10 ? 'مجموعة' : __('workflow.student_attendance.days.form.scheduled_groups_unit') }}
+                    {{ __('counts.groups', ['count' => number_format($scheduledGroupCount)]) }}
                 </div>
             </div>
 

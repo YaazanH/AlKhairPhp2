@@ -150,10 +150,29 @@ new class extends Component {
             : $numbers->first(fn ($number) => $number > $this->selectedJuzNumber);
 
         if ($next !== null) {
-            $this->selectedJuzNumber = $next;
-            $this->selectedPages = [];
-            $this->resetValidation('selectedPages');
+            $this->selectJuz($next);
         }
+    }
+
+    public function selectJuz(int $number): void
+    {
+        $this->authorizePermission('memorization.record');
+        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        abort_unless($this->selectedStudentId, 404);
+        $this->findQuickEntryStudent($this->selectedStudentId);
+        unset($this->unfinishedJuzs);
+        if (! $this->unfinishedJuzs->contains('number', $number)) {
+            $this->addError('selectedJuzNumber', __('workflow.memorization.quick_entry.picker.unavailable_selection'));
+
+            return;
+        }
+
+        if ($this->selectedJuzNumber !== $number) {
+            $this->selectedPages = [];
+            $this->closeDuplicateModal();
+        }
+        $this->selectedJuzNumber = $number;
+        $this->resetValidation(['selectedJuzNumber', 'selectedPages', 'selectedPages.*']);
     }
 
     public function save(): void
@@ -236,7 +255,7 @@ new class extends Component {
             return;
         }
 
-        $service->saveSession($enrollment, $payload);
+        $this->saveQuickEntrySession($enrollment, $payload);
 
         session()->flash('status', __('workflow.memorization.quick_entry.messages.saved'));
 
@@ -276,10 +295,9 @@ new class extends Component {
             return;
         }
 
-        app(MemorizationService::class)->saveSession(
+        $this->saveQuickEntrySession(
             $enrollment,
             $this->pendingMemorizationPayload,
-            null,
             true,
         );
 
@@ -292,6 +310,18 @@ new class extends Component {
         $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'selectedJuzNumber', 'selectedPages', 'teacher_id']);
         unset($this->unfinishedJuzs);
         $this->resetValidation();
+    }
+
+    protected function saveQuickEntrySession(Enrollment $enrollment, array $payload, bool $skipDuplicates = false): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($enrollment, $payload, $skipDuplicates): void {
+            $session = app(MemorizationService::class)->saveSession($enrollment, $payload, null, $skipDuplicates);
+            $page = $session->pages->first()?->page_no;
+            if ($page !== null) {
+                $juz = QuranJuz::where('from_page', '<=', $page)->where('to_page', '>=', $page)->firstOrFail();
+                $enrollment->student()->firstOrFail()->update(['quran_current_juz_id' => $juz->id]);
+            }
+        });
     }
 
     protected function canChooseRecordingTeacher(): bool
@@ -448,14 +478,47 @@ new class extends Component {
             </div>
 
             @if ($selectedStudentId)
-                <section class="memorization-page-picker" wire:key="page-picker-{{ $selectedStudentId }}-{{ $selectedJuzNumber }}" data-memorization-page-picker>
+                <section class="memorization-page-picker" wire:key="page-picker-{{ $selectedStudentId }}" data-memorization-page-picker>
                     @if ($displayedJuz)
                         <div class="memorization-page-picker__heading">
                             <button type="button" wire:click="navigateJuz(1)" class="memorization-page-picker__nav" @disabled(! $unfinishedJuzs->contains(fn ($juz) => $juz['number'] > $selectedJuzNumber)) title="{{ __('workflow.memorization.quick_entry.picker.next') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.next') }}" wire:loading.attr="disabled">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
                             </button>
-                            <div class="memorization-page-picker__title">
-                                <h2>{{ __('workflow.common.labels.juz_number', ['number' => $displayedJuz['number']]) }}</h2>
+                            <div class="memorization-page-picker__title memorization-juz-switcher" x-data="{
+                                open: false, top: 0, left: 0, maxHeight: 384,
+                                toggle() {
+                                    this.open = !this.open;
+                                    if (!this.open) return;
+                                    const rect = this.$refs.trigger.getBoundingClientRect();
+                                    const width = Math.min(336, window.innerWidth - 24);
+                                    const below = window.innerHeight - rect.bottom - 20;
+                                    const above = rect.top - 20;
+                                    const placeBelow = below >= Math.min(384, above);
+                                    this.maxHeight = Math.max(0, Math.min(384, placeBelow ? below : above));
+                                    this.left = Math.max(12, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 12));
+                                    this.top = placeBelow ? rect.bottom + 8 : Math.max(12, rect.top - this.maxHeight - 8);
+                                    this.$nextTick(() => {
+                                        if (!placeBelow) this.top = Math.max(12, rect.top - this.$refs.choices.offsetHeight - 8);
+                                        this.$refs.choices.querySelector('[aria-pressed=true]')?.focus({ preventScroll: true });
+                                    });
+                                }
+                            }" x-on:resize.window="open = false" x-on:scroll.window="if ($event.target === document) open = false" x-on:keydown.escape.stop="open = false; $refs.trigger.focus({ preventScroll: true })">
+                                <h2>
+                                    <button type="button" x-ref="trigger" x-on:click="toggle()" class="memorization-juz-switcher__trigger" :aria-expanded="open" aria-haspopup="dialog" title="{{ __('workflow.memorization.quick_entry.picker.choose_juz') }}" data-memorization-juz-trigger>
+                                        <span>{{ __('workflow.common.labels.juz_number', ['number' => $displayedJuz['number']]) }}</span>
+                                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+                                    </button>
+                                </h2>
+                                <template x-teleport="body">
+                                    <div x-show="open" x-cloak x-ref="choices" x-on:keydown.escape.prevent.stop="open = false; $refs.trigger.focus({ preventScroll: true })" x-on:click.outside="if (!$refs.trigger.contains($event.target)) open = false" :style="{ top: top + 'px', left: left + 'px', maxHeight: maxHeight + 'px' }" class="memorization-juz-switcher__panel" role="dialog" aria-label="{{ __('workflow.memorization.quick_entry.picker.choose_juz') }}">
+                                        <p>{{ __('workflow.memorization.quick_entry.picker.choose_juz') }}</p>
+                                        <div class="memorization-juz-switcher__grid">
+                                            @foreach ($unfinishedJuzs as $juz)
+                                                <button type="button" wire:key="juz-choice-{{ $selectedStudentId }}-{{ $juz['number'] }}" wire:click="selectJuz({{ $juz['number'] }})" x-on:click="open = false; $refs.trigger.focus({ preventScroll: true })" aria-pressed="{{ $selectedJuzNumber === $juz['number'] ? 'true' : 'false' }}" aria-label="{{ __('workflow.common.labels.juz_number', ['number' => $juz['number']]) }}" wire:loading.attr="disabled" data-juz-choice="{{ $juz['number'] }}">{{ $juz['number'] }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                             <button type="button" wire:click="navigateJuz(-1)" class="memorization-page-picker__nav" @disabled(! $unfinishedJuzs->contains(fn ($juz) => $juz['number'] < $selectedJuzNumber)) title="{{ __('workflow.memorization.quick_entry.picker.previous') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.previous') }}" wire:loading.attr="disabled">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m15 5-7 7 7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -464,7 +527,7 @@ new class extends Component {
                         <div x-data="{ pages: $wire.entangle('selectedPages') }">
                             <div class="memorization-page-picker__grid" style="--memorization-page-columns: {{ min(count($displayedJuz['missing']), max(5, (int) ceil(count($displayedJuz['missing']) / 4))) }}" role="group" aria-label="{{ __('workflow.memorization.quick_entry.picker.pages') }}" dir="rtl">
                                 @foreach ($displayedJuz['missing'] as $page)
-                                    <button type="button" class="memorization-page-picker__page" data-memorization-page="{{ $page }}" x-bind:aria-pressed="pages.includes({{ $page }})" x-on:click="pages = pages.includes({{ $page }}) ? pages.filter(page => page !== {{ $page }}) : [...pages, {{ $page }}]" aria-label="{{ __('workflow.memorization.quick_entry.picker.page', ['number' => $page]) }}">
+                                    <button type="button" class="memorization-page-picker__page" wire:key="memorization-page-{{ $selectedStudentId }}-{{ $page }}" data-memorization-page="{{ $page }}" x-bind:aria-pressed="pages.includes({{ $page }})" x-on:click="pages = pages.includes({{ $page }}) ? pages.filter(page => page !== {{ $page }}) : [...pages, {{ $page }}]" aria-label="{{ __('workflow.memorization.quick_entry.picker.page', ['number' => $page]) }}">
                                         <span>{{ $page }}</span>
                                         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8 3 3 7-7" stroke-linecap="round" stroke-linejoin="round" /></svg>
                                     </button>
@@ -474,6 +537,7 @@ new class extends Component {
                     @else
                         <div class="memorization-page-picker__complete">{{ __('workflow.memorization.quick_entry.picker.complete') }}</div>
                     @endif
+                    @error('selectedJuzNumber') <div class="mt-3 text-sm text-red-400">{{ $message }}</div> @enderror
                     @error('selectedPages') <div class="mt-3 text-sm text-red-400">{{ $message }}</div> @enderror
                     @error('selectedPages.*') <div class="mt-3 text-sm text-red-400">{{ $message }}</div> @enderror
                 </section>

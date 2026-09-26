@@ -31,7 +31,7 @@ class DataAuditObserver
             return;
         }
 
-        $changes = collect(Arr::except($model->getChanges(), ['updated_at']))
+        $changes = collect(Arr::except($model->getChanges(), ['updated_at', ...DataAuditVisibility::ignoredUpdateFields($model::class)]))
             ->reject(fn (mixed $value, string $field): bool => $this->valuesAreEquivalent(
                 $model->getRawOriginal($field),
                 $value,

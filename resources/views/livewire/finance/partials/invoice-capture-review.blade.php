@@ -28,7 +28,7 @@
                                 @if ($field === 'original_invoice_no' && filled($invoiceCaptureDraft[$field] ?? null))
                                     <bdi dir="ltr">{{ \App\Models\Invoice::formatOriginalInvoiceNumber($invoiceCaptureDraft[$field]) ?: '—' }}</bdi>
                                 @elseif ($field === 'invoice_date' && filled($invoiceCaptureDraft[$field] ?? null))
-                                    <bdi dir="ltr">{{ \Illuminate\Support\Carbon::parse($invoiceCaptureDraft[$field])->format('d-m-Y') }}</bdi>
+                                    <bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Illuminate\Support\Carbon::parse($invoiceCaptureDraft[$field])->format('d-m-Y')) }}</bdi>
                                 @elseif (in_array($field, ['invoice_deduction', 'total'], true) && isset($invoiceCaptureDraft[$field]))
                                     <bdi dir="ltr">{{ app(\App\Services\FinanceService::class)->formatCurrencyAmount($invoiceCaptureDraft[$field], $captureCurrency) }}</bdi>
                                 @else

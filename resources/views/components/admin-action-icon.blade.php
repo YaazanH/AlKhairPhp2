@@ -39,6 +39,10 @@
     @if (in_array($name, ['financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)) overflow="visible" @endif
 >
     @switch($name)
+        @case('window')
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path stroke-linecap="round" d="M3 9h18M6.5 6.5h.01M9.5 6.5h.01" />
+            @break
         @case('account')
             <circle cx="12" cy="8" r="3.75" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20c.65-4 3.15-6.25 7.5-6.25S19.85 16 20.5 20" />

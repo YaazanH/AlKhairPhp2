@@ -529,7 +529,7 @@ new class extends Component
                                 <tr>
                                     <td class="px-4 py-4">{{ $loop->iteration }}</td>
                                     <td class="px-4 py-4 font-semibold">{{ $note->student ? trim($note->student->first_name.' '.$note->student->last_name) : '-' }}</td>
-                                    <td class="px-4 py-4"><bdi dir="ltr">{{ $note->noted_at?->format('d-m-Y') ?: '-' }}</bdi></td>
+                                    <td class="px-4 py-4"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($note->noted_at?->format('d-m-Y') ?: '-') }}</bdi></td>
                                     <td class="px-4 py-4">{{ __('notes.visibility.'.$note->visibility) }}</td>
                                     <td class="px-4 py-4">
                                         <div class="student-notes-table__note-content">{{ $note->body }}</div>

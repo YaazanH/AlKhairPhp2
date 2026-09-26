@@ -162,7 +162,7 @@ new class extends Component {
                     <p class="admin-toolbar__subtitle">{{ __('barcodes.import.form.subtitle') }}</p>
                 </div>
                 <div class="admin-toolbar__actions">
-                    <span class="status-chip status-chip--gold" dir="ltr">{{ __('barcodes.import.context.today', ['date' => $attendance_date ? \Carbon\Carbon::parse($attendance_date)->format('d-m-Y') : now()->format('d-m-Y')]) }}</span>
+                    <span class="status-chip status-chip--gold" dir="ltr">{{ \App\Support\DateDisplay::html(__('barcodes.import.context.today', ['date' => $attendance_date ? \Carbon\Carbon::parse($attendance_date)->format('d-m-Y') : now()->format('d-m-Y')])) }}</span>
                 </div>
             </div>
 
@@ -254,7 +254,7 @@ new class extends Component {
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <div class="font-semibold text-white">{{ $import->course?->name }}</div>
-                                        <div class="mt-1 text-neutral-400">{{ $import->attendance_date?->format('d-m-Y') }}</div>
+                                        <div class="mt-1 text-neutral-400">{{ \App\Support\DateDisplay::html($import->attendance_date?->format('d-m-Y')) }}</div>
                                     </div>
                                     <span class="{{ $import->error_count > 0 ? 'status-chip status-chip--rose' : 'status-chip status-chip--emerald' }}">{{ $import->status }}</span>
                                 </div>

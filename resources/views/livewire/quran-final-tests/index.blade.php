@@ -499,7 +499,7 @@ new class extends Component
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $finalTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $finalTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($finalTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span></td>
                                 <td class="px-5 py-4 text-center lg:px-6">
                                     <div class="flex flex-wrap justify-center gap-2">

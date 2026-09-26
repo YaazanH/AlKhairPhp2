@@ -10,8 +10,8 @@ use App\Models\Group;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
-use App\Models\QuranJuz;
 use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
@@ -21,11 +21,24 @@ use Illuminate\Support\Facades\DB;
 
 class PointLedgerService
 {
+    protected ?string $historicalEventDate = null;
+
+    public function atHistoricalDate(string $date, callable $callback): mixed
+    {
+        $previous = $this->historicalEventDate;
+        $this->historicalEventDate = $date;
+        try {
+            return $callback();
+        } finally {
+            $this->historicalEventDate = $previous;
+        }
+    }
+
     public const ATTENDANCE_POINT_TYPE_CODE = 'system-attendance';
 
     public function resolvePolicy(string $sourceType, string $triggerKey, ?int $gradeLevelId = null, ?float $value = null, ?string $eventDate = null): ?PointPolicy
     {
-        $eventDate ??= now()->toDateString();
+        $eventDate = $this->historicalEventDate ?? $eventDate ?? now()->toDateString();
 
         return PointPolicy::query()
             ->where('source_type', $sourceType)
@@ -59,7 +72,9 @@ class PointLedgerService
 
     public function recordAutomaticPoints(Enrollment $enrollment, string $sourceType, int $sourceId, PointType $pointType, ?PointPolicy $policy, int $points, ?string $notes = null): ?PointTransaction
     {
-        if ($points === 0 || ! $this->enrollmentAwardsPoints($enrollment)) {
+        $enrollment->loadMissing('group.course');
+        // Keep automatic awards while points are hidden so later activation is lossless.
+        if ($points === 0 || ! $enrollment->group?->course?->is_active) {
             return null;
         }
 
@@ -74,7 +89,7 @@ class PointLedgerService
             'source_id' => $sourceId,
             'points' => $points,
             'entered_by' => auth()->id(),
-            'entered_at' => now(),
+            'entered_at' => $this->historicalEventDate ?? now(),
             'notes' => $notes,
         ]);
     }
@@ -88,7 +103,7 @@ class PointLedgerService
         $settings = AppSetting::groupValues('points');
         $storedMultiplier = (float) ($settings->get('automatic_multiplier') ?? 2);
         $multiplier = in_array($storedMultiplier, [1.5, 2.0, 2.5, 3.0], true) ? $storedMultiplier : 2.0;
-        $today = now()->toDateString();
+        $today = $this->historicalEventDate ?? now()->toDateString();
         $from = (string) ($settings->get('automatic_multiplier_from') ?? '');
         $until = (string) ($settings->get('automatic_multiplier_until') ?? '');
 
@@ -176,7 +191,9 @@ class PointLedgerService
             'memorized_pages_cached' => (int) $memorizedPages,
         ]);
 
-        $this->syncStudentCurrentJuz($enrollment->student);
+        if ($this->historicalEventDate === null) {
+            $this->syncStudentCurrentJuz($enrollment->student);
+        }
     }
 
     public function syncCourseEnrollmentCaches(Course $course): void
@@ -185,7 +202,9 @@ class PointLedgerService
             ->with('student')
             ->whereHas('group', fn ($query) => $query->where('course_id', $course->id))
             ->chunkById(100, fn ($enrollments) => $enrollments->each(
-                fn (Enrollment $enrollment) => $this->syncEnrollmentCaches($enrollment)
+                fn (Enrollment $enrollment) => $enrollment->update([
+                    'final_points_cached' => (int) PointTransaction::query()->where('enrollment_id', $enrollment->id)->effectiveActive()->sum('points'),
+                ])
             ));
     }
 

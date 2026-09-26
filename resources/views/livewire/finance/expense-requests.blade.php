@@ -742,7 +742,7 @@ new class extends Component {
                 @php($category = $transaction->category ?: $request?->category ?: $request?->pullRequestKind)
                 @php($rowStatus = $request?->status ?: $transaction->status)
                 <tr>
-                    <td class="px-4 py-3"><div class="font-semibold text-white">{{ $transaction->special_transaction_no ?: $transaction->transaction_no }}</div><div class="text-xs text-neutral-500">{{ $transaction->transaction_date?->format('d-m-Y') }} · {{ $transaction->enteredBy?->name ?: $request?->reviewedBy?->name ?: '-' }}</div></td>
+                    <td class="px-4 py-3"><div class="font-semibold text-white">{{ $transaction->special_transaction_no ?: $transaction->transaction_no }}</div><div class="text-xs text-neutral-500">{{ \App\Support\DateDisplay::html($transaction->transaction_date?->format('d-m-Y')) }} · {{ $transaction->enteredBy?->name ?: $request?->reviewedBy?->name ?: '-' }}</div></td>
                     <td class="px-4 py-3"><div>{{ $category?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $category?->mode ? __('finance.pull_modes.'.$category->mode) : '-' }}</div></td>
                     <td class="px-4 py-3"><div class="max-w-xs">{{ $transaction->description ?: '-' }}</div>@if ($request)<div class="text-xs text-neutral-500">{{ $request->request_no }} · {{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</div>@endif</td>
                     <td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td>
@@ -913,7 +913,7 @@ new class extends Component {
                 <div><span class="kpi-label">{{ __('finance.fields.invoice_no') }}:</span> <span class="text-white">{{ $viewingInvoice->invoice_no }}</span></div>
                 <div><span class="kpi-label">{{ __('finance.fields.original_invoice_no') }}:</span> <bdi dir="ltr" class="inline-block text-white">{{ $viewingInvoice->original_invoice_no ?: '—' }}</bdi></div>
                 <div><span class="kpi-label">{{ __('finance.fields.invoice_issuer') }}:</span> <span class="text-white">{{ $viewingInvoice->invoicer_name }}</span></div>
-                <div><span class="kpi-label">{{ __('finance.common.date') }}:</span> <span class="text-white">{{ $viewingInvoice->issue_date?->format('d-m-Y') ?: '—' }}</span></div>
+                <div><span class="kpi-label">{{ __('finance.common.date') }}:</span> <span class="text-white">{{ \App\Support\DateDisplay::html($viewingInvoice->issue_date?->format('d-m-Y') ?: '—') }}</span></div>
             </div>
             <div class="surface-table settings-record-table mt-4" data-settings-record-table data-invoice-view-items-box data-finance-generic-table>
                 <div class="overflow-x-auto">

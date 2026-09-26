@@ -108,8 +108,8 @@
                     line-height: {{ number_format($element['styling']['line_height'], 2, '.', '') }};
                 "
             >{!! $verticalAlign === 'justify'
-                ? collect(preg_split('/\R/u', $textValue) ?: [$textValue])->map(fn ($textLine) => '<span style="width:100%">'.e($textLine).'</span>')->implode('')
-                : e($textValue) !!}</div>
+                ? collect(preg_split('/\R/u', $textValue) ?: [$textValue])->map(fn ($textLine) => '<span style="width:100%">'.\App\Support\DateDisplay::html($textLine)->toHtml().'</span>')->implode('')
+                : \App\Support\DateDisplay::html($textValue)->toHtml() !!}</div>
         @endif
     @endforeach
 </article>

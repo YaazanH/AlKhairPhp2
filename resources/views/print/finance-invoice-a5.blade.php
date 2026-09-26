@@ -69,7 +69,7 @@
 
 <table class="meta">
     <tr><td class="label">{{ __('finance.fields.invoice_issuer') }}</td><td class="value">{{ $invoice->invoicer_name ?: '-' }}</td><td class="label">{{ __('finance.fields.original_invoice_no') }}</td><td class="value original-invoice-no" dir="ltr">{{ $invoice->original_invoice_no ?: '-' }}</td></tr>
-    <tr><td class="label">{{ __('finance.common.date') }}</td><td class="value" colspan="3">{{ $invoice->issue_date?->format('d-m-Y') ?: '-' }}</td></tr>
+    <tr><td class="label">{{ __('finance.common.date') }}</td><td class="value" colspan="3">{{ \App\Support\DateDisplay::html($invoice->issue_date?->format('d-m-Y') ?: '-') }}</td></tr>
 </table>
 
 <table class="items">

@@ -1301,7 +1301,7 @@ new class extends Component {
                                             <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                                 <bdi dir="ltr" class="inline-block">{{ $enrollment->student?->parentProfile?->father_phone ?: ($enrollment->student?->parentProfile?->mother_phone ?: ($enrollment->student?->parentProfile?->home_phone ?: __('crud.common.not_available'))) }}</bdi>
                                             </td>
-                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y') ?: __('crud.common.not_available')) }}</td>
                                             <td class="px-5 py-4 lg:px-6"><span class="{{ $rosterStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                             @can('enrollments.delete')
                                                 <td class="px-5 py-4 lg:px-6">

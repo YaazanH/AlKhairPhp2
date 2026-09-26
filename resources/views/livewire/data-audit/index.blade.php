@@ -450,7 +450,10 @@ new class extends Component {
             ]];
         }
 
-        return collect($entries)
+        return collect(DataAuditVisibility::visibleEntries(array_map(
+            fn (array $entry): array => $entry + ['subject_type' => $activity->subject_type],
+            array_filter($entries, 'is_array'),
+        ), $activity->event))
             ->filter(fn (mixed $entry): bool => is_array($entry))
             ->map(fn (array $entry): array => [
                 'subject_type' => $entry['subject_type'] ?? $activity->subject_type,

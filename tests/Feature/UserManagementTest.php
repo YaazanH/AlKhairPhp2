@@ -120,14 +120,14 @@ class UserManagementTest extends TestCase
             ->assertSee(__('ui.roles.teacher'))
             ->assertDontSee(__('access.roles.editor.title'))
             ->assertSee('data-permissions-save-icon', false)
-            ->assertSee('data-permissions-edit-action', false)
+            ->assertDontSee('data-permissions-edit-action', false)
             ->assertSee('wire:click="save" class="admin-modal__close"', false)
             ->assertDontSee('wire:click="save" class="pill-link pill-link--accent"', false)
             ->assertSee('role-permission-group', false)
             ->assertSee('data-permission-group-rows="3"', false)
             ->assertSee('role-permission-group__arrow" aria-hidden="true">‹</span>', false)
             ->assertDontSee('admin-collapsible__count', false)
-            ->assertDontSee('wire:click="closePermissionsModal" class="pill-link"', false)
+            ->assertDontSee('wire:click="closePermissionsModal"', false)
             ->assertViewHas('permissionGroups', function ($groups): bool {
                 $titles = $groups->keys()->values()->all();
                 $sortedTitles = $titles;
@@ -152,10 +152,11 @@ class UserManagementTest extends TestCase
 
         $this->assertTrue($teacherRole->hasPermissionTo('points.create-manual'));
 
+        Role::findOrCreate('custom_coach', 'web');
         Volt::test('settings.access-control')
-            ->call('openPermissionsModal', 'teacher')
+            ->call('openPermissionsModal', 'custom_coach')
             ->assertSet('showPermissionsModal', true)
-            ->call('openEditRoleModal', 'teacher')
+            ->call('openEditRoleModal', 'custom_coach')
             ->assertSet('showPermissionsModal', false)
             ->assertSet('showRoleModal', true);
 
@@ -288,6 +289,12 @@ class UserManagementTest extends TestCase
             (int) Role::findByName(RoleRegistry::PARENT)->level,
             (int) $customRole->level,
         );
+        Volt::test('settings.access-control')
+            ->call('openPermissionsModal', 'attendance_supervisor')
+            ->assertSee('data-permissions-edit-action', false)
+            ->assertSee('data-permissions-save-icon', false)
+            ->assertDontSee('wire:click="closePermissionsModal"', false);
+
         $this->assertTrue($customRole->hasPermissionTo('attendance.student.view'));
         $this->assertTrue($customRole->hasPermissionTo('memorization.record'));
         $this->assertFalse($customRole->hasPermissionTo('settings.manage'));
@@ -334,7 +341,7 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseMissing('roles', ['name' => 'assessment_coach']);
 
         Volt::test('settings.access-control')
-            ->call('openEditRoleModal', RoleRegistry::TEACHER)
+            ->set('editing_role', RoleRegistry::TEACHER)
             ->set('role_name', 'Teacher Override')
             ->call('saveRole')
             ->assertHasErrors(['role_name']);
@@ -344,9 +351,14 @@ class UserManagementTest extends TestCase
             ->assertHasErrors(['role_delete']);
 
         $this->assertDatabaseHas('roles', ['name' => RoleRegistry::TEACHER]);
+
+        foreach (RoleRegistry::systemRoles() as $roleName) {
+            Volt::test('settings.access-control')
+                ->call('openEditRoleModal', $roleName)->assertForbidden();
+        }
     }
 
-    public function test_dragged_role_priority_determines_the_primary_role_for_users_with_multiple_roles(): void
+    public function test_leadership_roles_stay_pinned_above_reorderable_roles(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -367,10 +379,10 @@ class UserManagementTest extends TestCase
             ->assertDontSee('data-role-edit-action', false)
             ->assertDontSee('data-role-level', false)
             ->call('openPermissionsModal', RoleRegistry::TEACHER)
-            ->assertSee('data-role-edit-action', false)
-            ->call('openEditRoleModal', RoleRegistry::TEACHER)
-            ->assertDontSee('id="role-level"', false)
-            ->call('closeRoleModal')
+            ->assertDontSee('data-role-edit-action', false)
+            ->assertDontSee('wire:click="closePermissionsModal"', false)
+            ->assertSee('data-permissions-save-icon', false)
+            ->call('closePermissionsModal')
             ->call('moveRole', RoleRegistry::TEACHER, RoleRegistry::MANAGER)
             ->assertHasNoErrors();
 
@@ -379,30 +391,41 @@ class UserManagementTest extends TestCase
         $this->assertStringContainsString('padding-top: 1.8rem;', $roleSortCss);
 
         $this->assertGreaterThan(
-            (int) Role::findByName(RoleRegistry::MANAGER)->level,
             (int) Role::findByName(RoleRegistry::TEACHER)->level,
+            (int) Role::findByName(RoleRegistry::MANAGER)->level,
         );
 
-        $levelsAfterValidMove = Role::query()->pluck('level', 'name')->all();
+        $levelsAfterBlockedMove = Role::query()->pluck('level', 'name')->all();
 
         $component
             ->call('moveRole', RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN)
+            ->call('moveRole', RoleRegistry::ADMIN, RoleRegistry::TEACHER)
+            ->call('moveRole', RoleRegistry::MANAGER, RoleRegistry::TEACHER)
+            ->call('moveRole', RoleRegistry::TEACHER, RoleRegistry::ADMIN)
             ->call('moveRole', RoleRegistry::PARENT, RoleRegistry::MANAGER)
             ->call('moveRole', RoleRegistry::STUDENT, RoleRegistry::ADMIN)
             ->call('moveRole', RoleRegistry::MANAGER, RoleRegistry::SUPER_ADMIN)
             ->call('moveRole', RoleRegistry::MANAGER, RoleRegistry::STUDENT)
             ->assertHasNoErrors();
 
-        $this->assertSame($levelsAfterValidMove, Role::query()->pluck('level', 'name')->all());
+        $this->assertSame($levelsAfterBlockedMove, Role::query()->pluck('level', 'name')->all());
+
+        // A previously saved high level must not place a role above the pinned leaders.
+        Role::where('name', RoleRegistry::TEACHER)->update(['level' => 9999]);
+        $component->call('$refresh');
+        $this->assertSame(
+            [RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN, RoleRegistry::MANAGER],
+            $component->viewData('roles')->getCollection()->take(3)->pluck('name')->all(),
+        );
 
         $orderedRoleNames = RoleRegistry::sortCollection(Role::query()->get())->pluck('name')->all();
-        $this->assertSame(RoleRegistry::SUPER_ADMIN, $orderedRoleNames[0]);
+        $this->assertSame([RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN, RoleRegistry::MANAGER], array_slice($orderedRoleNames, 0, 3));
         $this->assertSame([RoleRegistry::PARENT, RoleRegistry::STUDENT], array_slice($orderedRoleNames, -2));
 
         $multiRoleUser = User::factory()->create();
         $multiRoleUser->assignRole([RoleRegistry::MANAGER, RoleRegistry::TEACHER]);
 
-        $this->assertSame(RoleRegistry::TEACHER, $multiRoleUser->fresh()->primaryRoleName());
+        $this->assertSame(RoleRegistry::MANAGER, $multiRoleUser->fresh()->primaryRoleName());
 
         $fixedBoundaryUser = User::factory()->create();
         $fixedBoundaryUser->assignRole([RoleRegistry::SUPER_ADMIN, RoleRegistry::PARENT, RoleRegistry::STUDENT]);
@@ -414,7 +437,7 @@ class UserManagementTest extends TestCase
         $this->actingAs($multiRoleUser)
             ->get(route('dashboard', absolute: false))
             ->assertOk()
-            ->assertSee('data-primary-role="teacher"', false);
+            ->assertSee('data-primary-role="manager"', false);
     }
 
     public function test_manager_users_cannot_open_user_management_pages(): void

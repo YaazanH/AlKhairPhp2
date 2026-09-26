@@ -3,10 +3,14 @@
 namespace Tests\Unit;
 
 use App\Support\PdfOptions;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Tests\TestCase;
 
 class PdfOptionsTest extends TestCase
 {
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function test_pdf_generation_raises_a_small_runtime_memory_limit(): void
     {
         $originalLimit = ini_get('memory_limit');

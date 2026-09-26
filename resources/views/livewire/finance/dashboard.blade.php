@@ -448,7 +448,7 @@ new class extends Component {
                             <tr>
                                 <td class="px-5 py-3">
                                     <span class="finance-transaction-datetime" data-finance-transaction-datetime>
-                                        <span>{{ $transaction->transaction_date?->format('d-m-Y') }}</span>
+                                        <span>{{ \App\Support\DateDisplay::html($transaction->transaction_date?->format('d-m-Y')) }}</span>
                                         <span>{{ $transaction->created_at?->format('H:i') }}</span>
                                     </span>
                                 </td>
@@ -547,7 +547,7 @@ new class extends Component {
                         @foreach ($requestHistory as $request)
                             @php($historyAccepted = in_array($request->status, [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED], true))
                             <tr>
-                                <td class="px-4 py-3"><div>{{ $request->request_no }}</div><div class="finance-transaction-datetime mt-1 text-xs text-neutral-500" data-withdrawal-history-datetime><span>{{ $request->created_at?->format('d-m-Y') }}</span><span>{{ $request->created_at?->format('H:i') }}</span></div></td>
+                                <td class="px-4 py-3"><div>{{ $request->request_no }}</div><div class="finance-transaction-datetime mt-1 text-xs text-neutral-500" data-withdrawal-history-datetime><span>{{ \App\Support\DateDisplay::html($request->created_at?->format('d-m-Y')) }}</span><span>{{ $request->created_at?->format('H:i') }}</span></div></td>
                                 <td class="px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td>
                                 <td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td>
                                 <td class="px-4 py-3">{{ $request->requested_reason ?: '-' }}</td>
@@ -601,7 +601,7 @@ new class extends Component {
                             @php($generalTransactionNumber = $transaction->transaction_no)
                             <tr class="{{ $transaction->trashed() ? 'opacity-50' : '' }}">
                                 <td class="px-2 py-3 text-center">{{ $transactions->firstItem() + $loop->index }}</td>
-                                <td class="px-3 py-3"><span class="finance-transaction-datetime" data-finance-transaction-datetime>{{ $transaction->transaction_date?->format('d-m-Y') }}</span></td>
+                                <td class="px-3 py-3"><span class="finance-transaction-datetime" data-finance-transaction-datetime>{{ \App\Support\DateDisplay::html($transaction->transaction_date?->format('d-m-Y')) }}</span></td>
                                 <td class="px-3 py-3"><div class="finance-transaction-reference" data-finance-spacing-content="reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">@foreach (mb_str_split($specialTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div><div class="finance-transaction-secondary mt-1 text-xs text-neutral-500" aria-label="{{ $generalTransactionNumber }}">@foreach (mb_str_split($generalTransactionNumber) as $referenceCharacter)<span aria-hidden="true">{{ $referenceCharacter }}</span>@endforeach</div></div></td>
                                 <td class="px-3 py-3"><span class="finance-transaction-kashida-label" data-finance-kashida-label="fund" data-finance-spacing-content="fund" aria-label="{{ $transaction->cashBox?->name }}">{{ $transaction->cashBox?->name }}</span></td>
                                 <td class="px-3 py-3"><span class="finance-transaction-kashida-label" data-finance-kashida-label="type" data-finance-spacing-content="type" aria-label="{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}">{{ app(FinanceService::class)->transactionTypeLabel($transaction->type, $transaction) }}</span></td>

@@ -8,6 +8,7 @@ return [
     'week' => 'أسبوع',
     'events' => 'مناسبات الدورة',
     'manager' => [
+        'details' => 'تفاصيل الدورة',
         'single_day' => 'يوم واحد',
         'date_range' => 'فترة زمنية',
         'color_option' => 'اللون :number',
@@ -24,6 +25,7 @@ return [
             'name' => 'اسم الإضافة',
         ],
         'actions' => [
+            'open_course' => 'فتح الدورة',
             'choose_dates' => 'اختر التاريخ',
             'done' => 'تم',
             'choose_color' => 'اختر اللون',

@@ -8,6 +8,7 @@ return [
     'week' => 'Week',
     'events' => 'Calendar events',
     'manager' => [
+        'details' => 'Course details',
         'single_day' => 'Single day',
         'date_range' => 'Date range',
         'color_option' => 'Colour :number',
@@ -24,6 +25,7 @@ return [
             'name' => 'Addition name',
         ],
         'actions' => [
+            'open_course' => 'Open course',
             'choose_dates' => 'Choose dates',
             'done' => 'Done',
             'add' => 'Add to calendar',

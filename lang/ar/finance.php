@@ -133,7 +133,7 @@ return [
         'rate_board_eyebrow' => 'الإعداد الحالي',
         'rate_board_title' => 'أسعار الصرف النشطة',
         'rate_board_subtitle' => 'هذه الأسعار المستخدمة حالياً لحساب المبلغ الناتج. العملة المحلية تظهر كسعر العملة الأساسية إلى المحلية.',
-        'active_currency_count' => 'عملة نشطة واحدة|:count عملات نشطة',
+        'active_currency_count' => '{0} :count عملة نشطة|{1} عملة واحدة نشطة|{2} عملتين نشطتين|[3,10] :count عملات نشطة|[11,*] :count عملة نشطة|[*,*] :count عملة نشطة',
         'rate_updated' => 'آخر تحديث',
     ],
     'fields' => [
@@ -381,7 +381,7 @@ return [
         'generate_report' => 'إنشاء التقرير',
         'template' => 'القالب',
         'generated_reports' => 'التقارير المالية المحفوظة',
-        'saved_reports_count' => ':count تقرير محفوظ',
+        'saved_reports_count' => '{0} :count تقرير محفوظ|{1} تقرير واحد محفوظ|{2} تقريرين محفوظين|[3,10] :count تقارير محفوظة|[11,*] :count تقرير محفوظ|[*,*] :count تقرير محفوظ',
         'generated_reports_subtitle' => 'يحتفظ كل تقرير محفوظ بالفلاتر المختارة والبيانات الناتجة حتى تتمكن من مراجعته أو إعادة طباعته لاحقاً.',
         'generated_reports_unavailable' => 'سجل التقارير المحفوظة غير متاح حتى يتم تثبيت آخر ترحيلات التقارير المالية. ما زال تصدير السجل يعمل.',
         'review_saved_report' => 'عرض',
@@ -567,6 +567,7 @@ return [
         'to_base' => '1 :currency = :amount :base',
     ],
     'validation' => [
+        'single_category_type' => 'يُسمح بنوع واحد فقط ضمن فئة الصرافة ونوع واحد ضمن فئة التحويل، بما في ذلك الأنواع غير النشطة.',
         'invalid_special_reference_prefix' => 'يجب أن يستخدم الرقم المرجعي الخاص إحدى البادئات المضبوطة التالية: :prefixes.',
         'cash_box_currency_mismatch' => 'هذا الصندوق لا يدعم العملة المحددة.',
         'currency_reference_self' => 'لا يمكن أن تستخدم العملة نفسها كمرجع لسعر الصرف.',

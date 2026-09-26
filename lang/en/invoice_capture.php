@@ -39,7 +39,7 @@ return [
         'unreadable' => 'This invoice could not be read. Try a clearer image or another PDF, or enter its details manually.',
         'unavailable' => 'Invoice reading is unavailable on this server. You can still attach the original and enter its details manually.',
         'no_text' => 'No readable text was found. Try a clearer document.',
-        'page_limit' => 'Upload an invoice with at most :pages pages.',
+        'page_limit' => 'Upload an invoice with at most :pages.',
         'image_size' => 'Use a readable invoice image smaller than 25 megapixels.',
         'timed_out' => 'Reading took too long. Try a smaller or clearer document.',
         'stale' => 'This capture belongs to a different invoice. Upload the document again.',

@@ -193,7 +193,7 @@ class ManagementPagesTest extends TestCase
     public function test_add_new_launchers_use_the_shared_plus_symbol_without_visible_text(): void
     {
         foreach ([
-            'livewire/students/index.blade.php' => 5,
+            'livewire/students/index.blade.php' => 4,
             'livewire/teachers/index.blade.php' => 1,
             'livewire/groups/index.blade.php' => 1,
             'livewire/courses/index.blade.php' => 1,
@@ -1121,10 +1121,11 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-course-end-column', $courses);
         $this->assertStringContainsString("__('crud.courses.table.headers.end_course')", $courses);
         $this->assertSame(1, substr_count($courses, 'data-course-end-action'));
-        $this->assertSame(1, substr_count($courses, 'data-course-edit-action'));
-        $this->assertSame(1, substr_count($courses, '<x-edit-action-button wire:click="edit({{ $course->id }})"'));
-        $this->assertSame(1, substr_count($courses, 'data-course-calendar-action'));
-        $this->assertStringContainsString('wire:click="openCourseCalendar({{ $course->id }})"', $courses);
+        $this->assertSame(1, substr_count($courses, 'data-course-open-action'));
+        $this->assertStringContainsString('<x-admin-action-icon name="info"', $courses);
+        $this->assertStringContainsString('<x-open-action-button wire:click="edit(', $courses);
+        $this->assertStringNotContainsString('data-course-calendar-action', $courses);
+        $this->assertStringContainsString('id="course-calendar-panel"', $courses);
         $this->assertStringNotContainsString('data-course-form-calendar-action', $courses);
         $this->assertStringContainsString('data-course-form-save-action', $courses);
         $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $courses);
