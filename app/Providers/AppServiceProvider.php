@@ -38,6 +38,7 @@ use App\Models\User;
 use App\Observers\DataAuditObserver;
 use App\Support\ApplicationTimezone;
 use App\Support\RoleRegistry;
+use App\Translation\CountAwareTranslator;
 use App\Validation\LocalizedValidator;
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Support\Facades\Gate;
@@ -51,7 +52,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->extend('translator', function ($translator) {
+            $countAware = new CountAwareTranslator($translator->getLoader(), $translator->getLocale());
+            $countAware->setFallback($translator->getFallback());
+
+            return $countAware;
+        });
     }
 
     /**

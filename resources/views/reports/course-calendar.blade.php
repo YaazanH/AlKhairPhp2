@@ -32,7 +32,7 @@
         .month-card .month-card__long-cell-side,
         .month-card .month-card__long-cell-number,
         .month-card .month-card__long-cell-overflow { border: 0; height: auto; padding: 0; }
-        .month-card .month-card__long-cell-side { width: 20%; }
+        .month-card .month-card__long-cell-side { width: 20%; font-size: 1px; line-height: 1; }
         .month-card .month-card__long-cell-number { padding-left: 0.6mm; text-align: center; vertical-align: middle; width: 60%; }
         .month-card .month-card__long-cell-overflow { font-size: 12px; font-weight: bold; line-height: 0.7; padding: 0 0.7mm 0 0; text-align: right; vertical-align: top; width: 20%; }
         .month-card__week { background: transparent; border: 0 !important; color: #222; direction: ltr; font-size: 12px; font-weight: normal; width: 7mm; }
@@ -55,8 +55,8 @@
         .calendar-page--large .month-card .month-card__number-gutter { border: 0; height: auto; padding: 0; width: 0.975mm; }
         .calendar-page--large .month-card__marker-table { border: 0; border-collapse: collapse; height: {{ $calendar['cell_height_mm'] }}mm; left: 0; margin: -0.95mm 0 0; position: absolute; table-layout: fixed; top: 0; width: 100%; }
         .calendar-page--large .month-card .month-card__marker-cell { border: 0; font-size: 15px; font-weight: bold; height: auto; line-height: 1.05; padding: 0 0 0 0.6mm; text-align: center; vertical-align: middle; width: 100%; }
-        .calendar-page--large .month-card__day--start .month-card__marker-cell { color: #3f8067; }
-        .calendar-page--compact .months-layout { border-spacing: 6mm {{ $calendar['row_count'] >= 4 ? 12.5 : 9 }}mm; }
+        .calendar-page--large .month-card__day--start .month-card__marker-cell { color: #24332d; }
+        .calendar-page--compact .months-layout { border-spacing: 6mm 5.5mm; }
         .calendar-page--compact .month-card { border: 0; }
         .calendar-page--compact .month-title { font-size: 17px; padding-bottom: 0; }
         .calendar-page--compact .month-title-spacer td { height: 2.5mm; line-height: 2.5mm; }
@@ -68,7 +68,7 @@
         .calendar-page--compact .month-card__day--scheduled { background: #fff9bd; color: #545454; font-weight: normal; }
         .calendar-page--compact .month-card__day--weekend,
         .calendar-page--dense .month-card__day--weekend { background: #ecefed; color: #8a918c; }
-        .calendar-page--dense .months-layout { border-spacing: 4.8mm {{ $calendar['row_count'] >= 6 ? 5.5 : 10.5 }}mm; }
+        .calendar-page--dense .months-layout { border-spacing: 4.8mm 5mm; }
         .calendar-page--dense .month-card { border: 0; }
         .calendar-page--dense .month-title { font-size: 11px; padding-bottom: 0; }
         .calendar-page--dense .month-title-spacer td { height: 1.5mm; line-height: 1.5mm; }
@@ -78,6 +78,17 @@
         .calendar-page--dense .month-card__number { color: #5e5e5e; font-size: 9px; font-weight: normal; }
         .calendar-page--dense .month-card__marker { font-family: dubailight, dubai, sans-serif; font-size: 5.5px; font-weight: normal; line-height: 1.05; top: {{ max(0, ($calendar['cell_height_mm'] / 2) - .7) }}mm; }
         .calendar-page--dense .month-card__day--scheduled { background: #fff9bd; color: #545454; font-weight: normal; }
+        .month-card .month-card__long-cell-overflow { font-family: dubai, sans-serif; font-size: 6.5px; font-weight: bold; line-height: 1.1; padding: .5mm .3mm 0 0; color: #284b3b; }
+        .calendar-legend { margin: 3mm 3mm 0; border-top: .5px solid #c6d1c9; padding-top: 2mm; }
+        .calendar-legend__heading { color: #345343; font-size: 16px; font-weight: bold; margin: 0 0 1.5mm; }
+        .calendar-legend__table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .calendar-legend__table td { border: 0; padding: 2mm 2mm 2.5mm; vertical-align: top; }
+        .calendar-legend__item { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .calendar-legend__table td.calendar-legend__badge { width: 6mm; color: white; font-size: 10px; font-weight: bold; padding: 1mm 0; text-align: center; vertical-align: middle; }
+        .calendar-legend__table td.calendar-legend__text { padding: 0 1.8mm; }
+        .calendar-legend__name { color: #26382c; font-size: 13px; line-height: 1.4; }
+        .calendar-legend__dates { direction: ltr; width: 100%; border-collapse: collapse; }
+        .calendar-legend__dates td { padding: .7mm 0 0; color: #68766b; font-size: 10px; line-height: 1.2; text-align: {{ app()->isLocale('ar') ? 'right' : 'left' }}; }
     </style>
 </head>
 <body>
@@ -87,31 +98,10 @@
         ? strtr((string) $value, ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩'])
         : (string) $value;
     $dateText = static fn (\Carbon\CarbonImmutable $date): string => $date->format('d-m-Y');
-    $eventTextColor = static function (?string $color): string {
-        if (! preg_match('/^#[0-9a-f]{6}$/i', (string) $color)) {
-            return '#263d31';
-        }
-
-        return sprintf(
-            '#%02x%02x%02x',
-            (int) round(hexdec(substr($color, 1, 2)) * 0.52),
-            (int) round(hexdec(substr($color, 3, 2)) * 0.52),
-            (int) round(hexdec(substr($color, 5, 2)) * 0.52),
-        );
-    };
-    $eventCellStyle = static function (?string $color) use ($eventTextColor): string {
-        if (! preg_match('/^#[0-9a-f]{6}$/i', (string) $color)) {
-            return '';
-        }
-
-        return sprintf(
-            'background-color: rgba(%d, %d, %d, 0.24); color: %s;',
-            hexdec(substr($color, 1, 2)),
-            hexdec(substr($color, 3, 2)),
-            hexdec(substr($color, 5, 2)),
-            $eventTextColor($color),
-        );
-    };
+    $eventTextColor = static fn (?string $color): string => \App\Support\CourseCalendarPalette::TEXT_COLOR;
+    $eventCellStyle = static fn (?string $color): string => $color
+        ? 'background-color: '.\App\Support\CourseCalendarPalette::readableColor($color).'; color: '.\App\Support\CourseCalendarPalette::TEXT_COLOR.';'
+        : '';
     $courseName = trim($course->name);
     $courseTitle = __('course_calendar.title', ['course' => $courseName]);
     $monthColumnWidth = match ($calendar['columns']) {
@@ -164,6 +154,9 @@
                         @php
                             $monthCellHeight = (float) ($month['cell_height_mm'] ?? $calendar['cell_height_mm']);
                             $monthMarkerTop = max(0, ($monthCellHeight / 2) - ($calendar['layout'] === 'dense' ? 0.7 : 1.35));
+                            $longNumberHeight = ($calendar['layout'] === 'compact' ? 14 : 9) * 0.264583;
+                            $longBandHeight = max(0.5, (max(1, $monthCellHeight - 0.5) - $longNumberHeight) / 2);
+                            $longLabelFont = $calendar['layout'] === 'compact' ? 12 : 8;
                             $largeMonthGap = match ($calendar['row_count']) { 2 => 20, 3 => 15, default => 0 };
                         @endphp
                         @if($calendar['layout'] === 'large')
@@ -204,7 +197,7 @@
                                                 if (! $day['in_month']) $classes[] = 'month-card__day--outside';
                                                 else $classes[] = 'month-card__day--in-month';
                                                 if ($day['in_month'] && ! $day['in_course']) $classes[] = 'month-card__day--outside-course';
-                                                if ($calendar['layout'] !== 'large' && $day['in_month'] && in_array($day['date']->dayOfWeek, [5, 6], true) && ! $day['scheduled'] && ! $hasCalendarEvent) $classes[] = 'month-card__day--weekend';
+                                                if ($calendar['layout'] !== 'large' && in_array($day['date']->dayOfWeek, [5, 6], true) && ! $day['scheduled'] && ! $hasCalendarEvent) $classes[] = 'month-card__day--weekend';
                                                 if ($day['in_month'] && $day['scheduled']) $classes[] = 'month-card__day--scheduled';
                                                 if ($day['in_month'] && $day['is_start']) $classes[] = 'month-card__day--start';
                                                 $eventColor = $day['comments'][0]['color'] ?? null;
@@ -215,13 +208,14 @@
                                                 }
 
                                                 foreach ($day['comments'] ?? [] as $comment) {
+                                                    if (! $comment['is_start']) continue;
                                                     $markerLines[] = ['text' => $comment['name'], 'color' => $comment['color']];
                                                 }
 
                                                 $visibleMarkerLines = [];
                                                 $hasOverflowMarker = false;
 
-                                                foreach ($markerLines as $markerLine) {
+                                                foreach ($calendar['layout'] === 'large' ? $markerLines : [] as $markerLine) {
                                                     if (mb_strlen(trim($markerLine['text'])) > $markerCharacterLimit) {
                                                         $hasOverflowMarker = true;
                                                     } else {
@@ -229,7 +223,14 @@
                                                     }
                                                 }
 
+                                                $longLabel = implode(' · ', array_column($markerLines, 'text'));
+                                                if (mb_strlen($longLabel) > $markerCharacterLimit) $longLabel = '';
                                                 $dayCellStyle = $eventCellStyle($eventColor);
+                                                $eventColors = array_column($day['comments'] ?? [], 'color');
+                                                if ($day['in_month'] && $day['is_start']) {
+                                                    array_unshift($eventColors, \App\Support\CourseCalendarPalette::START_COLOR);
+                                                    if (! $eventColor) $dayCellStyle = $eventCellStyle(\App\Support\CourseCalendarPalette::START_COLOR);
+                                                }
 
                                                 if ($calendar['layout'] !== 'large') {
                                                     $dayCellStyle .= ' height: '.$monthCellHeight.'mm;';
@@ -239,21 +240,24 @@
                                                 @if($calendar['layout'] === 'large')
                                                     <table class="month-card__number-table" dir="ltr"><tr><td class="month-card__number-cell">@if($hasOverflowMarker)<span data-calendar-overflow-marker>*</span>&nbsp;@endif{{ $day['in_month'] ? $digits($day['date']->day) : '' }}</td><td class="month-card__number-gutter"></td></tr></table>
                                                 @else
-                                                    <table class="month-card__long-cell-table" dir="ltr" style="height: {{ max(1, $monthCellHeight - 0.5) }}mm;"><tr>
-                                                        <td class="month-card__long-cell-side" width="20%">&nbsp;</td>
-                                                        <td class="month-card__long-cell-number" width="60%" align="center" valign="middle"><span class="month-card__number">{{ $day['in_month'] ? $digits($day['date']->day) : '' }}</span></td>
-                                                        <td class="month-card__long-cell-overflow" width="20%" align="right" valign="top">@if($hasOverflowMarker)<span data-calendar-overflow-marker>*</span>@endif</td>
-                                                    </tr></table>
+                                                    <table class="month-card__long-cell-table" dir="ltr" style="height: {{ max(1, $monthCellHeight - 0.5) }}mm;">
+                                                        <tr><td colspan="3" style="border:0;padding:0;height:{{ $longBandHeight }}mm;font-size:1px;line-height:1;">&nbsp;</td></tr>
+                                                        <tr>
+                                                            <td class="month-card__long-cell-side" width="20%">&nbsp;</td>
+                                                            <td class="month-card__long-cell-number" width="60%" align="center" valign="middle" style="height:{{ $longNumberHeight }}mm;line-height:1;font-size:{{ $calendar['layout'] === 'compact' ? 14 : 9 }}px;"><span class="month-card__number" @if($eventColors !== []) style="color: {{ \App\Support\CourseCalendarPalette::TEXT_COLOR }}" @endif>{{ $day['in_month'] ? $digits($day['date']->day) : '' }}</span></td>
+                                                            <td class="month-card__long-cell-overflow" width="20%" align="right" valign="top" style="font-size:1px;line-height:1;">&nbsp;</td>
+                                                        </tr>
+                                                        <tr><td colspan="3" dir="{{ $arabic ? 'rtl' : 'ltr' }}" style="border:0;padding:0 .2mm .2mm;height:{{ $longBandHeight }}mm;vertical-align:bottom;text-align:center;font-size:{{ $longLabel !== '' ? $longLabelFont : 1 }}px;line-height:.8;color:{{ \App\Support\CourseCalendarPalette::TEXT_COLOR }};">@if($day['in_month'] && $longLabel !== '')<span data-calendar-cell-event>{{ $longLabel }}</span>@else<span style="font-size:1px;">&nbsp;</span>@endif</td></tr>
+                                                    </table>
+                                                    @if(count($eventColors) > 1)
+                                                        <table width="100%" style="border-collapse: collapse;" data-calendar-overlapping-colours><tr>@foreach($eventColors as $color)<td style="height: .7mm; line-height: .7mm; font-size: 1px; padding: 0; border: 0; background-color: {{ $color }};" width="{{ 100 / count($eventColors) }}%">&nbsp;</td>@endforeach</tr></table>
+                                                    @endif
                                                 @endif
                                                 @if($day['in_month'] && $visibleMarkerLines !== [])
                                                     @if($calendar['layout'] === 'large')
                                                         <table class="month-card__marker-table"><tr><td class="month-card__marker-cell" align="center">
                                                             @foreach($visibleMarkerLines as $markerLine)<span class="month-card__marker-line" @if($markerLine['color']) style="color: {{ $eventTextColor($markerLine['color']) }}" @endif>{{ $markerLine['text'] }}</span>@endforeach
                                                         </td></tr></table>
-                                                    @else
-                                                        <span class="month-card__marker" style="top: {{ $monthMarkerTop }}mm;">
-                                                            @foreach($visibleMarkerLines as $markerLine)<span class="month-card__marker-line" @if($markerLine['color']) style="color: {{ $eventTextColor($markerLine['color']) }}" @endif>{{ $markerLine['text'] }}</span>@endforeach
-                                                        </span>
                                                     @endif
                                                 @endif
                                             </td>

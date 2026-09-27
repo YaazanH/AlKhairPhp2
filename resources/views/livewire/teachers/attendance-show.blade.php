@@ -71,6 +71,8 @@ new class extends Component {
             ->all();
 
         $scheduledTeacherIds = $this->scheduledTeacherIdsForDate($day->attendance_date?->format('Y-m-d'));
+        $statuses = AttendanceStatus::query()->where('is_active', true)
+            ->whereIn('scope', ['teacher', 'both'])->orderBy('name')->get();
 
         return [
             'dayRecord' => $day,
@@ -81,11 +83,11 @@ new class extends Component {
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->get(),
-            'statuses' => AttendanceStatus::query()
-                ->where('is_active', true)
-                ->whereIn('scope', ['teacher', 'both'])
-                ->orderBy('name')
-                ->get(),
+            'statuses' => $statuses,
+            'attendanceChoices' => collect([
+                $statuses->firstWhere('code', 'present') ?? $statuses->firstWhere('is_present', true),
+                $statuses->firstWhere('code', 'absent') ?? $statuses->firstWhere('is_present', false),
+            ])->filter(),
             'stats' => [
                 'teachers' => $teacherRecords->count(),
                 'scheduled' => count(array_intersect($existingTeacherIds, $scheduledTeacherIds)),
@@ -181,6 +183,14 @@ new class extends Component {
         $this->day_status = $this->currentDay->fresh()->status === 'closed' ? 'open' : 'closed';
         $this->currentDay->update(['status' => $this->day_status]);
         $this->loadDay();
+    }
+
+    public function chooseTeacherStatus(int $teacherId, int $statusId): void
+    {
+        $this->authorizePermission('attendance.teacher.take');
+        AttendanceStatus::query()->where('is_active', true)->whereIn('scope', ['teacher', 'both'])->findOrFail($statusId);
+        $this->selected_statuses[$teacherId] = (string) $statusId;
+        $this->saveTeacherStatus($teacherId);
     }
 
     public function saveTeacherStatus(int $teacherId): void
@@ -409,7 +419,7 @@ new class extends Component {
             </div>
             <div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-teacher-attendance-day-date-metric>
                 <div class="text-xs text-neutral-300">{{ __('workflow.teacher_attendance.form.attendance_date') }}</div>
-                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ $dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available') }}</bdi>
+                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ \App\Support\DateDisplay::html($dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</bdi>
             </div>
         </div>
     </section>
@@ -456,7 +466,7 @@ new class extends Component {
     @endcan
 
     <section class="surface-table">
-        <div class="admin-grid-meta admin-grid-meta--controls">
+        <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.table.title') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('workflow.teacher_attendance.table.summary', ['count' => number_format($teacherRecords->count())]) }}</div>
@@ -489,16 +499,16 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('workflow.teacher_attendance.table.empty') }}</div>
         @else
             <div class="overflow-x-auto overflow-y-visible pb-24">
-                <table class="teacher-attendance-records-table text-sm {{ $dayRecord->status === 'closed' ? 'teacher-attendance-records-table--closed' : '' }}">
+                <table class="attendance-records-table teacher-attendance-records-table text-sm {{ $dayRecord->status === 'closed' ? 'teacher-attendance-records-table--closed' : '' }}" data-attendance-records>
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
                             @can('attendance.teacher.take')
                                 @if ($dayRecord->status !== 'closed')
-                                    <th class="admin-actions-column teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.teacher_attendance.table.headers.actions') }}</th>
+                                    <th class="attendance-desktop-only admin-actions-column teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.teacher_attendance.table.headers.actions') }}</th>
                                 @endif
                             @endcan
                         </tr>
@@ -526,8 +536,8 @@ new class extends Component {
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 lg:px-6">
                                     <span class="{{ $teacher?->status === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ __('crud.common.status_options.'.($teacher?->status ?: 'inactive')) }}
                                     </span>
@@ -536,22 +546,26 @@ new class extends Component {
                                     @if ($dayRecord->status === 'closed' || $record->course_finished_at)
                                         <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$record->teacher_id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
-                                        <select
-                                            id="teacher-attendance-record-{{ $record->teacher_id }}"
-                                            wire:key="teacher-attendance-select-{{ $record->id }}-{{ $record->teacher_id }}"
-                                            wire:model="selected_statuses.{{ $record->teacher_id }}"
-                                            wire:change="saveTeacherStatus({{ $record->teacher_id }})"
-                                            class="w-full rounded-xl px-4 py-3 text-sm"
-                                        >
-                                            @foreach ($statuses as $attendanceStatus)
-                                                <option value="{{ $attendanceStatus->id }}">{{ $attendanceStatus->name }}</option>
+                                        <div id="teacher-attendance-record-{{ $record->teacher_id }}" class="attendance-type-switch" role="group" aria-label="{{ __('workflow.teacher_attendance.table.headers.attendance') }} — {{ $teacher?->first_name }} {{ $teacher?->last_name }}">
+                                            @foreach ($attendanceChoices as $attendanceStatus)
+                                                <button type="button"
+                                                    wire:key="teacher-attendance-choice-{{ $record->id }}-{{ $attendanceStatus->id }}"
+                                                    wire:click="chooseTeacherStatus({{ $record->teacher_id }}, {{ $attendanceStatus->id }})"
+                                                    wire:loading.attr="disabled" wire:target="chooseTeacherStatus({{ $record->teacher_id }}, {{ $attendanceStatus->id }})"
+                                                    @disabled(! auth()->user()->can('attendance.teacher.take'))
+                                                    aria-pressed="{{ (int) ($selected_statuses[$record->teacher_id] ?? 0) === $attendanceStatus->id ? 'true' : 'false' }}"
+                                                    @class(['attendance-type-switch__option', 'attendance-type-switch__option--present' => $attendanceStatus->is_present, 'attendance-type-switch__option--absent' => ! $attendanceStatus->is_present])
+                                                >{{ $attendanceStatus->name }}</button>
                                             @endforeach
-                                        </select>
+                                        </div>
+                                        @if (! $attendanceChoices->contains('id', (int) ($selected_statuses[$record->teacher_id] ?? 0)))
+                                            <div class="mt-1 text-xs text-neutral-400">{{ $record->status?->name }}</div>
+                                        @endif
                                     @endif
                                 </td>
                                 @can('attendance.teacher.take')
                                     @if ($dayRecord->status !== 'closed')
-                                        <td class="teacher-attendance-actions-column px-5 py-4 text-right lg:px-6">@if (! $record->course_finished_at)<button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/25 text-red-200" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13"/></svg></button>@endif</td>
+                                        <td class="attendance-desktop-only teacher-attendance-actions-column px-5 py-4 text-right lg:px-6">@if (! $record->course_finished_at)<button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/25 text-red-200" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13"/></svg></button>@endif</td>
                                     @endif
                                 @endcan
                             </tr>

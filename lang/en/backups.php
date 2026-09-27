@@ -11,6 +11,7 @@ return [
         'danger' => 'Backup failure detected',
         'copy' => 'Every completed backup is decrypted in an isolated temporary directory and checked before it is marked as verified.',
         'warnings' => [
+            'scheduler_not_running' => 'Automatic scheduling is not running. Ask your hosting administrator to start the scheduler.',
             'missing' => 'No verified backup exists yet. Create the first recovery point now.',
             'overdue' => 'The latest verified backup is older than the configured health limit.',
             'failed' => 'The most recent backup attempt failed. Review the record and create another backup.',
@@ -18,6 +19,7 @@ return [
         ],
     ],
     'stats' => [
+        'scheduler_running' => 'Database scheduler is running',
         'latest_verified' => 'Latest verified backup',
         'next_scheduled' => 'Next scheduled backup',
         'stored_backups' => 'Stored backups',
@@ -26,8 +28,14 @@ return [
         'not_available' => 'Not available',
         'schedule_disabled' => 'Scheduling disabled',
     ],
+    'scopes' => [
+        'database' => 'Database only',
+        'files' => 'Documents and uploaded files only',
+        'full' => 'Database and files (full backup)',
+    ],
     'actions' => [
-        'create' => 'Create backup',
+        'create_files' => 'Back up documents and files manually',
+        'create' => 'Back up database',
         'edit_settings' => 'Edit backup settings',
         'download' => 'Download encrypted backup',
         'restore' => 'Restore this backup',
@@ -99,7 +107,7 @@ return [
     ],
     'restore' => [
         'title' => 'Restore recovery point',
-        'warning' => 'This replaces the current database and overwrites matching uploaded files. A new encrypted safety backup is created first.',
+        'warning' => 'Only the contents of this backup are restored: database, files, or both. A safety backup of the same contents is created first.',
         'password' => 'Your current password',
         'confirmation' => 'Type ":phrase" to continue',
         'confirmation_phrase' => 'RESTORE',
@@ -120,7 +128,7 @@ return [
     'confirmations' => [
         'delete' => 'Delete this encrypted backup permanently?',
         'open_file_restore' => "Restoring from a file can replace the current database and uploaded files.\n\nContinue to select a backup file?",
-        'restore_from_file' => "A safety backup will be created first, then the current database and matching uploaded files will be replaced.\n\nRestore the selected file now?",
+        'restore_from_file' => "A safety backup will be created first. Only the database or files included in the selected backup will be restored.\n\nRestore the selected file now?",
     ],
     'errors' => [
         'operation_failed' => 'The backup operation could not be completed. Check the application log and server storage.',

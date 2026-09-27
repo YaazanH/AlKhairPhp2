@@ -128,7 +128,7 @@ class PrintTemplatePrintController extends Controller
         return response()->json([
             'recorded' => true,
             'printed_at' => $printedAt->toIso8601String(),
-            'printed_at_label' => $printedAt->format('m-d-Y H:i'),
+            'printed_at_label' => $printedAt->format('d-m-Y H:i'),
         ]);
     }
 

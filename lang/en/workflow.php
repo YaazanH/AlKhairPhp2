@@ -80,6 +80,13 @@ return [
         ],
     ],
     'student_attendance' => [
+        'enrollment' => [
+            'help' => 'Choose an active student who is not enrolled in any active course to join this group.',
+            'unavailable' => 'This student is inactive, enrolled in an active course, or already has an enrolment in this course.',
+            'locked' => 'Students can only be added to an open attendance day in an active group and course.',
+            'added' => 'Student added to the group.',
+            'empty' => 'No students are available to add.',
+        ],
         'title' => 'Student Attendance',
         'subtitle' => 'Create one attendance day for this group and mark each enrolment under that date.',
         'export' => [
@@ -175,19 +182,22 @@ return [
                 'reopen_day' => 'Reopen day',
             ],
             'manual_add' => [
-                'title' => 'Add extra group',
-                'help' => 'Use this when a group attends outside its normal schedule or needs a make-up session.',
-                'group' => 'Extra group',
-                'select_group' => 'Select group',
-                'action' => 'Add group to day',
-                'empty' => 'All active groups in your scope are already included in this day.',
+                'title' => 'Add groups to attendance day',
+                'help' => 'Select one or more groups from this course to attend on this day.',
+                'group' => 'Available groups',
+                'action' => 'Add selected groups',
                 'messages' => [
-                    'added' => 'Group added to attendance day successfully.',
+                    'added' => 'Selected groups added to attendance day successfully.',
                 ],
                 'errors' => [
-                    'unavailable' => 'This group is not available in your current scope.',
-                    'exists' => 'This group is already included in this attendance day.',
+                    'unavailable' => 'One or more selected groups are not available in this course or your current scope.',
+                    'exists' => 'One or more selected groups are already included in this attendance day.',
                 ],
+            ],
+            'remove_group' => [
+                'action' => 'Remove group from day',
+                'confirm' => 'Remove :group from this day? Its attendance records and attendance points for this day will be removed.',
+                'removed' => 'Group removed from attendance day successfully.',
             ],
         ],
         'marking' => [
@@ -440,6 +450,20 @@ return [
             'operator_context' => 'This user can record pages here without a teacher profile. The system will use the selected active group teacher and keep :name as the audit user.',
             'group_teacher_context' => 'This entry will be attached to teacher: :name.',
             'auto_context' => 'The system saves today\'s date and entry type as new automatically.',
+            'picker' => [
+                'choose_juz' => 'Choose a juz',
+                'unavailable_selection' => 'Choose an unfinished juz available for this student.',
+                'unavailable_juz' => 'This juz was memorised elsewhere or has a saber record and is not available for new memorisation here.',
+                'pages' => 'Missing pages',
+                'previous' => 'Previous unfinished juz',
+                'next' => 'Next unfinished juz',
+                'remaining' => ':count pages remaining',
+                'page' => 'Page :number',
+                'hint' => 'Choose the pages memorised today',
+                'selected' => 'selected',
+                'complete' => 'No ajza are available for new memorisation.',
+                'invalid_pages' => 'Choose pages from the displayed juz only.',
+            ],
             'form' => [
                 'search' => 'Search student',
                 'search_placeholder' => 'Search by student name, number, or father name',

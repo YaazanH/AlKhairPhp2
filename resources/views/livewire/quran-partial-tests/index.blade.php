@@ -543,7 +543,7 @@ new class extends Component
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $partialTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6"><span dir="ltr" class="inline-block">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</span></td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $partialTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($partialTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
                                 <td class="px-5 py-4 text-center lg:px-6">
                                     <div class="flex flex-wrap justify-center gap-2">

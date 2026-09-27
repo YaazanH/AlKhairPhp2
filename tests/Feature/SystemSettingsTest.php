@@ -1269,10 +1269,10 @@ class SystemSettingsTest extends TestCase
         $user = $this->signIn();
 
         $sidebarGroups = app(SidebarNavigationService::class)->sidebarFor($user->fresh());
-        $peopleGroup = collect($sidebarGroups)->firstWhere('key', 'people');
+        $platformGroup = collect($sidebarGroups)->firstWhere('key', 'platform');
 
-        $this->assertNotNull($peopleGroup);
-        $this->assertContains('student_progress', array_column($peopleGroup['items'], 'key'));
+        $this->assertNotNull($platformGroup);
+        $this->assertContains('student_progress', array_column($platformGroup['items'], 'key'));
     }
 
     public function test_student_promotion_action_requires_explicit_permission_to_appear(): void

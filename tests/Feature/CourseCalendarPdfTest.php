@@ -116,7 +116,7 @@ class CourseCalendarPdfTest extends TestCase
             new CourseCalendarEntry([
                 'date' => '2026-06-30',
                 'name' => 'Orientation',
-                'color' => '#245c46',
+                'color' => '#c9ddb0',
             ]),
         ]));
         $calendarWithComment = app(CourseCalendarService::class)->build($course);
@@ -125,7 +125,7 @@ class CourseCalendarPdfTest extends TestCase
             ->firstWhere(fn (array $day): bool => $day['date']->isSameDay('2026-06-30'))['comments'][0];
 
         $this->assertSame(['june', 'july', 'august'], array_column($calendarWithComment['pages'][0], 'name'));
-        $this->assertSame(['name' => 'Orientation', 'color' => '#245c46'], $juneComment);
+        $this->assertSame(['name' => 'Orientation', 'color' => '#c9ddb0', 'is_start' => true], $juneComment);
 
         $singleDayCourse = new Course([
             'name' => 'Single day course',
@@ -139,6 +139,28 @@ class CourseCalendarPdfTest extends TestCase
         $singleDayCalendar = app(CourseCalendarService::class)->build($singleDayCourse);
 
         $this->assertSame(['june'], array_column($singleDayCalendar['pages'][0], 'name'));
+    }
+
+    public function test_nine_month_calendar_fills_one_page_with_larger_vertical_month_gaps(): void
+    {
+        $course = Course::create([
+            'name' => 'Nine month calendar',
+            'starts_on' => '2026-09-17',
+            'ends_on' => '2027-05-06',
+            'is_active' => true,
+        ]);
+        $calendar = app(CourseCalendarService::class)->build($course);
+        $this->assertSame('dense', $calendar['layout']);
+        $this->assertGreaterThan(5.6, $calendar['cell_height_mm']);
+        $weekRows = collect(array_chunk($calendar['pages'][0], $calendar['columns']))
+            ->sum(fn ($months) => max(array_map(fn ($month) => count($month['weeks']), $months)));
+        $usedHeight = $weekRows * $calendar['cell_height_mm'] + $calendar['row_count'] * 13.5;
+        $this->assertGreaterThan(246, $usedHeight);
+        $this->assertLessThanOrEqual(249, $usedHeight);
+
+        $response = $this->withoutMiddleware([Authenticate::class, PermissionMiddleware::class])
+            ->get(route('courses.calendar.pdf', $course))->assertOk();
+        $this->assertSame(1, preg_match_all('~/Type\s*/Page\b~', $response->getContent()));
     }
 
     public function test_course_calendar_route_returns_an_inline_pdf(): void
@@ -158,7 +180,7 @@ class CourseCalendarPdfTest extends TestCase
             'course_id' => $course->id,
             'date' => '2026-02-10',
             'name' => 'Special event',
-            'color' => '#a37326',
+            'color' => '#ecd9af',
         ]);
 
         $response = $this
@@ -175,7 +197,7 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertSame(1, preg_match_all('~/Type\s*/Page\b~', $response->getContent()));
     }
 
-    public function test_course_without_points_cannot_open_a_calendar_pdf(): void
+    public function test_active_course_without_points_can_open_a_calendar_pdf(): void
     {
         $course = Course::create([
             'name' => 'No points calendar',
@@ -191,10 +213,10 @@ class CourseCalendarPdfTest extends TestCase
                 PermissionMiddleware::class,
             ])
             ->get(route('courses.calendar.pdf', $course))
-            ->assertNotFound();
+            ->assertOk();
     }
 
-    public function test_overlong_calendar_text_uses_an_asterisk_without_resizing_day_columns(): void
+    public function test_long_calendar_keeps_short_labels_in_cells_and_omits_the_event_legend(): void
     {
         app()->setLocale('ar');
 
@@ -208,8 +230,10 @@ class CourseCalendarPdfTest extends TestCase
             new CourseCalendarEntry([
                 'date' => '2026-10-15',
                 'name' => 'اسم فعالية طويل لا يتسع داخل الخلية',
-                'color' => '#a37326',
+                'color' => '#ecd9af',
             ]),
+            new CourseCalendarEntry(['date' => '2026-10-20', 'end_date' => '2026-11-03', 'name' => 'مراجعة', 'color' => '#c4e8df']),
+            new CourseCalendarEntry(['date' => '2026-10-19', 'name' => 'لقاء', 'color' => '#d0c3e7']),
         ]));
 
         $calendar = app(CourseCalendarService::class)->build($course);
@@ -219,46 +243,36 @@ class CourseCalendarPdfTest extends TestCase
             'logo' => null,
         ])->render();
 
-        $this->assertStringContainsString('data-calendar-overflow-marker', $html);
+        $this->assertStringNotContainsString('data-calendar-overflow-marker', $html);
+        $this->assertStringNotContainsString('data-calendar-event-reference', $html);
+        $this->assertStringNotContainsString('data-calendar-event-legend', $html);
+        $this->assertStringNotContainsString('<pagebreak />', $html);
         $this->assertStringNotContainsString('اسم فعالية طويل لا يتسع داخل الخلية', $html);
+        $this->assertSame(1, substr_count($html, '<span data-calendar-cell-event>مراجعة</span>'));
+        $this->assertSame(1, substr_count($html, '<span data-calendar-cell-event>لقاء</span>'));
+        $this->assertMatchesRegularExpression('/month-card__day--outside month-card__day--weekend/', $html);
         $this->assertStringContainsString('width="14.2857%"', $html);
     }
 
-    public function test_course_calendar_action_sits_beside_edit_and_opens_its_own_manager(): void
+    public function test_course_manager_combines_details_and_calendar_in_one_popup(): void
     {
-        $source = file_get_contents(resource_path('views/livewire/courses/index.blade.php'));
-        $editPosition = strpos($source, 'data-course-edit-action');
-        $calendarPosition = strpos($source, 'data-course-calendar-action');
-
-        $this->assertNotFalse($editPosition);
-        $this->assertNotFalse($calendarPosition);
-        $this->assertGreaterThan($editPosition, $calendarPosition);
-        $this->assertStringNotContainsString('data-course-form-calendar-action', $source);
-        $this->assertStringContainsString('wire:click="openCourseCalendar({{ $course->id }})"', $source);
-        $this->assertStringContainsString("route('courses.calendar.pdf', \$courseId)", $source);
-        $this->assertStringContainsString("title=\"{{ __('crud.courses.actions.calendar') }}\"", $source);
-        $this->assertStringContainsString("aria-label=\"{{ __('crud.courses.actions.calendar') }}\"", $source);
-        $this->assertStringContainsString('<x-admin-action-icon name="calendar"', $source);
-        $this->assertStringContainsString('data-course-calendar-save', $source);
-        $this->assertStringContainsString('wire:click="saveCourseCalendar" class="admin-modal__close"', $source);
-        $this->assertStringContainsString('<span aria-hidden="true">&times;</span>', $source);
+        $source = file_get_contents(resource_path('views/livewire/courses/index.blade.php'))
+            .file_get_contents(resource_path('views/components/course-calendar-color-picker.blade.php'))
+            .file_get_contents(resource_path('views/components/course-calendar-date-range.blade.php'));
+        $this->assertStringContainsString('data-course-open-action', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="info"', $source);
+        $this->assertStringContainsString('<x-open-action-button wire:click="edit(', $source);
+        $this->assertStringNotContainsString('data-course-edit-action', $source);
+        $this->assertStringNotContainsString('data-course-calendar-action', $source);
+        $this->assertStringNotContainsString(':show="$showCalendarModal"', $source);
+        $this->assertStringContainsString('id="course-details-panel"', $source);
+        $this->assertStringContainsString('id="course-calendar-panel"', $source);
+        $this->assertStringContainsString('data-course-form-save-action', $source);
         $this->assertStringContainsString('data-course-calendar-pdf-action', $source);
-        $this->assertStringContainsString('wire:click="saveCourseCalendarAndOpenPdf"', $source);
-        $this->assertStringContainsString('x-on:click="beginCalendarPdf()"', $source);
-        $this->assertStringContainsString('x-on:course-calendar-saved.window="showCalendarPdf($event.detail.url)"', $source);
         $this->assertStringContainsString('data-course-calendar-color-options', $source);
-        $this->assertStringNotContainsString('type="color"', $source);
-        $this->assertStringNotContainsString('close-method="closeCourseCalendar"', $source);
-        $this->assertGreaterThan(
-            strpos($source, 'data-course-calendar-pdf-action'),
-            strpos($source, 'data-course-calendar-save'),
-        );
         $this->assertStringContainsString('data-course-calendar-entry-table', $source);
-        $this->assertStringContainsString('data-course-calendar-entry-add-row', $source);
-        $this->assertStringContainsString('data-course-calendar-entry-update', $source);
-        $this->assertStringContainsString('wire:model="calendarDate"', $source);
-        $this->assertStringContainsString('wire:model="calendarName"', $source);
-        $this->assertStringContainsString('wire:model="calendarColor"', $source);
+        $this->assertStringContainsString('x-on:click="beginCalendarPdf()"', $source);
+        $this->assertStringContainsString('input:disabled + span::after', file_get_contents(resource_path('css/app.css')));
 
         $calendarTemplate = file_get_contents(resource_path('views/reports/course-calendar.blade.php'));
         $this->assertStringContainsString("\$courseTitle = __('course_calendar.title', ['course' => \$courseName]);", $calendarTemplate);
@@ -289,10 +303,10 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertStringContainsString('margin: -0.95mm 0 0; position: absolute;', $calendarTemplate);
         $this->assertStringContainsString('class="month-card__marker-cell" align="center"', $calendarTemplate);
         $this->assertStringContainsString('padding: 0 0 0 0.6mm; text-align: center; vertical-align: middle;', $calendarTemplate);
-        $this->assertStringContainsString('.calendar-page--large .month-card__day--start .month-card__marker-cell { color: #3f8067; }', $calendarTemplate);
+        $this->assertStringContainsString('.calendar-page--large .month-card__day--start .month-card__marker-cell { color: #24332d; }', $calendarTemplate);
         $this->assertStringNotContainsString('.month-card__day--end', $calendarTemplate);
         $this->assertStringContainsString('font-family: dubailight, dubai, sans-serif; font-size: 8.5px; font-weight: normal;', $calendarTemplate);
-        $this->assertStringContainsString('.calendar-page--compact .months-layout { border-spacing: 6mm {{ $calendar[\'row_count\'] >= 4 ? 12.5 : 9 }}mm; }', $calendarTemplate);
+        $this->assertStringContainsString('.calendar-page--compact .months-layout { border-spacing: 6mm 5.5mm; }', $calendarTemplate);
         $this->assertStringContainsString('.calendar-page--compact .month-title { font-size: 17px; padding-bottom: 0; }', $calendarTemplate);
         $this->assertStringContainsString('.calendar-page--compact .month-title-spacer td { height: 2.5mm; line-height: 2.5mm; }', $calendarTemplate);
         $this->assertStringContainsString('.calendar-page--compact .month-card { border: 0; }', $calendarTemplate);
@@ -304,29 +318,29 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertStringNotContainsString('month-card__week-row--empty', $calendarTemplate);
         $this->assertStringNotContainsString('$emptyPaddingRow', $calendarTemplate);
         $this->assertStringContainsString('$hasCalendarEvent = $day[\'is_start\'] || ! empty($day[\'comments\']);', $calendarTemplate);
-        $this->assertStringContainsString('if ($calendar[\'layout\'] !== \'large\' && $day[\'in_month\'] && in_array($day[\'date\']->dayOfWeek, [5, 6], true) && ! $day[\'scheduled\'] && ! $hasCalendarEvent)', $calendarTemplate);
+        $this->assertStringContainsString('if ($calendar[\'layout\'] !== \'large\' && in_array($day[\'date\']->dayOfWeek, [5, 6], true) && ! $day[\'scheduled\'] && ! $hasCalendarEvent)', $calendarTemplate);
         $this->assertStringContainsString("if (\$day['in_month'] && \$day['scheduled'])", $calendarTemplate);
         $this->assertStringContainsString("if (\$day['in_month'] && \$day['is_start'])", $calendarTemplate);
         $this->assertStringNotContainsString("if (\$day['in_month'] && \$day['is_end'])", $calendarTemplate);
         $this->assertStringContainsString("@if(\$day['in_month'] && \$visibleMarkerLines !== [])", $calendarTemplate);
-        $this->assertStringContainsString("'background-color: rgba(%d, %d, %d, 0.24); color: %s;'", $calendarTemplate);
+        $this->assertStringNotContainsString('background-color: rgba(', $calendarTemplate);
         $this->assertStringContainsString('$dayCellStyle = $eventCellStyle($eventColor);', $calendarTemplate);
         $this->assertStringContainsString("\$dayCellStyle .= ' height: '.\$monthCellHeight.'mm;'", $calendarTemplate);
-        $this->assertStringContainsString('hexdec(substr($color, 1, 2)) * 0.52', $calendarTemplate);
+        $this->assertStringContainsString('CourseCalendarPalette::TEXT_COLOR', $calendarTemplate);
         $this->assertStringContainsString('font-size: 15px;', $calendarTemplate);
         $this->assertStringContainsString('.calendar-page--compact .month-card__marker { font-family: dubailight, dubai, sans-serif; font-size: 7px; font-weight: normal;', $calendarTemplate);
         $this->assertStringContainsString('.calendar-page--dense .month-card__marker { font-family: dubailight, dubai, sans-serif; font-size: 5.5px; font-weight: normal;', $calendarTemplate);
-        $this->assertStringContainsString('.calendar-page--dense .months-layout { border-spacing: 4.8mm {{ $calendar[\'row_count\'] >= 6 ? 5.5 : 10.5 }}mm; }', $calendarTemplate);
+        $this->assertStringContainsString('.calendar-page--dense .months-layout { border-spacing: 4.8mm 5mm; }', $calendarTemplate);
         $this->assertStringContainsString('.calendar-page--dense .month-title { font-size: 11px; padding-bottom: 0; }', $calendarTemplate);
         $this->assertStringContainsString('<table class="month-title-spacer" aria-hidden="true"><tr><td>&nbsp;</td></tr></table>', $calendarTemplate);
         $this->assertStringContainsString("mb_strlen(trim(\$markerLine['text'])) > \$markerCharacterLimit", $calendarTemplate);
         $this->assertStringContainsString('.month-card__long-cell-table { border: 0; border-collapse: collapse; direction: ltr; table-layout: fixed; width: 100%; }', $calendarTemplate);
         $this->assertStringContainsString('.month-card .month-card__long-cell-number { padding-left: 0.6mm; text-align: center; vertical-align: middle; width: 60%; }', $calendarTemplate);
         $this->assertStringContainsString('font-size: 12px; font-weight: bold; line-height: 0.7; padding: 0 0.7mm 0 0; text-align: right; vertical-align: top; width: 20%;', $calendarTemplate);
-        $this->assertStringContainsString('<table class="month-card__long-cell-table" dir="ltr" style="height: {{ max(1, $monthCellHeight - 0.5) }}mm;"><tr>', $calendarTemplate);
-        $this->assertStringContainsString('<span class="month-card__marker" style="top: {{ $monthMarkerTop }}mm;">', $calendarTemplate);
+        $this->assertStringContainsString('<table class="month-card__long-cell-table" dir="ltr" style="height: {{ max(1, $monthCellHeight - 0.5) }}mm;">', $calendarTemplate);
+        $this->assertStringNotContainsString('data-calendar-event-reference', $calendarTemplate);
         $this->assertStringContainsString('<td class="month-card__long-cell-side" width="20%">&nbsp;</td>', $calendarTemplate);
-        $this->assertStringContainsString('<td class="month-card__long-cell-number" width="60%" align="center" valign="middle"><span class="month-card__number">', $calendarTemplate);
+        $this->assertStringContainsString('<td class="month-card__long-cell-number" width="60%" align="center" valign="middle"', $calendarTemplate);
         $this->assertStringContainsString('@if($hasOverflowMarker) data-calendar-overflow-marker @endif', $calendarTemplate);
         $this->assertStringContainsString('<span data-calendar-overflow-marker>*</span>', $calendarTemplate);
         $this->assertStringNotContainsString('month-card__long-number-table', $calendarTemplate);

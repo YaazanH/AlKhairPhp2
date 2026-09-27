@@ -155,7 +155,7 @@ new class extends Component {
             ->map(fn ($records) => $records->pluck('enrollment_id')->unique()->count());
         $dailyTrend = $trendDates->map(fn (Carbon $date) => [
             'date' => $date->toDateString(),
-            'label' => $date->format('d-m'),
+            'label' => $date->format('d-m-Y'),
             'pages' => (int) ($memorizedByDate[$date->toDateString()] ?? 0),
             'attendance' => (int) ($attendanceByDate[$date->toDateString()] ?? 0),
         ]);
@@ -553,7 +553,7 @@ new class extends Component {
             ->map(fn ($records) => $records->pluck('enrollment_id')->unique()->count());
         $dailyTrend = $trendDates->map(fn (Carbon $date) => [
             'date' => $date->toDateString(),
-            'label' => $date->format('d-m'),
+            'label' => $date->format('d-m-Y'),
             'pages' => (int) ($memorizedByDate[$date->toDateString()] ?? 0),
             'attendance' => (int) ($attendanceByDate[$date->toDateString()] ?? 0),
         ]);
@@ -1114,7 +1114,22 @@ new class extends Component {
                 <article class="surface-panel p-5 lg:p-6">
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.manager.analytics.group_distribution') }}</h2>
                     @if ($groupStudentTotal > 0)
-                        <div class="dashboard-treemap mt-5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}" data-dashboard-lollipop-number-gap>
+                        <div class="dashboard-treemap mt-5" role="img" aria-label="{{ __('dashboard.manager.analytics.group_distribution') }}" data-dashboard-lollipop-number-gap
+                            x-data="{ attendanceTip: null, tipX: 0, tipY: 0,
+                                showAttendanceTip(event) {
+                                    const dot = event.currentTarget;
+                                    const rect = dot.getBoundingClientRect();
+                                    this.tipX = rect.left + rect.width / 2;
+                                    this.tipY = rect.top - 7;
+                                    this.attendanceTip = dot.getAttribute('aria-label');
+                                }
+                            }"
+                            x-on:scroll.window="attendanceTip = null" x-on:resize.window="attendanceTip = null">
+                            <template x-teleport="body">
+                                <span x-show="attendanceTip !== null" x-cloak x-text="attendanceTip"
+                                    class="dashboard-lollipop-attendance__tooltip dashboard-lollipop-floating-tooltip"
+                                    :style="{ left: tipX + 'px', top: tipY + 'px' }" aria-hidden="true"></span>
+                            </template>
                             <span class="dashboard-lollipop-number-gap-measure" aria-hidden="true">حلقة</span>
                             @foreach ($lollipopGroups as $index => $group)
                                 <div class="dashboard-lollipop-row">
@@ -1122,9 +1137,9 @@ new class extends Component {
                                     <div class="dashboard-lollipop-row__track relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full opacity-70" style="width: {{ ($group['students'] / $lollipopMax) * 100 }}%; background: {{ $chartColor($index) }}"></span>
                                         <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 shadow" style="inset-inline-start: calc({{ ($group['students'] / $lollipopMax) * 100 }}% - .4375rem); background: {{ $chartColor($index) }}"></span>
-                                        <span class="dashboard-lollipop-attendance absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .3125rem)" tabindex="0" aria-label="{{ number_format($group['average_attendance_percentage'], 1) }}%">
-                                            <span class="dashboard-lollipop-attendance__tooltip" aria-hidden="true">{{ number_format($group['average_attendance_percentage'], 1) }}%</span>
-                                        </span>
+                                        <span class="dashboard-lollipop-attendance rounded-full border-2 border-neutral-950 bg-sky-300 shadow" style="inset-inline-start: calc({{ ($group['average_attendance'] / $lollipopMax) * 100 }}% - .3125rem)" tabindex="0" aria-label="{{ number_format($group['average_attendance_percentage'], 1) }}%"
+                                            x-on:mouseenter="showAttendanceTip($event)" x-on:mouseleave="attendanceTip = null"
+                                            x-on:focus="showAttendanceTip($event)" x-on:blur="attendanceTip = null" x-on:keydown.escape="attendanceTip = null"></span>
                                     </div>
                                     <div class="dashboard-lollipop-row__value text-xs font-semibold text-white">{{ number_format($group['students']) }}</div>
                                 </div>
@@ -1155,21 +1170,21 @@ new class extends Component {
                         <polyline points="{{ $pagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         <polyline points="{{ $attendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                         @foreach ($dailyTrend as $index => $day)
-                            <g class="dashboard-line-point" tabindex="0" aria-label="{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}">
+                            <g class="dashboard-line-point" tabindex="0" aria-label="{{ \App\Support\DateDisplay::text($day['label']) }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}">
                                 <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point" />
                                 <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ max(16, $trendY($day['pages']) - 12) }})" data-dashboard-line-tooltip-value-only>
                                     <rect x="-15" y="-15" width="30" height="15" rx="4" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.16)" stroke-width="0.5" />
                                     <text x="0" y="-4.5" text-anchor="middle" fill="white" font-size="8" font-weight="800" class="dashboard-line-point__tooltip-value">{{ number_format($day['pages']) }}</text>
                                 </g>
                             </g>
-                            <g class="dashboard-line-point" tabindex="0" aria-label="{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}">
+                            <g class="dashboard-line-point" tabindex="0" aria-label="{{ \App\Support\DateDisplay::text($day['label']) }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}">
                                 <circle cx="{{ $trendX($index) }}" cy="{{ $trendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point" />
                                 <g class="dashboard-line-point__tooltip" transform="translate({{ $trendX($index) }}, {{ min(214, $trendY($day['attendance']) + 28) }})" data-dashboard-line-tooltip-value-only>
                                     <rect x="-15" y="-15" width="30" height="15" rx="4" fill="rgba(10,10,10,.96)" stroke="rgba(255,255,255,.16)" stroke-width="0.5" />
                                     <text x="0" y="-4.5" text-anchor="middle" fill="white" font-size="8" font-weight="800" class="dashboard-line-point__tooltip-value">{{ number_format($day['attendance']) }}</text>
                                 </g>
                             </g>
-                            <text x="{{ $trendX($index) }}" y="205" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
+                            <text x="{{ $trendX($index) }}" y="205" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ \App\Support\DateDisplay::text($day['label']) }}</text>
                         @endforeach
                     </svg>
                     </div>
@@ -1207,7 +1222,7 @@ new class extends Component {
                                             data-performance-dot-size="{{ $performanceDotSize }}"
                                             data-points-before="{{ $entry['points_before'] }}"
                                             data-points-after="{{ $entry['points'] }}"
-                                            aria-label="{{ $entry['student']->full_name }} — {{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }}, {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}"
+                                            aria-label="{{ $entry['student']->full_name }} — {{ __('counts.points', ['count' => number_format($entry['points'])]) }}, {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}"
                                         >
                                             <span class="dashboard-performance-map__dot" aria-hidden="true"></span>
                                         </button>
@@ -1219,7 +1234,7 @@ new class extends Component {
                                             aria-hidden="true"
                                         >
                                             <strong>{{ $entry['student']->full_name }}</strong>
-                                            <small>{{ number_format($entry['points']) }} {{ __('dashboard.manager.analytics.points') }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
+                                            <small>{{ __('counts.points', ['count' => number_format($entry['points'])]) }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
                                         </span>
                                     @endif
                                 @endforeach
@@ -1305,7 +1320,7 @@ new class extends Component {
                             @endphp
                             <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}">
                                 <div class="dashboard-curriculum-hotbar__identity">
-                                    <a href="{{ route('curricula.index') }}" wire:navigate class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</a>
+                                    <span class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</span>
                                     <div class="dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
                                 </div>
                                 <div class="dashboard-curriculum-hotbar__track">
@@ -1391,9 +1406,9 @@ new class extends Component {
                             <polyline points="{{ $teacherPagesLine }}" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                             <polyline points="{{ $teacherAttendanceLine }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                             @foreach ($teacherDailyTrend as $index => $day)
-                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></g>
-                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point" /><title>{{ $day['label'] }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></g>
-                                <text x="{{ $teacherTrendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $day['label'] }}</text>
+                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['pages']) }}" r="6" fill="#34d399" class="dashboard-chart-point" /><title>{{ \App\Support\DateDisplay::text($day['label']) }} · {{ __('dashboard.manager.analytics.memorized_pages') }}: {{ number_format($day['pages']) }}</title></g>
+                                <g class="dashboard-line-point" tabindex="0"><circle cx="{{ $teacherTrendX($index) }}" cy="{{ $teacherTrendY($day['attendance']) }}" r="6" fill="#38bdf8" class="dashboard-chart-point" /><title>{{ \App\Support\DateDisplay::text($day['label']) }} · {{ __('dashboard.manager.analytics.students_attended') }}: {{ number_format($day['attendance']) }}</title></g>
+                                <text x="{{ $teacherTrendX($index) }}" y="202" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ \App\Support\DateDisplay::text($day['label']) }}</text>
                             @endforeach
                         </svg>
                     @endif
@@ -1468,7 +1483,7 @@ new class extends Component {
 
             <x-admin.modal :show="$showTeacherMemorizationsModal" :title="__('dashboard.teacher.group_dashboard.all_memorizations')" close-method="closeTeacherMemorizations" max-width="3xl" compact>
                 <div class="space-y-3">
-                    <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.page_number') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.date') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherLatestMemorizations as $session)<tr><td class="px-3 py-2 font-medium text-white">{{ $session->student?->full_name }}</td><td class="px-3 py-2"><span dir="ltr">{{ $session->from_page === $session->to_page ? $session->from_page : $session->from_page.'–'.$session->to_page }}</span></td><td class="px-3 py-2">{{ $session->recorded_on?->format('d-m-Y') }}</td></tr>@endforeach</tbody></table></div>
+                    <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.page_number') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.date') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherLatestMemorizations as $session)<tr><td class="px-3 py-2 font-medium text-white">{{ $session->student?->full_name }}</td><td class="px-3 py-2"><span dir="ltr">{{ $session->from_page === $session->to_page ? $session->from_page : $session->from_page.'–'.$session->to_page }}</span></td><td class="px-3 py-2">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td></tr>@endforeach</tbody></table></div>
                     @if ($teacherLatestMemorizations->hasPages())<div>{{ $teacherLatestMemorizations->links() }}</div>@endif
                 </div>
             </x-admin.modal>

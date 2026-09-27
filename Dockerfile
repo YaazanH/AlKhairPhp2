@@ -8,6 +8,8 @@ ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
+        default-mysql-client \
+        postgresql-client \
         libfreetype6-dev \
         libgmp-dev \
         libicu-dev \

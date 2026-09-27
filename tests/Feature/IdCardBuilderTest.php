@@ -648,7 +648,7 @@ class IdCardBuilderTest extends TestCase
                 ->assertJson([
                     'recorded' => true,
                     'printed_at' => '2026-09-06T00:15:00+03:00',
-                    'printed_at_label' => '09-06-2026 00:15',
+                    'printed_at_label' => '06-09-2026 00:15',
                 ]);
         } finally {
             Carbon::setTestNow();
@@ -940,7 +940,7 @@ class IdCardBuilderTest extends TestCase
         $oldGroup = Group::query()->create([
             'academic_year_id' => $academicYear->id,
             'capacity' => 12,
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Historical Quran Course', 'is_active' => true])->id,
             'is_active' => true,
             'monthly_fee' => 20,
             'name' => 'Old Group',

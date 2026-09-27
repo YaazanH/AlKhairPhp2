@@ -45,6 +45,10 @@ new class extends Component {
 
     public function updateUsername(ManagedUserService $managedUsers): void
     {
+        if (Auth::user()->hasImmutableUsername()) {
+            throw ValidationException::withMessages(['username' => __('access.profile_accounts.username_locked')]);
+        }
+
         $validated = $this->validate([
             'username' => ['required', 'string', 'max:255'],
         ]);
@@ -118,10 +122,12 @@ new class extends Component {
                     <div class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
                         <div class="min-w-0">
                             <label for="account-username" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.username') }}</label>
-                            <input id="account-username" wire:model="username" type="text" required autocomplete="username" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <input id="account-username" wire:model="username" @readonly($profileUser->hasImmutableUsername()) type="text" required autocomplete="username" class="w-full rounded-xl px-4 py-3 text-sm">
                             @error('username') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
-                        <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
+                        @unless ($profileUser->hasImmutableUsername())
+                            <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
+                        @endunless
                     </div>
                     <x-action-message class="mt-3 text-sm text-emerald-200" on="username-updated">
                         {{ __('settings.account.profile.saved') }}

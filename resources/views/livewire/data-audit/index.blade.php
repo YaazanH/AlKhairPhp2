@@ -2,17 +2,9 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
-use App\Models\Enrollment;
-use App\Models\FinanceTransaction;
-use App\Models\MemorizationSession;
-use App\Models\ParentProfile;
-use App\Models\PointTransaction;
-use App\Models\QuranFinalTest;
-use App\Models\QuranPartialTest;
-use App\Models\QuranTest;
-use App\Models\Student;
-use App\Support\ApplicationTimezone;
 use App\Services\SidebarNavigationService;
+use App\Support\ApplicationTimezone;
+use App\Support\DataAuditVisibility;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -125,22 +117,7 @@ new class extends Component {
 
     protected function visibleActivitiesQuery(): Builder
     {
-        return AuditActivity::query()
-            ->inLog('data-audit')
-            ->where(function (Builder $query): void {
-                $query->where('event', '!=', 'created')
-                    ->orWhereNotIn('subject_type', [
-                        Student::class,
-                        ParentProfile::class,
-                        Enrollment::class,
-                        FinanceTransaction::class,
-                        PointTransaction::class,
-                        MemorizationSession::class,
-                        QuranFinalTest::class,
-                        QuranPartialTest::class,
-                        QuranTest::class,
-                    ]);
-            });
+        return DataAuditVisibility::apply(AuditActivity::query()->inLog('data-audit'));
     }
 
     public function consecutiveActivityBundles(iterable $activities): array
@@ -473,7 +450,10 @@ new class extends Component {
             ]];
         }
 
-        return collect($entries)
+        return collect(DataAuditVisibility::visibleEntries(array_map(
+            fn (array $entry): array => $entry + ['subject_type' => $activity->subject_type],
+            array_filter($entries, 'is_array'),
+        ), $activity->event))
             ->filter(fn (mixed $entry): bool => is_array($entry))
             ->map(fn (array $entry): array => [
                 'subject_type' => $entry['subject_type'] ?? $activity->subject_type,

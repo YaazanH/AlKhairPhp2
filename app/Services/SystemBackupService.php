@@ -8,10 +8,12 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Cache\Lock;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PDO;
@@ -23,9 +25,9 @@ use ZipArchive;
 
 class SystemBackupService
 {
-    public const MANIFEST_VERSION = 2;
+    public const MANIFEST_VERSION = 3;
 
-    private const SUPPORTED_MANIFEST_VERSIONS = [1, self::MANIFEST_VERSION];
+    private const SUPPORTED_MANIFEST_VERSIONS = [1, 2, self::MANIFEST_VERSION];
 
     public function __construct(private readonly BackupEncryptionService $encryption) {}
 
@@ -43,9 +45,7 @@ class SystemBackupService
             'weekday' => min(6, max(0, (int) ($values->get('weekday') ?? 5))),
             'retention_count' => min(100, max(1, (int) ($values->get('retention_count') ?? 14))),
             'health_warning_hours' => min(720, max(1, (int) ($values->get('health_warning_hours') ?? 48))),
-            // A recovery point is always complete. Keeping files optional can
-            // produce a database that references documents which cannot be restored.
-            'include_files' => true,
+            'include_files' => false,
         ];
     }
 
@@ -56,15 +56,20 @@ class SystemBackupService
         AppSetting::storeValue('backups', 'weekday', (int) $settings['weekday'], 'integer');
         AppSetting::storeValue('backups', 'retention_count', (int) $settings['retention_count'], 'integer');
         AppSetting::storeValue('backups', 'health_warning_hours', (int) $settings['health_warning_hours'], 'integer');
-        AppSetting::storeValue('backups', 'include_files', true, 'boolean');
+        AppSetting::storeValue('backups', 'include_files', false, 'boolean');
 
         return $this->settings();
     }
 
-    public function create(?User $creator = null, string $trigger = SystemBackup::TRIGGER_MANUAL): SystemBackup
+    public function create(?User $creator = null, string $trigger = SystemBackup::TRIGGER_MANUAL, string $scope = SystemBackup::SCOPE_DATABASE): SystemBackup
     {
         if (! in_array($trigger, [SystemBackup::TRIGGER_MANUAL, SystemBackup::TRIGGER_SCHEDULED, SystemBackup::TRIGGER_PRE_RESTORE], true)) {
             throw new RuntimeException('Unsupported backup trigger.');
+        }
+
+        $this->assertScope($scope);
+        if ($trigger === SystemBackup::TRIGGER_SCHEDULED && $scope !== SystemBackup::SCOPE_DATABASE) {
+            throw new RuntimeException('Scheduled backups must contain only the database.');
         }
 
         /** @var Lock $lock */
@@ -74,7 +79,7 @@ class SystemBackupService
         }
 
         try {
-            return $this->createUnlocked($creator, $trigger);
+            return $this->createUnlocked($creator, $trigger, scope: $scope);
         } finally {
             $lock->release();
         }
@@ -175,7 +180,8 @@ class SystemBackupService
                 'status' => SystemBackup::STATUS_COMPLETED,
                 'verified_at' => now(),
                 'manifest_summary' => $summary,
-                'includes_files' => $summary['files_count'] > 0,
+                'includes_files' => $summary['scope'] !== SystemBackup::SCOPE_DATABASE,
+                'scope' => $summary['scope'],
                 'error_message' => null,
             ])->save();
 
@@ -221,25 +227,33 @@ class SystemBackupService
 
         try {
             $prepared = $this->prepareVerifiedArchive($backup);
+            $scope = $this->manifestScope($prepared['manifest']);
+            $hasDatabase = $scope !== SystemBackup::SCOPE_FILES;
             $manifestDriver = (string) data_get($prepared['manifest'], 'database.driver');
             $currentDriver = (string) config('database.connections.'.config('database.default').'.driver');
 
-            if ($manifestDriver !== $currentDriver) {
+            if ($hasDatabase && $manifestDriver !== $currentDriver) {
                 throw new RuntimeException('The backup database driver does not match this installation.');
             }
 
-            $this->assertRestoreIsSupported($currentDriver);
+            if ($hasDatabase) {
+                $this->assertRestoreIsSupported($currentDriver);
+            }
             // Do not prune retention while restoring: the selected recovery point
             // and its new safety copy must remain available throughout the operation.
-            $safetyBackup = $this->createUnlocked($actor, SystemBackup::TRIGGER_PRE_RESTORE, false);
+            $safetyBackup = $this->createUnlocked($actor, SystemBackup::TRIGGER_PRE_RESTORE, false, $scope);
             $backupHistory = SystemBackup::query()->get()->map(fn (SystemBackup $item): array => $item->getAttributes())->all();
 
             Artisan::call('down');
 
             try {
-                $this->restoreDatabase($prepared['database_path'], $currentDriver);
-                $this->restoreFiles($prepared['zip'], $prepared['manifest']);
-                $this->restoreBackupHistory($backupHistory);
+                if ($hasDatabase) {
+                    $this->restoreDatabase($prepared['database_path'], $currentDriver);
+                    $this->restoreBackupHistory($backupHistory);
+                }
+                if ($scope !== SystemBackup::SCOPE_DATABASE) {
+                    $this->restoreFiles($prepared['zip'], $prepared['manifest']);
+                }
 
                 $restored = SystemBackup::query()->where('uuid', $backup->uuid)->firstOrFail();
                 $restored->forceFill([
@@ -272,12 +286,18 @@ class SystemBackupService
         $settings = $this->settings();
         $latestAttempt = SystemBackup::query()->latest()->first();
         $latestVerified = SystemBackup::query()
+            ->where('scope', '!=', SystemBackup::SCOPE_FILES)
             ->where('status', SystemBackup::STATUS_COMPLETED)
             ->whereNotNull('verified_at')
             ->latest('verified_at')
             ->first();
 
+        $schedulerLastSeen = Cache::get('system-backup:scheduler-last-seen');
+        $schedulerRunning = $schedulerLastSeen && CarbonImmutable::parse($schedulerLastSeen)->gte(now()->subMinutes(5));
         $warnings = [];
+        if ($settings['frequency'] !== 'disabled' && ! $schedulerRunning) {
+            $warnings[] = 'scheduler_not_running';
+        }
         if (! $latestVerified) {
             $warnings[] = 'missing';
         } elseif ($settings['frequency'] !== 'disabled'
@@ -305,6 +325,8 @@ class SystemBackupService
                 ? 'danger'
                 : ($warnings === [] ? 'healthy' : 'warning'),
             'warnings' => array_values(array_unique($warnings)),
+            'scheduler_running' => (bool) $schedulerRunning,
+            'scheduler_last_seen' => $schedulerLastSeen,
             'latest_attempt' => $latestAttempt,
             'latest_verified' => $latestVerified,
             'free_bytes' => $freeBytes,
@@ -325,10 +347,22 @@ class SystemBackupService
             return false;
         }
 
-        return ! SystemBackup::query()
+        $attempts = SystemBackup::query()
             ->where('trigger', SystemBackup::TRIGGER_SCHEDULED)
-            ->where('created_at', '>=', $candidate->utc())
-            ->exists();
+            ->where('scope', '!=', SystemBackup::SCOPE_FILES)
+            ->where('created_at', '>=', $candidate->setTimezone(config('app.timezone')));
+
+        if ((clone $attempts)->where('status', SystemBackup::STATUS_COMPLETED)->whereNotNull('verified_at')->exists()) {
+            return false;
+        }
+
+        // Retry failures after a short backoff; abandoned attempts must not block a whole day.
+        return ! $attempts->where(function ($query) use ($now): void {
+            $query->where(fn ($query) => $query->where('status', SystemBackup::STATUS_FAILED)
+                ->where('updated_at', '>', $this->localNow($now)->subMinutes(15)->setTimezone(config('app.timezone'))))
+                ->orWhere(fn ($query) => $query->where('status', SystemBackup::STATUS_CREATING)
+                    ->where('created_at', '>', $this->localNow($now)->subHours(2)->setTimezone(config('app.timezone'))));
+        })->exists();
     }
 
     public function nextScheduledAt(?CarbonInterface $now = null): ?CarbonImmutable
@@ -360,9 +394,19 @@ class SystemBackupService
 
     public function runScheduled(): ?SystemBackup
     {
-        return $this->scheduledBackupIsDue()
-            ? $this->create(null, SystemBackup::TRIGGER_SCHEDULED)
-            : null;
+        Cache::forever('system-backup:scheduler-last-seen', now()->utc()->toIso8601String());
+        $lock = Cache::lock('system-backup:operation', 7200);
+        if (! $lock->get()) {
+            return null;
+        }
+
+        try {
+            return $this->scheduledBackupIsDue()
+                ? $this->createUnlocked(null, SystemBackup::TRIGGER_SCHEDULED, scope: SystemBackup::SCOPE_DATABASE)
+                : null;
+        } finally {
+            $lock->release();
+        }
     }
 
     public function timezone(): string
@@ -378,11 +422,11 @@ class SystemBackupService
         }
     }
 
-    private function createUnlocked(?User $creator, string $trigger, bool $applyRetention = true): SystemBackup
+    private function createUnlocked(?User $creator, string $trigger, bool $applyRetention = true, string $scope = SystemBackup::SCOPE_DATABASE): SystemBackup
     {
         $settings = $this->settings();
         $uuid = (string) Str::uuid();
-        $filename = 'alkhair-'.now()->utc()->format('Ymd-His').'-'.substr($uuid, 0, 8).'.alkhair-backup';
+        $filename = 'alkhair-'.$scope.'-'.now()->utc()->format('Ymd-His').'-'.substr($uuid, 0, 8).'.alkhair-backup';
         $directory = trim((string) config('backups.directory', 'backups'), '/');
         $filePath = $directory.'/'.$filename;
 
@@ -393,7 +437,8 @@ class SystemBackupService
             'filename' => $filename,
             'trigger' => $trigger,
             'status' => SystemBackup::STATUS_CREATING,
-            'includes_files' => true,
+            'includes_files' => $scope !== SystemBackup::SCOPE_DATABASE,
+            'scope' => $scope,
             'encrypted' => true,
             'created_by' => $creator?->id,
         ]);
@@ -402,7 +447,7 @@ class SystemBackupService
 
         try {
             $zipPath = $temporaryDirectory.'/backup.zip';
-            $manifest = $this->buildArchive($zipPath);
+            $manifest = $this->buildArchive($zipPath, $scope);
             $disk = Storage::disk($backup->disk);
             $disk->makeDirectory($directory);
             $absoluteDestination = $disk->path($filePath);
@@ -430,7 +475,7 @@ class SystemBackupService
             ])->save();
 
             if ($applyRetention) {
-                $this->enforceRetention($settings['retention_count']);
+                $this->enforceRetention($settings['retention_count'], $scope);
             }
 
             return $backup->fresh();
@@ -451,7 +496,7 @@ class SystemBackupService
         }
     }
 
-    private function buildArchive(string $zipPath): array
+    private function buildArchive(string $zipPath, string $scope): array
     {
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -459,8 +504,8 @@ class SystemBackupService
         }
 
         try {
-            $database = $this->createDatabaseArtifact(dirname($zipPath));
-            if (! $zip->addFile($database['path'], $database['entry'])) {
+            $database = $scope !== SystemBackup::SCOPE_FILES ? $this->createDatabaseArtifact(dirname($zipPath)) : null;
+            if ($database && ! $zip->addFile($database['path'], $database['entry'])) {
                 throw new RuntimeException('Unable to add the database to the backup archive.');
             }
 
@@ -468,19 +513,22 @@ class SystemBackupService
                 'version' => self::MANIFEST_VERSION,
                 'application' => (string) config('app.name'),
                 'created_at' => now()->utc()->toIso8601String(),
-                'data_roots' => array_keys($this->dataRoots()),
-                'database' => [
+                'scope' => $scope,
+                'data_roots' => $scope !== SystemBackup::SCOPE_DATABASE ? array_keys($this->dataRoots()) : [],
+                'database' => $database ? [
                     'driver' => $database['driver'],
                     'entry' => $database['entry'],
                     'size_bytes' => filesize($database['path']) ?: 0,
                     'sha256' => hash_file('sha256', $database['path']),
                     'table_count' => count($database['tables']),
                     'tables' => $database['tables'],
-                ],
+                ] : null,
                 'files' => [],
             ];
 
-            $this->addApplicationFiles($zip, $manifest);
+            if ($scope !== SystemBackup::SCOPE_DATABASE) {
+                $this->addApplicationFiles($zip, $manifest);
+            }
 
             if (! $zip->addFromString('manifest.json', json_encode($manifest, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES))) {
                 throw new RuntimeException('Unable to add the backup manifest.');
@@ -706,32 +754,48 @@ class SystemBackupService
                 throw new RuntimeException('The backup manifest version is not supported.');
             }
 
+            $scope = $this->manifestScope($manifest);
+            $hasDatabase = $scope !== SystemBackup::SCOPE_FILES;
+            $hasFiles = $scope !== SystemBackup::SCOPE_DATABASE;
             $database = $manifest['database'] ?? null;
-            if (! is_array($database) || blank($database['entry'] ?? null)) {
-                throw new RuntimeException('The backup database entry is invalid.');
+            $databasePath = null;
+
+            if (! is_array($manifest['files'] ?? null)) {
+                throw new RuntimeException('The backup file manifest is invalid.');
+            }
+            if (! $hasFiles && ($manifest['files'] !== [] || ($manifest['data_roots'] ?? []) !== [])) {
+                throw new RuntimeException('A database backup cannot include uploaded files.');
+            }
+            if (! $hasDatabase && $database !== null) {
+                throw new RuntimeException('A files backup cannot include a database.');
             }
 
-            $databasePath = $directory.'/database-artifact';
-            $this->copyAndVerifyEntry($zip, $database, $databasePath);
+            if ($hasDatabase) {
+                if (! is_array($database) || blank($database['entry'] ?? null)) {
+                    throw new RuntimeException('The backup database entry is invalid.');
+                }
+                $databasePath = $directory.'/database-artifact';
+                $this->copyAndVerifyEntry($zip, $database, $databasePath);
+                $expectedTables = array_values(array_filter(
+                    (array) ($database['tables'] ?? []),
+                    fn (mixed $table): bool => is_string($table) && $table !== '',
+                ));
+                sort($expectedTables, SORT_STRING);
 
-            foreach ($manifest['files'] ?? [] as $file) {
+                if ($manifestVersion >= 2 && ($expectedTables === [] || (int) ($database['table_count'] ?? -1) !== count($expectedTables))) {
+                    throw new RuntimeException('The backup database table inventory is incomplete.');
+                }
+                $this->testDatabaseArtifact((string) $database['driver'], $databasePath, $expectedTables);
+            }
+
+            foreach ($manifest['files'] as $file) {
                 if (! is_array($file)) {
                     throw new RuntimeException('The backup file manifest is invalid.');
                 }
                 $this->verifyEntry($zip, $file);
             }
 
-            $expectedTables = array_values(array_filter(
-                (array) ($database['tables'] ?? []),
-                fn (mixed $table): bool => is_string($table) && $table !== '',
-            ));
-            sort($expectedTables, SORT_STRING);
-
-            if ($manifestVersion >= 2) {
-                if ($expectedTables === [] || (int) ($database['table_count'] ?? -1) !== count($expectedTables)) {
-                    throw new RuntimeException('The backup database table inventory is incomplete.');
-                }
-
+            if ($manifestVersion >= 2 && $hasFiles) {
                 $configuredRoots = array_keys($this->dataRoots());
                 $manifestRoots = array_values(array_filter(
                     (array) ($manifest['data_roots'] ?? []),
@@ -744,8 +808,6 @@ class SystemBackupService
                     throw new RuntimeException('The backup application data-root inventory is incomplete.');
                 }
             }
-
-            $this->testDatabaseArtifact((string) $database['driver'], $databasePath, $expectedTables);
 
             return [
                 'directory' => $directory,
@@ -1077,6 +1139,11 @@ class SystemBackupService
 
     private function restoreBackupHistory(array $backupHistory): void
     {
+        // Older full backups predate separated backup scopes.
+        if (! Schema::hasColumn('system_backups', 'scope')) {
+            Schema::table('system_backups', fn (Blueprint $table) => $table->string('scope', 20)->default('full')->index());
+        }
+
         $existingUserIds = User::query()->pluck('id')->flip();
 
         foreach ($backupHistory as $attributes) {
@@ -1092,9 +1159,10 @@ class SystemBackupService
         }
     }
 
-    private function enforceRetention(int $retentionCount): void
+    private function enforceRetention(int $retentionCount, string $scope): void
     {
         SystemBackup::query()
+            ->where('scope', $scope)
             ->where('status', SystemBackup::STATUS_COMPLETED)
             ->latest('created_at')
             ->latest('id')
@@ -1133,11 +1201,31 @@ class SystemBackupService
     {
         return [
             'version' => $manifest['version'] ?? null,
+            'scope' => $this->manifestScope($manifest),
             'database_driver' => data_get($manifest, 'database.driver'),
             'database_size_bytes' => (int) data_get($manifest, 'database.size_bytes', 0),
             'files_count' => count($manifest['files'] ?? []),
             'files_size_bytes' => (int) collect($manifest['files'] ?? [])->sum('size_bytes'),
         ];
+    }
+
+    private function assertScope(string $scope): void
+    {
+        if (! in_array($scope, [SystemBackup::SCOPE_DATABASE, SystemBackup::SCOPE_FILES, SystemBackup::SCOPE_FULL], true)) {
+            throw new RuntimeException('Unsupported backup contents.');
+        }
+    }
+
+    private function manifestScope(array $manifest): string
+    {
+        if ((int) ($manifest['version'] ?? 0) < 3) {
+            return SystemBackup::SCOPE_FULL;
+        }
+
+        $scope = (string) ($manifest['scope'] ?? '');
+        $this->assertScope($scope);
+
+        return $scope;
     }
 
     private function temporaryDirectory(): string

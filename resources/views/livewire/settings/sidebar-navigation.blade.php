@@ -104,6 +104,16 @@ new class extends Component {
         $this->dispatch('sidebar-navigation-updated');
     }
 
+    public function restoreDefaults(): void
+    {
+        $this->authorizePermission('sidebar-navigation.manage');
+        app(SidebarNavigationService::class)->save([], []);
+        $this->resetValidation();
+        $this->loadSettings();
+        $this->dispatch('sidebar-navigation-updated');
+        session()->flash('status', __('settings.sidebar_navigation.messages.saved'));
+    }
+
     public function addGroup(): void
     {
         $this->authorizePermission('sidebar-navigation.manage');
@@ -283,6 +293,9 @@ new class extends Component {
                 <div></div>
                 <div class="admin-toolbar__actions">
                     <x-add-action-button wire:click="addGroup" :label="__('settings.sidebar_navigation.actions.add_group')" :accent="false" />
+                    <button type="button" wire:click="restoreDefaults" class="admin-icon-button" title="{{ __('settings.sidebar_navigation.actions.restore_defaults') }}" aria-label="{{ __('settings.sidebar_navigation.actions.restore_defaults') }}" data-sidebar-restore-defaults>
+                        <x-admin-action-icon name="restore-defaults" />
+                    </button>
                 </div>
             </div>
 

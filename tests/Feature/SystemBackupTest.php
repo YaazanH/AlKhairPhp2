@@ -85,7 +85,7 @@ class SystemBackupTest extends TestCase
         $this->assertSame(2, substr_count($backupView, 'class="grid gap-4 sm:grid-cols-2"'));
         $this->assertSame(4, substr_count($backupView, "format('d-m-Y H:i')"));
         $this->assertStringNotContainsString("format('m-d-Y H:i')", $backupView);
-        $this->assertStringContainsString('<bdi dir="ltr">{{ $backup->verified_at', $backupView);
+        $this->assertStringContainsString('<bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->verified_at', $backupView);
         $this->assertStringContainsString(':dismissible="false" max-width="2xl"', $backupView);
         $this->assertStringContainsString('<x-slot:header-actions>', $backupView);
         $this->assertStringContainsString('form="backup-settings-form"', $backupView);
@@ -243,7 +243,7 @@ class SystemBackupTest extends TestCase
         $this->assertSame(4, $settings->get('weekday'));
         $this->assertSame(9, $settings->get('retention_count'));
         $this->assertSame(72, $settings->get('health_warning_hours'));
-        $this->assertTrue($settings->get('include_files'));
+        $this->assertFalse($settings->get('include_files'));
 
         $this->get(route('settings.backups.download', $backup))
             ->assertOk()
@@ -334,9 +334,9 @@ class SystemBackupTest extends TestCase
 
         try {
             $service = app(SystemBackupService::class);
-            $this->assertTrue($service->settings()['include_files']);
+            $this->assertFalse($service->settings()['include_files']);
 
-            $backup = $service->create();
+            $backup = $service->create(scope: SystemBackup::SCOPE_FULL);
             $this->assertTrue($backup->includes_files);
             $this->assertTrue($backup->isUsable());
 
@@ -387,6 +387,35 @@ class SystemBackupTest extends TestCase
             } finally {
                 $zip->close();
             }
+
+            $databaseBackup = $service->create();
+            $filesBackup = $service->create(scope: SystemBackup::SCOPE_FILES);
+            $this->assertSame(SystemBackup::SCOPE_DATABASE, $databaseBackup->scope);
+            $this->assertFalse($databaseBackup->includes_files);
+            $this->assertSame(0, $databaseBackup->manifest_summary['files_count']);
+            $this->assertSame(SystemBackup::SCOPE_FILES, $filesBackup->scope);
+            $this->assertNull($filesBackup->manifest_summary['database_driver']);
+            $this->assertSame(0, $filesBackup->manifest_summary['database_size_bytes']);
+            $this->assertSame(3, $filesBackup->manifest_summary['files_count']);
+
+            DB::table('future_backup_records')->where('id', 1)->update(['value' => 'new database data']);
+            File::put($dataRoot.'/private/curriculum/book.pdf', 'new document');
+            $service->restore($filesBackup);
+            $this->assertSame('private curriculum document', File::get($dataRoot.'/private/curriculum/book.pdf'));
+            $this->assertSame('new database data', DB::table('future_backup_records')->where('id', 1)->value('value'));
+
+            File::put($dataRoot.'/private/curriculum/book.pdf', 'keep this document');
+            $service->restore($databaseBackup);
+            $this->assertSame('future table data', DB::table('future_backup_records')->where('id', 1)->value('value'));
+            $this->assertSame('keep this document', File::get($dataRoot.'/private/curriculum/book.pdf'));
+
+            AppSetting::storeValue('backups', 'retention_count', 1, 'integer');
+            $service->runScheduled();
+            $this->assertTrue(SystemBackup::query()->whereKey($filesBackup->id)->exists());
+            $scheduled = SystemBackup::query()->where('trigger', SystemBackup::TRIGGER_SCHEDULED)->latest('id')->firstOrFail();
+            $this->assertSame(SystemBackup::SCOPE_DATABASE, $scheduled->scope);
+            $this->assertFalse($scheduled->includes_files);
+            $this->assertNull($service->runScheduled());
         } finally {
             DB::purge('backup_full_test');
             config()->set('database.default', $originalDefaultConnection);
@@ -414,7 +443,7 @@ class SystemBackupTest extends TestCase
             file_put_contents($documentPath, 'verified document');
 
             $manifest = [
-                'version' => SystemBackupService::MANIFEST_VERSION,
+                'version' => 2,
                 'application' => 'Alkhair',
                 'created_at' => now()->utc()->toIso8601String(),
                 'data_roots' => ['storage'],

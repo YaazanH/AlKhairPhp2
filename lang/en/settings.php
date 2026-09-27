@@ -285,7 +285,7 @@ return [
             'not_current' => 'Not current',
             'default_student_gender' => 'Default',
             'date_range' => ':start to :end',
-            'grade_level_usage' => ':groups groups, :students students, :policies policies',
+            'grade_level_usage' => ':groups, :students, :policies',
             'default_avatar_set' => 'Default image set',
             'default_avatar_missing' => 'Using initials fallback',
             'default_print_page_size' => 'Default',
@@ -402,6 +402,7 @@ return [
             'custom_group' => 'Custom group',
         ],
         'actions' => [
+            'restore_defaults' => 'Restore defaults',
             'add_group' => 'Add group',
             'remove_group' => 'Remove group',
             'save' => 'Save sidebar layout',
@@ -719,7 +720,7 @@ return [
         ],
         'labels' => [
             'manual_entry_automatic' => 'ManualEntry always allows manual entry. This setting is applied automatically.',
-            'point_type_usage' => ':policies policies, :transactions transactions, :bands bands',
+            'point_type_usage' => ':policies, :transactions, :bands',
             'point_policy_meta' => ':pointType | :gradeLevel',
             'point_policy_range' => ':from to :to',
             'point_policy_points' => ':points (priority :priority)',

@@ -17,7 +17,7 @@ return [
         'primary_signal' => 'المؤشر الأساسي',
         'live_snapshot' => 'لقطة مباشرة',
         'workspace_area' => 'منطقة العمل',
-        'items' => '{1} عنصر واحد|[2,*] :count عناصر',
+        'items' => '{0} :count عنصر|{1} عنصر واحد|{2} عنصرين|[3,10] :count عناصر|[11,*] :count عنصر|[*,*] :count عنصر',
     ],
     'record_states' => [
         'most_recent' => 'الأحدث',
@@ -32,8 +32,8 @@ return [
         'no_school' => 'بدون مدرسة',
         'no_group' => 'بدون مجموعة',
         'no_identifier' => 'لا يوجد معرف للحساب',
-        'active_enrollments' => ':count تسجيلاً نشطاً',
-        'active_students' => ':count طالباً نشطاً',
+        'active_enrollments' => '{0} :count تسجيل نشط|{1} تسجيل واحد نشط|{2} تسجيلين نشطين|[3,10] :count تسجيلات نشطة|[11,*] :count تسجيل نشط|[*,*] :count تسجيل نشط',
+        'active_students' => '{0} :count طالب نشط|{1} طالب واحد نشط|{2} طالبين نشطين|[3,10] :count طلاب نشطين|[11,*] :count طالب نشط|[*,*] :count طالب نشط',
         'points_pages' => 'النقاط :points | الصفحات :pages',
     ],
     'manager' => [
@@ -61,7 +61,7 @@ return [
         'analytics' => [
             'groups_eyebrow' => 'مجموعات الدورة الافتراضية',
             'group_distribution' => 'عدد الطلاب في كل مجموعة',
-            'students_count' => '{1} طالب واحد|[2,10] :count طلاب|[11,*] :count طالب',
+            'students_count' => '{0} :count طالب|{1} طالب واحد|{2} طالبين|[3,10] :count طلاب|[11,*] :count طالب|[*,*] :count طالب',
             'no_group_students' => 'لا يوجد طلاب نشطون في مجموعات الدورة الافتراضية بعد.',
             'last_four_days' => 'آخر أربعة أيام',
             'last_five_attendance_days' => 'آخر خمسة أيام حضور',
@@ -77,7 +77,7 @@ return [
             'top_groups_by_memorization' => 'أفضل المجموعات حسب الحفظ',
             'count_axis' => 'العدد',
             'groups_axis' => 'المجموعات',
-            'pages_count' => '{1} صفحة واحدة|[2,*] :count صفحة',
+            'pages_count' => '{0} :count صفحة|{1} صفحة واحدة|{2} صفحتين|[3,10] :count صفحات|[11,*] :count صفحة|[*,*] :count صفحة',
             'no_groups' => 'لا يوجد مجموعات نشطة في الدورة الافتراضية.',
             'student_highlights' => 'ملخص الطالب',
             'final_tests' => 'السبورة النهائية',

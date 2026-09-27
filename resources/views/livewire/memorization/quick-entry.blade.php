@@ -4,10 +4,14 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\Enrollment;
 use App\Models\Student;
+use App\Models\QuranJuz;
+use App\Models\MemorizationSessionPage;
 use App\Models\Teacher;
 use App\Services\MemorizationService;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Volt\Component;
+use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 
 new class extends Component {
     use AuthorizesPermissions;
@@ -15,14 +19,15 @@ new class extends Component {
 
     public ?int $selectedStudentId = null;
     public ?int $selectedEnrollmentId = null;
-    public string $from_page = '';
-    public string $to_page = '';
+    public ?int $selectedJuzNumber = null;
+    public array $selectedPages = [];
     public ?int $teacher_id = null;
-    public bool $toPageManuallyEdited = false;
     public bool $showDuplicateModal = false;
     public array $duplicatePages = [];
     public array $uniquePages = [];
+    #[Locked]
     public array $pendingMemorizationPayload = [];
+    #[Locked]
     public ?int $pendingEnrollmentId = null;
 
     public function mount(): void
@@ -42,43 +47,132 @@ new class extends Component {
         $selectedEnrollment = $this->selectedQuickEntryEnrollment($availableEnrollments);
 
         return [
+            'unfinishedJuzs' => $this->unfinishedJuzs,
+            'displayedJuz' => $this->unfinishedJuzs->firstWhere('number', $this->selectedJuzNumber),
             'entriesEnabled' => \App\Support\OperationalFeatureSettings::memorizationAndSabersEnabled(),
             'studentOptions' => $studentOptions,
             'availableEnrollments' => $availableEnrollments,
             'currentTeacher' => $this->currentTeacher(),
             'currentUser' => auth()->user(),
             'selectedEnrollment' => $selectedEnrollment,
-            'selectedTeacher' => $selectedEnrollment ? $this->resolveQuickEntryTeacher($selectedEnrollment) : null,
-            'teacherOptions' => $this->availableRecordingTeachers(),
+            'canChooseRecordingTeacher' => $this->canChooseRecordingTeacher(),
+            'teacherOptions' => $this->canChooseRecordingTeacher()
+                ? $this->availableRecordingTeachers()
+                : collect([$selectedEnrollment ? $this->resolveQuickEntryTeacher($selectedEnrollment) : $this->currentTeacher()])->filter(),
         ];
     }
 
     public function updatedSelectedStudentId($value): void
     {
         $this->selectedEnrollmentId = null;
-        $this->resetValidation('selectedEnrollmentId');
+        $this->teacher_id = null;
+        $this->selectedPages = [];
+        $this->selectedJuzNumber = null;
+        $this->closeDuplicateModal();
+        unset($this->unfinishedJuzs);
+        $this->resetValidation();
 
         if (! filled($value)) {
             return;
         }
+
+        $student = $this->findQuickEntryStudent((int) $value);
+        $current = $student->quranCurrentJuz?->juz_number ?? 30;
+        $numbers = $this->unfinishedJuzs->pluck('number');
+        $this->selectedJuzNumber = $numbers->contains($current) ? $current : ($current >= 26
+            ? ($numbers->filter(fn ($number) => $number < $current)->last() ?? $numbers->first())
+            : ($numbers->first(fn ($number) => $number > $current) ?? $numbers->last()));
 
         $availableEnrollments = $this->availableQuickEntryEnrollmentsForStudent((int) $value);
 
         if ($availableEnrollments->count() === 1) {
             $this->selectedEnrollmentId = $availableEnrollments->first()->id;
         }
+
+        $this->syncSelectedTeacher();
     }
 
-    public function updatedFromPage($value): void
+    public function updatedSelectedEnrollmentId(): void
     {
-        if (! $this->toPageManuallyEdited || blank($this->to_page)) {
-            $this->to_page = (string) $value;
+        $this->syncSelectedTeacher();
+    }
+
+    protected function syncSelectedTeacher(): void
+    {
+        $enrollment = $this->selectedStudentId
+            ? $this->selectedQuickEntryEnrollment($this->availableQuickEntryEnrollmentsForStudent($this->selectedStudentId))
+            : null;
+        $teacher = $enrollment ? $this->resolveQuickEntryTeacher($enrollment) : null;
+        $this->teacher_id = $this->canChooseRecordingTeacher()
+            ? $this->availableRecordingTeachers()->firstWhere('id', $teacher?->id)?->id
+            : $teacher?->id;
+        $this->resetValidation('teacher_id');
+    }
+
+    protected function excludedJuzIds(Student $student): \Illuminate\Support\Collection
+    {
+        return $student->externalMemorizedJuzs()->pluck('quran_juzs.id')
+            ->merge($student->quranPartialTests()->pluck('juz_id'))
+            ->merge($student->quranFinalTests()->pluck('juz_id'))
+            ->merge($student->quranTests()
+                ->whereHas('type', fn (Builder $query) => $query->whereIn('code', ['partial', 'final', 'awqaf']))
+                ->pluck('juz_id'))
+            ->filter()->unique()->values();
+    }
+
+    #[Computed]
+    public function unfinishedJuzs(): \Illuminate\Support\Collection
+    {
+        if (! $this->selectedStudentId) {
+            return collect();
+        }
+
+        $student = $this->findQuickEntryStudent($this->selectedStudentId);
+        $recordedPages = MemorizationSessionPage::query()
+            ->whereHas('session', fn (Builder $query) => $query->where('student_id', $student->id)->where('entry_type', '!=', 'review'))
+            ->pluck('page_no')->map(fn ($page) => (int) $page)->all();
+        $excludedIds = $this->excludedJuzIds($student);
+
+        return QuranJuz::query()->whereNotIn('id', $excludedIds)->orderBy('juz_number')->get()
+            ->map(fn (QuranJuz $juz) => [
+                'number' => $juz->juz_number,
+                'from' => $juz->from_page,
+                'to' => $juz->to_page,
+                'missing' => array_values(array_diff(range($juz->from_page, $juz->to_page), $recordedPages)),
+            ])->filter(fn ($juz) => $juz['missing'] !== [])->values();
+    }
+
+    public function navigateJuz(int $direction): void
+    {
+        $numbers = $this->unfinishedJuzs->pluck('number');
+        $next = $direction < 0
+            ? $numbers->filter(fn ($number) => $number < $this->selectedJuzNumber)->last()
+            : $numbers->first(fn ($number) => $number > $this->selectedJuzNumber);
+
+        if ($next !== null) {
+            $this->selectJuz($next);
         }
     }
 
-    public function updatedToPage(): void
+    public function selectJuz(int $number): void
     {
-        $this->toPageManuallyEdited = true;
+        $this->authorizePermission('memorization.record');
+        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        abort_unless($this->selectedStudentId, 404);
+        $this->findQuickEntryStudent($this->selectedStudentId);
+        unset($this->unfinishedJuzs);
+        if (! $this->unfinishedJuzs->contains('number', $number)) {
+            $this->addError('selectedJuzNumber', __('workflow.memorization.quick_entry.picker.unavailable_selection'));
+
+            return;
+        }
+
+        if ($this->selectedJuzNumber !== $number) {
+            $this->selectedPages = [];
+            $this->closeDuplicateModal();
+        }
+        $this->selectedJuzNumber = $number;
+        $this->resetValidation(['selectedJuzNumber', 'selectedPages', 'selectedPages.*']);
     }
 
     public function save(): void
@@ -89,14 +183,14 @@ new class extends Component {
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
-            'from_page' => ['required', 'integer', 'between:1,604'],
-            'to_page' => ['required', 'integer', 'between:1,604', 'gte:from_page'],
-            'teacher_id' => [auth()->user()?->hasRole('super_admin') ? 'required' : 'nullable', 'exists:teachers,id'],
+            'selectedJuzNumber' => ['required', 'integer', 'between:1,30'],
+            'selectedPages' => ['required', 'array', 'min:1', 'max:23'],
+            'selectedPages.*' => ['required', 'integer', 'between:1,604', 'distinct'],
+            'teacher_id' => $this->canChooseRecordingTeacher() ? ['nullable', 'exists:teachers,id'] : ['exclude'],
         ], [], [
             'selectedStudentId' => __('workflow.memorization.quick_entry.form.student'),
             'selectedEnrollmentId' => __('workflow.memorization.workbench.form.group'),
-            'from_page' => __('workflow.memorization.form.from_page'),
-            'to_page' => __('workflow.memorization.form.to_page'),
+            'selectedPages' => __('workflow.memorization.quick_entry.picker.pages'),
         ]);
 
         $student = $this->findQuickEntryStudent((int) $validated['selectedStudentId']);
@@ -113,12 +207,27 @@ new class extends Component {
             return;
         }
 
-        $teacher = auth()->user()?->hasRole('super_admin')
-            ? $this->availableRecordingTeachers()->firstWhere('id', (int) $validated['teacher_id'])
+        $pages = array_map('intval', $validated['selectedPages']);
+        sort($pages);
+        $juz = QuranJuz::query()->where('juz_number', $validated['selectedJuzNumber'])->firstOrFail();
+        if ($this->excludedJuzIds($student)->contains($juz->id)) {
+            $this->addError('selectedPages', __('workflow.memorization.quick_entry.picker.unavailable_juz'));
+
+            return;
+        }
+
+        if (array_diff($pages, range($juz->from_page, $juz->to_page)) !== []) {
+            $this->addError('selectedPages', __('workflow.memorization.quick_entry.picker.invalid_pages'));
+
+            return;
+        }
+
+        $teacher = $this->canChooseRecordingTeacher()
+            ? $this->availableRecordingTeachers()->firstWhere('id', (int) ($validated['teacher_id'] ?? 0))
             : $this->resolveQuickEntryTeacher($enrollment);
 
         if (! $teacher) {
-            $this->addError('selectedEnrollmentId', __('workflow.memorization.quick_entry.errors.no_assigned_teacher'));
+            $this->addError($this->canChooseRecordingTeacher() ? 'teacher_id' : 'selectedEnrollmentId', __('workflow.memorization.quick_entry.errors.no_assigned_teacher'));
 
             return;
         }
@@ -127,15 +236,16 @@ new class extends Component {
             'teacher_id' => $teacher->id,
             'recorded_on' => now()->toDateString(),
             'entry_type' => 'new',
-            'from_page' => $validated['from_page'],
-            'to_page' => $validated['to_page'],
+            'from_page' => min($pages),
+            'to_page' => max($pages),
+            'page_numbers' => $pages,
             'notes' => null,
         ];
 
         $service = app(MemorizationService::class);
         $duplicatePages = $service->findDuplicatePages(
             $enrollment,
-            range((int) $validated['from_page'], (int) $validated['to_page']),
+            $pages,
             'new',
         );
 
@@ -145,11 +255,12 @@ new class extends Component {
             return;
         }
 
-        $service->saveSession($enrollment, $payload);
+        $this->saveQuickEntrySession($enrollment, $payload);
 
         session()->flash('status', __('workflow.memorization.quick_entry.messages.saved'));
 
-        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page', 'teacher_id', 'toPageManuallyEdited']);
+        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'selectedJuzNumber', 'selectedPages', 'teacher_id']);
+        unset($this->unfinishedJuzs);
         $this->resetValidation();
     }
 
@@ -168,14 +279,25 @@ new class extends Component {
             return;
         }
 
-        $enrollment = $this->quickEntryEnrollmentsQuery()
+        $enrollment = $this->quickEntryEnrollmentsQuery()->where('status', 'active')
             ->with(['student', 'group.teacher'])
             ->findOrFail($this->pendingEnrollmentId);
 
-        app(MemorizationService::class)->saveSession(
+        $student = $this->findQuickEntryStudent($enrollment->student_id);
+        $juzId = QuranJuz::query()
+            ->where('from_page', '<=', $this->pendingMemorizationPayload['from_page'])
+            ->where('to_page', '>=', $this->pendingMemorizationPayload['from_page'])
+            ->value('id');
+        if ($this->excludedJuzIds($student)->contains($juzId)) {
+            $this->closeDuplicateModal();
+            $this->addError('selectedPages', __('workflow.memorization.quick_entry.picker.unavailable_juz'));
+
+            return;
+        }
+
+        $this->saveQuickEntrySession(
             $enrollment,
             $this->pendingMemorizationPayload,
-            null,
             true,
         );
 
@@ -185,13 +307,31 @@ new class extends Component {
         );
 
         $this->closeDuplicateModal();
-        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'from_page', 'to_page', 'teacher_id', 'toPageManuallyEdited']);
+        $this->reset(['selectedStudentId', 'selectedEnrollmentId', 'selectedJuzNumber', 'selectedPages', 'teacher_id']);
+        unset($this->unfinishedJuzs);
         $this->resetValidation();
+    }
+
+    protected function saveQuickEntrySession(Enrollment $enrollment, array $payload, bool $skipDuplicates = false): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($enrollment, $payload, $skipDuplicates): void {
+            $session = app(MemorizationService::class)->saveSession($enrollment, $payload, null, $skipDuplicates);
+            $page = $session->pages->first()?->page_no;
+            if ($page !== null) {
+                $juz = QuranJuz::where('from_page', '<=', $page)->where('to_page', '>=', $page)->firstOrFail();
+                $enrollment->student()->firstOrFail()->update(['quran_current_juz_id' => $juz->id]);
+            }
+        });
+    }
+
+    protected function canChooseRecordingTeacher(): bool
+    {
+        return auth()->user()?->hasAnyRole(['manager', 'admin', 'super_admin']) ?? false;
     }
 
     protected function currentTeacher(): ?\App\Models\Teacher
     {
-        if (auth()->user()?->hasRole('super_admin')) {
+        if ($this->canChooseRecordingTeacher()) {
             return null;
         }
 
@@ -200,12 +340,11 @@ new class extends Component {
 
     protected function availableRecordingTeachers()
     {
-        if (! auth()->user()?->hasRole('super_admin')) {
+        if (! $this->canChooseRecordingTeacher()) {
             return collect();
         }
 
-        return Teacher::query()->with('user')->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get()
-            ->filter(fn (Teacher $teacher) => $teacher->user?->can('memorization.record'))->values();
+        return Teacher::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
     }
 
     protected function quickEntryStudentsQuery(): Builder
@@ -280,9 +419,9 @@ new class extends Component {
 
     protected function resolveQuickEntryTeacher(Enrollment $enrollment): ?Teacher
     {
-        return $this->currentTeacher()
-            ?: $enrollment->group?->teacher
-            ?: $enrollment->group?->assistantTeacher;
+        return $this->canChooseRecordingTeacher()
+            ? ($enrollment->group?->teacher ?: $enrollment->group?->assistantTeacher)
+            : $this->currentTeacher();
     }
 
     public function closeDuplicateModal(): void
@@ -296,7 +435,7 @@ new class extends Component {
 
     protected function openDuplicateModal(Enrollment $enrollment, array $payload, array $duplicatePages): void
     {
-        $pageNumbers = range((int) $payload['from_page'], (int) $payload['to_page']);
+        $pageNumbers = $payload['page_numbers'];
 
         $this->duplicatePages = $duplicatePages;
         $this->uniquePages = array_values(array_diff($pageNumbers, $duplicatePages));
@@ -327,7 +466,7 @@ new class extends Component {
         <form wire:submit="save" class="space-y-5">
             <div class="admin-form-field">
                 <label for="quick-memorization-student">{{ __('workflow.memorization.quick_entry.form.student') }}</label>
-                <select id="quick-memorization-student" wire:model="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
+                <select id="quick-memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
                     <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
                     @foreach ($studentOptions as $student)
                         <option value="{{ $student->id }}">{{ $student->full_name }}</option>
@@ -338,10 +477,76 @@ new class extends Component {
                 @enderror
             </div>
 
+            @if ($selectedStudentId)
+                <section class="memorization-page-picker" wire:key="page-picker-{{ $selectedStudentId }}" data-memorization-page-picker>
+                    @if ($displayedJuz)
+                        <div class="memorization-page-picker__heading">
+                            <button type="button" wire:click="navigateJuz(1)" class="memorization-page-picker__nav" @disabled(! $unfinishedJuzs->contains(fn ($juz) => $juz['number'] > $selectedJuzNumber)) title="{{ __('workflow.memorization.quick_entry.picker.next') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.next') }}" wire:loading.attr="disabled">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                            </button>
+                            <div class="memorization-page-picker__title memorization-juz-switcher" x-data="{
+                                open: false, top: 0, left: 0, maxHeight: 384,
+                                toggle() {
+                                    this.open = !this.open;
+                                    if (!this.open) return;
+                                    const rect = this.$refs.trigger.getBoundingClientRect();
+                                    const width = Math.min(336, window.innerWidth - 24);
+                                    const below = window.innerHeight - rect.bottom - 20;
+                                    const above = rect.top - 20;
+                                    const placeBelow = below >= Math.min(384, above);
+                                    this.maxHeight = Math.max(0, Math.min(384, placeBelow ? below : above));
+                                    this.left = Math.max(12, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 12));
+                                    this.top = placeBelow ? rect.bottom + 8 : Math.max(12, rect.top - this.maxHeight - 8);
+                                    this.$nextTick(() => {
+                                        if (!placeBelow) this.top = Math.max(12, rect.top - this.$refs.choices.offsetHeight - 8);
+                                        this.$refs.choices.querySelector('[aria-pressed=true]')?.focus({ preventScroll: true });
+                                    });
+                                }
+                            }" x-on:resize.window="open = false" x-on:scroll.window="if ($event.target === document) open = false" x-on:keydown.escape.stop="open = false; $refs.trigger.focus({ preventScroll: true })">
+                                <h2>
+                                    <button type="button" x-ref="trigger" x-on:click="toggle()" class="memorization-juz-switcher__trigger" :aria-expanded="open" aria-haspopup="dialog" title="{{ __('workflow.memorization.quick_entry.picker.choose_juz') }}" data-memorization-juz-trigger>
+                                        <span>{{ __('workflow.common.labels.juz_number', ['number' => $displayedJuz['number']]) }}</span>
+                                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+                                    </button>
+                                </h2>
+                                <template x-teleport="body">
+                                    <div x-show="open" x-cloak x-ref="choices" x-on:keydown.escape.prevent.stop="open = false; $refs.trigger.focus({ preventScroll: true })" x-on:click.outside="if (!$refs.trigger.contains($event.target)) open = false" :style="{ top: top + 'px', left: left + 'px', maxHeight: maxHeight + 'px' }" class="memorization-juz-switcher__panel" role="dialog" aria-label="{{ __('workflow.memorization.quick_entry.picker.choose_juz') }}">
+                                        <p>{{ __('workflow.memorization.quick_entry.picker.choose_juz') }}</p>
+                                        <div class="memorization-juz-switcher__grid">
+                                            @foreach ($unfinishedJuzs as $juz)
+                                                <button type="button" wire:key="juz-choice-{{ $selectedStudentId }}-{{ $juz['number'] }}" wire:click="selectJuz({{ $juz['number'] }})" x-on:click="open = false; $refs.trigger.focus({ preventScroll: true })" aria-pressed="{{ $selectedJuzNumber === $juz['number'] ? 'true' : 'false' }}" aria-label="{{ __('workflow.common.labels.juz_number', ['number' => $juz['number']]) }}" wire:loading.attr="disabled" data-juz-choice="{{ $juz['number'] }}">{{ $juz['number'] }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <button type="button" wire:click="navigateJuz(-1)" class="memorization-page-picker__nav" @disabled(! $unfinishedJuzs->contains(fn ($juz) => $juz['number'] < $selectedJuzNumber)) title="{{ __('workflow.memorization.quick_entry.picker.previous') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.previous') }}" wire:loading.attr="disabled">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m15 5-7 7 7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                            </button>
+                        </div>
+                        <div x-data="{ pages: $wire.entangle('selectedPages') }">
+                            <div class="memorization-page-picker__grid" style="--memorization-page-columns: {{ min(count($displayedJuz['missing']), max(5, (int) ceil(count($displayedJuz['missing']) / 4))) }}" role="group" aria-label="{{ __('workflow.memorization.quick_entry.picker.pages') }}" dir="rtl">
+                                @foreach ($displayedJuz['missing'] as $page)
+                                    <button type="button" class="memorization-page-picker__page" wire:key="memorization-page-{{ $selectedStudentId }}-{{ $page }}" data-memorization-page="{{ $page }}" x-bind:aria-pressed="pages.includes({{ $page }})" x-on:click="pages = pages.includes({{ $page }}) ? pages.filter(page => page !== {{ $page }}) : [...pages, {{ $page }}]" aria-label="{{ __('workflow.memorization.quick_entry.picker.page', ['number' => $page]) }}">
+                                        <span>{{ $page }}</span>
+                                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8 3 3 7-7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        <div class="memorization-page-picker__complete">{{ __('workflow.memorization.quick_entry.picker.complete') }}</div>
+                    @endif
+                    @error('selectedJuzNumber') <div class="mt-3 text-sm text-red-400">{{ $message }}</div> @enderror
+                    @error('selectedPages') <div class="mt-3 text-sm text-red-400">{{ $message }}</div> @enderror
+                    @error('selectedPages.*') <div class="mt-3 text-sm text-red-400">{{ $message }}</div> @enderror
+                </section>
+            @endif
+
             @if ($selectedStudentId && $availableEnrollments->count() > 1)
                 <div class="admin-form-field">
                     <label for="quick-memorization-enrollment">{{ __('workflow.memorization.workbench.form.group') }}</label>
-                    <select id="quick-memorization-enrollment" wire:model="selectedEnrollmentId">
+                    <select id="quick-memorization-enrollment" wire:model.live="selectedEnrollmentId">
                         <option value="">{{ __('workflow.memorization.workbench.form.select_group') }}</option>
                         @foreach ($availableEnrollments as $enrollment)
                             <option value="{{ $enrollment->id }}">
@@ -352,60 +557,27 @@ new class extends Component {
                             </option>
                         @endforeach
                     </select>
-                    @error('selectedEnrollmentId')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-            @elseif ($selectedEnrollment)
-                <div class="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-neutral-300">
-                    <div>{{ __('workflow.memorization.workbench.form.group_auto') }}</div>
-                    <div class="mt-2 font-medium text-white">
-                        {{ $selectedEnrollment->group?->name ?: __('crud.common.not_available') }}
-                    </div>
-                    @if ($selectedEnrollment->group?->course?->name)
-                        <div class="mt-1 text-xs text-neutral-400">{{ $selectedEnrollment->group->course->name }}</div>
-                    @endif
-                    @if ($selectedTeacher)
-                        <div class="mt-2 text-xs text-neutral-400">
-                            {{ __('workflow.memorization.quick_entry.group_teacher_context', ['name' => trim($selectedTeacher->first_name.' '.$selectedTeacher->last_name)]) }}
-                        </div>
-                    @endif
                 </div>
             @endif
+            @error('selectedEnrollmentId')
+                <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+            @enderror
 
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="admin-form-field">
-                    <label for="quick-memorization-from">{{ __('workflow.memorization.form.from_page') }}</label>
-                    <input id="quick-memorization-from" wire:model.live="from_page" type="number" min="1" max="604" inputmode="numeric" class="quick-memorization-page-input w-full rounded-xl px-4 py-2 text-base" data-quick-memorization-page-input>
-                    @error('from_page')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div class="admin-form-field">
-                    <label for="quick-memorization-to">{{ __('workflow.memorization.form.to_page') }}</label>
-                    <input id="quick-memorization-to" wire:model.live="to_page" type="number" min="1" max="604" inputmode="numeric" class="quick-memorization-page-input w-full rounded-xl px-4 py-2 text-base" data-quick-memorization-page-input>
-                    @error('to_page')
-                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
-                    @enderror
-                </div>
+            @if ($canChooseRecordingTeacher)
+            <div class="admin-form-field">
+                <label for="quick-memorization-teacher">{{ __('workflow.quran_tests.form.teacher') }}</label>
+                <select id="quick-memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <option value="">{{ __('workflow.quran_tests.form.select_teacher') }}</option>
+                    @foreach ($teacherOptions as $teacher)
+                        <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
+                    @endforeach
+                </select>
+                @error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
-
-            @if (auth()->user()?->hasRole('super_admin'))
-                <div class="admin-form-field">
-                    <label for="quick-memorization-teacher">{{ __('workflow.quran_tests.form.teacher') }}</label>
-                    <select id="quick-memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('workflow.quran_tests.form.select_teacher') }}</option>
-                        @foreach ($teacherOptions as $teacher)
-                            <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
-                        @endforeach
-                    </select>
-                    @error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
             @endif
 
             <div class="admin-action-cluster admin-action-cluster--end">
-                <button type="submit" class="admin-icon-button admin-icon-button--accent quick-entry-save-action" title="{{ __('workflow.memorization.quick_entry.form.save') }}" aria-label="{{ __('workflow.memorization.quick_entry.form.save') }}" data-quick-memorization-save-action><x-admin-action-icon name="save" /></button>
+                <button type="submit" class="admin-icon-button admin-icon-button--accent quick-entry-save-action" title="{{ __('workflow.memorization.quick_entry.form.save') }}" aria-label="{{ __('workflow.memorization.quick_entry.form.save') }}" data-quick-memorization-save-action wire:loading.attr="disabled" wire:target="save,confirmDuplicateSave" @disabled($selectedStudentId && ! $displayedJuz)><x-admin-action-icon name="save" /></button>
             </div>
         </form>
         @endif

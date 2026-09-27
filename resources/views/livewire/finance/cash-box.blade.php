@@ -323,7 +323,7 @@ new class extends Component {
                 <tbody class="divide-y divide-white/6">
                     @forelse ($transactions as $transaction)
                         <tr>
-                            <td class="px-5 py-3">{{ $transaction->transaction_date?->format('d-m-Y') }}</td>
+                            <td class="px-5 py-3">{{ \App\Support\DateDisplay::html($transaction->transaction_date?->format('d-m-Y')) }}</td>
                             <td class="px-5 py-3">
                                 <div class="font-medium text-white">{{ $transaction->financeRequest?->request_no ?: '-' }}</div>
                                 <div class="text-xs text-neutral-500">{{ $transaction->transaction_no }}</div>

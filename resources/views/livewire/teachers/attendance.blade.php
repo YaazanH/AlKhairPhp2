@@ -332,7 +332,7 @@ new class extends Component {
                                 <td class="px-5 py-4 text-white lg:px-6">
                                     <div class="flex flex-col items-start font-semibold">
                                         <span class="text-xs font-medium text-neutral-400">{{ $day->attendance_date?->locale(app()->getLocale())->translatedFormat('l') }}</span>
-                                        <span class="mt-1">{{ $day->attendance_date?->format('d-m-Y') }}</span>
+                                        <span class="mt-1">{{ \App\Support\DateDisplay::html($day->attendance_date?->format('d-m-Y')) }}</span>
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $day->course?->name ?: __('workflow.common.no_course') }}</td>

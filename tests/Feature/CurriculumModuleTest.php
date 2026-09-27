@@ -30,7 +30,7 @@ class CurriculumModuleTest extends TestCase
     public function test_lesson_counts_use_the_requested_arabic_grammar(): void
     {
         $this->assertSame('0 درس', trans_choice('curricula.counts.lessons', 0, ['count' => 0], 'ar'));
-        $this->assertSame('1 درس', trans_choice('curricula.counts.lessons', 1, ['count' => 1], 'ar'));
+        $this->assertSame('درس واحد', trans_choice('curricula.counts.lessons', 1, ['count' => 1], 'ar'));
         $this->assertSame('درسين', trans_choice('curricula.counts.lessons', 2, ['count' => 2], 'ar'));
         $this->assertSame('3 دروس', trans_choice('curricula.counts.lessons', 3, ['count' => 3], 'ar'));
         $this->assertSame('10 دروس', trans_choice('curricula.counts.lessons', 10, ['count' => 10], 'ar'));
@@ -85,8 +85,8 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('data-curricula-icon="three-standing-books-one-leaning"', $icon);
         $this->assertStringNotContainsString('three-stacked-bookmarked-books', $icon);
 
-        $this->assertSame(['dashboard', 'reports', 'curricula'], array_column($platform['items'], 'key'));
-        $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][2]['label']);
+        $this->assertSame(['dashboard', 'student_progress', 'reports', 'curricula'], array_column($platform['items'], 'key'));
+        $this->assertSame(__('ui.nav.my_curriculum'), $platform['items'][3]['label']);
     }
 
     public function test_downloadable_books_use_the_standard_icon_button(): void
@@ -644,10 +644,12 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('data-teacher-curriculum-hero-actions', false)
             ->assertDontSee('wire:click="openCustom"', false)
             ->assertSee('Arabic book')
-            ->assertSeeInOrder(['data-teacher-curriculum-completion-column', 'data-teacher-curriculum-chapter-column'], false)
+            ->assertSeeInOrder(['data-teacher-curriculum-completion-cell', 'data-teacher-curriculum-chapter-prefix', 'First lesson'], false)
+            ->assertSeeText('1 · First lesson')
+            ->assertDontSee('data-teacher-curriculum-chapter-column', false)
+            ->assertDontSee('data-table-scroll-region', false)
             ->assertSee('data-teacher-curriculum-table', false)
-            ->assertSee('teacher-curriculum-table-scroll', false)
-            ->assertSee(__('curricula.fields.chapter_number'))
+            ->assertSee('teacher-curriculum-table-wrap', false)
             ->assertSee(__('curricula.fields.lesson'))
             ->assertSee(__('curricula.fields.importance'))
             ->assertSee('First lesson')
@@ -676,10 +678,10 @@ class CurriculumModuleTest extends TestCase
         $css = file_get_contents(resource_path('css/app.css'));
         preg_match('/\.teacher-curriculum-lesson-title\s*\{(?<rules>[^}]*)\}/s', $css, $titleRules);
         $this->assertStringContainsString('white-space: normal;', $titleRules['rules'] ?? '');
-        $this->assertStringContainsString('overflow-wrap: anywhere;', $titleRules['rules'] ?? '');
+        $this->assertStringContainsString('overflow-wrap: break-word;', $titleRules['rules'] ?? '');
         $this->assertStringNotContainsString('overflow: hidden;', $titleRules['rules'] ?? '');
         $this->assertStringNotContainsString('text-overflow: ellipsis;', $titleRules['rules'] ?? '');
-        $this->assertStringContainsString(".teacher-curriculum-table-scroll {\n    display: block;\n    width: 100%;\n    max-width: 100%;\n    overflow: visible;", $css);
+        $this->assertStringContainsString(".teacher-curriculum-table-wrap {\n    display: block;\n    width: 100%;\n    max-width: 100%;\n    overflow: visible;", $css);
     }
 
     public function test_lesson_topics_are_collapsible_and_support_parent_or_individual_completion(): void

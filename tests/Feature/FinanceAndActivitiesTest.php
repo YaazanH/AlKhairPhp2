@@ -1314,6 +1314,12 @@ class FinanceAndActivitiesTest extends TestCase
             ->where('pair_uuid', $exchange->pair_uuid)
             ->orderBy('id')
             ->get();
+        $exchangeCategoryId = FinanceCategory::query()->where('type', 'exchange')->where('is_active', true)->orderBy('name')->value('id');
+        $this->assertNotNull($exchangeCategoryId);
+        $this->assertSame([$exchangeCategoryId, $exchangeCategoryId], $exchangeTransactions->pluck('finance_category_id')->all());
+        $exchangeTransactions[0]->update(['finance_category_id' => null]);
+        (require database_path('migrations/2026_09_26_020000_fill_missing_exchange_categories.php'))->up();
+        $this->assertSame($exchangeCategoryId, $exchangeTransactions[0]->fresh()->finance_category_id);
         $this->assertSame('EXC-000001', data_get($exchangeTransactions[0]->metadata, 'reference'));
         $this->assertSame('EXC-000001', $exchangeTransactions[0]->special_transaction_no);
         $this->assertSame('[خارج] Test exchange', $exchangeTransactions[0]->description);
@@ -3357,6 +3363,44 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
 
         return [$parent, $student, $group, $enrollment];
+    }
+
+    public function test_exchange_and_transfer_categories_allow_only_one_type_including_inactive_types(): void
+    {
+        $this->signIn();
+        foreach (['exchange', 'transfer'] as $type) {
+            $existing = FinanceCategory::where('type', $type)->firstOrFail();
+            $existing->update(['is_active' => false]);
+
+            Volt::test('settings.finance')->call('openFinanceCategoryModal')
+                ->set('finance_category_name', 'Duplicate '.$type)
+                ->set('finance_category_code', 'duplicate-'.$type)
+                ->set('finance_category_type', $type)
+                ->call('saveFinanceCategory')->assertHasErrors(['finance_category_type']);
+
+            $other = FinanceCategory::create(['name' => 'Expense '.$type, 'code' => 'expense-for-'.$type, 'type' => 'expense', 'mode' => 'count', 'is_active' => true]);
+            Volt::test('settings.finance')->call('editFinanceCategory', $other->id)
+                ->set('finance_category_type', $type)
+                ->call('saveFinanceCategory')->assertHasErrors(['finance_category_type']);
+            $this->assertSame('expense', $other->fresh()->type);
+
+            Volt::test('settings.finance')->call('editFinanceCategory', $existing->id)
+                ->set('finance_category_name', 'Updated '.$type)
+                ->set('finance_category_is_active', true)
+                ->call('saveFinanceCategory')->assertHasNoErrors();
+            $this->assertSame('Updated '.$type, $existing->fresh()->name);
+            $this->assertSame(1, FinanceCategory::where('type', $type)->count());
+        }
+
+        foreach (['expense', 'income'] as $type) {
+            for ($index = 0; $index < 2; $index++) {
+                Volt::test('settings.finance')->call('openFinanceCategoryModal')
+                    ->set('finance_category_name', $type.' '.$index)
+                    ->set('finance_category_code', 'unrestricted-'.$type.'-'.$index)
+                    ->set('finance_category_type', $type)
+                    ->call('saveFinanceCategory')->assertHasNoErrors();
+            }
+        }
     }
 
     private function signIn(): void

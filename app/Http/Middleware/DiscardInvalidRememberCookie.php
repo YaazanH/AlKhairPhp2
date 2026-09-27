@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Auth\Recaller;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
@@ -21,6 +22,11 @@ class DiscardInvalidRememberCookie
         }
 
         $guard = Auth::guard();
+
+        if (! $guard instanceof SessionGuard) {
+            return $next($request);
+        }
+
         $cookieName = $guard->getRecallerName();
         $cookieValue = $request->cookies->get($cookieName);
 

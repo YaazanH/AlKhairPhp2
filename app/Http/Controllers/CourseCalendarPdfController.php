@@ -15,7 +15,7 @@ class CourseCalendarPdfController extends Controller
 {
     public function __invoke(Course $course, CourseCalendarService $calendarService, PdfBrandingService $branding): Response
     {
-        abort_unless($course->awards_points, 404);
+        abort_unless($course->is_active, 404);
         $course->loadMissing(['schedules', 'calendarEntries']);
 
         try {
@@ -38,6 +38,8 @@ class CourseCalendarPdfController extends Controller
         $calendarBackground = public_path('images/course-calendar-background.png');
 
         if (is_file($calendarBackground)) {
+            // Keep the artwork beneath opaque event fills so picker and PDF colours match.
+            $mpdf->watermarkImgBehind = true;
             $mpdf->SetWatermarkImage($calendarBackground, 1, [210, 297], [0, 0]);
             $mpdf->showWatermarkImage = true;
         }

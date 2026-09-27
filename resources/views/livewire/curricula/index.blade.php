@@ -423,12 +423,11 @@ new class extends Component {
                                             </button>
                                         @endif
                                     </div>
-                                    <div class="teacher-curriculum-table-scroll" data-table-scroll-region>
+                                    <div class="teacher-curriculum-table-wrap">
                                         <table class="teacher-curriculum-table" data-teacher-curriculum-table @if($hasChapterNumbers) data-teacher-curriculum-has-chapter @else data-teacher-curriculum-no-chapter @endif>
                                             <thead>
                                                 <tr>
                                                     <th class="teacher-curriculum-completion-column" scope="col" data-teacher-curriculum-completion-column><span class="sr-only">{{ __('curricula.fields.status') }}</span></th>
-                                                    @if($hasChapterNumbers)<th class="teacher-curriculum-chapter" scope="col" data-teacher-curriculum-chapter-column>{{ __('curricula.fields.chapter_number') }}</th>@endif
                                                     <th class="teacher-curriculum-lesson-heading" scope="col">{{ __('curricula.fields.lesson') }}</th>
                                                     <th class="teacher-curriculum-importance-heading" scope="col">{{ __('curricula.fields.importance') }}</th>
                                                 </tr>
@@ -444,7 +443,6 @@ new class extends Component {
                                                         <input type="checkbox" @checked($lesson['status'] === 'taught') wire:click="{{ $lesson['custom'] ? 'toggleCustomLesson('.$lesson['id'].')' : 'toggleLesson('.$lesson['id'].')' }}" class="rounded">
                                                     @endif
                                                     </td>
-                                                    @if($hasChapterNumbers)<td class="teacher-curriculum-chapter" data-teacher-curriculum-chapter-cell>{{ $lesson['chapter_number'] ?: '—' }}</td>@endif
                                                     <td class="teacher-curriculum-lesson-column">
                                                     <div class="teacher-curriculum-lesson-cell">
                                                     <div class="teacher-curriculum-lesson-content">
@@ -452,14 +450,14 @@ new class extends Component {
                                                             @if($lesson['has_topics'])
                                                                 <button type="button" wire:click="toggleTopicLesson({{ $lesson['id'] }})" class="teacher-curriculum-topic-toggle" aria-expanded="{{ $topicsExpanded ? 'true' : 'false' }}" aria-controls="teacher-lesson-topics-{{ $lesson['id'] }}" title="{{ __($topicsExpanded ? 'curricula.actions.collapse_topics' : 'curricula.actions.expand_topics') }}" data-teacher-topic-toggle>
                                                                     <svg class="teacher-curriculum-topic-toggle__icon {{ $topicsExpanded ? 'teacher-curriculum-topic-toggle__icon--expanded' : '' }}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m7 4 6 6-6 6" /></svg>
-                                                                    <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</span>
+                                                                    <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">@if(filled($lesson['chapter_number']))<span class="teacher-curriculum-chapter-prefix" data-teacher-curriculum-chapter-prefix><bdi>{{ $lesson['chapter_number'] }}</bdi> · </span>@endif{{ $lesson['name'] }}</span>
                                                                 </button>
                                                             @else
-                                                                <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">{{ $lesson['name'] }}</span>
+                                                                <span class="teacher-curriculum-lesson-title {{ $lesson['status'] === 'taught' ? 'line-through' : '' }}">@if(filled($lesson['chapter_number']))<span class="teacher-curriculum-chapter-prefix" data-teacher-curriculum-chapter-prefix><bdi>{{ $lesson['chapter_number'] }}</bdi> · </span>@endif{{ $lesson['name'] }}</span>
                                                             @endif
-                                                            @if($lesson['taught_on'])<span class="teacher-curriculum-lesson-meta"><bdi dir="ltr">{{ $lesson['taught_on']->format('d-m-Y') }}</bdi><span aria-hidden="true">·</span><span>{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</span></span>@endif
+                                                            @if($lesson['taught_on'])<span class="teacher-curriculum-lesson-meta"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']->format('d-m-Y')) }}</bdi><span aria-hidden="true">·</span><span>{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</span></span>@endif
                                                         </div>
-                                                        @if($topicsExpanded)<div id="teacher-lesson-topics-{{ $lesson['id'] }}" class="mt-2 grid gap-1.5 border-s border-white/10 ps-3" data-teacher-topic-list>@foreach($lesson['topics'] as $topic)<label class="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 {{ $topic['status'] === 'taught' ? 'opacity-60' : '' }}"><input type="checkbox" wire:click="toggleTopic({{ $topic['id'] }})" @checked($topic['status'] === 'taught') class="mt-0.5 rounded" data-teacher-topic-checkbox><span class="min-w-0 text-sm {{ $topic['status'] === 'taught' ? 'line-through' : '' }}">{{ $topic['name'] }}@if($topic['taught_on'])<small class="ms-2 text-neutral-500"><bdi dir="ltr">{{ $topic['taught_on']->format('d-m-Y') }}</bdi> · {{ $topic['teacher'] ? trim($topic['teacher']->first_name.' '.$topic['teacher']->last_name) : '—' }}</small>@endif</span></label>@endforeach</div>@endif
+                                                        @if($topicsExpanded)<div id="teacher-lesson-topics-{{ $lesson['id'] }}" class="mt-2 grid gap-1.5 border-s border-white/10 ps-3" data-teacher-topic-list>@foreach($lesson['topics'] as $topic)<label class="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 {{ $topic['status'] === 'taught' ? 'opacity-60' : '' }}"><input type="checkbox" wire:click="toggleTopic({{ $topic['id'] }})" @checked($topic['status'] === 'taught') class="mt-0.5 rounded" data-teacher-topic-checkbox><span class="min-w-0 text-sm {{ $topic['status'] === 'taught' ? 'line-through' : '' }}">{{ $topic['name'] }}@if($topic['taught_on'])<small class="ms-2 text-neutral-500"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($topic['taught_on']->format('d-m-Y')) }}</bdi> · {{ $topic['teacher'] ? trim($topic['teacher']->first_name.' '.$topic['teacher']->last_name) : '—' }}</small>@endif</span></label>@endforeach</div>@endif
                                                     </div>
                                                     </div>
                                                     </td>
@@ -470,7 +468,7 @@ new class extends Component {
                                                     </td>
                                                 </tr>
                                             @empty
-                                                <tr><td colspan="{{ $hasChapterNumbers ? 4 : 3 }}" class="teacher-curriculum-book__empty">{{ __('curricula.table.taught_lessons_hidden') }}</td></tr>
+                                                <tr><td colspan="3" class="teacher-curriculum-book__empty">{{ __('curricula.table.taught_lessons_hidden') }}</td></tr>
                                             @endforelse
                                             </tbody>
                                         </table>
@@ -494,7 +492,7 @@ new class extends Component {
             </div>
         </form>
     </x-admin.modal>
-    <x-admin.modal :show="$detailsGroupId !== null" :title="__('curricula.progress.group_details', ['group' => $selectedGroup?->name])" close-method="$set('detailsGroupId', null)" max-width="6xl"><div class="space-y-3">@foreach($subjectRows as $subject)<details class="rounded-2xl border border-white/10 p-4"><summary class="flex cursor-pointer justify-between"><span class="font-semibold text-white">{{ $subject['name'] }}</span><span>{{ number_format($subject['percentage'], 0) }}%</span></summary><table class="mt-3 w-full text-sm"><thead><tr><th class="p-2">{{ __('curricula.fields.lesson') }}</th><th class="p-2">{{ __('curricula.fields.status') }}</th><th class="p-2">{{ __('curricula.fields.date') }}</th></tr></thead><tbody>@foreach($subject['lessons'] as $lesson)<tr><td class="p-2 text-white">{{ $lesson['name'] }}</td><td class="p-2">{{ __('curricula.status.'.$lesson['status']) }}</td><td class="p-2" dir="ltr">{{ $lesson['taught_on']?->format('d-m-Y') ?: '—' }}</td></tr>@endforeach</tbody></table></details>@endforeach</div></x-admin.modal>
+    <x-admin.modal :show="$detailsGroupId !== null" :title="__('curricula.progress.group_details', ['group' => $selectedGroup?->name])" close-method="$set('detailsGroupId', null)" max-width="6xl"><div class="space-y-3">@foreach($subjectRows as $subject)<details class="rounded-2xl border border-white/10 p-4"><summary class="flex cursor-pointer justify-between"><span class="font-semibold text-white">{{ $subject['name'] }}</span><span>{{ number_format($subject['percentage'], 0) }}%</span></summary><table class="mt-3 w-full text-sm"><thead><tr><th class="p-2">{{ __('curricula.fields.lesson') }}</th><th class="p-2">{{ __('curricula.fields.status') }}</th><th class="p-2">{{ __('curricula.fields.date') }}</th></tr></thead><tbody>@foreach($subject['lessons'] as $lesson)<tr><td class="p-2 text-white">{{ $lesson['name'] }}</td><td class="p-2">{{ __('curricula.status.'.$lesson['status']) }}</td><td class="p-2" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td></tr>@endforeach</tbody></table></details>@endforeach</div></x-admin.modal>
     <x-admin.modal :show="$showCustomModal" :title="__('curricula.form.custom_title')" close-method="$set('showCustomModal', false)" max-width="3xl">
         <form wire:submit="saveCustom" class="grid gap-4 md:grid-cols-2">
             <label class="block text-sm">{{ __('curricula.fields.subject') }}<input wire:model="customSubjectName" class="mt-1 w-full rounded-xl px-4 py-3"></label>

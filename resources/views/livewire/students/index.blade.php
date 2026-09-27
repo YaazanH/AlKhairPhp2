@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Livewire\Concerns\LinksExistingProfileAccounts;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\DataQualityResolution;
@@ -37,6 +38,7 @@ new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
+    use LinksExistingProfileAccounts;
     use WithFileUploads;
     use WithPagination;
 
@@ -446,7 +448,7 @@ new class extends Component {
                 ]);
 
             if ($this->bulk_sync_accounts && $accountIds !== []) {
-                User::query()
+                app(ManagedUserService::class)->exclusiveAccountsQuery('student')
                     ->whereIn('id', $accountIds)
                     ->update([
                         'is_active' => $this->bulk_status_action === 'activate',
@@ -469,7 +471,7 @@ new class extends Component {
             'parent_id' => ['nullable', 'exists:parents,id'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($ignoredUserId ?? $this->linkedUserId())],
+            'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($ignoredUserId ?? $this->linkedUserId() ?? $this->existingAccountId)],
             'birth_date' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
                 if (! $this->isValidBirthYearValue((string) $value)) {
                     $fail(__('validation.date', ['attribute' => __('crud.students.form.fields.birth_year')]));
@@ -569,6 +571,7 @@ new class extends Component {
         }
 
         $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
+        $existingAccount = $this->selectedExistingAccount('student');
         $validated = $this->validate($this->rules($duplicate?->user_id), $this->juzNumberValidationMessages());
         if (filled($validated['parent_id'] ?? null)) {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
@@ -643,6 +646,12 @@ new class extends Component {
 
         $studentPhone = filled($validated['student_phone'] ?? null) ? trim((string) $validated['student_phone']) : null;
         unset($validated['student_phone']);
+        if ($selectedGroup && $targetStudentId) {
+            $existingEnrollmentId = Enrollment::withTrashed()->where('student_id', $targetStudentId)
+                ->where('group_id', $selectedGroup->id)->value('id');
+            Enrollment::assertStudentCanJoinGroup((int) $targetStudentId, $selectedGroup->id, $existingEnrollmentId, 'enrollment_group_id');
+        }
+
         unset($validated['enrollment_group_id']);
         $externalMemorizedJuzIds = array_map('intval', $validated['external_memorized_juz_ids'] ?? []);
         unset($validated['external_memorized_juz_ids']);
@@ -678,18 +687,18 @@ new class extends Component {
             return;
         }
 
-        $payload = DB::transaction(function () use ($externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
+        $payload = DB::transaction(function () use ($existingAccount, $externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
             $student = Student::query()->updateOrCreate(
                 ['id' => $targetStudentId],
                 $validated,
             );
             $student->refresh();
 
-            $result = app(ManagedUserService::class)->syncLinkedUser(
+            $result = $existingAccount ? app(ManagedUserService::class)->reuseLinkedUser($existingAccount, 'student') : app(ManagedUserService::class)->syncLinkedUser(
                 $student->user,
                 [
                     'name' => $student->full_name,
-                    'username' => $student->student_number ?: null,
+                    'username' => $student->user?->username ?: ($student->student_number ?: null),
                     'phone' => $studentPhone,
                     'is_active' => ! in_array($validated['status'], ['inactive', 'blocked'], true),
                 ],
@@ -840,7 +849,7 @@ new class extends Component {
         DB::transaction(function () use ($parent): void {
             $linkedUser = $parent->user;
             $parent->delete();
-            $linkedUser?->delete();
+            app(ManagedUserService::class)->removeProfileAccount($linkedUser, 'parent');
         });
 
         $this->keepOrphanedParentProfile();
@@ -951,6 +960,7 @@ new class extends Component {
 
     public function edit(int $studentId): void
     {
+        $this->existingAccountId = null;
         $this->authorizePermission('students.update');
 
         $student = Student::query()
@@ -1004,6 +1014,7 @@ new class extends Component {
 
         $student = Student::query()->findOrFail($studentId);
         $this->authorizeScopedStudentAccess($student);
+        abort_unless($this->canManageProfileLogin($student->user, 'student'), 403);
 
         $this->accountStudentId = $student->id;
         $this->account_username = $student->user?->username ?? ($student->student_number ?? '');
@@ -1040,13 +1051,14 @@ new class extends Component {
             $student->user,
             [
                 'name' => $student->full_name,
-                'username' => $validated['account_username'] ?: ($student->student_number ?: null),
+                'username' => $student->user?->username ?: ($student->student_number ?: null),
                 'email' => $validated['account_email'] ?: null,
                 'phone' => null,
                 'password' => $validated['account_password'] ?: null,
                 'is_active' => (bool) $validated['account_is_active'],
             ],
             'student',
+            true,
         );
 
         $student->user()->associate($result['user']);
@@ -1085,6 +1097,7 @@ new class extends Component {
 
     public function cancel(): void
     {
+        $this->existingAccountId = null;
         $this->editingId = null;
         $this->editStudent = null;
         $this->qualityIssueKey = '';
@@ -1581,7 +1594,7 @@ new class extends Component {
         }
 
         $accounts = $this->bulk_sync_accounts
-            ? User::query()
+            ? app(ManagedUserService::class)->exclusiveAccountsQuery('student')
                 ->whereIn('id', Student::query()->whereIn('id', $targets)->whereNotNull('user_id')->pluck('user_id'))
                 ->where('is_active', $this->bulk_status_action !== 'activate')
                 ->count()
@@ -1710,7 +1723,7 @@ new class extends Component {
 
         $linkedUser = $student->user;
         $student->delete();
-        $linkedUser?->delete();
+        app(ManagedUserService::class)->removeProfileAccount($linkedUser, 'student');
 
         if ($this->editingId === $studentId) {
             $this->cancel();
@@ -1967,9 +1980,11 @@ new class extends Component {
                                     <td class="px-5 py-4 lg:px-6">
                                         <div class="flex flex-nowrap justify-center gap-2 whitespace-nowrap">
                                             @can('students.update')
+                                                @if ($this->canManageProfileLogin($student->user, 'student'))
                                                 <button type="button" wire:click="openAccountModal({{ $student->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}">
                                                     <x-admin-action-icon name="account" />
                                                 </button>
+                                                @endif
                                             @endcan
                                             @can('students.photo.update')
                                                 <label class="admin-icon-button cursor-pointer" title="{{ __('media.student_files.photo.upload') }}" aria-label="{{ __('media.student_files.photo.upload') }}">
@@ -2411,7 +2426,7 @@ new class extends Component {
                             <button type="button" wire:click="clearCurrentJuz" class="ms-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-white/65 transition hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                         </div>
                     @else
-                        <input id="student-juz" wire:key="student-current-juz-input" wire:model="quran_current_juz_number" wire:blur="commitCurrentJuz" wire:keydown.enter.prevent="commitCurrentJuz" x-on:focus-current-juz.window="$nextTick(() => $el.focus())" type="number" inputmode="numeric" min="1" max="30" step="1" class="h-[2.875rem] w-full rounded-xl px-4 py-0 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}" data-current-juz-input>
+                        <input id="student-juz" wire:key="student-current-juz-input" wire:model="quran_current_juz_number" wire:blur="commitCurrentJuz" wire:keydown.space.prevent.stop="commitCurrentJuz" x-on:focus-current-juz.window="$nextTick(() => $el.focus())" type="number" inputmode="numeric" min="1" max="30" step="1" class="h-[2.875rem] w-full rounded-xl px-4 py-0 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}" data-current-juz-input>
                     @endif
                     @error('quran_current_juz_number')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2424,9 +2439,6 @@ new class extends Component {
                 <div class="min-w-0">
                     <div class="mb-1 flex items-center justify-between gap-2">
                         <label for="student-external-juz" class="block text-sm font-medium">{{ __('crud.students.form.fields.external_memorized_juzs') }}</label>
-                        @if ($editingId && $external_memorized_juz_ids !== [] && (auth()->user()->can('quran-partial-tests.record') || auth()->user()->can('quran-final-tests.record')))
-                            <x-add-action-button wire:click="openExternalTestModal" :label="__('crud.students.external_tests.add')" :accent="false" />
-                        @endif
                     </div>
                     <div class="flex min-h-[2.875rem] w-full flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-3 py-1.5 focus-within:border-emerald-400/45 focus-within:ring-2 focus-within:ring-emerald-400/10" data-memorized-juz-input>
                         @foreach (collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids)) as $juz)
@@ -2435,7 +2447,7 @@ new class extends Component {
                                 <button type="button" wire:click="removeExternalMemorizedJuz({{ $juz->id }})" class="inline-flex size-4 items-center justify-center rounded-full text-sm leading-none text-emerald-200 hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                             </span>
                         @endforeach
-                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.tab="addExternalMemorizedJuz" wire:keydown.enter.prevent="addExternalMemorizedJuz" type="text" inputmode="numeric" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
+                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.space.prevent.stop="addExternalMemorizedJuz" x-on:keydown.enter.prevent.stop="" x-on:keydown.tab.prevent.stop="" type="text" inputmode="numeric" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
                     </div>
                     @error('external_memorized_juz_input')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2583,17 +2595,30 @@ new class extends Component {
         close-method="closeAccountModal"
         max-width="md"
     >
-        <div class="grid gap-3" data-student-account-access-summary>
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.username') }}</label>
-                <input type="text" readonly value="{{ $account_username }}" class="w-full rounded-xl px-4 py-3 text-sm opacity-80" data-student-account-username>
+        <form wire:submit="saveAccount" class="space-y-4">
+            @if ($showAccountModal && $accountStudentId)
+                <x-shared-profile-login-notice :user="\App\Models\Student::find($accountStudentId)?->user" profile="student" />
+            @endif
+            <div class="grid gap-3" data-student-account-access-summary>
+                <div>
+                    <label for="student-account-login" class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.username') }}</label>
+                    <input id="student-account-login" wire:model="account_username" type="text" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-80" data-student-account-username>
+                    @error('account_username') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.issued_password') }}</label>
+                    <input type="text" readonly value="{{ $issued_password ?: __('access.profile_accounts.empty.issued_password') }}" class="w-full rounded-xl px-4 py-3 text-sm opacity-80" data-student-account-password>
+                </div>
+                <div>
+                    <label for="student-account-new-password" class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.password') }}</label>
+                    <input id="student-account-new-password" wire:model="account_password" type="text" autocomplete="new-password" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @error('account_password') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+                <label class="flex items-center gap-3 text-sm"><input type="checkbox" wire:model="account_is_active" class="rounded"><span>{{ __('access.profile_accounts.fields.is_active') }}</span></label>
             </div>
-
-            <div>
-                <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.password') }}</label>
-                <input type="text" readonly value="{{ $issued_password ?: __('access.profile_accounts.empty.issued_password') }}" class="w-full rounded-xl px-4 py-3 text-sm opacity-80" data-student-account-password>
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('access.profile_accounts.actions.save') }}" aria-label="{{ __('access.profile_accounts.actions.save') }}"><x-admin-action-icon name="save" /></button>
             </div>
-
-        </div>
+        </form>
     </x-admin.modal>
 </div>

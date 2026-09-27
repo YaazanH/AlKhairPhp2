@@ -347,7 +347,7 @@ new class extends Component
                                 class="w-full rounded-2xl border px-4 py-3 text-left transition {{ $attendance_date === $day->attendance_date?->format('Y-m-d') ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 bg-white/5 text-neutral-300 hover:border-white/20 hover:bg-white/10' }}"
                             >
                                 <div class="flex items-center justify-between gap-3">
-                                    <div class="font-medium">{{ $day->attendance_date?->format('d-m-Y') }}</div>
+                                    <div class="font-medium">{{ \App\Support\DateDisplay::html($day->attendance_date?->format('d-m-Y')) }}</div>
                                     <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ __('workflow.common.day_status.' . $day->status) }}
                                     </span>
@@ -373,12 +373,12 @@ new class extends Component
             <div class="admin-empty-state">{{ __('workflow.student_attendance.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="attendance-records-table text-sm" data-attendance-records>
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.enrolled') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.current_points') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.enrolled') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.current_points') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
                         </tr>
                     </thead>
@@ -388,13 +388,14 @@ new class extends Component
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $enrollment->student?->full_name }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)
                                         <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
+                                            data-search-input="false" data-dropdown-search="false" data-attendance-status-select
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
                                             wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
                                             @disabled(! auth()->user()->can('attendance.student.take'))

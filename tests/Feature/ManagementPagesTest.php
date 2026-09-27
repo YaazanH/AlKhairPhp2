@@ -193,7 +193,7 @@ class ManagementPagesTest extends TestCase
     public function test_add_new_launchers_use_the_shared_plus_symbol_without_visible_text(): void
     {
         foreach ([
-            'livewire/students/index.blade.php' => 5,
+            'livewire/students/index.blade.php' => 4,
             'livewire/teachers/index.blade.php' => 1,
             'livewire/groups/index.blade.php' => 1,
             'livewire/courses/index.blade.php' => 1,
@@ -220,7 +220,7 @@ class ManagementPagesTest extends TestCase
             'livewire/settings/website-pages.blade.php' => 3,
             'livewire/settings/website-navigation.blade.php' => 3,
             'livewire/settings/website.blade.php' => 2,
-            'livewire/curricula/index.blade.php' => 2,
+            'livewire/curricula/index.blade.php' => 1,
             'livewire/curricula/show.blade.php' => 2,
             'livewire/groups/show.blade.php' => 1,
             'livewire/student-attendance/show.blade.php' => 1,
@@ -1121,10 +1121,11 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-course-end-column', $courses);
         $this->assertStringContainsString("__('crud.courses.table.headers.end_course')", $courses);
         $this->assertSame(1, substr_count($courses, 'data-course-end-action'));
-        $this->assertSame(1, substr_count($courses, 'data-course-edit-action'));
-        $this->assertSame(1, substr_count($courses, '<x-edit-action-button wire:click="edit({{ $course->id }})"'));
-        $this->assertSame(1, substr_count($courses, 'data-course-calendar-action'));
-        $this->assertStringContainsString('wire:click="openCourseCalendar({{ $course->id }})"', $courses);
+        $this->assertSame(1, substr_count($courses, 'data-course-open-action'));
+        $this->assertStringContainsString('<x-admin-action-icon name="info"', $courses);
+        $this->assertStringContainsString('<x-open-action-button wire:click="edit(', $courses);
+        $this->assertStringNotContainsString('data-course-calendar-action', $courses);
+        $this->assertStringContainsString('id="course-calendar-panel"', $courses);
         $this->assertStringNotContainsString('data-course-form-calendar-action', $courses);
         $this->assertStringContainsString('data-course-form-save-action', $courses);
         $this->assertStringContainsString('<x-admin-action-icon name="save" class="admin-modal-action__icon" />', $courses);
@@ -1511,9 +1512,9 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-student-progress-awqaf-save-action', $studentProgressView);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-action]', $styles);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-status]', $styles);
-        $this->assertStringContainsString('.student-juz-progress-table .mobile-record-card [data-juz-progress-status]', $styles);
-        $this->assertStringContainsString('.student-juz-progress-table .mobile-record-card__actions [data-juz-progress-action]', $styles);
-        $this->assertStringContainsString('grid-template-columns: 0.45rem minmax(0, 1fr) 0.45rem;', $styles);
+        $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
+        $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);
+        $this->assertStringNotContainsString('mobile-record-card', $studentProgressView);
         $this->assertStringContainsString('flex: 0 0 0.45rem;', $styles);
         $this->assertStringContainsString('data-student-progress-missing-pages', $studentProgressView);
         $this->assertStringContainsString('student-progress-missing-pages__table', $studentProgressView);
@@ -2269,7 +2270,7 @@ class ManagementPagesTest extends TestCase
         ]);
 
         $otherGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => Course::create(['name' => 'Other Teacher Course', 'is_active' => true])->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $otherTeacher->id,
             'name' => 'Other Group',

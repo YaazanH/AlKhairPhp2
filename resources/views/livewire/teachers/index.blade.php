@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Livewire\Concerns\LinksExistingProfileAccounts;
 use App\Models\Course;
 use App\Models\Group;
 use App\Models\ParentProfile;
@@ -17,7 +18,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
+use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
@@ -27,6 +30,7 @@ new class extends Component {
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
+    use LinksExistingProfileAccounts;
     use WithFileUploads;
     use WithPagination;
 
@@ -61,9 +65,16 @@ new class extends Component {
     public bool $showFormModal = false;
     public bool $showReviewModal = false;
 
+    #[Url(as: 'edit')]
+    public ?int $editTeacher = null;
+
     public function mount(): void
     {
         $this->authorizePermission('teachers.view');
+        $this->editTeacher = $this->editTeacher ?: (request()->filled('edit') ? (int) request('edit') : null);
+        if ($this->editTeacher) {
+            $this->edit($this->editTeacher);
+        }
     }
 
     public function with(): array
@@ -92,9 +103,15 @@ new class extends Component {
             ->orderBy('last_name');
 
         $filteredCount = (clone $filteredQuery)->count();
+        $editingAccount = $this->editingId ? Teacher::with('user')->find($this->editingId)?->user : null;
+        $canManageAccountLogin = $this->canManageProfileLogin($editingAccount, 'teacher');
 
         return [
             'teachers' => $filteredQuery->paginate($this->perPage),
+            'canDeleteEditingTeacher' => $this->editingId && Teacher::query()->whereKey($this->editingId)->whereDoesntHave('assignedGroups')->whereDoesntHave('assistedGroups')->exists(),
+            'accountUsernameLocked' => $editingAccount?->hasImmutableUsername() ?? false,
+            'canManageAccountLogin' => $canManageAccountLogin,
+            'currentPasswordUnavailable' => $canManageAccountLogin && $editingAccount && $editingAccount->currentIssuedPassword() === null,
             'totals' => [
                 'all' => $baseQuery->count(),
                 'active' => $this->scopeTeachersQuery(Teacher::query()->where('status', 'active'))->count(),
@@ -149,7 +166,7 @@ new class extends Component {
 
     protected function generateUsernameFromTeacherName(): void
     {
-        if ($this->editingId !== null || ! $this->showFormModal) {
+        if ($this->editingId !== null || $this->existingAccountId || ! $this->showFormModal) {
             return;
         }
 
@@ -186,7 +203,7 @@ new class extends Component {
             'is_helping' => ['boolean'],
             'photo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
             'finance_signature_upload' => ['nullable', 'file', 'mimes:png', 'max:4096'],
-            'account_username' => ['nullable', 'string', 'max:255', Rule::unique('users', 'username')->ignore($this->linkedUserId())],
+            'account_username' => ['nullable', 'string', 'max:255', Rule::unique('users', 'username')->ignore($this->linkedUserId() ?? $this->existingAccountId)],
             'account_password' => ['nullable', 'string', 'min:8'],
             'account_is_active' => ['boolean'],
         ];
@@ -217,6 +234,11 @@ new class extends Component {
 
     public function save(): void
     {
+        DB::transaction(fn () => $this->saveProfile());
+    }
+
+    protected function saveProfile(): void
+    {
         $this->authorizePermission($this->editingId ? 'teachers.update' : 'teachers.create');
 
         if ($this->editingId) {
@@ -224,6 +246,7 @@ new class extends Component {
         }
 
         $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
+        $existingAccount = $this->selectedExistingAccount('teacher');
         $validated = $this->validate();
         $accessRoles = RoleRegistry::sortCollection(
             Role::query()->whereIn('name', $validated['access_roles'] ?? [])->get()
@@ -260,25 +283,26 @@ new class extends Component {
             ])->save();
         }
 
-        $result = app(ManagedUserService::class)->syncLinkedUser(
+        $result = $existingAccount ? app(ManagedUserService::class)->reuseLinkedUser($existingAccount, 'teacher') : app(ManagedUserService::class)->syncLinkedUser(
             $teacher->user,
             [
                 'name' => trim($validated['first_name'].' '.$validated['last_name']),
                 'username' => $validated['account_username'] ?: null,
                 'phone' => $validated['phone'],
-                'password' => $validated['account_password'] ?: null,
+                'password' => $validated['account_password'] !== $teacher->user?->currentIssuedPassword() ? ($validated['account_password'] ?: null) : null,
                 'is_active' => (bool) $validated['account_is_active'],
             ],
             'teacher',
+            true,
         );
 
         $teacher->user()->associate($result['user']);
         $teacher->save();
 
         $result['user']->syncRoles(
-            $accessRoles->isEmpty()
-                ? [RoleRegistry::TEACHER]
-                : $accessRoles->pluck('name')->all()
+            collect($accessRoles->isEmpty() ? [RoleRegistry::TEACHER] : $accessRoles->pluck('name')->all())
+                ->merge($result['user']->getRoleNames()->intersect([RoleRegistry::PARENT, RoleRegistry::STUDENT]))
+                ->unique()->all()
         );
 
         $result['user']->syncPermissions($validated['direct_permissions'] ?? []);
@@ -335,6 +359,7 @@ new class extends Component {
 
     public function edit(int $teacherId): void
     {
+        $this->existingAccountId = null;
         $this->authorizePermission('teachers.update');
 
         $teacher = Teacher::query()->with(['user.roles', 'user.permissions', 'user.scopeOverrides'])->findOrFail($teacherId);
@@ -366,7 +391,8 @@ new class extends Component {
         $this->finance_signature_upload = null;
         $this->notes = $teacher->notes ?? '';
         $this->account_username = $teacher->user?->username ?? '';
-        $this->account_password = '';
+        $this->account_password = $this->canManageProfileLogin($teacher->user, 'teacher')
+            ? ($teacher->user?->currentIssuedPassword() ?? '') : '';
         $this->account_is_active = $teacher->user?->is_active ?? ! in_array($teacher->status, ['inactive', 'blocked', 'pending', 'declined'], true);
         $this->showFormModal = true;
 
@@ -480,7 +506,7 @@ new class extends Component {
             'notes' => $this->notes ?: $teacher->notes,
         ])->save();
 
-        if ($teacher->user) {
+        if ($teacher->user && ! app(ManagedUserService::class)->isSharedAccount($teacher->user, 'teacher')) {
             $teacher->user->forceFill(['is_active' => false])->save();
         }
 
@@ -518,6 +544,7 @@ new class extends Component {
 
     public function cancel(): void
     {
+        $this->existingAccountId = null;
         $this->editingId = null;
         $this->first_name = '';
         $this->last_name = '';
@@ -603,7 +630,7 @@ new class extends Component {
 
         $linkedUser = $teacher->user;
         $teacher->delete();
-        $linkedUser?->delete();
+        app(ManagedUserService::class)->removeProfileAccount($linkedUser, 'teacher');
 
         if ($this->editingId === $teacherId) {
             $this->cancel();
@@ -901,6 +928,9 @@ new class extends Component {
         max-width="2xl"
     >
         <form wire:submit="save" class="space-y-4" data-user-form data-teacher-profile-account-form>
+            @if ($showFormModal && ($editingId || $existingAccountId))
+                <x-shared-profile-login-notice :user="$existingAccountId ? \App\Models\User::find($existingAccountId) : \App\Models\Teacher::find($editingId)?->user" profile="teacher" />
+            @endif
             <section class="admin-section-card" data-teacher-identity-box>
                 <div class="admin-form-grid" data-teacher-identity-grid>
                     <div class="admin-form-field" data-teacher-identity-third>
@@ -921,7 +951,7 @@ new class extends Component {
 
                     <div class="admin-form-field" data-teacher-identity-third>
                         <label for="teacher-account-username" class="mb-1 block text-sm font-medium">{{ __('access.users.fields.username') }}</label>
-                        <input id="teacher-account-username" wire:model="account_username" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input id="teacher-account-username" wire:model="account_username" @readonly($existingAccountId || $accountUsernameLocked) type="text" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error('account_username')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -937,7 +967,10 @@ new class extends Component {
 
                     <div class="admin-form-field" data-teacher-identity-half>
                         <label for="teacher-account-password" class="mb-1 block text-sm font-medium">{{ __('access.users.fields.password') }}</label>
-                        <input id="teacher-account-password" wire:model="account_password" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input id="teacher-account-password" wire:model="account_password" style="text-align: right" dir="ltr" autocomplete="off" @disabled($existingAccountId || ! $canManageAccountLogin) type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @if ($currentPasswordUnavailable)
+                            <p class="mt-2 text-sm leading-relaxed text-neutral-400" data-teacher-password-unavailable>{{ __('access.profile_accounts.help.current_password_unavailable') }}</p>
+                        @endif
                         @error('account_password')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -947,7 +980,7 @@ new class extends Component {
 
                 @if ($editingId)
                     <label class="flex items-center gap-3 text-sm" data-teacher-active-toggle>
-                        <input wire:model="account_is_active" type="checkbox" class="rounded">
+                        <input wire:model="account_is_active" @disabled($existingAccountId) type="checkbox" class="rounded">
                         <span>{{ __('access.users.fields.is_active') }}</span>
                     </label>
                 @endif
@@ -1156,7 +1189,9 @@ new class extends Component {
                         <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                     </button>
                     @can('teachers.delete')
-                        <x-delete-action-button wire:click="deleteEditingTeacher" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-teacher-form-delete-action />
+                        @if ($canDeleteEditingTeacher)
+                            <x-delete-action-button wire:click="deleteEditingTeacher" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" class="admin-modal-action-button" data-teacher-form-delete-action />
+                        @endif
                     @endcan
                 @else
                     <x-admin.create-and-new-button />

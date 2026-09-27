@@ -242,7 +242,7 @@
                                                                 <div class="student-inline__meta" data-student-print-state>
                                                                     {{ ($option['meta']['card_printed'] ?? false) ? __('print_templates.print.setup.fields.printed_flag') : __('print_templates.print.setup.fields.not_printed_flag') }}
                                                                     @if (filled($option['meta']['card_last_printed_at'] ?? null))
-                                                                        | {{ $option['meta']['card_last_printed_at'] }}
+                                                                        | {{ \App\Support\DateDisplay::html($option['meta']['card_last_printed_at']) }}
                                                                     @endif
                                                                 </div>
                                                             @endif
@@ -573,9 +573,13 @@
                     const stateLabel = card.querySelector('[data-student-print-state]');
 
                     if (stateLabel) {
-                        stateLabel.textContent = printedAtLabel === ''
-                            ? printedFlagLabel
-                            : `${printedFlagLabel} | ${printedAtLabel}`;
+                        stateLabel.textContent = printedFlagLabel;
+                        if (printedAtLabel !== '') {
+                            const date = document.createElement('bdi');
+                            date.dir = 'ltr';
+                            date.textContent = printedAtLabel;
+                            stateLabel.append(' | ', date);
+                        }
                     }
                 });
             }

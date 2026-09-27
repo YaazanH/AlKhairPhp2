@@ -111,7 +111,7 @@ trait HandlesInvoiceCapture
             $key = str_starts_with($exception->getMessage(), 'invoice_capture.errors.')
                 ? $exception->getMessage()
                 : 'invoice_capture.errors.unreadable';
-            $this->addError('invoice_image', __($key, ['pages' => config('invoice_capture.max_pages')]));
+            $this->addError('invoice_image', __($key, ['pages' => __('counts.pages', ['count' => config('invoice_capture.max_pages')])]));
             $this->invoiceCaptureReviewOpen = false;
         } finally {
             $this->invoiceCapturePending = false;

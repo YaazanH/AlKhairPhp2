@@ -299,15 +299,15 @@
                 </div>
                 <div class="ledger-report-doc__meta-card">
                     <span class="ledger-report-doc__meta-label">{{ $service->bilingual('From date', 'من تاريخ', $language) }}</span>
-                    <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y') }}</span>
+                    <span class="ledger-report-doc__meta-value">{{ \App\Support\DateDisplay::html(\Illuminate\Support\Carbon::parse($report['start'])->format('d-m-Y')) }}</span>
                 </div>
                 <div class="ledger-report-doc__meta-card">
                     <span class="ledger-report-doc__meta-label">{{ $service->bilingual('To date', 'إلى تاريخ', $language) }}</span>
-                    <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y') }}</span>
+                    <span class="ledger-report-doc__meta-value">{{ \App\Support\DateDisplay::html(\Illuminate\Support\Carbon::parse($report['end'])->format('d-m-Y')) }}</span>
                 </div>
                 <div class="ledger-report-doc__meta-card">
                     <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Report date', 'تاريخ التقرير', $language) }}</span>
-                    <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['report_date'])->format('d-m-Y') }}</span>
+                    <span class="ledger-report-doc__meta-value">{{ \App\Support\DateDisplay::html(\Illuminate\Support\Carbon::parse($report['report_date'])->format('d-m-Y')) }}</span>
                 </div>
                 @if (($template['show_issuer_name'] ?? false) && ! empty($report['issuer_name']))
                     <div class="ledger-report-doc__meta-card">
@@ -318,7 +318,7 @@
                 @if (($template['include_exported_at'] ?? false) && ! empty($report['exported_at']))
                     <div class="ledger-report-doc__meta-card">
                         <span class="ledger-report-doc__meta-label">{{ $service->bilingual('Exported at', 'تاريخ التصدير', $language) }}</span>
-                        <span class="ledger-report-doc__meta-value">{{ \Illuminate\Support\Carbon::parse($report['exported_at'])->format('d-m-Y') }}</span>
+                        <span class="ledger-report-doc__meta-value">{{ \App\Support\DateDisplay::html(\Illuminate\Support\Carbon::parse($report['exported_at'])->format('d-m-Y')) }}</span>
                     </div>
                 @endif
             </section>
@@ -343,11 +343,11 @@
                                     @php($columnValue = $service->ledgerColumnValue($row, $column))
                                     <td class="{{ in_array($column, ['transaction_date', 'expense', 'income', 'running_balance'], true) ? 'ledger-report-doc__middle-cell' : '' }}">
                                         @if ($column === 'expense' && filled($columnValue))
-                                            <span class="ledger-report-doc__debit-value">{{ $columnValue }}</span>
+                                            <span class="ledger-report-doc__debit-value">{{ $column === 'transaction_date' ? \App\Support\DateDisplay::html($columnValue) : $columnValue }}</span>
                                         @elseif ($column === 'income' && filled($columnValue))
-                                            <span class="ledger-report-doc__credit-value">{{ $columnValue }}</span>
+                                            <span class="ledger-report-doc__credit-value">{{ $column === 'transaction_date' ? \App\Support\DateDisplay::html($columnValue) : $columnValue }}</span>
                                         @else
-                                            {{ $columnValue }}
+                                            {{ $column === 'transaction_date' ? \App\Support\DateDisplay::html($columnValue) : $columnValue }}
                                         @endif
                                     </td>
                                 @endforeach

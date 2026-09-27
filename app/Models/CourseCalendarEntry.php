@@ -13,6 +13,7 @@ class CourseCalendarEntry extends Model
     protected $fillable = [
         'course_id',
         'date',
+        'end_date',
         'name',
         'color',
     ];
@@ -21,6 +22,7 @@ class CourseCalendarEntry extends Model
     {
         return [
             'date' => 'date',
+            'end_date' => 'date',
         ];
     }
 

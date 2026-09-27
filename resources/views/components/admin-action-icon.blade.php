@@ -1,7 +1,7 @@
 @props(['name'])
 
 @php
-    $isSuppliedFilledIcon = in_array($name, ['save', 'save-new', 'backup-upload', 'database-restore', 'delete', 'unlink', 'financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit', 'review', 'restore-point', 'past', 'filter-include', 'filter-exclude'], true);
+    $isSuppliedFilledIcon = in_array($name, ['save', 'save-new', 'backup-upload', 'database-restore', 'delete', 'unlink', 'financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit', 'review', 'restore-point', 'restore-defaults', 'past', 'filter-include', 'filter-exclude'], true);
     $viewBox = match ($name) {
         'save' => '300 280 720 720',
         'save-new' => '250 230 760 760',
@@ -19,6 +19,8 @@
         // the wrench handle and outer gear teeth are never clipped in buttons.
         'review' => '-8 -8 146.03 146.35',
         'restore-point' => '0 0 734.23 688.56',
+        'restore-defaults' => '-24 -24 782.2 736.6',
+        'documents-backup' => '0 0 30 30',
         'past' => '0 0 189.99 190.27',
         'filter-include' => '0 0 490.71 428.05',
         'filter-exclude' => '0 0 506.39 430.3',
@@ -37,6 +39,10 @@
     @if (in_array($name, ['financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit'], true)) overflow="visible" @endif
 >
     @switch($name)
+        @case('window')
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path stroke-linecap="round" d="M3 9h18M6.5 6.5h.01M9.5 6.5h.01" />
+            @break
         @case('account')
             <circle cx="12" cy="8" r="3.75" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20c.65-4 3.15-6.25 7.5-6.25S19.85 16 20.5 20" />
@@ -122,6 +128,17 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M18.25 6.25A8.25 8.25 0 0 0 5.15 5L3.5 7.5M3.5 4v3.5H7M12 7v5l3.5 2.25" />
                 <path stroke-linecap="round" d="M20.1 10.25v1.5m-1.35 4.2-1.05 1.1m-3.7 2.6h-1.5m-4.35-1-1.25-.75M4.45 15l-.55-1.3M4.8 9.2l-.7 1.2" />
             </g>
+            @break
+        @case('documents-backup')
+            <g stroke-linecap="round" stroke-linejoin="round" data-media-backup-icon="image-circular-arrow">
+                <path d="M10 20H4.5a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2H18a2 2 0 0 1 2 2v6" />
+                <circle cx="7.5" cy="7.5" r="1.5" />
+                <path d="m2.5 16 5-5 3.5 3.5 3.5-4 2 2" />
+                <path d="M16.06 25.74A6.7 6.7 0 1 0 14.1 21m-2.3-2.5 2.3 2.5 2.3-2.5" />
+            </g>
+            @break
+        @case('restore-defaults')
+            <path data-restore-defaults-icon="supplied-circular-arrow" d="M705.2,207.2c-27.7-64.3-72.5-117.7-129.6-154.5C513.9,12.9,440.6-4.9,363.7,1.1,242.6,10.6,131.2,80.4,71.5,183.9c-4.1-1.2-8.7-3.2-13.4-5.4-11.4-5-23.2-10.2-35-7.8-13.9,2.9-23.4,15.5-23.1,30.8,0,.8.2,1.6.4,2.3,5.3,16.1,9.6,34,13.7,51.3,5.1,21.5,10.4,43.7,17.9,63.6,4.3,11.4,11.3,16,16.4,17.8,7.8,2.8,16.9,1.3,26.2-4.3,19-11.3,37.5-25.7,55.5-39.6,16.3-12.6,33.1-25.7,49.9-36.1.5-.3,1-.7,1.5-1.2,6.9-7,9.7-16,7.7-24.6-2-8.9-8.9-16.3-18.5-19.7-3-1.1-9.9-2.5-20.8-4.8-3.8-.8-8.6-1.8-12.7-2.7,35.9-55.1,89-97.8,150.5-120.8,66.1-24.7,138-25,202.4-.7,90.1,34,155,111.9,173.6,208.5,8.8,45.8,6.4,93.1-7,136.8-14.4,46.8-40.2,87.6-76.9,121.1-75,68.7-177.1,92.8-273.2,64.5-44.3-13-84.6-36.8-116.6-68.9-34.4-34.4-58.4-76.7-71.3-125.6-.8-3-1.5-6.9-2.2-10.9-2.8-15.3-6.2-34.3-19.6-42.2-6.7-4-14.8-4.5-24-1.4-9.5,3.2-21.2,10.9-22.4,30-.7,11.4,2.4,23.7,5,33.6.2,1,.5,2,.7,2.9,15.1,59.6,45.3,113.7,87.3,156.3,39.7,40.3,89.7,70.4,144.6,87,33.2,10.1,67,15,100.5,15,84.2,0,166.2-31.1,231.4-90,57.3-51.8,94.7-117.4,108.3-189.9,12.6-67.2,4.6-136.9-23.2-201.5h0Z" />
             @break
         @case('restore-point')
             <g data-restore-point-history-icon="supplied-circular-clock" data-supplied-restore-point="asset-1">

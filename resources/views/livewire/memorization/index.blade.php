@@ -287,10 +287,19 @@ new class extends Component {
             'to_page' => $validated['to_page'],
         ];
 
+        // Changing metadata must preserve the individually selected pages from quick entry.
+        if ($session && (int) $validated['from_page'] === $session->from_page
+            && (int) $validated['to_page'] === $session->to_page) {
+            $pages = $session->pages()->orderBy('page_no')->pluck('page_no')->all();
+            if ($pages !== []) {
+                $payload['page_numbers'] = $pages;
+            }
+        }
+
         $service = app(MemorizationService::class);
         $duplicatePages = $service->findDuplicatePages(
             $enrollment,
-            range((int) $validated['from_page'], (int) $validated['to_page']),
+            $payload['page_numbers'] ?? range((int) $validated['from_page'], (int) $validated['to_page']),
             $validated['entry_type'],
             $session,
         );
@@ -491,7 +500,7 @@ new class extends Component {
         array $duplicatePages,
         ?MemorizationSession $session = null,
     ): void {
-        $pageNumbers = range((int) $payload['from_page'], (int) $payload['to_page']);
+        $pageNumbers = $payload['page_numbers'] ?? range((int) $payload['from_page'], (int) $payload['to_page']);
 
         $this->duplicatePages = $duplicatePages;
         $this->uniquePages = array_values(array_diff($pageNumbers, $duplicatePages));
@@ -591,7 +600,7 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <div class="font-medium text-white">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->recorded_on?->format('d-m-Y') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
                                 <td class="px-5 py-4 text-white lg:px-6">
                                     @if ((int) $session->from_page === (int) $session->to_page)

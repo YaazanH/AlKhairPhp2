@@ -51,7 +51,7 @@ class ValidationLocalizationTest extends TestCase
             $this->assertSame($locale, app()->getLocale());
             $summary = $response->json('message');
             if ($locale === 'ar') {
-                $this->assertStringContainsString('(وخطآن آخران)', $summary);
+                $this->assertStringContainsString('(وخطأين آخرين)', $summary);
                 $this->assertDoesNotMatchRegularExpression('/[A-Za-z]/', $summary);
             } else {
                 $this->assertStringContainsString('(and 2 more errors)', $summary);

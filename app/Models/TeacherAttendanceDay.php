@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasSingleOpenAttendanceDay;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class TeacherAttendanceDay extends Model
 {
     use HasFactory;
+    use HasSingleOpenAttendanceDay;
 
     protected $fillable = [
         'attendance_date',

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class Enrollment extends Model
 {
@@ -39,6 +40,42 @@ class Enrollment extends Model
             'final_points_cached' => 'integer',
             'memorized_pages_cached' => 'integer',
         ];
+    }
+
+    public function save(array $options = [])
+    {
+        if ($this->exists && ! $this->isDirty(['student_id', 'group_id', 'deleted_at'])) {
+            return parent::save($options);
+        }
+
+        return $this->getConnection()->transaction(function () use ($options) {
+            // Serialize enrollment changes for a student, including API and roster writes.
+            Student::withTrashed()->whereKey($this->student_id)->lockForUpdate()->first();
+            self::assertStudentCanJoinGroup((int) $this->student_id, (int) $this->group_id, $this->getKey());
+
+            return parent::save($options);
+        });
+    }
+
+    public function scopeForCourseOfGroup(Builder $query, int $groupId): Builder
+    {
+        $courseId = Group::withTrashed()->whereKey($groupId)->value('course_id');
+
+        return $courseId
+            ? $query->whereIn('group_id', Group::withTrashed()->where('course_id', $courseId)->select('id'))
+            : $query->where('group_id', $groupId);
+    }
+
+    public static function assertStudentCanJoinGroup(int $studentId, int $groupId, ?int $exceptId = null, string $field = 'student_id'): void
+    {
+        if (self::withTrashed()->where('student_id', $studentId)
+            ->forCourseOfGroup($groupId)
+            ->when($exceptId, fn (Builder $query) => $query->whereKeyNot($exceptId))
+            ->lockForUpdate()->first(['id'])) {
+            throw ValidationException::withMessages([
+                $field => __('crud.enrollments.errors.already_enrolled_course'),
+            ]);
+        }
     }
 
     public function scopeCurrentActiveForStudent(Builder $query, int $studentId): Builder

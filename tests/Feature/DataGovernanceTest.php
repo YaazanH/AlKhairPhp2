@@ -5,17 +5,24 @@ namespace Tests\Feature;
 use App\Models\AppSetting;
 use App\Models\DataQualityResolution;
 use App\Models\Enrollment;
+use App\Models\FinanceCashBoxTransfer;
+use App\Models\FinanceCurrencyExchange;
+use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
+use App\Models\Invoice;
 use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
+use App\Models\Payment;
 use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\SystemBackup;
 use App\Models\User;
 use App\Services\DataQualityService;
+use App\Support\DataAuditVisibility;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -416,7 +423,6 @@ class DataGovernanceTest extends TestCase
         $editOnlyTypes = [
             Enrollment::class,
             FinanceTransaction::class,
-            PointTransaction::class,
         ];
 
         foreach ($editOnlyTypes as $index => $subjectType) {
@@ -441,12 +447,66 @@ class DataGovernanceTest extends TestCase
             ->assertViewHas('activities', function ($activities) use ($editOnlyTypes): bool {
                 $visibleActivities = $activities->getCollection();
 
-                return $activities->total() === 7
+                return $activities->total() === 4
                     && $visibleActivities->doesntContain(fn ($activity): bool => $activity['event'] === 'created')
-                    && collect($editOnlyTypes)->every(fn (string $subjectType): bool => collect(['updated', 'deleted'])
+                    && collect($editOnlyTypes)->every(fn (string $subjectType): bool => collect($subjectType === Enrollment::class ? ['deleted'] : ['updated', 'deleted'])
                         ->every(fn (string $event): bool => $visibleActivities->contains(fn ($activity): bool => $activity['subject_type'] === $subjectType
                             && $activity['event'] === $event)));
             });
+    }
+
+    public function test_juz_changes_are_hidden_retroactively_without_hiding_other_student_edits(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
+        $entry = fn (array $before, array $after): array => [
+            'subject_type' => Student::class, 'subject_id' => 999, 'subject_label' => 'Student',
+            'before' => $before, 'after' => $after,
+        ];
+        $create = fn (array $properties): AuditActivity => AuditActivity::create([
+            'log_name' => 'data-audit', 'event' => 'updated', 'description' => 'updated Student',
+            'subject_type' => Student::class, 'subject_id' => 999, 'properties' => $properties,
+        ]);
+        $juz = $entry(['quran_current_juz_id' => 30], ['quran_current_juz_id' => 2]);
+        $old = $create(['before' => $juz['before'], 'after' => $juz['after']]);
+        $bundle = $create(['entries' => [$juz, $juz]]);
+        $mixed = $create(['entries' => [$juz, $entry(
+            ['first_name' => 'Old', 'quran_current_juz_id' => 3],
+            ['first_name' => 'New', 'quran_current_juz_id' => 4],
+        )]]);
+        $visible = DataAuditVisibility::apply(AuditActivity::inLog('data-audit'))->pluck('id')->all();
+        $this->assertNotContains($old->id, $visible);
+        $this->assertNotContains($bundle->id, $visible);
+        $this->assertContains($mixed->id, $visible);
+        $entries = Volt::test('data-audit.index')->instance()->activityEntries($mixed);
+        $this->assertCount(1, $entries);
+        $this->assertSame(['first_name' => 'Old'], $entries[0]['before']);
+        $this->assertSame(['first_name' => 'New'], $entries[0]['after']);
+        Volt::test('data-audit.index')->call('viewActivity', $old->id)->assertNotFound();
+        $this->assertDatabaseHas('activity_log', ['id' => $old->id]);
+    }
+
+    public function test_new_juz_updates_are_not_logged_and_new_financial_records_are_hidden(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
+        $student = Student::create(['first_name' => 'Student', 'last_name' => 'Audit', 'birth_date' => '2014-01-01', 'status' => 'active']);
+        $juz = QuranJuz::create(['juz_number' => 2, 'from_page' => 22, 'to_page' => 41]);
+        $student->update(['quran_current_juz_id' => $juz->id]);
+        $this->assertFalse(AuditActivity::inLog('data-audit')->where('subject_type', Student::class)->exists());
+        $student->update(['first_name' => 'Changed', 'quran_current_juz_id' => null]);
+        $movement = AuditActivity::inLog('data-audit')->where('subject_type', Student::class)->sole();
+        $this->assertSame(['first_name' => 'Changed'], $movement->getProperty('after'));
+
+        foreach ([FinanceRequest::class, FinanceCurrencyExchange::class, FinanceCashBoxTransfer::class, Invoice::class, Payment::class] as $type) {
+            $this->assertContains($type, DataAuditVisibility::hiddenTypes('created'));
+            $record = AuditActivity::create(['log_name' => 'data-audit', 'description' => 'Financial record', 'event' => 'created', 'subject_type' => $type, 'subject_id' => 999]);
+            $this->assertFalse(DataAuditVisibility::apply(AuditActivity::whereKey($record->id))->exists());
+        }
     }
 
     public function test_consecutive_edits_in_one_module_are_grouped_with_all_record_changes(): void
@@ -811,7 +871,7 @@ class DataGovernanceTest extends TestCase
         $this->assertSame(1, substr_count(strip_tags($component->html()), 'تم حذف السجل'));
     }
 
-    public function test_legacy_order_only_json_activity_shows_a_clear_no_value_changes_message(): void
+    public function test_legacy_order_only_json_activity_is_hidden_without_deleting_it(): void
     {
         $this->seed(RoleSeeder::class);
         $admin = User::factory()->create();
@@ -842,11 +902,50 @@ class DataGovernanceTest extends TestCase
         $component = Volt::test('data-audit.index');
         $this->assertSame([], $component->instance()->changeRows($activity->load('subject')));
 
-        $component
-            ->call('viewActivity', $activity->id)
-            ->assertSee('data-data-audit-no-effective-changes', false)
-            ->assertSeeText('لا توجد قيم متغيرة')
-            ->assertSeeText('الترتيب أو التنسيق الداخلي');
+        $this->assertNotContains($activity->id, DataAuditVisibility::apply(AuditActivity::inLog('data-audit'))->pluck('id')->all());
+        $this->assertDatabaseHas('activity_log', ['id' => $activity->id]);
+        $component->call('viewActivity', $activity->id)->assertNotFound();
+    }
+
+    public function test_backup_metadata_is_hidden_but_failures_restores_and_mixed_changes_remain_visible(): void
+    {
+        $make = fn (array $before, array $after, string $event = 'updated') => AuditActivity::create([
+            'log_name' => 'data-audit', 'description' => 'Backup movement', 'event' => $event,
+            'subject_type' => SystemBackup::class, 'subject_id' => 999,
+            'properties' => ['before' => $before, 'after' => $after],
+        ]);
+        $noise = $make(['sha256' => null, 'size_bytes' => null], ['sha256' => 'checksum', 'size_bytes' => 123]);
+        $failure = $make(['status' => 'creating', 'size_bytes' => null], ['status' => 'failed', 'size_bytes' => 123, 'error_message' => 'Disk full']);
+        $restore = $make(['restore_count' => 0], ['restore_count' => 1]);
+        $deleted = $make(['filename' => 'backup.zip'], [], 'deleted');
+        $ids = DataAuditVisibility::apply(AuditActivity::inLog('data-audit'))->pluck('id')->all();
+        $this->assertNotContains($noise->id, $ids);
+        foreach ([$failure, $restore, $deleted] as $kept) {
+            $this->assertContains($kept->id, $ids);
+        }
+        $entries = DataAuditVisibility::visibleEntries([
+            ['subject_type' => SystemBackup::class, ...$failure->properties->all()],
+        ], 'updated');
+        $this->assertArrayNotHasKey('size_bytes', $entries[0]['after']);
+        $this->assertSame('failed', $entries[0]['after']['status']);
+        $this->assertDatabaseHas('activity_log', ['id' => $noise->id]);
+    }
+
+    public function test_no_op_filter_preserves_list_reordering_null_changes_and_incomplete_history(): void
+    {
+        $entry = fn ($before, $after) => [
+            'subject_type' => AppSetting::class,
+            'before' => ['value' => $before], 'after' => ['value' => $after],
+        ];
+        $visible = DataAuditVisibility::visibleEntries([
+            $entry('{"a":1,"b":2}', '{"b":2,"a":1}'),
+            $entry('[1,2]', '[2,1]'),
+            $entry(null, ''),
+            $entry('{"truncated":', '{"truncated":1'),
+            $entry('1', 1),
+        ], 'updated');
+        $this->assertCount(4, $visible);
+        $this->assertSame('[2,1]', $visible[0]['after']['value']);
     }
 
     public function test_quality_decisions_are_persisted_and_can_be_reopened(): void

@@ -110,13 +110,17 @@
 
             if (!cards.length || !selectedCount) return;
 
-            const selectedTemplate = @json(__('id_cards.print.setup.selected', ['count' => ':count']));
+            const selectedTemplates = @json(collect([0, 1, 2, 3, 11])->mapWithKeys(fn ($count) => [$count => trans_choice('id_cards.print.setup.selected', $count, ['count' => ':count'])]));
+            const arabicCounts = @json(app()->isLocale('ar'));
             const selectVisibleLabel = @json(__('id_cards.print.setup.buttons.select_all'));
             const clearSelectionLabel = @json(__('id_cards.print.setup.buttons.clear_selection'));
 
             const updateSelectedCount = () => {
                 const selectedTotal = checkboxes.filter((checkbox) => checkbox.checked).length;
-                selectedCount.textContent = selectedTemplate.replace(':count', selectedTotal.toLocaleString());
+                const form = arabicCounts
+                    ? (selectedTotal <= 2 ? selectedTotal : (selectedTotal <= 10 ? 3 : 11))
+                    : (selectedTotal === 1 ? 1 : 3);
+                selectedCount.textContent = selectedTemplates[form].replace(':count', selectedTotal.toLocaleString());
 
                 if (selectVisibleButton) {
                     const hasSelection = selectedTotal > 0;

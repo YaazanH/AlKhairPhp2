@@ -285,7 +285,7 @@ return [
             'not_current' => 'ليست الحالية',
             'default_student_gender' => 'افتراضي',
             'date_range' => ':start إلى :end',
-            'grade_level_usage' => ':groups مجموعات، :students طلاب، :policies سياسات',
+            'grade_level_usage' => ':groups، :students، :policies',
             'default_avatar_set' => 'تم تعيين صورة افتراضية',
             'default_avatar_missing' => 'يتم استخدام الأحرف الأولى',
             'default_print_page_size' => 'افتراضي',
@@ -349,7 +349,7 @@ return [
             'expense_category_created' => 'تم إنشاء فئة مصروف النشاط بنجاح.',
             'expense_category_updated' => 'تم تحديث فئة مصروف النشاط بنجاح.',
             'expense_category_deleted' => 'تم حذف فئة مصروف النشاط بنجاح.',
-            'students_promoted' => 'تم ترفيع :promoted طالباً. وبقي :retained في مكانهم. و :unassigned بدون مرحلة دراسية.',
+            'students_promoted' => 'نتيجة الترفيع — تم ترفيعهم: :promoted، بقوا في مرحلتهم: :retained، بدون مرحلة دراسية: :unassigned.',
             'teacher_job_title_created' => 'تم إنشاء المسمى الوظيفي للاساتذة بنجاح.',
             'teacher_job_title_updated' => 'تم تحديث المسمى الوظيفي للاساتذة بنجاح.',
             'teacher_job_title_deleted' => 'تم حذف المسمى الوظيفي للاساتذة بنجاح.',
@@ -402,6 +402,7 @@ return [
             'custom_group' => 'مجموعة مخصصة',
         ],
         'actions' => [
+            'restore_defaults' => 'استعادة الإعدادات الافتراضية',
             'add_group' => 'إضافة مجموعة',
             'remove_group' => 'حذف المجموعة',
             'save' => 'حفظ تنظيم الشريط الجانبي',
@@ -600,7 +601,7 @@ return [
             'point_unit' => 'نقطة',
             'no_assessment_types' => 'لا يوجد تقييمات كمعايير حالياً',
             'unknown_assessment_type' => 'نوع تقييم غير معروف',
-            'point_effect' => 'إذا أخفق الطالب في أي شرط مفعل، يحتفظ النظام بنسبة :percentage% من النقاط الأساسية النشطة، لكنه لا ينزل عن :minimum نقطة إلا إذا كان الطالب يملك أقل من ذلك أصلاً.',
+            'point_effect' => 'إذا أخفق الطالب في أي شرط مفعل، يحتفظ النظام بنسبة :percentage% من النقاط الأساسية النشطة، بحد أدنى للنقاط: :minimum، إلا إذا كان الطالب يملك أقل من ذلك أصلاً.',
         ],
         'actions' => [
             'add_assessment_type' => 'إضافة نوع تقييم',
@@ -719,7 +720,7 @@ return [
         ],
         'labels' => [
             'manual_entry_automatic' => 'فئة ManualEntry تسمح دائماً بالإدخال اليدوي، ويُطبّق هذا الإعداد تلقائياً.',
-            'point_type_usage' => ':policies سياسات، :transactions معاملات، :bands نطاقات',
+            'point_type_usage' => ':policies، :transactions، :bands',
             'point_policy_meta' => ':pointType | :gradeLevel',
             'point_policy_range' => ':from إلى :to',
             'point_policy_points' => ':points (الأولوية :priority)',

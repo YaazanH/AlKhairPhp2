@@ -83,7 +83,7 @@ class ParentNumberService
             ? $parent->user
             : $parent->user()->first();
 
-        if (! $user) {
+        if (! $user || app(ManagedUserService::class)->isSharedAccount($user, 'parent')) {
             return;
         }
 
@@ -91,7 +91,7 @@ class ParentNumberService
 
         $user->forceFill([
             'name' => $parent->father_name ?: $user->name,
-            'username' => $managedUsers->uniqueUsername($parent->parent_number, $user->name, $user->id),
+            'username' => $user->username ?: $managedUsers->uniqueUsername($parent->parent_number, $user->name, $user->id),
             'phone' => $managedUsers->resolveUniquePhone([
                 $parent->father_phone,
                 $parent->mother_phone,

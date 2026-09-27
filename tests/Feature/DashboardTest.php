@@ -303,8 +303,8 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('background: #34d399;', $dashboardCss);
         $this->assertStringContainsString('padding-top: 1.25rem !important;', $dashboardCss);
         $this->assertStringContainsString('margin-top: 0 !important;', $dashboardCss);
-        $this->assertStringContainsString(".dashboard-treemap {\n    display: grid;\n    grid-template-columns: max-content minmax(0, 1fr) auto;\n    column-gap: 0;", $dashboardCss);
-        $this->assertStringContainsString(".dashboard-lollipop-row {\n    display: grid;\n    grid-column: 1 / -1;\n    grid-template-columns: subgrid;", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-treemap {\n    position: relative;\n    display: grid;\n    grid-auto-rows: 1.25rem;\n    align-items: center;\n    grid-template-columns: max-content minmax(0, 1fr) auto;\n    column-gap: 0;", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-lollipop-row {\n    display: contents;", $dashboardCss);
         $this->assertStringContainsString(".dashboard-lollipop-row__label {\n    margin-inline-end: 2.25rem;\n    overflow: visible;\n    text-overflow: clip;\n    white-space: nowrap;", $dashboardCss);
         $this->assertStringContainsString('margin-inline-start: var(--dashboard-lollipop-number-gap, 1.125rem);', $dashboardCss);
         $this->assertStringContainsString('synchronizeDashboardLollipopNumberGap', file_get_contents(resource_path('js/app.js')));
@@ -1202,8 +1202,11 @@ class DashboardTest extends TestCase
             'is_active' => true,
         ]);
 
+        $historicalCourse = $course->replicate();
+        $historicalCourse->name = 'Historical Course';
+        $historicalCourse->save();
         $inactiveGroup = Group::create([
-            'course_id' => $course->id,
+            'course_id' => $historicalCourse->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $teacher->id,
             'name' => 'Inactive Group',

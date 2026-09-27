@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Course;
 use App\Models\CourseCalendarEntry;
+use App\Support\CourseCalendarPalette;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -41,8 +42,26 @@ class CourseCalendarService
             ->unique()
             ->values()
             ->all();
-        $calendarEntries = $this->calendarEntries($course)
-            ->groupBy(fn (CourseCalendarEntry $entry): string => $entry->date->toDateString());
+        $eventRows = $this->calendarEntries($course)->sortBy([['date', 'asc'], ['name', 'asc'], ['id', 'asc']])
+            ->values()->map(fn (CourseCalendarEntry $entry): array => [
+                'name' => $entry->name,
+                'color' => $entry->color,
+                'starts_on' => CarbonImmutable::parse($entry->date),
+                'ends_on' => CarbonImmutable::parse($entry->end_date ?? $entry->date),
+            ])->all();
+        $events = collect(CourseCalendarPalette::uniqueRows($eventRows))
+            ->filter(fn (array $event): bool => $event['starts_on']->lte($endsOn) && $event['ends_on']->gte($startsOn))
+            ->map(fn (array $event): array => array_merge($event, [
+                'starts_on' => $event['starts_on']->max($startsOn),
+                'ends_on' => $event['ends_on']->min($endsOn),
+            ]))->values();
+        $calendarEntries = collect();
+        foreach ($events as $event) {
+            for ($date = $event['starts_on']; $date->lte($event['ends_on']); $date = $date->addDay()) {
+                $key = $date->toDateString();
+                $calendarEntries->put($key, $calendarEntries->get($key, collect())->push($event));
+            }
+        }
 
         $months = [];
         $month = $startsOn->startOfMonth();
@@ -76,23 +95,24 @@ class CourseCalendarService
         };
 
         $rowCount = (int) ceil($monthCount / $columns);
-        $cellHeight = match ($layout) {
-            'large' => match ($monthCount) {
-                1 => 47.0,
-                2 => 20.5,
-                default => 11.1,
-            },
-            'compact' => match ($rowCount) {
-                2 => 17.0,
-                3 => 11.5,
-                default => 7.0,
-            },
-            default => match (true) {
-                $rowCount <= 5 => 5.6,
-                $rowCount === 6 => 5.1,
-                default => 4.0,
-            },
-        };
+        $cellHeight = $layout === 'large' ? match ($monthCount) {
+            1 => 47.0,
+            2 => 20.5,
+            default => 11.1,
+        } : 0.0;
+
+        $legend = collect();
+        if ($layout !== 'large') {
+            $legend = collect([[
+                'name' => __('course_calendar.start'), 'color' => CourseCalendarPalette::START_COLOR,
+                'starts_on' => $startsOn, 'ends_on' => $startsOn,
+            ]])->concat($events);
+            $totalWeeks = collect(array_chunk($months, $columns))->sum(fn (array $row): int => max(array_map(fn (array $month): int => count($month['weeks']), $row)));
+            $monthHeadingAndGap = $layout === 'compact' ? 18.0 : 13.5;
+            $availableHeight = 249 - $rowCount * $monthHeadingAndGap;
+            // Fill the page budget instead of capping long calendars at their old compact cell height.
+            $cellHeight = max(3.2, floor(($availableHeight / max(1, $totalWeeks)) * 10) / 10);
+        }
 
         $sizedMonths = [];
 
@@ -120,13 +140,14 @@ class CourseCalendarService
             'columns' => $columns,
             'row_count' => $rowCount,
             'cell_height_mm' => $cellHeight,
+            'legend' => $legend->values()->all(),
             'pages' => [$months],
         ];
     }
 
     /**
      * @param  array<int, int>  $scheduledDays
-     * @param  Collection<string, Collection<int, CourseCalendarEntry>>  $calendarEntries
+     * @param  Collection<string, Collection<int, array<string, mixed>>>  $calendarEntries
      * @return array{name: string, year: int, weeks: array<int, array{number: int|null, days: array<int, array<string, mixed>>}>}
      */
     private function buildMonth(
@@ -160,11 +181,10 @@ class CourseCalendarService
                     'is_start' => $date->isSameDay($startsOn),
                     'is_end' => $date->isSameDay($endsOn),
                     'comments' => $inMonth
-                        ? $dateEntries->map(fn (CourseCalendarEntry $entry): array => [
-                            'name' => $entry->name,
-                            'color' => preg_match('/^#[0-9A-Fa-f]{6}$/', $entry->color)
-                                ? strtolower($entry->color)
-                                : '#3f8067',
+                        ? $dateEntries->map(fn (array $entry): array => [
+                            'name' => $entry['name'],
+                            'color' => $entry['color'],
+                            'is_start' => $date->isSameDay($entry['starts_on']),
                         ])->values()->all()
                         : [],
                 ];

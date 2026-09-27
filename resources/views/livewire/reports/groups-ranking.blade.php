@@ -134,14 +134,14 @@ new class extends Component {
             'label' => __('reports.rankings.summary.first_leader'),
             'value' => $firstLeader['entity_name'] ?? __('reports.rankings.summary.no_data'),
             'hint' => $firstLeader
-                ? __('reports.rankings.summary.pages_and_sessions', ['pages' => number_format($firstLeader['pages']), 'sessions' => number_format($firstLeader['sessions'])])
+                ? __('reports.rankings.summary.pages_and_sessions', ['pages' => __('counts.pages', ['count' => number_format($firstLeader['pages'])]), 'sessions' => __('counts.sessions', ['count' => number_format($firstLeader['sessions'])])])
                 : __('reports.rankings.summary.no_rows'),
         ],
         [
             'label' => __('reports.rankings.summary.second_leader'),
             'value' => $secondLeader['entity_name'] ?? __('reports.rankings.summary.no_data'),
             'hint' => $secondLeader
-                ? __('reports.rankings.summary.pages_and_sessions', ['pages' => number_format($secondLeader['pages']), 'sessions' => number_format($secondLeader['sessions'])])
+                ? __('reports.rankings.summary.pages_and_sessions', ['pages' => __('counts.pages', ['count' => number_format($secondLeader['pages'])]), 'sessions' => __('counts.sessions', ['count' => number_format($secondLeader['sessions'])])])
                 : __('reports.rankings.summary.no_rows'),
         ],
         [
@@ -179,8 +179,8 @@ new class extends Component {
             </div>
 
             <div class="flex flex-wrap gap-3 xl:justify-end">
-                <span class="badge-soft ranking-legend-pill">{{ __('reports.rankings.legend.first_range', ['range' => $rangeLabels['first']]) }}</span>
-                <span class="badge-soft badge-soft--emerald ranking-legend-pill">{{ __('reports.rankings.legend.second_range', ['range' => $rangeLabels['second']]) }}</span>
+                <span class="badge-soft ranking-legend-pill">{{ \App\Support\DateDisplay::html(__('reports.rankings.legend.first_range', ['range' => $rangeLabels['first']])) }}</span>
+                <span class="badge-soft badge-soft--emerald ranking-legend-pill">{{ \App\Support\DateDisplay::html(__('reports.rankings.legend.second_range', ['range' => $rangeLabels['second']])) }}</span>
             </div>
         </div>
     </section>
@@ -315,7 +315,7 @@ new class extends Component {
                                         <td class="px-5 py-4 lg:px-6">
                                             @if ($row['first_rank'])
                                                 <div class="font-medium text-white">#{{ $row['first_rank'] }}</div>
-                                                <div class="text-xs text-neutral-300">{{ __('reports.rankings.table.pages_and_sessions', ['pages' => number_format($row['first_pages']), 'sessions' => number_format($row['first_sessions'])]) }}</div>
+                                                <div class="text-xs text-neutral-300">{{ __('reports.rankings.table.pages_and_sessions', ['pages' => __('counts.pages', ['count' => number_format($row['first_pages'])]), 'sessions' => __('counts.sessions', ['count' => number_format($row['first_sessions'])])]) }}</div>
                                             @else
                                                 <div class="text-neutral-400">{{ __('reports.rankings.table.no_activity') }}</div>
                                             @endif
@@ -323,7 +323,7 @@ new class extends Component {
                                         <td class="px-5 py-4 lg:px-6">
                                             @if ($row['second_rank'])
                                                 <div class="font-medium text-white">#{{ $row['second_rank'] }}</div>
-                                                <div class="text-xs text-neutral-300">{{ __('reports.rankings.table.pages_and_sessions', ['pages' => number_format($row['second_pages']), 'sessions' => number_format($row['second_sessions'])]) }}</div>
+                                                <div class="text-xs text-neutral-300">{{ __('reports.rankings.table.pages_and_sessions', ['pages' => __('counts.pages', ['count' => number_format($row['second_pages'])]), 'sessions' => __('counts.sessions', ['count' => number_format($row['second_sessions'])])]) }}</div>
                                             @else
                                                 <div class="text-neutral-400">{{ __('reports.rankings.table.no_activity') }}</div>
                                             @endif

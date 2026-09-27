@@ -434,7 +434,7 @@ new class extends Component {
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'cash_box_name', data_get($generatedReport->report_data, 'cash_box.name', '-')) }}</td>
                                     <td class="px-5 py-3">{{ data_get($generatedReport->filters, 'currency_code', data_get($generatedReport->report_data, 'currency.code', '-')) }}</td>
                                     <td class="px-5 py-3">{{ $generatedReport->generatedBy?->name ?: (data_get($generatedReport->report_data, 'issuer_name') ?: '-') }}</td>
-                                    <td class="px-5 py-3">{{ $generatedReport->created_at?->format('d-m-Y') }}</td>
+                                    <td class="px-5 py-3">{{ \App\Support\DateDisplay::html($generatedReport->created_at?->format('d-m-Y')) }}</td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.reports.review_saved_report') }}" aria-label="{{ __('finance.reports.review_saved_report') }}" data-financial-record-view-action><x-admin-action-icon name="financial-report-open" /></a>

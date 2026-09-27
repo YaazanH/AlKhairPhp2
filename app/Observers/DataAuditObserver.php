@@ -2,15 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\Enrollment;
-use App\Models\FinanceTransaction;
-use App\Models\MemorizationSession;
-use App\Models\ParentProfile;
-use App\Models\PointTransaction;
-use App\Models\QuranFinalTest;
-use App\Models\QuranPartialTest;
-use App\Models\QuranTest;
-use App\Models\Student;
+use App\Support\DataAuditVisibility;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -24,21 +16,9 @@ class DataAuditObserver
 {
     private const CONSECUTIVE_MODULE_WINDOW_SECONDS = 300;
 
-    private const HIDDEN_CREATED_MODELS = [
-        Student::class,
-        ParentProfile::class,
-        Enrollment::class,
-        FinanceTransaction::class,
-        PointTransaction::class,
-        MemorizationSession::class,
-        QuranFinalTest::class,
-        QuranPartialTest::class,
-        QuranTest::class,
-    ];
-
     public function created(Model $model): void
     {
-        if (in_array($model::class, self::HIDDEN_CREATED_MODELS, true)) {
+        if (in_array($model::class, DataAuditVisibility::hiddenTypes('created'), true)) {
             return;
         }
 
@@ -47,7 +27,11 @@ class DataAuditObserver
 
     public function updated(Model $model): void
     {
-        $changes = collect(Arr::except($model->getChanges(), ['updated_at']))
+        if (in_array($model::class, DataAuditVisibility::hiddenTypes('updated'), true)) {
+            return;
+        }
+
+        $changes = collect(Arr::except($model->getChanges(), ['updated_at', ...DataAuditVisibility::ignoredUpdateFields($model::class)]))
             ->reject(fn (mixed $value, string $field): bool => $this->valuesAreEquivalent(
                 $model->getRawOriginal($field),
                 $value,

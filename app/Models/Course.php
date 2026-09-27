@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CoursePointBackfillService;
 use App\Services\PointLedgerService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,6 +25,10 @@ class Course extends Model
         static::saved(function (Course $course): void {
             if ($course->is_default && ($course->wasRecentlyCreated || $course->wasChanged('is_default'))) {
                 static::query()->whereKeyNot($course->id)->update(['is_default' => false]);
+            }
+
+            if ($course->wasChanged('awards_points') && $course->awards_points && $course->is_active) {
+                app(CoursePointBackfillService::class)->restoreMissingAwards($course);
             }
 
             if ($course->wasChanged('is_active') || $course->wasChanged('awards_points')) {

@@ -52,13 +52,14 @@ new class extends Component {
         ];
     }
 
-    public function createBackup(): void
+    public function createBackup(string $scope = SystemBackup::SCOPE_DATABASE): void
     {
         $this->authorizePermission('backups.manage');
         $this->resetErrorBag('backup');
 
         try {
-            app(SystemBackupService::class)->create(auth()->user());
+            abort_unless(in_array($scope, [SystemBackup::SCOPE_DATABASE, SystemBackup::SCOPE_FILES], true), 422);
+            app(SystemBackupService::class)->create(auth()->user(), scope: $scope);
             $this->resetPage();
             session()->flash('status', __('backups.messages.created'));
         } catch (\Throwable $exception) {
@@ -332,7 +333,7 @@ new class extends Component {
                 <div class="text-xs font-semibold text-neutral-400">{{ __('backups.stats.latest_verified') }}</div>
                 <div class="mt-2 text-sm font-semibold text-white">
                     @if ($health['latest_verified'])
-                        <bdi dir="ltr">{{ $health['latest_verified']->verified_at->timezone($backupTimezone)->format('d-m-Y H:i') }}</bdi>
+                        <bdi dir="ltr">{{ \App\Support\DateDisplay::html($health['latest_verified']->verified_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi>
                     @else
                         {{ __('backups.stats.not_available') }}
                     @endif
@@ -340,9 +341,12 @@ new class extends Component {
             </div>
             <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="text-xs font-semibold text-neutral-400">{{ __('backups.stats.next_scheduled') }}</div>
+                @if ($frequency !== 'disabled' && $health['scheduler_running'])
+                    <div class="mt-1 text-xs text-emerald-400" data-backup-scheduler-status>{{ __('backups.stats.scheduler_running') }}</div>
+                @endif
                 <div class="mt-2 text-sm font-semibold text-white">
                     @if ($nextScheduledAt)
-                        <bdi dir="ltr">{{ $nextScheduledAt->format('d-m-Y H:i') }}</bdi>
+                        <bdi dir="ltr">{{ \App\Support\DateDisplay::html($nextScheduledAt->format('d-m-Y H:i')) }}</bdi>
                     @else
                         {{ __('backups.stats.schedule_disabled') }}
                     @endif
@@ -374,6 +378,9 @@ new class extends Component {
                 <button type="button" wire:click="createBackup" wire:loading.attr="disabled" wire:target="createBackup" class="admin-icon-button admin-icon-button--accent disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create') }}" aria-label="{{ __('backups.actions.create') }}" data-backup-create-action>
                     <x-admin-action-icon name="backup-upload" />
                 </button>
+                <button type="button" wire:click="createBackup('files')" wire:loading.attr="disabled" wire:target="createBackup" class="admin-icon-button disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create_files') }}" aria-label="{{ __('backups.actions.create_files') }}" data-backup-files-create-action>
+                    <x-admin-action-icon name="documents-backup" />
+                </button>
                 <button type="button" wire:click="openFileRestore" wire:confirm="{{ __('backups.confirmations.open_file_restore') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('backups.actions.restore_from_file') }}" aria-label="{{ __('backups.actions.restore_from_file') }}" data-backup-file-restore-action>
                     <x-admin-action-icon name="cloud-upload" />
                 </button>
@@ -396,14 +403,14 @@ new class extends Component {
                     @forelse ($backups as $backup)
                         <tr wire:key="system-backup-{{ $backup->id }}">
                             <td class="px-5 py-3">
-                                <div class="font-medium text-white"><bdi dir="ltr">{{ $backup->created_at->timezone($backupTimezone)->format('d-m-Y H:i') }}</bdi></div>
+                                <div class="font-medium text-white"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->created_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi></div>
                                 @if ($backup->creator)
                                     <div class="mt-1 text-xs text-neutral-500">{{ $backup->creator->name }}</div>
                                 @endif
                             </td>
                             <td class="px-5 py-3">{{ __('backups.triggers.'.$backup->trigger) }}</td>
                             <td class="px-5 py-3">
-                                <div>{{ $backup->includes_files ? __('backups.table.database_and_files') : __('backups.table.database_only') }}</div>
+                                <div>{{ __('backups.scopes.'.$backup->scope) }}</div>
                                 @if ($backup->includes_files)
                                     <div class="mt-1 text-xs text-neutral-500">{{ __('backups.table.files_count', ['count' => number_format((int) data_get($backup->manifest_summary, 'files_count', 0))]) }}</div>
                                 @endif
@@ -411,7 +418,7 @@ new class extends Component {
                             <td class="px-5 py-3"><bdi dir="ltr">{{ $this->formatBytes($backup->size_bytes) }}</bdi></td>
                             <td class="px-5 py-3">
                                 @if ($backup->verified_at)
-                                    <div class="text-xs text-neutral-500" data-backup-verification-details><span>{{ __('backups.table.verified_at') }}</span> <bdi dir="ltr">{{ $backup->verified_at->timezone($backupTimezone)->format('d-m-Y H:i') }}</bdi></div>
+                                    <div class="text-xs text-neutral-500" data-backup-verification-details><span>{{ __('backups.table.verified_at') }}</span> <bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->verified_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi></div>
                                 @elseif ($backup->error_message)
                                     <div class="max-w-xs text-xs text-red-300" title="{{ $backup->error_message }}" data-backup-verification-details>{{ __('backups.table.not_verified') }}</div>
                                 @endif

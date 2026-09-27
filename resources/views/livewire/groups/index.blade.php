@@ -558,13 +558,13 @@ new class extends Component {
         $student = Student::query()->findOrFail($validated['roster_student_id']);
         $this->authorizeScopedStudentAccess($student);
 
-        $duplicateEnrollmentExists = Enrollment::query()
+        $duplicateEnrollmentExists = Enrollment::withTrashed()
             ->where('student_id', $student->id)
-            ->where('group_id', $group->id)
+            ->forCourseOfGroup($group->id)
             ->exists();
 
         if ($duplicateEnrollmentExists) {
-            $this->addError('roster_student_id', __('crud.enrollments.errors.already_enrolled'));
+            $this->addError('roster_student_id', __('crud.enrollments.errors.already_enrolled_course'));
 
             return;
         }
@@ -601,7 +601,7 @@ new class extends Component {
         return $this->scopeStudentsQuery(Student::query())
             ->where('status', 'active')
             ->whereDoesntHave('enrollments', function ($enrollmentQuery) {
-                $enrollmentQuery->where('group_id', $this->rosterGroupId);
+                $enrollmentQuery->withTrashed()->forCourseOfGroup((int) $this->rosterGroupId);
             });
     }
 
@@ -1301,7 +1301,7 @@ new class extends Component {
                                             <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                                 <bdi dir="ltr" class="inline-block">{{ $enrollment->student?->parentProfile?->father_phone ?: ($enrollment->student?->parentProfile?->mother_phone ?: ($enrollment->student?->parentProfile?->home_phone ?: __('crud.common.not_available'))) }}</bdi>
                                             </td>
-                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') ?: __('crud.common.not_available') }}</td>
+                                            <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y') ?: __('crud.common.not_available')) }}</td>
                                             <td class="px-5 py-4 lg:px-6"><span class="{{ $rosterStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                             @can('enrollments.delete')
                                                 <td class="px-5 py-4 lg:px-6">

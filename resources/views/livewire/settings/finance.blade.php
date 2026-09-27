@@ -560,8 +560,15 @@ new class extends Component {
             'finance_category_is_active' => ['boolean'],
             'finance_category_is_donation' => ['boolean'],
             'finance_category_name' => ['required', 'string', 'max:255'],
-            'finance_category_type' => ['required', Rule::in(FinanceCategory::TYPES)],
+            'finance_category_type' => [
+                'required', Rule::in(FinanceCategory::TYPES),
+                ...(in_array($this->finance_category_type, ['exchange', 'transfer'], true)
+                    ? [Rule::unique('finance_categories', 'type')->ignore($this->finance_category_editing_id)]
+                    : []),
+            ],
             'finance_category_mode' => ['required', Rule::in(FinanceCategory::modesForType($this->finance_category_type))],
+        ], [
+            'finance_category_type.unique' => __('finance.validation.single_category_type'),
         ]);
 
         FinanceCategory::query()->updateOrCreate(
@@ -1603,7 +1610,15 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.name') }}</label><input wire:model="finance_category_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('finance_category_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.code') }}</label><input wire:model="finance_category_code" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('finance_category_code') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             </div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label><select wire:model.live="finance_category_type" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::TYPES as $type)<option value="{{ $type }}">{{ __('finance.category_types.'.$type) }}</option>@endforeach</select></div>
+            <div>
+                <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.type') }}</label>
+                <select wire:model.live="finance_category_type" class="w-full rounded-xl px-4 py-3 text-sm">
+                    @foreach (\App\Models\FinanceCategory::TYPES as $type)
+                        <option value="{{ $type }}" @disabled(in_array($type, ['exchange', 'transfer'], true) && $financeCategories->where('type', $type)->where('id', '!=', $finance_category_editing_id)->isNotEmpty())>{{ __('finance.category_types.'.$type) }}</option>
+                    @endforeach
+                </select>
+                @error('finance_category_type') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+            </div>
             <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.mode') }}</label><select wire:model="finance_category_mode" class="w-full rounded-xl px-4 py-3 text-sm">@foreach (\App\Models\FinanceCategory::modesForType($finance_category_type) as $mode)<option value="{{ $mode }}">{{ __('finance.category_modes.'.$mode) }}</option>@endforeach</select></div>
             <div class="flex flex-wrap gap-6"><label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_active" type="checkbox" class="rounded"> {{ __('finance.common.active') }}</label>@if ($finance_category_type === 'revenue')<label class="flex items-center gap-3 text-sm"><input wire:model="finance_category_is_donation" type="checkbox" class="rounded"> {{ __('finance.settings.donation_category') }}</label>@endif</div>
             @error('financeCategoryDelete') <div class="rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{{ $message }}</div> @enderror

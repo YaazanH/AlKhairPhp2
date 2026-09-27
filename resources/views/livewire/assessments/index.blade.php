@@ -650,7 +650,7 @@ new class extends Component
                                     </td>
                                     <td class="px-4 py-3"><div class="truncate" title="{{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') }}">{{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') ?: __('workflow.common.not_available') }}</div></td>
                                     <td class="px-5 py-3">
-                                        <div>{{ $assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available') }}</div>
+                                        <div>{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</div>
                                     </td>
                                     <td class="px-5 py-3">{{ number_format($assessment->results_count) }}</td>
                                     <td class="px-3 py-3">

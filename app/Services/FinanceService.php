@@ -890,7 +890,7 @@ class FinanceService
             'special_transaction_no' => $specialTransactionNo,
             'cash_box_id' => $cashBox->id,
             'currency_id' => $currency->id,
-            'finance_category_id' => $payload['finance_category_id'] ?? null,
+            'finance_category_id' => $payload['finance_category_id'] ?? ($normalizedType === 'exchange' ? $this->defaultFinanceCategoryId('exchange') : null),
             'activity_id' => $payload['activity_id'] ?? null,
             'teacher_id' => $payload['teacher_id'] ?? null,
             'finance_request_id' => $payload['finance_request_id'] ?? null,

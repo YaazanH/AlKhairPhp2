@@ -9,6 +9,9 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\Student;
 use App\Services\StudentAttendanceDayService;
 use Livewire\Volt\Component;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 new class extends Component
 {
@@ -22,6 +25,10 @@ new class extends Component
     public string $notes = '';
 
     public array $selected_statuses = [];
+
+    public bool $showAddStudentModal = false;
+
+    public ?int $rosterStudentId = null;
 
     public function mount(GroupAttendanceDay $groupAttendanceDay): void
     {
@@ -66,6 +73,10 @@ new class extends Component
 
         return [
             'groupDayRecord' => $groupDay,
+            'canAddStudent' => auth()->user()?->can('enrollments.create') && $this->canEnrollInGroupDay($groupDay),
+            'availableStudents' => $this->showAddStudentModal && auth()->user()?->can('enrollments.create')
+                ? $this->availableStudentsQuery()->orderBy('first_name')->orderBy('last_name')->get()
+                : collect(),
             'enrollments' => $enrollments,
             'statuses' => AttendanceStatus::query()
                 ->where('is_active', true)
@@ -76,6 +87,81 @@ new class extends Component
             'activeEnrollmentCount' => $enrollments->count(),
             'isDayClosed' => $groupDay->studentAttendanceDay?->status === 'closed',
         ];
+    }
+
+    public function openAddStudentModal(): void
+    {
+        $this->authorizeRosterEnrollment();
+        $this->reset('rosterStudentId');
+        $this->resetValidation('rosterStudentId');
+        $this->showAddStudentModal = true;
+    }
+
+    public function closeAddStudentModal(): void
+    {
+        $this->showAddStudentModal = false;
+        $this->reset('rosterStudentId');
+        $this->resetValidation('rosterStudentId');
+    }
+
+    public function addStudent(bool $addAnother = false): void
+    {
+        $this->authorizeRosterEnrollment();
+        $this->validate(['rosterStudentId' => ['required', 'integer', 'exists:students,id']]);
+
+        DB::transaction(function (): void {
+            $student = Student::query()->lockForUpdate()->findOrFail($this->rosterStudentId);
+            $this->authorizeScopedStudentAccess($student);
+            if (! $this->availableStudentsQuery()->whereKey($student->id)->lockForUpdate()->first()) {
+                throw ValidationException::withMessages([
+                    'rosterStudentId' => __('workflow.student_attendance.enrollment.unavailable'),
+                ]);
+            }
+
+            Enrollment::create([
+                'student_id' => $student->id,
+                'group_id' => $this->currentGroupDay->group_id,
+                'enrolled_at' => now()->toDateString(),
+                'status' => 'active',
+            ]);
+            $this->loadDay();
+        });
+
+        $this->reset('rosterStudentId');
+        $this->resetValidation('rosterStudentId');
+        $this->showAddStudentModal = $addAnother;
+        session()->flash('status', __('workflow.student_attendance.enrollment.added'));
+    }
+
+    protected function availableStudentsQuery(): Builder
+    {
+        return $this->scopeStudentsQuery(Student::query())->where('status', 'active')
+            ->whereDoesntHave('enrollments', fn (Builder $query) => $query->where('status', 'active')
+                ->whereHas('group.course', fn (Builder $course) => $course->where('is_active', true)))
+            ->whereNotIn('id', Enrollment::withTrashed()->forCourseOfGroup($this->currentGroupDay->group_id)->select('student_id'));
+    }
+
+    protected function canEnrollInGroupDay(GroupAttendanceDay $day): bool
+    {
+        return $day->studentAttendanceDay?->status === 'open'
+            && ! $day->studentAttendanceDay?->course_finished_at
+            && $day->group?->is_active
+            && ! $day->group?->course_finished_at
+            && $day->group?->course?->is_active
+            && ! $day->group?->course?->finished_at;
+    }
+
+    protected function authorizeRosterEnrollment(): void
+    {
+        $this->authorizePermission('enrollments.create');
+        $this->authorizePermission('attendance.student.view');
+        $day = $this->currentGroupDay->fresh(['studentAttendanceDay', 'group.course']);
+        $this->authorizeScopedGroupAttendanceDayAccess($day);
+        if (! $this->canEnrollInGroupDay($day)) {
+            throw ValidationException::withMessages([
+                'rosterStudentId' => __('workflow.student_attendance.enrollment.locked'),
+            ]);
+        }
     }
 
     public function saveAttendance(): void
@@ -248,12 +334,34 @@ new class extends Component
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
-        <div class="flex flex-wrap items-start justify-between gap-4">
+    <section class="page-hero attendance-mark-hero p-6 lg:p-8">
+        <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
                 <x-back-link :href="route('student-attendance.show', $groupDayRecord->studentAttendanceDay)" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
+            </div>
+            <div class="group-show-hero-widgets flex flex-col gap-3 lg:flex-row lg:items-start">
+                <div class="group-show-details surface-panel p-3">
+                    <dl class="group-show-details__grid">
+                        <div class="group-show-detail">
+                            <dt>{{ __('workflow.student_attendance.context.group') }}</dt>
+                            <dd>{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</dd>
+                        </div>
+                        <div class="group-show-detail">
+                            <dt>{{ __('workflow.student_attendance.context.teacher') }}</dt>
+                            <dd>{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</dd>
+                        </div>
+                        <div class="group-show-detail attendance-mark-hero__course">
+                            <dt>{{ __('workflow.student_attendance.context.course') }}</dt>
+                            <dd>{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</dd>
+                        </div>
+                        <div class="group-show-detail">
+                            <dt>{{ __('workflow.student_attendance.context.date') }}</dt>
+                            <dd>{{ \App\Support\DateDisplay::html($groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y')) }}</dd>
+                        </div>
+                    </dl>
+                </div>
             </div>
         </div>
     </section>
@@ -268,33 +376,30 @@ new class extends Component
         </div>
     @endif
 
-    <section class="surface-panel p-5">
-        <div class="grid gap-4 text-sm text-neutral-300 sm:grid-cols-2 lg:grid-cols-4">
-            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.group') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</span></div>
-            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.teacher') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span></div>
-            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.course') }}:</span> <span class="text-white">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
-            <div><span class="text-neutral-500">{{ __('workflow.student_attendance.context.date') }}:</span> <span class="text-white">{{ $groupDayRecord->studentAttendanceDay?->attendance_date?->format('d-m-Y') }}</span></div>
-        </div>
-    </section>
-
     <section class="surface-table">
-        <div class="admin-grid-meta">
+        <div class="admin-grid-meta items-center">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.table.title') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($activeEnrollmentCount)]) }}</div>
             </div>
+            @if ($canAddStudent)
+                <button type="button" wire:click="openAddStudentModal" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.groups.roster.add_student') }}" aria-label="{{ __('crud.groups.roster.add_student') }}" data-attendance-add-student><x-admin-action-icon name="add" /></button>
+            @endif
         </div>
+        @if (! $showAddStudentModal)
+            @error('rosterStudentId') <div class="px-5 py-3 text-sm text-red-400">{{ $message }}</div> @enderror
+        @endif
 
         @if ($enrollments->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.table.empty') }}</div>
         @else
             <div class="overflow-x-auto overflow-y-visible pb-24">
-                <table class="text-sm">
+                <table class="attendance-records-table text-sm" data-attendance-records>
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.enrolled') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.current_points') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.enrolled') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.current_points') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
                         </tr>
                     </thead>
@@ -309,13 +414,14 @@ new class extends Component
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->enrolled_at?->format('d-m-Y') }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
+                                <td class="attendance-desktop-only px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)
                                         <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
+                                            data-search-input="false" data-dropdown-search="false" data-attendance-status-select
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
                                             wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
                                             @disabled(! auth()->user()->can('attendance.student.take'))
@@ -337,4 +443,22 @@ new class extends Component
             </div>
         @endif
     </section>
+    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" :description="__('workflow.student_attendance.enrollment.help')" close-method="closeAddStudentModal" max-width="xl">
+        <form wire:submit="addStudent(true)" class="space-y-5">
+            <div class="admin-form-field">
+                <label for="attendance-roster-student">{{ __('workflow.student_attendance.table.headers.student') }}</label>
+                <select id="attendance-roster-student" wire:model="rosterStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
+                    <option value="">{{ __('crud.common.select') }}</option>
+                    @foreach ($availableStudents as $student)
+                        <option value="{{ $student->id }}">{{ $student->full_name }}</option>
+                    @endforeach
+                </select>
+                @error('rosterStudentId') <div class="mt-2 text-sm text-red-400">{{ $message }}</div> @enderror
+                @if ($availableStudents->isEmpty()) <p class="mt-2 text-sm text-neutral-400">{{ __('workflow.student_attendance.enrollment.empty') }}</p> @endif
+            </div>
+            <div class="admin-action-cluster admin-action-cluster--end">
+                <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.add_and_new') }}" aria-label="{{ __('crud.common.actions.add_and_new') }}" wire:loading.attr="disabled" wire:target="addStudent" data-attendance-add-and-new><x-admin-action-icon name="save-new" /></button>
+            </div>
+        </form>
+    </x-admin.modal>
 </div>
