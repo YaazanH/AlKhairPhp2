@@ -9,12 +9,20 @@ use Illuminate\Support\Facades\DB;
 
 class MigrateTenantsCommand extends Command
 {
-    protected $signature = 'saas:migrate-tenants {--all : Include non-operational tenants that have a database}';
+    protected $signature = 'saas:migrate-tenants
+        {--tenant= : Limit the migration run to one tenant slug}
+        {--all : Include non-operational tenants that have a database}
+        {--pretend : Show the SQL that would run without changing tenant databases}';
+
     protected $description = 'Run the tenant schema migrations against every selected tenant database.';
 
     public function handle(): int
     {
         $query = Tenant::query()->whereNotNull('database_name')->where('database_name', '!=', '');
+
+        if ($this->option('tenant')) {
+            $query->where('slug', $this->option('tenant'));
+        }
 
         if (! $this->option('all')) {
             $query->whereIn('status', [Tenant::STATUS_TRIAL, Tenant::STATUS_ACTIVE]);
@@ -23,6 +31,11 @@ class MigrateTenantsCommand extends Command
         $tenants = $query->orderBy('name')->get();
 
         if ($tenants->isEmpty()) {
+            if ($this->option('tenant')) {
+                $this->error('Tenant not found or does not have a provisioned database.');
+
+                return self::FAILURE;
+            }
             $this->warn('No tenant databases matched this migration run.');
 
             return self::SUCCESS;
@@ -34,7 +47,8 @@ class MigrateTenantsCommand extends Command
 
         try {
             foreach ($tenants as $tenant) {
-                $this->line("Migrating {$tenant->slug}...");
+                $verb = $this->option('pretend') ? 'Previewing' : 'Migrating';
+                $this->line("{$verb} {$tenant->slug}...");
                 config()->set('database.connections.tenant.database', $tenant->database_name);
                 DB::purge('tenant');
                 DB::setDefaultConnection('tenant');
@@ -42,10 +56,19 @@ class MigrateTenantsCommand extends Command
                 $exitCode = Artisan::call('migrate', [
                     '--database' => 'tenant',
                     '--force' => true,
+                    '--pretend' => (bool) $this->option('pretend'),
                 ]);
 
+                if ($this->option('pretend')) {
+                    $output = trim(Artisan::output());
+                    if ($output !== '') {
+                        $this->line($output);
+                    }
+                }
+
                 if ($exitCode === self::SUCCESS) {
-                    $this->info("Migrated {$tenant->slug}.");
+                    $this->info(($this->option('pretend') ? 'Previewed' : 'Migrated')." {$tenant->slug}.");
+
                     continue;
                 }
 
@@ -64,7 +87,7 @@ class MigrateTenantsCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info("Migrated {$tenants->count()} tenant database(s).");
+        $this->info(($this->option('pretend') ? 'Previewed' : 'Migrated')." {$tenants->count()} tenant database(s).");
 
         return self::SUCCESS;
     }
