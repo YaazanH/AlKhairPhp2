@@ -7,6 +7,7 @@ use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\Landlord\ModuleRegistry;
 use App\Services\Landlord\TenantContext;
 use App\Services\Landlord\TenantModuleAccess;
+use App\Services\Landlord\TenantSetupManager;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 
@@ -17,7 +18,24 @@ class CapabilitiesController extends Controller
         $snapshot = $context->hasTenant() ? app(TenantModuleAccess::class)->snapshot($context->tenant()) : null;
         $modules = $snapshot['enabled'] ?? array_keys(app(ModuleRegistry::class)->definitions());
         $permissions = Permission::query()->pluck('name')->filter(fn ($name) => $access->permissionAvailable($name) && $request->user()->can($name))->sort()->values()->all();
-        $data = ['modules' => $modules, 'permissions' => $permissions, 'setup' => ['status' => 'not_managed_yet']];
+        $setup = $context->hasTenant()
+            ? app(TenantSetupManager::class)->summary($context->tenant())
+            : ['status' => 'ready', 'version' => 'standalone', 'modules' => [], 'pending' => [], 'required' => []];
+        $data = [
+            'modules' => $modules,
+            'permissions' => $permissions,
+            'setup' => [
+                'status' => $setup['status'],
+                'version' => $setup['version'],
+                'can_manage' => $request->user()->isPlatformAdministrator() || $request->user()->can('settings.manage'),
+                'modules' => collect($setup['modules'])->map(fn (array $module): array => [
+                    'code' => $module['code'],
+                    'version' => $module['version'],
+                    'status' => $module['status'],
+                    'required' => $module['required'],
+                ])->values()->all(),
+            ],
+        ];
         $data['version'] = hash('sha256', json_encode([$snapshot['version'] ?? 'standalone', $request->user()->id, $data], JSON_THROW_ON_ERROR));
 
         return response()->json(['data' => $data])->header('Cache-Control', 'private, no-store');

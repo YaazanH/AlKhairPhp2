@@ -28,6 +28,7 @@ use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
 use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\TenantPublicMediaController;
+use App\Http\Controllers\TenantSetupController;
 use App\Http\Controllers\WebsiteController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -105,6 +106,11 @@ Volt::route('dashboard', 'dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('setup', [TenantSetupController::class, 'show'])->name('tenant-setup.show');
+    Route::patch('setup/foundation', [TenantSetupController::class, 'foundation'])->name('tenant-setup.foundation');
+    Route::patch('setup/modules/{module}', [TenantSetupController::class, 'module'])->name('tenant-setup.module');
+    Route::post('setup/finish', [TenantSetupController::class, 'finish'])->name('tenant-setup.finish');
+
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
     Route::redirect('reports/student-quran-tests', '/reports/student-activity-summary')

@@ -1,0 +1,46 @@
+<?php
+
+return [
+    'eyebrow' => 'Tenant setup',
+    'title' => 'Prepare your workspace',
+    'description' => 'Confirm the organisation basics, then review only the modules enabled for this tenant. Your progress is saved per module.',
+    'required' => 'Required first step',
+    'ready' => 'Ready',
+    'needs_setup' => 'Needs setup',
+    'saved' => 'Setup progress saved.',
+    'complete' => 'Setup complete. Welcome to your dashboard.',
+    'open_dashboard' => 'Open dashboard',
+    'skip_remaining' => 'Skip optional steps and continue',
+    'foundation' => [
+        'title' => 'Organisation basics',
+        'description' => 'These values are shared with the normal organisation settings page.',
+        'name' => 'Mosque or centre name',
+        'language' => 'Default language',
+        'timezone' => 'Timezone',
+        'save' => 'Save and continue',
+    ],
+    'modules' => [
+        'title' => 'Enabled module setup',
+        'description' => 'Optional steps can be skipped now and configured later from Settings.',
+        'updated' => 'This module has new setup options to review.',
+        'open_settings' => 'Open settings',
+        'mark_ready' => 'Mark ready',
+        'skip' => 'Skip for now',
+        'names' => [
+            'students' => 'Students', 'parents' => 'Parents', 'parent_portal' => 'Parent Portal',
+            'teachers' => 'Teachers', 'classes' => 'Classes and Enrolment',
+            'student_attendance' => 'Student Attendance', 'teacher_attendance' => 'Teacher Attendance',
+            'memorization' => 'Memorisation', 'quran_tests' => 'Quran Tests',
+            'assessments' => 'General Assessments', 'points_rewards' => 'Points and Rewards',
+            'activities' => 'Activities', 'finance' => 'Income and Expenses',
+            'student_billing' => 'Student Billing', 'curriculum' => 'Curriculum Management',
+            'custom_templates' => 'Custom Templates', 'id_cards' => 'ID Cards',
+            'public_website' => 'Public Website',
+        ],
+    ],
+    'status' => [
+        'ready' => 'Ready',
+        'skipped' => 'Skipped',
+        'not_started' => 'Not started',
+    ],
+];

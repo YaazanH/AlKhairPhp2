@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureTenantModules;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
+use App\Http\Middleware\RedirectToTenantSetup;
 use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
@@ -44,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             DiscardInvalidRememberCookie::class,
             EnsureTenantModules::class,
+            RedirectToTenantSetup::class,
             SetLocale::class,
             MeasurePerformance::class,
         ]);

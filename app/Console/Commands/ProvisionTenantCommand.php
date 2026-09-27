@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Plan;
+use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\TenantProvisioningAttempt;
@@ -11,6 +11,7 @@ use App\Models\Landlord\TenantSubscription;
 use App\Models\TenantPlatformAdministratorLink;
 use App\Models\User;
 use App\Services\Landlord\TenantDatabaseName;
+use App\Services\Landlord\TenantSetupManager;
 use App\Services\Landlord\TenantStorage;
 use Database\Seeders\MasterDataSeeder;
 use Database\Seeders\QuranJuzSeeder;
@@ -24,6 +25,7 @@ use Illuminate\Support\Str;
 class ProvisionTenantCommand extends Command
 {
     protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--plan=core}';
+
     protected $description = 'Create a new isolated tenant database, users, seed data, and storage.';
 
     public function handle(TenantDatabaseName $databaseNames, TenantStorage $storage): int
@@ -67,9 +69,14 @@ class ProvisionTenantCommand extends Command
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
             Artisan::call('migrate', ['--database' => 'tenant', '--force' => true]);
-            foreach ([RoleSeeder::class, MasterDataSeeder::class, QuranJuzSeeder::class, WebsiteSeeder::class] as $seeder) app($seeder)->run();
-            $owner = User::query()->create(['name' => $ownerName, 'email' => $this->argument('owner-email'), 'password' => $ownerPassword, 'is_active' => true]); $owner->assignRole('admin');
-            $support = User::query()->create(['name' => $platform->name, 'email' => $platform->email, 'username' => 'platform-admin', 'password' => $platform->password, 'is_active' => true]); $support->assignRole('super_admin');
+            foreach ([RoleSeeder::class, MasterDataSeeder::class, QuranJuzSeeder::class, WebsiteSeeder::class] as $seeder) {
+                app($seeder)->run();
+            }
+            app(TenantSetupManager::class)->initialiseNewTenant();
+            $owner = User::query()->create(['name' => $ownerName, 'email' => $this->argument('owner-email'), 'password' => $ownerPassword, 'is_active' => true]);
+            $owner->assignRole('admin');
+            $support = User::query()->create(['name' => $platform->name, 'email' => $platform->email, 'username' => 'platform-admin', 'password' => $platform->password, 'is_active' => true]);
+            $support->assignRole('super_admin');
             TenantPlatformAdministratorLink::query()->create(['user_id' => $support->id, 'platform_administrator_uuid' => $platform->uuid]);
             $storage->initialise($tenant);
             $tenant->update(['database_name' => $database, 'status' => Tenant::STATUS_ACTIVE]);
@@ -80,7 +87,9 @@ class ProvisionTenantCommand extends Command
             ]);
             TenantSubscription::query()->create(['tenant_id' => $tenant->id, 'plan_id' => $plan->id, 'status' => TenantSubscription::STATUS_ACTIVE, 'starts_at' => now(), 'changed_by_platform_administrator_id' => $platform->id]);
             $attempt->update(['status' => Tenant::STATUS_ACTIVE, 'finished_at' => now()]);
-            $this->info("Tenant {$tenant->slug} is active: {$database}"); return self::SUCCESS;
+            $this->info("Tenant {$tenant->slug} is active: {$database}");
+
+            return self::SUCCESS;
         } catch (\Throwable $e) {
             $tenant->update(['status' => Tenant::STATUS_PROVISIONING_FAILED]);
             $attempt->update([

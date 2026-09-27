@@ -6,6 +6,8 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Services\InvoiceOwnershipService;
 use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
+use App\Services\Landlord\TenantSetupManager;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,7 @@ class EnsureTenantModules
 
         if ($authenticatedRoute && $request->user() && ! $request->is('logout', 'api/v1/auth/token')) {
             abort_unless($access->portalAccountAllowed($request->user()), 403, 'module_disabled: parent_portal');
+            $this->ensureRequiredSetup($request);
         }
 
         foreach ($this->requiredModules($request) as $module) {
@@ -36,6 +39,26 @@ class EnsureTenantModules
         }
 
         return $response;
+    }
+
+    private function ensureRequiredSetup(Request $request): void
+    {
+        $context = app(TenantContext::class);
+        if (! $context->hasTenant() || $request->routeIs('tenant-setup.*') || $request->is('api/v1/capabilities')) {
+            return;
+        }
+
+        $required = app(TenantSetupManager::class)->summary($context->tenant())['required'];
+        if (! $required) {
+            return;
+        }
+
+        $user = $request->user();
+        if (! $request->expectsJson() && ($user->isPlatformAdministrator() || $user->can('settings.manage'))) {
+            return;
+        }
+
+        abort(409, 'setup_required: '.implode(',', array_column($required, 'code')));
     }
 
     /** @return array<int, string> */
