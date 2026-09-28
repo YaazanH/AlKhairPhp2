@@ -14,6 +14,7 @@ use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
+use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\StudentPageAchievement;
@@ -23,10 +24,12 @@ use App\Models\TeacherAttendanceRecord;
 use App\Services\AccessScopeService;
 use App\Services\AssessmentService;
 use App\Services\BarcodeActions\BarcodeActionCatalogService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\MemorizationService;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
 use App\Services\StudentAttendanceDayService;
+use App\Services\TeachingAssignmentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -135,25 +138,39 @@ class OperationalWriteController extends Controller
     {
         $this->authorizePermission($request, 'attendance.student.take');
 
+        $classesEnabled = app(CurrentModuleAccess::class)->enabled('classes');
+        $request->merge(['scope' => $request->input('scope', $classesEnabled ? 'groups' : 'center')]);
+
         $validated = $request->validate([
             'attendance_date' => ['required', 'date'],
-            'group_id' => ['required', 'integer', Rule::exists('groups', 'id')->whereNull('deleted_at')],
+            'default_attendance_status_id' => ['nullable', 'integer', Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both']))],
+            'group_id' => [$classesEnabled ? 'required_if:scope,groups' : 'prohibited', 'nullable', 'integer', Rule::exists('groups', 'id')->whereNull('deleted_at')],
+            'scope' => ['required', Rule::in($classesEnabled ? ['center', 'groups'] : ['center'])],
         ]);
 
-        $group = Group::query()->findOrFail($validated['group_id']);
-        $this->authorizeTeacherGroupScope($request, $group);
-
-        $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
-            $validated['attendance_date'],
-            collect([$group]),
-            $request->user(),
-        );
+        if ($validated['scope'] === 'center') {
+            $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncCenterDay(
+                $validated['attendance_date'],
+                $request->user(),
+                defaultAttendanceStatusId: $validated['default_attendance_status_id'] ?? null,
+            );
+        } else {
+            $group = Group::query()->findOrFail($validated['group_id']);
+            $this->authorizeTeacherGroupScope($request, $group);
+            $studentAttendanceDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+                $validated['attendance_date'],
+                collect([$group]),
+                $request->user(),
+                defaultAttendanceStatusId: $validated['default_attendance_status_id'] ?? null,
+            );
+        }
 
         $this->authorizeScopedStudentAttendanceDayAccess($request, $studentAttendanceDay);
 
         return response()->json([
             'id' => $studentAttendanceDay->id,
             'attendance_date' => $studentAttendanceDay->attendance_date?->format('Y-m-d'),
+            'scope' => $studentAttendanceDay->scope,
             'status' => $studentAttendanceDay->status,
         ]);
     }
@@ -167,9 +184,12 @@ class OperationalWriteController extends Controller
     {
         $this->authorizePermission($request, 'attendance.student.take');
 
+        $classesEnabled = app(CurrentModuleAccess::class)->enabled('classes');
+        $request->merge(['scope' => $request->input('scope', $classesEnabled ? 'groups' : 'center')]);
         $validated = $request->validate([
             'attendance_status_id' => ['required', 'integer', Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both']))],
             'scan_value' => ['required', 'string'],
+            'scope' => ['required', Rule::in($classesEnabled ? ['center', 'groups'] : ['center'])],
         ]);
 
         $studentNumber = app(BarcodeActionCatalogService::class)->studentNumberFromBarcode($validated['scan_value']);
@@ -178,6 +198,35 @@ class OperationalWriteController extends Controller
             return response()->json([
                 'message' => __('workflow.student_attendance.quick.errors.unknown_scan'),
             ], 422);
+        }
+
+        $status = AttendanceStatus::query()
+            ->whereKey((int) $validated['attendance_status_id'])
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->firstOrFail();
+
+        if ($validated['scope'] === 'center') {
+            $student = Student::query()
+                ->where('status', 'active')
+                ->where(fn (Builder $query) => $query->where('student_number', $studentNumber)->orWhere('id', (int) $studentNumber))
+                ->first();
+            if (! $student) {
+                return response()->json(['message' => __('workflow.student_attendance.quick.errors.student_not_in_day')], 422);
+            }
+            $day = app(StudentAttendanceDayService::class)->createOrSyncCenterDay(now()->toDateString(), $request->user());
+            $record = app(StudentAttendanceDayService::class)->recordStudentStatus($day, $student, $status);
+
+            return response()->json([
+                'attendance_status_id' => $record->attendance_status_id,
+                'attendance_status_name' => $status->name,
+                'enrollment_id' => null,
+                'student_id' => $student->id,
+                'student_name' => $student->full_name,
+                'group_id' => null,
+                'group_name' => null,
+                'scope' => 'center',
+            ]);
         }
 
         $accessScope = app(AccessScopeService::class);
@@ -207,12 +256,6 @@ class OperationalWriteController extends Controller
 
         $enrollment = $enrollments->first();
         $this->authorizeTeacherEnrollmentScope($request, $enrollment);
-
-        $status = AttendanceStatus::query()
-            ->whereKey((int) $validated['attendance_status_id'])
-            ->where('is_active', true)
-            ->whereIn('scope', ['student', 'both'])
-            ->firstOrFail();
 
         $attendanceDate = now()->toDateString();
 
@@ -274,6 +317,32 @@ class OperationalWriteController extends Controller
             ], 422);
         }
 
+        $status = AttendanceStatus::query()
+            ->whereKey((int) $validated['attendance_status_id'])
+            ->where('is_active', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->firstOrFail();
+
+        if ($studentAttendanceDay->scope === 'center') {
+            $student = Student::query()
+                ->where('status', 'active')
+                ->where(fn (Builder $query) => $query->where('student_number', $studentNumber)->orWhere('id', (int) $studentNumber))
+                ->first();
+            if (! $student) {
+                return response()->json(['message' => __('workflow.student_attendance.quick.errors.student_not_in_day')], 422);
+            }
+            $record = app(StudentAttendanceDayService::class)->recordStudentStatus($studentAttendanceDay, $student, $status);
+
+            return response()->json([
+                'attendance_status_id' => $record->attendance_status_id,
+                'attendance_status_name' => $status->name,
+                'enrollment_id' => null,
+                'student_id' => $student->id,
+                'student_name' => $student->full_name,
+                'scope' => 'center',
+            ]);
+        }
+
         $groupIds = $studentAttendanceDay->groupAttendanceDays()->pluck('group_id');
         $enrollments = Enrollment::query()
             ->with(['student', 'group'])
@@ -298,12 +367,6 @@ class OperationalWriteController extends Controller
 
         $enrollment = $enrollments->first();
         $this->authorizeTeacherEnrollmentScope($request, $enrollment);
-
-        $status = AttendanceStatus::query()
-            ->whereKey((int) $validated['attendance_status_id'])
-            ->where('is_active', true)
-            ->whereIn('scope', ['student', 'both'])
-            ->firstOrFail();
 
         try {
             $record = app(StudentAttendanceDayService::class)->recordEnrollmentStatus($studentAttendanceDay, $enrollment, $status);
@@ -392,6 +455,7 @@ class OperationalWriteController extends Controller
     {
         $this->authorizePermission($request, 'memorization.record');
         $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+        app(TeachingAssignmentService::class)->ensureAssigned($enrollment->group);
 
         $validated = $request->validate([
             'entry_type' => ['required', Rule::in(['new', 'review'])],
@@ -500,6 +564,7 @@ class OperationalWriteController extends Controller
             ->currentActiveForStudent((int) $enrollment->student_id)
             ->firstOrFail();
         $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+        app(TeachingAssignmentService::class)->ensureAssigned($enrollment->group);
 
         $progression = app(QuranProgressionService::class)->validate($enrollment, (int) $validated['juz_id'], $testType);
         $score = $validated['score'] ?? null;
@@ -591,6 +656,61 @@ class OperationalWriteController extends Controller
     }
 
     /**
+     * Record an enrollment-independent manual point transaction for a registered student.
+     */
+    public function storeStudentManualPoint(Request $request, Student $student)
+    {
+        $this->authorizePermission($request, 'points.create-manual');
+        abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
+
+        $request->merge([
+            'idempotency_key' => $request->header('Idempotency-Key', $request->input('idempotency_key')),
+        ]);
+        $validated = $request->validate([
+            'idempotency_key' => ['required', 'string', 'max:100'],
+            'notes' => ['required', 'string', 'max:500'],
+            'point_type_id' => ['required', 'integer', Rule::exists('point_types', 'id')->where('is_active', true)],
+            'points' => ['required', 'integer', 'not_in:0'],
+        ]);
+
+        $pointType = PointType::query()->findOrFail($validated['point_type_id']);
+        if (! $pointType->allow_manual_entry) {
+            return response()->json(['message' => 'This point type cannot be entered manually.'], 422);
+        }
+        if (! $pointType->allow_negative && (int) $validated['points'] < 0) {
+            return response()->json(['message' => 'This point type does not allow negative values.'], 422);
+        }
+
+        $existing = PointTransaction::query()->where('idempotency_key', $validated['idempotency_key'])->first();
+        if ($existing) {
+            if (
+                $existing->student_id !== $student->id
+                || $existing->point_type_id !== $pointType->id
+                || $existing->points !== (int) $validated['points']
+                || $existing->notes !== trim($validated['notes'])
+                || $existing->source_type !== 'manual'
+            ) {
+                return response()->json(['message' => 'The idempotency key was already used for a different point transaction.'], 409);
+            }
+
+            return response()->json($this->pointTransactionPayload($existing->load('pointType')));
+        }
+
+        $transaction = app(PointLedgerService::class)->recordManualStudentPoints(
+            $student,
+            $pointType,
+            (int) $validated['points'],
+            trim($validated['notes']),
+            $request->user()->id,
+            $validated['idempotency_key'],
+        );
+
+        abort_unless($transaction, 422, 'Unable to record this point transaction.');
+
+        return response()->json($this->pointTransactionPayload($transaction->fresh(['pointType'])), 201);
+    }
+
+    /**
      * Void one point transaction while preserving its history.
      */
     public function voidPoint(Request $request, PointTransaction $pointTransaction)
@@ -598,9 +718,12 @@ class OperationalWriteController extends Controller
         $this->authorizePermission($request, 'points.void');
 
         $enrollment = $pointTransaction->enrollment()->with('group', 'student')->first();
-        abort_unless($enrollment, 404);
-
-        $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+        if ($enrollment) {
+            $this->authorizeTeacherEnrollmentScope($request, $enrollment);
+        } else {
+            $student = $pointTransaction->student()->firstOrFail();
+            abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
+        }
 
         if (! $pointTransaction->voided_at) {
             $pointTransaction->update([
@@ -609,7 +732,9 @@ class OperationalWriteController extends Controller
                 'voided_by' => $request->user()->id,
             ]);
 
-            app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+            if ($enrollment) {
+                app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+            }
         }
 
         return response()->json($this->pointTransactionPayload($pointTransaction->fresh(['pointType', 'voidedBy'])));
@@ -623,6 +748,7 @@ class OperationalWriteController extends Controller
         $this->authorizePermission($request, 'assessment-results.record');
         $this->authorizePermission($request, 'assessment-results.record-scores');
         $this->authorizeTeacherAssessmentScope($request, $assessment);
+        app(TeachingAssignmentService::class)->ensureAssigned($assessment->group);
 
         $maxMark = $assessment->total_mark !== null ? (float) $assessment->total_mark : 100;
 
@@ -649,7 +775,7 @@ class OperationalWriteController extends Controller
             ], 422);
         }
 
-        $teacherId = $request->user()?->teacherProfile?->id ?: $assessment->group?->teacher_id;
+        $teacherId = app(TeachingAssignmentService::class)->attributedTeacherId($assessment->group, $request->user());
         $service = app(AssessmentService::class);
         $savedIds = [];
 
@@ -766,6 +892,7 @@ class OperationalWriteController extends Controller
             'entered_at' => $transaction->entered_at?->toIso8601String(),
             'enrollment_id' => $transaction->enrollment_id,
             'id' => $transaction->id,
+            'idempotency_key' => $transaction->idempotency_key,
             'notes' => $transaction->notes,
             'point_type_id' => $transaction->point_type_id,
             'point_type_name' => $transaction->pointType?->name,

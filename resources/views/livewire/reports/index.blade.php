@@ -6,6 +6,7 @@ use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Group;
 use App\Services\ReportingService;
+use App\Services\Landlord\CurrentModuleAccess;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -17,11 +18,15 @@ new class extends Component {
     public mixed $group_id = null;
     public string $date_from = '';
     public string $date_to = '';
+    public bool $classesEnabled = true;
+    public bool $studentAttendanceEnabled = true;
 
     public function mount(): void
     {
         $this->authorizePermission('reports.view');
-        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $this->classesEnabled = app(CurrentModuleAccess::class)->enabled('classes');
+        $this->studentAttendanceEnabled = app(CurrentModuleAccess::class)->enabled('student_attendance');
+        $this->course_id = $this->classesEnabled ? Course::query()->where('is_default', true)->where('is_active', true)->value('id') : null;
     }
 
     public function updatedCourseId(): void
@@ -44,7 +49,7 @@ new class extends Component {
 
     public function clearFilters(): void
     {
-        $this->course_id = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $this->course_id = $this->classesEnabled ? Course::query()->where('is_default', true)->where('is_active', true)->value('id') : null;
         $this->assessment_type_id = null;
         $this->group_id = null;
         $this->date_from = '';
@@ -56,16 +61,16 @@ new class extends Component {
         $this->normalizeFilters();
 
         return [
-            'courses' => Course::query()->visibleInReportFilters()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']),
+            'courses' => $this->classesEnabled ? Course::query()->visibleInReportFilters()->orderByDesc('is_active')->orderByDesc('is_default')->orderByDesc('starts_on')->orderBy('name')->get(['id', 'name']) : collect(),
             'assessmentTypes' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'groups' => $this->scopeGroupsQuery(
+            'groups' => $this->classesEnabled ? $this->scopeGroupsQuery(
                 Group::query()
                     ->with(['course', 'academicYear'])
                     ->visibleInReportFilters()
                     ->when($this->course_id, fn ($query) => $query->where('course_id', $this->course_id))
                     ->orderByDesc('is_active')
                     ->orderBy('name')
-            )->get(),
+            )->get() : collect(),
             'report' => app(ReportingService::class)->overview($this->filters()),
         ];
     }
@@ -109,11 +114,11 @@ new class extends Component {
 }; ?>
 
 @php
-    $headlineCards = [
-        ['label' => __('reports.headline.active_enrollments.label'), 'value' => number_format($report['headline']['active_enrollments'])],
+    $headlineCards = array_values(array_filter([
+        $classesEnabled ? ['label' => __('reports.headline.active_enrollments.label'), 'value' => number_format($report['headline']['active_enrollments'])] : null,
         ['label' => __('reports.headline.memorized_pages.label'), 'value' => number_format($report['headline']['memorized_pages'])],
         ['label' => __('reports.headline.net_points.label'), 'value' => number_format($report['headline']['net_points'])],
-    ];
+    ]));
 @endphp
 
 <div class="page-stack">
@@ -134,12 +139,12 @@ new class extends Component {
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
         <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6 xl:col-span-3">
             <div class="date-control-peer-group report-filter-grid grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
-                <div class="admin-filter-field min-w-0">
+                @if($classesEnabled)<div class="admin-filter-field min-w-0">
                     <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
                 </div>
                 <div class="admin-filter-field min-w-0">
                     <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select>
-                </div>
+                </div>@endif
                 <div class="admin-filter-field min-w-0">
                     <input wire:model.live="date_from" type="date" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="date-control--match-select">
                 </div>
@@ -162,7 +167,7 @@ new class extends Component {
     </div>
 
     <div class="grid gap-6 xl:grid-cols-2">
-        <section class="surface-panel p-5 lg:p-6">
+        @if($studentAttendanceEnabled)<section class="surface-panel p-5 lg:p-6">
             <div class="mb-4 flex items-center justify-between gap-4">
                 <h2 class="font-display text-2xl text-white">{{ __('reports.attendance.eyebrow') }}</h2>
                 <div class="report-attendance-average flex h-12 w-fit shrink-0 items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/4 px-4 text-center">
@@ -179,7 +184,7 @@ new class extends Component {
                     </div>
                 @endforeach
             </div>
-        </section>
+        </section>@endif
 
         <section class="surface-panel p-5 lg:p-6">
             <div class="mb-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_16rem] sm:items-center">

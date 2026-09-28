@@ -52,7 +52,7 @@
                 <div class="admin-empty-state">
                     <div class="text-base font-semibold text-white">{{ $emptyStateTitle }}</div>
                     <p class="mt-2 text-sm leading-7 text-neutral-300">{{ $emptyStateDescription }}</p>
-                    @can('id-cards.templates.manage')
+                    @can('print-templates.manage')
                         <div class="mt-4">
                             <x-add-action-button :href="$emptyStateCreateUrl" :label="__('print_templates.templates.actions.create')" />
                         </div>

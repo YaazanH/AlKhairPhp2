@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthTokenController;
+use App\Http\Controllers\Api\V1\CapabilitiesController;
 use App\Http\Controllers\Api\V1\FinanceWriteController;
 use App\Http\Controllers\Api\V1\OperationalWriteController;
 use App\Http\Controllers\Api\V1\ParentMobileController;
@@ -22,6 +23,7 @@ Route::get('/user', function (Request $request) {
 Route::post('/v1/auth/token', [AuthTokenController::class, 'store']);
 
 Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
+    Route::get('capabilities', CapabilitiesController::class);
     Route::delete('auth/token', [AuthTokenController::class, 'destroy']);
     Route::get('reports/overview', ReportOverviewController::class);
     Route::get('reports/teachers/daily-summary', TeacherDailySummaryController::class);
@@ -71,6 +73,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::post('enrollments/{enrollment}/memorization', 'storeMemorization');
         Route::post('enrollments/{enrollment}/quran-tests', 'storeQuranTest');
         Route::post('enrollments/{enrollment}/points/manual', 'storeManualPoint');
+        Route::post('students/{student}/points/manual', 'storeStudentManualPoint');
         Route::post('points/{pointTransaction}/void', 'voidPoint');
         Route::post('assessments/{assessment}/results', 'storeAssessmentResults');
     });
@@ -84,6 +87,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
         Route::match(['put', 'patch'], 'activities/{activity}/expenses/{activityExpense}', 'updateActivityExpense');
         Route::delete('activities/{activity}/expenses/{activityExpense}', 'destroyActivityExpense');
 
+        Route::post('invoices', 'storeStudentInvoice');
         Route::post('invoices/{invoice}/items', 'storeInvoiceItem');
         Route::match(['put', 'patch'], 'invoices/{invoice}/items/{invoiceItem}', 'updateInvoiceItem');
         Route::delete('invoices/{invoice}/items/{invoiceItem}', 'destroyInvoiceItem');

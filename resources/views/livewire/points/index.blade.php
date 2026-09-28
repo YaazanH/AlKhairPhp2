@@ -21,6 +21,7 @@ new class extends Component {
     public ?int $selectedStudentId = null;
     public ?int $selectedEnrollmentId = null;
     public ?int $manual_point_type_id = null;
+    public string $manual_notes = '';
     public string $search = '';
     public string $stateFilter = 'active';
     public string $sortField = 'entered_at';
@@ -79,9 +80,7 @@ new class extends Component {
         $studentOptions = $this->scopeStudentsQuery(
             Student::query()
                 ->with('parentProfile')
-                ->whereHas('enrollments', function (Builder $query) {
-                    $this->scopeEnrollmentsQuery($query)->where('status', 'active');
-                })
+                ->where('status', 'active')
         )
             ->orderBy('first_name')
             ->orderBy('last_name')
@@ -91,11 +90,6 @@ new class extends Component {
             'transactions' => $transactionsQuery->paginate($this->perPage),
             'filteredCount' => (clone $transactionsQuery)->count(),
             'studentOptions' => $studentOptions,
-            'enrollmentOptions' => $this->availableEnrollmentsQuery()
-                ->with(['group.course'])
-                ->orderByDesc('enrolled_at')
-                ->orderByDesc('id')
-                ->get(),
             'manualPointTypes' => PointType::query()
                 ->where('is_active', true)
                 ->where('allow_manual_entry', true)
@@ -134,12 +128,7 @@ new class extends Component {
 
     public function updatedSelectedStudentId(): void
     {
-        $enrollmentIds = $this->availableEnrollmentsQuery()
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $this->selectedEnrollmentId = $enrollmentIds[0] ?? null;
+        $this->selectedEnrollmentId = null;
 
         if ($this->editingTransactionId) {
             $this->editingTransactionId = null;
@@ -183,6 +172,7 @@ new class extends Component {
         $this->selectedStudentId = $transaction->student_id;
         $this->selectedEnrollmentId = $transaction->enrollment_id;
         $this->manual_point_type_id = $transaction->point_type_id;
+        $this->manual_notes = (string) $transaction->notes;
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -196,6 +186,7 @@ new class extends Component {
             'selectedStudentId' => ['required', 'exists:students,id'],
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
             'manual_point_type_id' => ['required', 'exists:point_types,id'],
+            'manual_notes' => ['required', 'string', 'max:500'],
         ], [], [
             'selectedStudentId' => __('workflow.points.workbench.form.student'),
             'selectedEnrollmentId' => __('workflow.points.workbench.form.group'),
@@ -226,49 +217,43 @@ new class extends Component {
                 return;
             }
 
-            $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with(['student', 'group.course']))
-                ->findOrFail($transaction->enrollment_id);
+            $enrollment = null;
+            if ($transaction->enrollment_id) {
+                $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with(['student', 'group.course']))
+                    ->findOrFail($transaction->enrollment_id);
 
-            if (! app(PointLedgerService::class)->enrollmentAwardsPoints($enrollment)) {
-                $this->addError('manual_point_type_id', __('workflow.points.errors.course_points_disabled'));
+                if (! app(PointLedgerService::class)->enrollmentAwardsPoints($enrollment)) {
+                    $this->addError('manual_point_type_id', __('workflow.points.errors.course_points_disabled'));
 
-                return;
+                    return;
+                }
             }
 
             $transaction->update([
                 'point_type_id' => $pointType->id,
                 'points' => $points,
-                'notes' => null,
+                'notes' => trim($validated['manual_notes']),
             ]);
         } else {
             $student = $this->scopeStudentsQuery(Student::query())->findOrFail($validated['selectedStudentId']);
             $this->authorizeScopedStudentAccess($student);
 
-            $availableEnrollmentIds = $this->availableEnrollmentsQuery()
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-
-            if ($availableEnrollmentIds === []) {
-                $this->addError('selectedStudentId', __('workflow.points.errors.no_active_enrollment'));
-
-                return;
-            }
-
-            $validated['selectedEnrollmentId'] = $availableEnrollmentIds[0];
-            $this->selectedEnrollmentId = $validated['selectedEnrollmentId'];
-
-            $enrollment = $this->scopeEnrollmentsQuery(Enrollment::query()->with(['student', 'group.course']))
-                ->findOrFail((int) $validated['selectedEnrollmentId']);
-
-            if (! app(PointLedgerService::class)->recordManualPoints($enrollment, $pointType, $points)) {
-                $this->addError('manual_point_type_id', __('workflow.points.errors.course_points_disabled'));
+            $enrollment = null;
+            if (! app(PointLedgerService::class)->recordManualStudentPoints(
+                $student,
+                $pointType,
+                $points,
+                trim($validated['manual_notes']),
+            )) {
+                $this->addError('manual_point_type_id', __('workflow.points.errors.invalid_manual_point_type'));
 
                 return;
             }
         }
 
-        app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+        if ($enrollment) {
+            app(PointLedgerService::class)->syncEnrollmentCaches($enrollment->fresh(['student']));
+        }
 
         session()->flash(
             'status',
@@ -296,6 +281,7 @@ new class extends Component {
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->manual_point_type_id = $preservedPointTypeId;
+        $this->manual_notes = '';
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -386,6 +372,7 @@ new class extends Component {
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->manual_point_type_id = null;
+        $this->manual_notes = '';
         $this->resetValidation();
     }
 
@@ -735,6 +722,14 @@ new class extends Component {
                         @endforeach
                     </select>
                     @error('manual_point_type_id')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="points-workbench-notes" class="mb-1 block text-sm font-medium">{{ __('workflow.points.form.notes') }}</label>
+                    <textarea id="points-workbench-notes" wire:model="manual_notes" rows="3" required class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                    @error('manual_notes')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

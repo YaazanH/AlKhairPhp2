@@ -62,7 +62,7 @@ new class extends Component {
     public function openAttemptModal(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         if ($this->finalTest->status === 'passed') {
             $this->addError('attempt', __('workflow.quran_final_tests.errors.already_passed'));
@@ -97,7 +97,7 @@ new class extends Component {
         }
 
         if (! $this->editingAttemptId) {
-            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
         }
 
         $validated = $this->validate([

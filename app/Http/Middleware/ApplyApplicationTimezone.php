@@ -11,6 +11,10 @@ class ApplyApplicationTimezone
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->is('platform/*')) {
+            return $next($request);
+        }
+
         app(ApplicationTimezone::class)->applyConfigured();
 
         return $next($request);

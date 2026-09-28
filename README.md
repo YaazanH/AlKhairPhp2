@@ -87,6 +87,8 @@ Arabic and English catalogue keys, plus UK-English spelling, are protected by `t
 
 ## Documentation
 
+- [`docs/architecture/saas-multitenancy-sprint-0.md`](docs/architecture/saas-multitenancy-sprint-0.md) - SaaS tenancy decisions and Sprint 0 readiness baseline
+
 - [`docs/api.md`](docs/api.md) — complete API reference
 - [`docs/parent-mobile-api.md`](docs/parent-mobile-api.md) — parent mobile API guide
 - [`docs/architecture/blueprint.md`](docs/architecture/blueprint.md) — domain and data-model decisions

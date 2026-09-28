@@ -138,7 +138,7 @@ new class extends Component
     public function savePartial(): void
     {
         abort_unless(auth()->user()?->can('quran-partial-tests.record'), 403);
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         $validated = $this->validate([
             'partialStudentId' => ['required', 'integer'],
@@ -172,7 +172,7 @@ new class extends Component
     public function saveFinal(): void
     {
         abort_unless(auth()->user()?->can('quran-final-tests.record'), 403);
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
         $validated = $this->validate([
             'finalStudentId' => ['required', 'integer'],

@@ -7,6 +7,7 @@ use App\Models\FinanceRequest;
 use App\Models\PrintPageSize;
 use App\Models\PrintTemplate;
 use App\Services\IdCards\IdCardPrintLayoutService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Support\ExportFilename;
@@ -34,7 +35,9 @@ class FinanceRequestPrintController extends Controller
         $financeRequest->load(['activity', 'cashBox', 'category', 'invoice', 'pullRequestKind', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency']);
 
         $templates = PrintTemplate::query()
+            ->when(! app(CurrentModuleAccess::class)->enabled('custom_templates'), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('is_active', true)
+            ->where('is_system', false)
             ->where('is_student_card', false)
             ->orderBy('name')
             ->get()

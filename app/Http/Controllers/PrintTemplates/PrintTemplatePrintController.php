@@ -10,9 +10,11 @@ use App\Models\Group;
 use App\Models\PrintTemplate;
 use App\Models\StudentCardPrint;
 use App\Services\IdCards\IdCardPrintLayoutService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use App\Services\PrintTemplates\PrintTemplateFieldRegistry;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
+use App\Services\PrintTemplates\StandardStudentCardTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +29,7 @@ class PrintTemplatePrintController extends Controller
         protected PrintTemplateRenderService $renderService,
         protected PrintTemplateFieldRegistry $fieldRegistry,
         protected PrintTemplateDataSourceService $dataSourceService,
+        protected StandardStudentCardTemplate $standardStudentCard,
     ) {}
 
     public function create(): View|RedirectResponse
@@ -54,6 +57,8 @@ class PrintTemplatePrintController extends Controller
 
     public function createStudentCards(): View
     {
+        $this->standardStudentCard->get();
+
         return $this->buildSetupView(true);
     }
 
@@ -103,6 +108,7 @@ class PrintTemplatePrintController extends Controller
         $validated = $this->validateStudentCardPrintRequest($request);
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
+        $this->ensureTemplateAvailable($template);
         abort_unless($template->is_student_card && $this->hasStudentRepeatingSource($template), 404);
 
         $printedAt = Carbon::now();
@@ -139,6 +145,7 @@ class PrintTemplatePrintController extends Controller
         $validated = $this->validateStudentCardPrintRequest($request);
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
+        $this->ensureTemplateAvailable($template);
         abort_unless($template->is_student_card && $this->hasStudentRepeatingSource($template), 404);
 
         $studentIds = collect($validated['student_ids'])
@@ -280,6 +287,10 @@ class PrintTemplatePrintController extends Controller
 
     protected function buildSetupView(bool $studentCardMode, ?Course $reportCourse = null): View
     {
+        if ($studentCardMode) {
+            $this->standardStudentCard->get();
+        }
+
         $courseReportMode = ! $studentCardMode && $reportCourse !== null;
         $courseId = $reportCourse?->id
             ?: (request()->integer('course_id')
@@ -299,7 +310,8 @@ class PrintTemplatePrintController extends Controller
                         ->when($courseId && $entity === 'course_student', fn ($options) => $options->where('meta.course_id', $courseId))
                         ->when($studentCardMode && $entity === 'student', fn ($options) => $options
                             ->where('meta.status', 'active')
-                            ->filter(fn (array $option) => $courseStudentIds->contains((int) $option['id'])))
+                            ->when($courseId, fn ($studentOptions) => $studentOptions
+                                ->filter(fn (array $option) => $courseStudentIds->contains((int) $option['id']))))
                         ->when($studentCardMode && $courseId && in_array($entity, ['student', 'course_student'], true), function ($options) use ($courseId) {
                             $printedStudentIds = StudentCardPrint::query()->where('course_id', $courseId)->pluck('student_id')->map(fn ($id) => (int) $id);
 
@@ -318,6 +330,7 @@ class PrintTemplatePrintController extends Controller
         $templates = PrintTemplate::query()
             ->where('is_active', true)
             ->where('is_student_card', $studentCardMode)
+            ->when($studentCardMode && ! app(CurrentModuleAccess::class)->enabled('custom_templates'), fn ($query) => $query->where('is_system', true))
             ->when($courseReportMode, fn ($query) => $query->where('is_report_card', true))
             ->when(! $studentCardMode && ! $courseReportMode, fn ($query) => $query
                 ->where('is_report_card', false)
@@ -333,7 +346,7 @@ class PrintTemplatePrintController extends Controller
             'cancelUrl' => $courseReportMode
                 ? route('courses.end', $courseId)
                 : ($studentCardMode
-                    ? route('print-templates.templates.index')
+                    ? (app(CurrentModuleAccess::class)->enabled('custom_templates') ? route('print-templates.templates.index') : route('dashboard'))
                     : ($selectedTemplate ? route('print-templates.templates.edit', $selectedTemplate) : route('print-templates.templates.index'))),
             'defaults' => $selectedTemplate?->printLayoutConfig() ?? $this->printLayoutService->defaults(),
             'emptyStateCreateUrl' => route('print-templates.templates.create', $courseReportMode
@@ -399,6 +412,7 @@ class PrintTemplatePrintController extends Controller
         }
 
         $template = PrintTemplate::query()->findOrFail($validated['template_id']);
+        $this->ensureTemplateAvailable($template);
         $validated = array_replace($validated, $template->printLayoutConfig());
         $sources = $this->dataSourceService->normalize($template->data_sources ?? []);
         $courseReportMode = ! $studentCardMode && $reportCourse !== null;
@@ -415,7 +429,8 @@ class PrintTemplatePrintController extends Controller
         if (collect($sources)->contains(fn (array $source) => in_array($source['entity'], ['finance_request', 'revenue'], true) && $source['mode'] === 'single')) {
             $this->authorizeFinanceRequestPrint($request, $sources);
         } else {
-            abort_unless($request->user()?->can('id-cards.print'), 403);
+            $permission = $studentCardMode ? 'id-cards.print' : 'print-templates.print';
+            abort_unless($request->user()?->can($permission), 403);
         }
 
         $contexts = $this->contextsFromRequest($request, $sources, (int) ($validated['copy_count'] ?? 1));
@@ -488,6 +503,11 @@ class PrintTemplatePrintController extends Controller
             'template' => $template,
             'totalItems' => $contexts->count(),
         ]);
+    }
+
+    protected function ensureTemplateAvailable(PrintTemplate $template): void
+    {
+        abort_if(! $template->is_system && ! app(CurrentModuleAccess::class)->enabled('custom_templates'), 404);
     }
 
     protected function hasStudentRepeatingSource(PrintTemplate $template): bool

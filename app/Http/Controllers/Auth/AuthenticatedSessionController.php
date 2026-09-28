@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\SuperAdminRecoveryPassword;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Auth\Events\Lockout;
@@ -62,6 +63,7 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
+        abort_unless(app(CurrentModuleAccess::class)->portalAccountAllowed($user), 403, 'module_disabled: parent_portal');
         Auth::login($user, (bool) ($validated['remember'] ?? false));
         $user->forceFill(['last_login_at' => now()])->saveQuietly();
 

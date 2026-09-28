@@ -12,14 +12,78 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\Student;
+use App\Services\AccessScopeService;
 use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
+use App\Services\InvoiceOwnershipService;
+use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class FinanceWriteController extends Controller
 {
+    /**
+     * Create a student-owned invoice and its first item.
+     */
+    public function storeStudentInvoice(Request $request)
+    {
+        $this->authorizePermission($request, 'invoices.create');
+        $validated = $request->validate([
+            'description' => ['required', 'string', 'max:255'],
+            'discount' => ['nullable', 'numeric', 'min:0'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
+            'issue_date' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:4000'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'student_id' => ['required', 'integer', Rule::exists('students', 'id')->whereNull('deleted_at')],
+            'unit_price' => ['required', 'numeric', 'min:0'],
+        ]);
+        $subtotal = round((float) $validated['quantity'] * (float) $validated['unit_price'], 2);
+        $discount = round((float) ($validated['discount'] ?? 0), 2);
+        abort_if($discount > $subtotal, 422, 'The discount cannot exceed the invoice subtotal.');
+        $student = Student::query()->findOrFail($validated['student_id']);
+        abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
+
+        $invoice = DB::transaction(function () use ($discount, $student, $validated): Invoice {
+            $invoice = Invoice::query()->create([
+                'discount' => $discount,
+                'due_date' => $validated['due_date'] ?? null,
+                'invoice_no' => app(FinanceService::class)->nextInvoiceNumber(),
+                'invoice_type' => 'student',
+                'invoicer_name' => $student->full_name,
+                'issue_date' => $validated['issue_date'],
+                'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
+                'parent_id' => $student->parent_id,
+                'status' => 'draft',
+                'student_id' => $student->id,
+            ]);
+            $invoice->items()->create([
+                'amount' => round((float) $validated['quantity'] * (float) $validated['unit_price'], 2),
+                'description' => $validated['description'],
+                'item_name' => $validated['description'],
+                'line_no' => 1,
+                'quantity' => $validated['quantity'],
+                'student_id' => $student->id,
+                'unit_price' => $validated['unit_price'],
+            ]);
+            app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
+
+            return $invoice->fresh(['student', 'items']);
+        });
+
+        return response()->json([
+            'id' => $invoice->id,
+            'invoice_no' => $invoice->invoice_no,
+            'student_id' => $invoice->student_id,
+            'student_name' => $invoice->student?->full_name,
+            'subtotal' => (float) $invoice->subtotal,
+            'discount' => (float) $invoice->discount,
+            'total' => (float) $invoice->total,
+            'status' => $invoice->status,
+        ], 201);
+    }
+
     /**
      * Create an activity registration.
      */
@@ -183,6 +247,7 @@ class FinanceWriteController extends Controller
      */
     public function storeInvoiceItem(Request $request, Invoice $invoice)
     {
+        $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'invoices.update');
 
         $item = InvoiceItem::query()->create($this->validatedInvoiceItemData($request, $invoice));
@@ -197,6 +262,7 @@ class FinanceWriteController extends Controller
      */
     public function updateInvoiceItem(Request $request, Invoice $invoice, InvoiceItem $invoiceItem)
     {
+        $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'invoices.update');
         abort_unless($invoiceItem->invoice_id === $invoice->id, 404);
 
@@ -212,6 +278,7 @@ class FinanceWriteController extends Controller
      */
     public function destroyInvoiceItem(Request $request, Invoice $invoice, InvoiceItem $invoiceItem)
     {
+        $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'invoices.update');
         abort_unless($invoiceItem->invoice_id === $invoice->id, 404);
 
@@ -226,6 +293,7 @@ class FinanceWriteController extends Controller
      */
     public function storeInvoicePayment(Request $request, Invoice $invoice)
     {
+        $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'payments.create');
 
         $validated = $request->validate([
@@ -257,6 +325,7 @@ class FinanceWriteController extends Controller
      */
     public function voidInvoicePayment(Request $request, Invoice $invoice, Payment $payment)
     {
+        $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'payments.void');
         abort_unless($payment->invoice_id === $invoice->id, 404);
 
@@ -408,6 +477,10 @@ class FinanceWriteController extends Controller
         $validated['activity_id'] = $activity->id;
         $validated['enrollment_id'] = $validated['enrollment_id'] ?? null;
         $validated['notes'] = blank($validated['notes'] ?? null) ? null : $validated['notes'];
+        if (! app(CurrentModuleAccess::class)->enabled('finance')) {
+            abort_if((float) $validated['fee_amount'] !== 0.0, 422, 'Paid activity registrations require the Finance module.');
+            $validated['fee_amount'] = 0;
+        }
 
         return $validated;
     }
@@ -422,6 +495,14 @@ class FinanceWriteController extends Controller
             'student_id' => ['nullable', 'integer', Rule::exists('students', 'id')->whereNull('deleted_at')],
             'unit_price' => ['required', 'numeric', 'min:0'],
         ]);
+
+        $validated['student_id'] = $validated['student_id'] ?? $invoice->student_id;
+
+        if (($validated['student_id'] ?? null) && (int) $validated['student_id'] !== (int) $invoice->student_id) {
+            abort(response()->json([
+                'message' => 'Every item must belong to the invoice student.',
+            ], 422));
+        }
 
         if ($validated['student_id'] ?? null) {
             $student = Student::query()->findOrFail($validated['student_id']);
@@ -455,8 +536,15 @@ class FinanceWriteController extends Controller
         $validated['amount'] = (float) $validated['quantity'] * (float) $validated['unit_price'];
         $validated['enrollment_id'] = $validated['enrollment_id'] ?? null;
         $validated['invoice_id'] = $invoice->id;
-        $validated['student_id'] = $validated['student_id'] ?? null;
+        $validated['student_id'] = $invoice->student_id;
 
         return $validated;
+    }
+
+    protected function ensureStudentBillingInvoice(Request $request, Invoice $invoice): void
+    {
+        abort_unless(app(InvoiceOwnershipService::class)->isStudentBilling($invoice), 404);
+        abort_unless($invoice->student_id, 422, 'This legacy invoice needs one student owner before it can be changed.');
+        abort_unless(app(AccessScopeService::class)->canAccessInvoice($request->user(), $invoice), 403);
     }
 }

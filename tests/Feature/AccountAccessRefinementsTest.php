@@ -174,6 +174,7 @@ class AccountAccessRefinementsTest extends TestCase
         $group->update(['teacher_id' => $otherTeacher->id, 'assistant_teacher_id' => $teacher->id]);
         Volt::test('teachers.index')->call('edit', $teacher->id)->assertDontSee('data-teacher-form-delete-action', false);
     }
+
     public function test_unknown_teacher_password_is_explained_and_is_preserved_until_replaced(): void
     {
         $user = User::factory()->create(['password' => 'UnknownExisting123!', 'issued_password' => null]);
@@ -197,5 +198,4 @@ class AccountAccessRefinementsTest extends TestCase
         Volt::test('users.index')->call('viewLinkedAccount', $user->id)
             ->assertSee('<bdi dir="ltr">'.e($user->fresh()->phone).'</bdi>', false);
     }
-
 }

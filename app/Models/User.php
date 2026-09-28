@@ -41,6 +41,9 @@ class User extends Authenticatable // implements MustVerifyEmail
         'profile_photo_path',
         'finance_signature_path',
         'is_active',
+        'is_tenant_administrator',
+        'must_change_password',
+        'password_changed_at',
     ];
 
     /**
@@ -64,6 +67,9 @@ class User extends Authenticatable // implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'is_active' => 'boolean',
+            'is_tenant_administrator' => 'boolean',
+            'must_change_password' => 'boolean',
+            'password_changed_at' => 'datetime',
             'issued_password' => 'encrypted',
             'password' => 'hashed',
         ];
@@ -277,6 +283,34 @@ class User extends Authenticatable // implements MustVerifyEmail
     public function teacherProfile(): HasOne
     {
         return $this->hasOne(Teacher::class);
+    }
+
+    public function platformAdministratorLink(): HasOne
+    {
+        return $this->hasOne(TenantPlatformAdministratorLink::class);
+    }
+
+    public function isPlatformAdministrator(): bool
+    {
+        return $this->platformAdministratorLink()->exists();
+    }
+
+    public function canManageTenantSetup(): bool
+    {
+        return $this->is_tenant_administrator || $this->isPlatformAdministrator();
+    }
+
+    public function completePasswordChange(string $password, ?string $rememberToken = null): void
+    {
+        $this->getConnection()->transaction(function () use ($password, $rememberToken): void {
+            $this->forceFill([
+                'password' => $password,
+                'issued_password' => null,
+                'must_change_password' => false,
+                'password_changed_at' => now(),
+                'remember_token' => $rememberToken,
+            ])->save();
+        });
     }
 
     public function voidedPointTransactions(): HasMany

@@ -38,7 +38,7 @@ new class extends Component {
 
     public function mount(): void
     {
-        $this->authorizePermission('invoices.view');
+        $this->authorizePermission('finance.expense-requests.view');
         $this->invoice_no = app(FinanceService::class)->nextInvoiceNumber();
         $this->issue_date = now()->toDateString();
         $this->finance_invoice_kind_id = app(FinanceService::class)->defaultInvoiceKindId();
@@ -48,6 +48,7 @@ new class extends Component {
     {
         $invoiceQuery = $this->scopeInvoicesQuery(
             Invoice::query()
+                ->where('invoice_type', 'finance')
                 ->with(['financeRequest', 'invoiceKind', 'parentProfile'])
                 ->withCount(['items'])
                 ->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
@@ -59,11 +60,11 @@ new class extends Component {
             'invoices' => $invoiceQuery->paginate($this->perPage),
             'invoiceKinds' => FinanceInvoiceKind::query()->where('is_active', true)->orderBy('name')->get(),
             'totals' => [
-                'all' => $this->scopeInvoicesQuery(Invoice::query())->count(),
-                'open' => $this->scopeInvoicesQuery(Invoice::query()->whereIn('status', ['issued', 'partial']))->count(),
-                'draft' => $this->scopeInvoicesQuery(Invoice::query()->where('status', 'draft'))->count(),
+                'all' => $this->scopeInvoicesQuery(Invoice::query()->where('invoice_type', 'finance'))->count(),
+                'open' => $this->scopeInvoicesQuery(Invoice::query()->where('invoice_type', 'finance')->whereIn('status', ['issued', 'partial']))->count(),
+                'draft' => $this->scopeInvoicesQuery(Invoice::query()->where('invoice_type', 'finance')->where('status', 'draft'))->count(),
                 'outstanding' => $this->scopeInvoicesQuery(
-                    Invoice::query()->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
+                    Invoice::query()->where('invoice_type', 'finance')->withSum(['payments as active_paid_total' => fn ($query) => $query->whereNull('voided_at')], 'amount')
                 )->get()
                     ->sum(fn (Invoice $invoice) => max((float) $invoice->total - (float) ($invoice->active_paid_total ?? 0), 0)),
             ],
@@ -88,7 +89,7 @@ new class extends Component {
 
     public function create(): void
     {
-        $this->authorizePermission('invoices.create');
+        $this->authorizePermission('finance.expense-requests.create');
 
         $this->cancel(closeForm: false);
         $this->invoice_no = app(FinanceService::class)->nextInvoiceNumber();
@@ -97,7 +98,7 @@ new class extends Component {
 
     public function save(): void
     {
-        $this->authorizePermission($this->editingId ? 'invoices.update' : 'invoices.create');
+        $this->authorizePermission($this->editingId ? 'finance.entries.update' : 'finance.expense-requests.create');
         $this->normalizeFinanceNumberProperty('discount');
         $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($this->original_invoice_no) ?? '';
 
@@ -149,9 +150,9 @@ new class extends Component {
 
     public function edit(int $invoiceId): void
     {
-        $this->authorizePermission('invoices.update');
+        $this->authorizePermission('finance.entries.update');
 
-        $invoice = Invoice::query()->findOrFail($invoiceId);
+        $invoice = Invoice::query()->where('invoice_type', 'finance')->findOrFail($invoiceId);
         $this->authorizeScopedInvoiceAccess($invoice);
 
         $this->editingId = $invoice->id;
@@ -197,9 +198,10 @@ new class extends Component {
 
     public function delete(int $invoiceId): void
     {
-        $this->authorizePermission('invoices.delete');
+        $this->authorizePermission('finance.entries.delete');
 
         $invoice = Invoice::query()
+            ->where('invoice_type', 'finance')
             ->withCount(['items', 'payments'])
             ->findOrFail($invoiceId);
         $this->authorizeScopedInvoiceAccess($invoice);

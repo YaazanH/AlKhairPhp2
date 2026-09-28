@@ -72,6 +72,7 @@ return [
         'activities' => 'الأنشطة',
         'family_activities' => 'أنشطة الأسرة',
         'invoices' => 'الفواتير',
+        'student_billing' => 'فواتير الطلاب',
         'finance_dashboard' => 'لوحة التحكم المالية',
         'finance_reports' => 'التقارير',
         'finance_pull_requests' => 'طلبات السحب',

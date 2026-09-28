@@ -33,7 +33,9 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Private files must only be delivered through controllers that
+            // perform tenant-aware authorization.
+            'serve' => false,
             'throw' => false,
         ],
 

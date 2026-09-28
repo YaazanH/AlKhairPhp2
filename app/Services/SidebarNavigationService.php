@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\AppSetting;
 use App\Models\Group;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
 
 class SidebarNavigationService
@@ -73,6 +75,7 @@ class SidebarNavigationService
             'finance_exchange' => $this->item('ui.nav.finance_exchange', 'arrows-right-left', 'finance.exchange.index', ['finance.exchange.*'], 'finance', 40, ['finance.exchange.view']),
             'finance_reports' => $this->item('ui.nav.finance_reports', 'document-chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 50, ['finance.reports.view']),
             'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
+            'student_billing' => $this->item('ui.nav.student_billing', 'receipt-percent', 'student-billing.index', ['student-billing.*'], 'finance', 70, ['invoices.view']),
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
@@ -80,7 +83,7 @@ class SidebarNavigationService
             'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'database', 10, ['data-quality.view']),
             'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'database', 20, ['data-audit.view']),
 
-            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'designs', 20, ['id-cards.view']),
+            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'designs', 20, ['print-templates.view']),
             'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 10, ['id-cards.print']),
         ];
     }
@@ -253,11 +256,17 @@ class SidebarNavigationService
         $groups = [];
         $defaultGroups = $this->defaultGroups();
         $activeTeacherGroup = $this->activeTeacherGroup($user);
+        $tenantContext = app(TenantContext::class);
 
         foreach ($settings['groups'] as $groupKey => $groupDefinition) {
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
+                if ($tenantContext->hasTenant()
+                    && collect($this->requiredTenantModules($itemKey))
+                        ->contains(fn (string $module) => ! app(CurrentModuleAccess::class)->enabled($module))) {
+                    continue;
+                }
                 if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
                     continue;
                 }
@@ -360,6 +369,48 @@ class SidebarNavigationService
         }
 
         return false;
+    }
+
+    /** @return array<int, string> */
+    protected function requiredTenantModules(string $itemKey): array
+    {
+        $modules = [
+            'parents' => ['parents'],
+            'teachers' => ['teachers'],
+            'students' => ['students'],
+            'student_progress' => ['students'],
+            'student_notes' => ['students'],
+            'courses' => ['classes'],
+            'groups' => ['classes'],
+            'enrollments' => ['classes'],
+            'curricula' => ['curriculum'],
+            'student_attendance' => ['student_attendance'],
+            'teacher_attendance' => ['teacher_attendance'],
+            'memorization' => ['memorization'],
+            'enter_memorize' => ['memorization'],
+            'quran_tests_quick_entry' => ['quran_tests'],
+            'quran_partial_tests' => ['quran_tests'],
+            'quran_final_tests' => ['quran_tests'],
+            'quran_tests' => ['quran_tests'],
+            'assessments' => ['assessments'],
+            'point_ledger' => ['points_rewards'],
+            'activities' => ['activities'],
+            'family_activities' => ['parent_portal', 'activities'],
+            'student_billing' => ['student_billing'],
+            'public_website_settings' => ['public_website'],
+            'print_templates' => ['custom_templates'],
+            'id_card_print' => ['id_cards', 'students'],
+        ];
+
+        if (isset($modules[$itemKey])) {
+            return $modules[$itemKey];
+        }
+
+        if (str_starts_with($itemKey, 'finance_') || $itemKey === 'finance_settings') {
+            return ['finance'];
+        }
+
+        return [];
     }
 
     protected function activeTeacherGroup(User $user): ?Group

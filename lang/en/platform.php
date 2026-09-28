@@ -1,0 +1,50 @@
+<?php
+
+return [
+    'login' => [
+        'title' => 'Platform Administration',
+        'description' => 'Sign in to manage SaaS tenants and subscriptions.',
+        'email' => 'Email address',
+        'password' => 'Password',
+        'remember' => 'Remember this device',
+        'submit' => 'Sign in',
+    ],
+    'dashboard' => [
+        'eyebrow' => 'AlKhair SaaS',
+        'title' => 'Platform Administration',
+        'description' => 'Tenant and manual subscription overview.',
+        'sign_out' => 'Sign out',
+        'tenants' => 'Tenants',
+        'tenant_description' => 'Tenant provisioning begins in Sprint 2.',
+        'tenant' => 'Tenant',
+        'subdomain' => 'Subdomain',
+        'status' => 'Status',
+        'plan' => 'Plan',
+        'no_plans' => 'No plans have been seeded yet.',
+        'no_tenants' => 'No tenants have been created yet.',
+        'not_assigned' => 'Not assigned',
+        'create_tenant' => 'Create tenant',
+        'organisation_name' => 'Organisation name',
+        'owner_name' => 'Tenant administrator name',
+        'owner_email' => 'Tenant administrator email',
+        'owner_password' => 'Temporary password',
+        'create' => 'Create tenant',
+        'save' => 'Save',
+    ],
+    'provisioning' => [
+        'success' => 'Tenant created successfully.',
+        'failed' => 'Tenant provisioning failed. The tenant was not activated.',
+        'subscription_updated' => 'Tenant package updated successfully.',
+    ],
+    'plans' => [
+        'core' => 'Core',
+        'core_finance' => 'Core + Finance',
+        'core_finance_printing' => 'Core + Finance + Custom Printing',
+    ],
+    'features' => [
+        'core' => 'Core',
+        'finance' => 'Finance',
+        'custom_printing' => 'Custom Printing',
+        'unavailable' => 'This feature is not included in this tenant package.',
+    ],
+];

@@ -2022,7 +2022,7 @@ class ManagementPagesTest extends TestCase
             ->assertSeeText('Parent Student')
             ->assertDontSeeText('Other Student');
 
-        $this->get(route('invoices.index', absolute: false))
+        $this->get(route('student-billing.index', absolute: false))
             ->assertOk()
             ->assertSeeText($ownInvoice->invoice_no)
             ->assertDontSeeText($otherInvoice->invoice_no);

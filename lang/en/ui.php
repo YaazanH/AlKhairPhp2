@@ -72,6 +72,7 @@ return [
         'activities' => 'Activities',
         'family_activities' => 'Family Activities',
         'invoices' => 'Invoices',
+        'student_billing' => 'Student billing',
         'finance_dashboard' => 'Financial Dashboard',
         'finance_reports' => 'Reports',
         'finance_pull_requests' => 'Withdrawal Requests',

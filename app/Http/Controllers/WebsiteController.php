@@ -3,19 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\WebsitePage;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\WebsiteService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
 
 class WebsiteController extends Controller
 {
     public function __construct(
         protected WebsiteService $website,
-    ) {
-    }
+    ) {}
 
-    public function home(): View|Response
+    public function home(): View|Response|RedirectResponse
     {
+        if (! app(CurrentModuleAccess::class)->enabled('public_website')) {
+            return redirect()->route('login');
+        }
+
         $page = $this->website->homePage();
         $site = $this->website->siteSettings();
 
@@ -46,6 +51,7 @@ class WebsiteController extends Controller
 
     public function show(WebsitePage $page): View
     {
+        app(CurrentModuleAccess::class)->ensure('public_website');
         abort_unless($page->is_published, 404);
 
         return view('public.page', [
