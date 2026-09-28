@@ -24,6 +24,7 @@ use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
 use App\Http\Controllers\ReportExportController;
+use App\Http\Controllers\RequiredPasswordChangeController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
 use App\Http\Controllers\TeacherAttendanceExportController;
@@ -106,6 +107,9 @@ Volt::route('dashboard', 'dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('change-temporary-password', [RequiredPasswordChangeController::class, 'show'])->name('password.change-required.show');
+    Route::put('change-temporary-password', [RequiredPasswordChangeController::class, 'update'])->name('password.change-required.update');
+
     Route::get('setup', [TenantSetupController::class, 'show'])->name('tenant-setup.show');
     Route::patch('setup/foundation', [TenantSetupController::class, 'foundation'])->name('tenant-setup.foundation');
     Route::patch('setup/modules/{module}', [TenantSetupController::class, 'module'])->name('tenant-setup.module');

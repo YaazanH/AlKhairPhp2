@@ -8,8 +8,7 @@ use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\TenantProvisioningAttempt;
 use App\Models\Landlord\TenantSubscription;
-use App\Models\TenantPlatformAdministratorLink;
-use App\Models\User;
+use App\Services\Landlord\TenantAdministratorProvisioner;
 use App\Services\Landlord\TenantDatabaseName;
 use App\Services\Landlord\TenantSetupManager;
 use App\Services\Landlord\TenantStorage;
@@ -24,12 +23,15 @@ use Illuminate\Support\Str;
 
 class ProvisionTenantCommand extends Command
 {
-    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--plan=core}';
+    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--plan=core} {--timezone=} {--locale=}';
 
     protected $description = 'Create a new isolated tenant database, users, seed data, and storage.';
 
-    public function handle(TenantDatabaseName $databaseNames, TenantStorage $storage): int
-    {
+    public function handle(
+        TenantDatabaseName $databaseNames,
+        TenantStorage $storage,
+        TenantAdministratorProvisioner $administrators,
+    ): int {
         $platform = PlatformAdministrator::query()->where('email', $this->option('platform-email'))->firstOrFail();
         $plan = Plan::query()->where('code', $this->option('plan'))->firstOrFail();
         $ownerName = $this->option('owner-name') ?: $this->argument('owner-email');
@@ -53,6 +55,8 @@ class ProvisionTenantCommand extends Command
             'name' => $this->argument('name'),
             'slug' => $slug,
             'status' => Tenant::STATUS_PROVISIONING,
+            'timezone' => $this->option('timezone') ?: null,
+            'locale' => $this->option('locale') ?: null,
         ]);
         $database = $databaseNames->for($tenant);
         $attempt = TenantProvisioningAttempt::query()->create([
@@ -62,6 +66,8 @@ class ProvisionTenantCommand extends Command
             'started_at' => now(),
         ]);
         $previousConnection = DB::getDefaultConnection();
+        $previousPublicRoot = config('filesystems.disks.public.root');
+        $previousPrivateRoot = config('filesystems.disks.local.root');
 
         try {
             DB::connection('tenant')->statement("CREATE DATABASE `{$database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -69,16 +75,21 @@ class ProvisionTenantCommand extends Command
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
             Artisan::call('migrate', ['--database' => 'tenant', '--force' => true]);
+            $tenantRoot = $storage->initialise($tenant)['public'];
+            config()->set('filesystems.disks.public.root', storage_path('app/public/'.$tenantRoot));
+            config()->set('filesystems.disks.local.root', storage_path('app/private/'.$tenantRoot));
+            app('filesystem')->forgetDisk('public');
+            app('filesystem')->forgetDisk('local');
             foreach ([RoleSeeder::class, MasterDataSeeder::class, QuranJuzSeeder::class, WebsiteSeeder::class] as $seeder) {
                 app($seeder)->run();
             }
-            app(TenantSetupManager::class)->initialiseNewTenant();
-            $owner = User::query()->create(['name' => $ownerName, 'email' => $this->argument('owner-email'), 'password' => $ownerPassword, 'is_active' => true]);
-            $owner->assignRole('admin');
-            $support = User::query()->create(['name' => $platform->name, 'email' => $platform->email, 'username' => 'platform-admin', 'password' => $platform->password, 'is_active' => true]);
-            $support->assignRole('super_admin');
-            TenantPlatformAdministratorLink::query()->create(['user_id' => $support->id, 'platform_administrator_uuid' => $platform->uuid]);
-            $storage->initialise($tenant);
+            app(TenantSetupManager::class)->initialiseNewTenant($tenant);
+            $administrators->provision(
+                ownerName: $ownerName,
+                ownerEmail: $this->argument('owner-email'),
+                ownerPassword: $ownerPassword,
+                platform: $platform,
+            );
             $tenant->update(['database_name' => $database, 'status' => Tenant::STATUS_ACTIVE]);
             TenantDomain::query()->create([
                 'tenant_id' => $tenant->id,
@@ -105,6 +116,10 @@ class ProvisionTenantCommand extends Command
         } finally {
             DB::setDefaultConnection($previousConnection);
             DB::purge('tenant');
+            config()->set('filesystems.disks.public.root', $previousPublicRoot);
+            config()->set('filesystems.disks.local.root', $previousPrivateRoot);
+            app('filesystem')->forgetDisk('public');
+            app('filesystem')->forgetDisk('local');
         }
     }
 }

@@ -82,6 +82,41 @@ class TenantOnboardingTest extends TestCase
         $this->get('/dashboard')->assertOk();
     }
 
+    public function test_tenant_administrator_changes_temporary_password_before_setup(): void
+    {
+        app(TenantSetupManager::class)->initialiseNewTenant();
+        $user = $this->admin();
+        $user->forceFill([
+            'must_change_password' => true,
+            'password_changed_at' => null,
+            'issued_password' => 'password',
+        ])->save();
+        $this->actingAs($user);
+
+        $this->get('/dashboard')->assertRedirect(route('password.change-required.show'));
+
+        $this->put(route('password.change-required.update'), [
+            'current_password' => 'password',
+            'password' => 'NewPersonalPassword123!',
+            'password_confirmation' => 'NewPersonalPassword123!',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->get('/dashboard')->assertRedirect(route('tenant-setup.show'));
+        $this->get('/setup')->assertOk();
+    }
+
+    public function test_new_tenant_setup_is_prefilled_from_the_platform_tenant_details(): void
+    {
+        $this->tenant->update(['timezone' => 'Asia/Damascus', 'locale' => 'en']);
+
+        app(TenantSetupManager::class)->initialiseNewTenant($this->tenant->fresh());
+
+        $settings = AppSetting::groupValues('general');
+        $this->assertSame('Setup Mosque', $settings->get('school_name'));
+        $this->assertSame('Asia/Damascus', $settings->get('school_timezone'));
+        $this->assertSame('en', $settings->get('default_locale'));
+    }
+
     public function test_newly_enabled_module_prompts_without_resetting_ready_modules(): void
     {
         $this->actingAs($this->admin());
@@ -111,10 +146,11 @@ class TenantOnboardingTest extends TestCase
         $this->assertSame('ready', app(TenantSetupManager::class)->summary($this->tenant)['modules']['finance']['status']);
     }
 
-    public function test_only_settings_managers_can_change_setup(): void
+    public function test_settings_permission_alone_does_not_allow_changing_initial_tenant_setup(): void
     {
         app(TenantSetupManager::class)->initialiseNewTenant();
         $user = User::factory()->create(['is_active' => true]);
+        $user->givePermissionTo('settings.manage');
         $this->actingAs($user);
 
         $this->get('/setup')->assertForbidden();
@@ -144,7 +180,7 @@ class TenantOnboardingTest extends TestCase
 
     private function admin(): User
     {
-        $user = User::factory()->create(['is_active' => true]);
+        $user = User::factory()->create(['is_active' => true, 'is_tenant_administrator' => true]);
         $user->assignRole('super_admin');
 
         return $user;

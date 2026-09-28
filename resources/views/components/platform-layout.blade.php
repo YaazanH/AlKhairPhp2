@@ -24,7 +24,7 @@
         <div class="p-3"><div class="rounded-xl bg-zinc-800 p-3 text-sm text-zinc-300">{{ auth('platform')->user()->name }}<form method="POST" action="{{ route('platform.logout') }}" class="mt-2">@csrf<button class="text-xs text-emerald-400">Sign out</button></form></div></div>
     </flux:sidebar>
     <main class="app-main flex-1"><div class="app-main-inner space-y-6">
-        @if ($errors->any())<div class="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900" role="alert">@foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+        @if ($errors->any())<div class="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900" role="alert"><p class="font-semibold">Please correct the following:</p><ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
         @if (session('status'))<div class="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900" role="status">{{ session('status') }}</div>@endif
         {{ $slot }}
     </div></main>

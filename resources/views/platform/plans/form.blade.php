@@ -15,9 +15,9 @@
         <section class="rounded-3xl border bg-white p-6 shadow-sm">
             <h2 class="text-lg font-semibold">Package details</h2>
             <div class="mt-5 grid gap-4 md:grid-cols-2">
-                <label class="grid gap-1 text-sm font-medium">Name<input name="name" value="{{ old('name', $submitted['name'] ?? $plan->name) }}" required class="rounded-xl border p-3 font-normal"></label>
-                @if ($editing)<label class="grid gap-1 text-sm font-medium">Code<input value="{{ $plan->code }}" disabled class="rounded-xl border bg-zinc-50 p-3 font-normal text-zinc-500"></label>@else<label class="grid gap-1 text-sm font-medium">Code<input name="code" value="{{ old('code') }}" required pattern="[A-Za-z0-9_-]+" class="rounded-xl border p-3 font-normal" placeholder="standard"></label>@endif
-                <label class="grid gap-1 text-sm font-medium md:col-span-2">Description<textarea name="description" rows="3" class="rounded-xl border p-3 font-normal">{{ old('description', $submitted['description'] ?? $plan->description) }}</textarea></label>
+                <label class="grid gap-1 text-sm font-medium">Name<input name="name" value="{{ old('name', $submitted['name'] ?? $plan->name) }}" required class="rounded-xl border p-3 font-normal @error('name') border-red-400 @enderror">@error('name')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
+                @if ($editing)<label class="grid gap-1 text-sm font-medium">Code<input value="{{ $plan->code }}" disabled class="rounded-xl border bg-zinc-50 p-3 font-normal text-zinc-500"></label>@else<label class="grid gap-1 text-sm font-medium">Code<input name="code" value="{{ old('code') }}" required pattern="[A-Za-z0-9_-]+" class="rounded-xl border p-3 font-normal @error('code') border-red-400 @enderror" placeholder="standard">@error('code')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>@endif
+                <label class="grid gap-1 text-sm font-medium md:col-span-2">Description<textarea name="description" rows="3" class="rounded-xl border p-3 font-normal @error('description') border-red-400 @enderror">{{ old('description', $submitted['description'] ?? $plan->description) }}</textarea>@error('description')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
                 <label class="inline-flex items-center gap-2 text-sm font-medium"><input type="hidden" name="is_active" value="0"><input type="checkbox" name="is_active" value="1" @checked((bool) old('is_active', $submitted['is_active'] ?? $plan->is_active))> Available for new tenant assignments</label>
             </div>
         </section>
@@ -31,6 +31,7 @@
                     </label>
                 @endforeach
             </div>
+            @error('modules')<p class="mt-3 text-sm text-red-700">{{ $message }}</p>@enderror
         </section>
 
         @if ($editing)

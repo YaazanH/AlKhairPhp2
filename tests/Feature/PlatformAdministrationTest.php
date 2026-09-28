@@ -64,6 +64,14 @@ class PlatformAdministrationTest extends TestCase
             'slug' => 'al-noor',
             'status' => Tenant::STATUS_DRAFT,
         ]);
+        $openTenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Open Centre',
+            'slug' => 'open-centre',
+            'database_name' => 'alkhair_tenant_'.str_repeat('a', 32),
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+        $openTenant->domains()->create(['host' => 'open-centre.localhost', 'is_primary' => true]);
 
         $this->post(route('platform.login.store'), [
             'email' => 'platform@example.test',
@@ -76,7 +84,9 @@ class PlatformAdministrationTest extends TestCase
             ->assertOk()
             ->assertSee('Tenant overview')
             ->assertSee('Al Noor Centre')
-            ->assertSee('Manage');
+            ->assertSee('Manage')
+            ->assertSee('href="http://open-centre.localhost"', false)
+            ->assertSee('Open Open Centre website');
     }
 
     public function test_inactive_platform_administrator_cannot_sign_in(): void
@@ -110,6 +120,12 @@ class PlatformAdministrationTest extends TestCase
     {
         $this->seed(LandlordCatalogSeeder::class);
 
+        Plan::query()->create([
+            'code' => 'custom_learning',
+            'name' => 'Custom Learning',
+            'is_active' => true,
+        ]);
+
         $administrator = PlatformAdministrator::query()->create([
             'uuid' => (string) Str::uuid(),
             'name' => 'Platform Administrator',
@@ -119,7 +135,10 @@ class PlatformAdministrationTest extends TestCase
 
         Artisan::shouldReceive('call')
             ->once()
-            ->with('saas:provision-tenant', \Mockery::on(fn (array $arguments) => $arguments['--platform-email'] === $administrator->email))
+            ->with('saas:provision-tenant', \Mockery::on(fn (array $arguments) => $arguments['--platform-email'] === $administrator->email
+                && $arguments['--plan'] === 'custom_learning'
+                && $arguments['--timezone'] === 'Asia/Damascus'
+                && $arguments['--locale'] === 'ar'))
             ->andReturn(Command::SUCCESS);
 
         $this->actingAs($administrator, 'platform')
@@ -129,7 +148,9 @@ class PlatformAdministrationTest extends TestCase
                 'owner_name' => 'Tenant Owner',
                 'owner_email' => 'owner@alnoor.test',
                 'owner_password' => 'temporary-password',
-                'plan' => 'core_finance',
+                'plan' => 'custom_learning',
+                'timezone' => 'Asia/Damascus',
+                'locale' => 'ar',
             ])
             ->assertRedirect(route('platform.dashboard'))
             ->assertSessionHas('status', __('platform.provisioning.success'));
@@ -156,6 +177,59 @@ class PlatformAdministrationTest extends TestCase
             ])
             ->assertRedirect(route('platform.dashboard'))
             ->assertSessionHasErrors('slug');
+    }
+
+    public function test_tenant_creation_reports_duplicate_subdomains_and_inactive_packages_clearly(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'platform@example.test',
+            'password' => 'secret-password',
+        ]);
+        Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Existing Centre',
+            'slug' => 'existing-centre',
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+        Plan::query()->create(['code' => 'inactive_custom', 'name' => 'Inactive Custom', 'is_active' => false]);
+        $payload = [
+            'name' => 'New Centre',
+            'owner_name' => 'Tenant Owner',
+            'owner_email' => 'owner@example.test',
+            'owner_password' => 'temporary-password',
+            'plan' => 'core',
+        ];
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.tenants.store'), $payload + ['slug' => 'existing-centre'])
+            ->assertSessionHasErrors(['slug' => 'This subdomain is already assigned to another tenant.']);
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.tenants.store'), array_merge($payload, ['slug' => 'new-centre', 'plan' => 'inactive_custom']))
+            ->assertSessionHasErrors(['plan' => 'Choose an active package from the package list.']);
+    }
+
+    public function test_package_creation_reports_a_duplicate_code_clearly(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'platform@example.test',
+            'password' => 'secret-password',
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.plans.store'), [
+                'code' => 'core',
+                'name' => 'Duplicate Core',
+                'modules' => [],
+                'is_active' => '1',
+            ])
+            ->assertSessionHasErrors(['code' => 'This package code is already in use. Choose a different code.']);
     }
 
     public function test_platform_administrator_can_change_a_tenant_package_manually(): void
@@ -243,6 +317,12 @@ class PlatformAdministrationTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
+
+        $this->actingAs($administrator, 'platform')
+            ->patch(route('platform.tenants.status', 'new-name'), ['status' => Tenant::STATUS_ACTIVE])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
     }
 
     public function test_platform_administrator_can_create_duplicate_deactivate_and_delete_modular_packages(): void
@@ -327,8 +407,13 @@ class PlatformAdministrationTest extends TestCase
         $access = app(TenantModuleAccess::class);
         $version = $access->snapshot($tenant)['version'];
 
-        $this->actingAs($administrator, 'platform')->get(route('platform.tenants.edit', $tenant))
-            ->assertOk()->assertSee('Tenant-specific extras')->assertSee('Already included by package');
+        $response = $this->actingAs($administrator, 'platform')->get(route('platform.tenants.edit', $tenant));
+        $response->assertOk()
+            ->assertSee('Tenant-specific extras')
+            ->assertSee('Grey checked modules are already supplied by the package')
+            ->assertSee('data-package-module="finance"', false)
+            ->assertSee('Included by package · manage from the package settings');
+        $this->assertMatchesRegularExpression('/<input[^>]+value="finance"[^>]+checked[^>]+disabled/', $response->getContent());
 
         $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.preview', $tenant), [
             'modules' => ['parent_portal'], 'expected_version' => $version,

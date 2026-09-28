@@ -50,6 +50,26 @@ class ProfileUpdateTest extends TestCase
         ]);
     }
 
+    public function test_tenant_administrator_can_change_username_without_changing_email(): void
+    {
+        $user = User::factory()->create([
+            'username' => 'admin@example.test',
+            'email' => 'admin@example.test',
+            'is_tenant_administrator' => true,
+        ]);
+
+        $this->actingAs($user);
+
+        Volt::test('settings.profile')
+            ->set('username', 'centre-admin')
+            ->call('updateUsername')
+            ->assertHasNoErrors();
+
+        $user->refresh();
+        $this->assertSame('centre-admin', $user->username);
+        $this->assertSame('admin@example.test', $user->email);
+    }
+
     public function test_old_account_tabs_redirect_to_the_consolidated_account_page(): void
     {
         $this->actingAs(User::factory()->create());

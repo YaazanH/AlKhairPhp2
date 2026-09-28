@@ -21,7 +21,7 @@ class RedirectToTenantSetup
             && ! $request->is('livewire/*');
         $canManage = $context->hasTenant()
             && $user instanceof User
-            && ($user->isPlatformAdministrator() || $user->can('settings.manage'));
+            && $user->canManageTenantSetup();
 
         if ($eligibleRequest && $context->hasTenant() && $canManage) {
             $summary = app(TenantSetupManager::class)->summary($context->tenant());

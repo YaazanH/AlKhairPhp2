@@ -71,6 +71,6 @@ class TenantSetupController extends Controller
     private function authorizeManager(Request $request): void
     {
         $user = $request->user();
-        abort_unless($user && ($user->isPlatformAdministrator() || $user->can('settings.manage')), 403);
+        abort_unless($user?->canManageTenantSetup(), 403);
     }
 }

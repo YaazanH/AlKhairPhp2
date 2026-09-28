@@ -18,10 +18,18 @@ class TenantSetupManager
         private TenantModuleAccess $moduleAccess,
     ) {}
 
-    public function initialiseNewTenant(): void
+    public function initialiseNewTenant(?Tenant $tenant = null): void
     {
         AppSetting::storeValue(self::GROUP, 'managed', true, 'boolean');
         AppSetting::storeValue(self::GROUP, 'modules', [], 'json');
+
+        if ($tenant !== null) {
+            AppSetting::storeValue('general', 'school_name', $tenant->name);
+            AppSetting::storeValue('general', 'school_timezone', app(ApplicationTimezone::class)->normalize(
+                (string) ($tenant->timezone ?: config('app.timezone')),
+            ));
+            AppSetting::storeValue('general', 'default_locale', $tenant->locale ?: config('app.locale', 'ar'));
+        }
     }
 
     public function summary(Tenant $tenant): array

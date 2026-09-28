@@ -54,7 +54,7 @@ class EnsureTenantModules
         }
 
         $user = $request->user();
-        if (! $request->expectsJson() && ($user->isPlatformAdministrator() || $user->can('settings.manage'))) {
+        if (! $request->expectsJson() && $user->canManageTenantSetup()) {
             return;
         }
 

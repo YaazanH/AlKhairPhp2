@@ -171,6 +171,18 @@ class PlanManagementController extends Controller
             'modules' => ['array'], 'modules.*' => ['string'], 'is_active' => ['nullable', 'boolean'],
             'confirm_impact' => ['nullable', 'boolean'],
             'features' => ['array'], 'features.*' => ['string', 'exists:landlord.features,code'],
+        ], [
+            'code.required' => 'Enter a short code for this package.',
+            'code.alpha_dash' => 'The package code may contain only letters, numbers, dashes, and underscores.',
+            'code.unique' => 'This package code is already in use. Choose a different code.',
+            'name.required' => 'Enter a name for this package.',
+            'modules.array' => 'The selected modules could not be read. Refresh the page and try again.',
+            'is_active.boolean' => 'The package availability value is invalid.',
+        ], [
+            'code' => 'package code',
+            'name' => 'package name',
+            'description' => 'package description',
+            'modules' => 'included modules',
         ]);
     }
 

@@ -73,6 +73,15 @@ class TenantManagementController extends Controller
     public function setStatus(Request $request, Tenant $tenant): RedirectResponse
     {
         $data = $request->validate(['status' => ['required', Rule::in([Tenant::STATUS_ACTIVE, Tenant::STATUS_SUSPENDED])]]);
+
+        if ($data['status'] === Tenant::STATUS_ACTIVE) {
+            abort_unless(
+                filled($tenant->database_name) && $tenant->domains()->where('is_primary', true)->exists(),
+                422,
+                'A tenant cannot be activated until its database and primary domain are provisioned.',
+            );
+        }
+
         $tenant->update(['status' => $data['status']]);
         $this->audit($request, $tenant, 'tenant_status_updated', ['status' => $data['status']]);
 
@@ -91,9 +100,21 @@ class TenantManagementController extends Controller
             $administrator = DB::connection('tenant')->table('users')
                 ->join('model_has_roles', fn ($join) => $join->on('model_has_roles.model_id', '=', 'users.id')->where('model_has_roles.model_type', 'App\\Models\\User'))
                 ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->where('roles.name', 'admin')->orderBy('users.id')->select('users.id', 'users.email')->first();
+                ->where('roles.name', 'admin')
+                ->orderByDesc('users.is_tenant_administrator')
+                ->orderBy('users.id')
+                ->select('users.id', 'users.email')
+                ->first();
             abort_unless($administrator, 404, 'The tenant administrator account was not found.');
-            DB::connection('tenant')->table('users')->where('id', $administrator->id)->update(['password' => Hash::make($data['password']), 'remember_token' => null, 'updated_at' => now()]);
+            $isPlatformAdministrator = DB::connection('tenant')->table('tenant_platform_administrator_links')->where('user_id', $administrator->id)->exists();
+            DB::connection('tenant')->table('users')->where('id', $administrator->id)->update([
+                'password' => Hash::make($data['password']),
+                'issued_password' => null,
+                'must_change_password' => ! $isPlatformAdministrator,
+                'password_changed_at' => $isPlatformAdministrator ? now() : null,
+                'remember_token' => null,
+                'updated_at' => now(),
+            ]);
         } finally {
             config()->set('database.connections.tenant.database', $previousDatabase);
             DB::purge('tenant');

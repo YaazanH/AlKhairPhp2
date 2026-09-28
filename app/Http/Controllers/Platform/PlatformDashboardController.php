@@ -12,7 +12,7 @@ class PlatformDashboardController extends Controller
 {
     public function __invoke(Request $request): View
     {
-        $query = Tenant::query()->with('subscription.plan');
+        $query = Tenant::query()->with(['subscription.plan', 'domains']);
         $search = trim((string) $request->query('search'));
         $status = $request->query('status');
         $query->when($search !== '', fn ($tenants) => $tenants->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('slug', 'like', "%{$search}%")))

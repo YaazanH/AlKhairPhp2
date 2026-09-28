@@ -27,7 +27,8 @@ class CapabilitiesController extends Controller
             'setup' => [
                 'status' => $setup['status'],
                 'version' => $setup['version'],
-                'can_manage' => $request->user()->isPlatformAdministrator() || $request->user()->can('settings.manage'),
+                'can_manage' => $request->user()->canManageTenantSetup(),
+                'password_change_required' => (bool) $request->user()->must_change_password,
                 'modules' => collect($setup['modules'])->map(fn (array $module): array => [
                     'code' => $module['code'],
                     'version' => $module['version'],
