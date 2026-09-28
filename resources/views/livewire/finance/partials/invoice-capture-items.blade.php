@@ -4,7 +4,7 @@
             <table class="w-full min-w-[46rem] text-sm">
                 <thead class="border-b border-white/15 bg-white/[0.04]">
                     <tr>
-                        <th scope="col" class="w-[5%] px-3 py-3 text-start">#</th>
+                        <th data-table-number-column scope="col" class="w-[5%] px-3 py-3 text-start">#</th>
                         <th scope="col" class="w-[33%] px-3 py-3 text-start">{{ __('finance.fields.item_name') }}</th>
                         <th scope="col" class="w-[15%] px-3 py-3 text-start">{{ __('finance.fields.quantity') }}</th>
                         <th scope="col" class="w-[19%] px-3 py-3 text-start">{{ __('finance.fields.unit_price') }}</th>

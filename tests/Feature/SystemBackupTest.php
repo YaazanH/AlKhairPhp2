@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\BackupDecryptionException;
 use App\Models\AppSetting;
 use App\Models\SystemBackup;
 use App\Models\User;
@@ -73,7 +74,7 @@ class SystemBackupTest extends TestCase
         $this->assertStringNotContainsString('data-backup-health-callout', $backupView);
         $this->assertStringContainsString("__('backups.table.trigger')", $backupView);
         $this->assertStringContainsString("__('backups.triggers.'.\$backup->trigger)", $backupView);
-        $this->assertStringContainsString('colspan="6"', $backupView);
+        $this->assertStringContainsString('colspan="7"', $backupView);
         $this->assertStringNotContainsString('status-chip backup-status-chip', $backupView);
         $this->assertStringNotContainsString("__('backups.statuses.'.\$backup->status)", $backupView);
         $this->assertStringContainsString('data-backup-verification-details', $backupView);
@@ -285,6 +286,163 @@ class SystemBackupTest extends TestCase
         }
     }
 
+    public function test_source_keys_decrypt_both_backup_formats_without_changing_the_current_key(): void
+    {
+        $directory = storage_path('framework/testing/backup-source-key-'.Str::uuid());
+        File::ensureDirectoryExists($directory);
+        $sourceKey = 'base64:'.base64_encode(random_bytes(32));
+        $currentKey = 'base64:'.base64_encode(random_bytes(32));
+        $encryption = app(BackupEncryptionService::class);
+
+        try {
+            File::put($directory.'/source', random_bytes(140000));
+            config()->set('backups.encryption_chunk_size', 64 * 1024);
+
+            foreach (['encrypt', 'encryptWithOpenSsl'] as $method) {
+                config()->set('app.key', $sourceKey);
+                $encrypted = $directory.'/'.$method.'.alkhair-backup';
+                (new \ReflectionMethod($encryption, $method))->invoke($encryption, $directory.'/source', $encrypted);
+                config()->set('app.key', $currentKey);
+
+                foreach ([null, 'base64:invalid!', 'wrong-key'] as $index => $wrongKey) {
+                    try {
+                        $encryption->decrypt($encrypted, $directory.'/'.$method.'-wrong-'.$index, $wrongKey);
+                        $this->fail('A backup must reject an incorrect source key.');
+                    } catch (BackupDecryptionException $exception) {
+                        $this->assertStringNotContainsString($sourceKey, (string) $exception);
+                    }
+                }
+
+                $output = $directory.'/'.$method.'-output';
+                $encryption->decrypt($encrypted, $output, $sourceKey);
+                $this->assertSame(hash_file('sha256', $directory.'/source'), hash_file('sha256', $output));
+                $this->assertSame($currentKey, config('app.key'));
+
+                $bytes = File::get($encrypted);
+                $bytes[strlen($bytes) - 1] = chr(ord($bytes[strlen($bytes) - 1]) ^ 1);
+                File::put($encrypted, $bytes);
+                try {
+                    $encryption->decrypt($encrypted, $output.'-tampered', $sourceKey);
+                    $this->fail('The source key must not bypass backup authentication.');
+                } catch (BackupDecryptionException) {
+                    $this->assertSame($currentKey, config('app.key'));
+                }
+            }
+        } finally {
+            File::deleteDirectory($directory);
+        }
+    }
+
+    public function test_unsupported_mysql_conversion_reports_a_clear_error_without_restoring(): void
+    {
+        Storage::fake('local');
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
+        $directory = storage_path('framework/testing/backup-engine-'.Str::uuid());
+        File::ensureDirectoryExists($directory);
+        $sql = "CREATE TABLE `marker` (`id` int NOT NULL);\nCREATE VIEW `unsupported` AS SELECT * FROM `marker`;\n";
+        $manifest = [
+            'version' => 3,
+            'scope' => SystemBackup::SCOPE_DATABASE,
+            'data_roots' => [],
+            'files' => [],
+            'database' => [
+                'driver' => 'mysql', 'entry' => 'database/database.sql',
+                'size_bytes' => strlen($sql), 'sha256' => hash('sha256', $sql),
+                'table_count' => 1, 'tables' => ['marker'],
+            ],
+        ];
+
+        try {
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($directory.'/mysql.zip', ZipArchive::CREATE));
+            $zip->addFromString('manifest.json', json_encode($manifest, JSON_THROW_ON_ERROR));
+            $zip->addFromString('database/database.sql', $sql);
+            $zip->close();
+            app(BackupEncryptionService::class)->encrypt($directory.'/mysql.zip', $directory.'/mysql.alkhair-backup');
+            $message = __('backups.errors.database_conversion_failed');
+
+            Volt::test('settings.backups')->call('openFileRestore')
+                ->set('restoreFile', UploadedFile::fake()->createWithContent('mysql.alkhair-backup', file_get_contents($directory.'/mysql.alkhair-backup')))
+                ->set('restorePassword', 'password')
+                ->set('restoreConfirmation', __('backups.restore.confirmation_phrase'))
+                ->call('restoreBackupFromFile')
+                ->assertHasErrors('restoreFileOperation')->assertSee($message)
+                ->assertSet('needsRestoreAppKey', false);
+            $backup = SystemBackup::query()->where('trigger', SystemBackup::TRIGGER_IMPORTED)->firstOrFail();
+            Volt::test('settings.backups')->call('openRestore', $backup->id)
+                ->set('restorePassword', 'password')
+                ->set('restoreConfirmation', __('backups.restore.confirmation_phrase'))
+                ->call('restoreBackup')->assertHasErrors('restore')->assertSee($message);
+
+            $this->assertSame(0, SystemBackup::query()->where('trigger', SystemBackup::TRIGGER_PRE_RESTORE)->count());
+            $this->assertNull($backup->fresh()->restored_at);
+            $this->assertTrue(User::query()->whereKey($admin->id)->exists());
+            $this->assertFalse(app()->isDownForMaintenance());
+        } finally {
+            File::deleteDirectory($directory);
+        }
+    }
+
+    public function test_manual_restore_requests_a_source_key_only_after_decryption_failure_and_clears_it(): void
+    {
+        Storage::fake('local');
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
+        $backup = $this->usableBackup($admin);
+        $sourceKey = 'base64:'.base64_encode(random_bytes(32));
+        $service = \Mockery::mock(SystemBackupService::class, [app(BackupEncryptionService::class)])->makePartial();
+        $service->shouldReceive('import')->andReturnUsing(function ($path, $filename, $creator, $key) use ($sourceKey, $backup) {
+            if ($key !== $sourceKey) {
+                throw new BackupDecryptionException('Backup authentication failed.');
+            }
+
+            return $backup;
+        });
+        $service->shouldReceive('restore')->once()->with($backup, \Mockery::on(fn ($actor) => $actor->is($admin)));
+        $this->app->instance(SystemBackupService::class, $service);
+
+        $component = Volt::test('settings.backups')
+            ->call('openFileRestore')
+            ->assertDontSee('data-backup-source-app-key', false)
+            ->set('restoreFile', UploadedFile::fake()->create('foreign.alkhair-backup', 4))
+            ->set('restorePassword', 'password')
+            ->set('restoreConfirmation', __('backups.restore.confirmation_phrase'))
+            ->call('restoreBackupFromFile')
+            ->assertHasErrors('restoreAppKey')
+            ->assertSet('needsRestoreAppKey', true)
+            ->assertSee('data-backup-source-app-key', false);
+
+        $submit = [['method' => 'restoreBackupFromFile', 'params' => [], 'path' => '']];
+        $component->update(calls: $submit, updates: ['restoreAppKey' => 'wrong-key'])
+            ->assertHasErrors('restoreAppKey')
+            ->assertSet('restoreAppKey', '')
+            ->assertSet('showFileRestoreModal', true);
+
+        $component->update(calls: $submit, updates: ['restoreAppKey' => $sourceKey, 'restorePassword' => 'wrong-password'])
+            ->assertHasErrors('restorePassword')
+            ->assertSet('restoreAppKey', '');
+        $this->assertStringNotContainsString($sourceKey, $component->html());
+
+        $component->set('restoreFile', UploadedFile::fake()->create('another.alkhair-backup', 4))
+            ->assertSet('needsRestoreAppKey', false)
+            ->assertDontSee('data-backup-source-app-key', false)
+            ->set('restorePassword', 'password')
+            ->call('restoreBackupFromFile')
+            ->assertSet('needsRestoreAppKey', true);
+
+        $component->update(calls: $submit, updates: ['restoreAppKey' => $sourceKey])
+            ->assertHasNoErrors()
+            ->assertSet('restoreAppKey', '')
+            ->assertSet('needsRestoreAppKey', false)
+            ->assertSet('showFileRestoreModal', false);
+        $this->assertStringNotContainsString($sourceKey, $component->html());
+    }
+
     public function test_every_database_table_and_persistent_application_file_is_captured(): void
     {
         Storage::fake('local');
@@ -490,6 +648,48 @@ class SystemBackupTest extends TestCase
             $this->assertSame($encrypted['sha256'], $backup->sha256);
             $this->assertTrue($backup->fresh()->isUsable());
             $this->assertNotNull($backup->fresh()->verified_at);
+
+            // The same database archive must remain usable after importing with a foreign key.
+            $sourceKey = (string) config('app.key');
+            $currentKey = 'base64:'.base64_encode(random_bytes(32));
+            config()->set('app.key', $currentKey);
+            $service = app(SystemBackupService::class);
+            try {
+                $service->import($encryptedPath, basename($encryptedPath));
+                $this->fail('Import without the source key must fail.');
+            } catch (BackupDecryptionException) {
+                $this->assertSame(1, SystemBackup::where('status', SystemBackup::STATUS_COMPLETED)->count());
+            }
+            $imported = $service->import($encryptedPath, basename($encryptedPath), applicationKey: $sourceKey);
+            $this->assertTrue($imported->isUsable());
+            $this->assertSame($summary, $service->verify($imported));
+            $this->assertNotSame($encrypted['sha256'], $imported->sha256);
+            $this->assertSame($encrypted['sha256'], hash_file('sha256', $encryptedPath));
+            $this->assertSame($currentKey, config('app.key'));
+            $this->assertStringNotContainsString($sourceKey, $imported->toJson());
+            $localArchive = $directory.'/local-key.zip';
+            app(BackupEncryptionService::class)->decrypt(Storage::disk($imported->disk)->path($imported->file_path), $localArchive);
+            $this->assertSame(hash_file('sha256', $archivePath), hash_file('sha256', $localArchive));
+
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($archivePath));
+            $zip->addFromString('files/storage/document.txt', 'does not match the manifest');
+            $zip->close();
+            config()->set('app.key', $sourceKey);
+            $damagedPath = $directory.'/damaged.alkhair-backup';
+            app(BackupEncryptionService::class)->encrypt($archivePath, $damagedPath);
+            config()->set('app.key', $currentKey);
+            $filesBefore = Storage::disk('local')->allFiles('backups');
+            $temporaryBefore = File::directories(config('backups.temporary_directory'));
+            try {
+                $service->import($damagedPath, basename($damagedPath), applicationKey: $sourceKey);
+                $this->fail('The source key must not bypass archive integrity checks.');
+            } catch (RuntimeException $exception) {
+                $this->assertNotInstanceOf(BackupDecryptionException::class, $exception);
+                $this->assertSame(2, SystemBackup::where('status', SystemBackup::STATUS_COMPLETED)->count());
+                $this->assertSame($filesBefore, Storage::disk('local')->allFiles('backups'));
+                $this->assertSame($temporaryBefore, File::directories(config('backups.temporary_directory')));
+            }
         } finally {
             File::deleteDirectory($directory);
         }

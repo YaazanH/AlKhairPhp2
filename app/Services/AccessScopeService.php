@@ -2,37 +2,26 @@
 
 namespace App\Services;
 
-use App\Models\Activity;
-use App\Models\ActivityExpense;
-use App\Models\ActivityPayment;
-use App\Models\ActivityRegistration;
 use App\Models\Assessment;
-use App\Models\AssessmentResult;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
-use App\Models\MemorizationSession;
 use App\Models\ParentProfile;
-use App\Models\Payment;
-use App\Models\PointTransaction;
 use App\Models\Student;
-use App\Models\StudentAttendanceRecord;
 use App\Models\StudentAttendanceDay;
-use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
-use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Models\UserScopeOverride;
 use App\Support\RoleRegistry;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AccessScopeService
 {
+    public const ALL_STUDENT_PROGRESS = 'student_progress_all';
+
     protected array $memoizedIds = [];
 
     protected array $memoizedUserRelations = [];
@@ -60,6 +49,8 @@ class AccessScopeService
         if ($rows->isNotEmpty()) {
             UserScopeOverride::query()->insert($rows->all());
         }
+
+        $user->unsetRelation('scopeOverrides');
 
         unset(
             $this->memoizedIds["groups.{$user->id}"],
@@ -155,6 +146,24 @@ class AccessScopeService
         }
 
         return in_array((int) $student->id, $this->accessibleStudentIds($user), true);
+    }
+
+    public function canViewAllStudentProgress(?User $user): bool
+    {
+        return $user?->scopeOverrides()
+            ->where('scope_type', self::ALL_STUDENT_PROGRESS)
+            ->where('scope_id', 1)
+            ->exists() ?? false;
+    }
+
+    public function canAccessStudentProgress(?User $user, Student $student): bool
+    {
+        return $this->canViewAllStudentProgress($user) || $this->canAccessStudent($user, $student);
+    }
+
+    public function scopeStudentProgressStudents(Builder $query, ?User $user): Builder
+    {
+        return $this->canViewAllStudentProgress($user) ? $query : $this->scopeStudents($query, $user);
     }
 
     public function canAccessStudentAttendanceDay(?User $user, StudentAttendanceDay $studentAttendanceDay): bool

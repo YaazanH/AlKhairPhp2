@@ -76,9 +76,9 @@ class MasterDataSeeder extends Seeder
         DB::table('attendance_statuses')->upsert([
             ['name' => 'Present', 'code' => 'present', 'scope' => 'both', 'default_points' => 2, 'color' => 'green', 'is_present' => true, 'is_default' => true, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Absent', 'code' => 'absent', 'scope' => 'both', 'default_points' => 0, 'color' => 'red', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Late', 'code' => 'late', 'scope' => 'both', 'default_points' => 1, 'color' => 'amber', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Late', 'code' => 'late', 'scope' => 'both', 'default_points' => 1, 'color' => 'amber', 'is_present' => true, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Excused', 'code' => 'excused', 'scope' => 'both', 'default_points' => 0, 'color' => 'blue', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Early Leave', 'code' => 'early-leave', 'scope' => 'student', 'default_points' => 0, 'color' => 'orange', 'is_present' => false, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Early Leave', 'code' => 'early-leave', 'scope' => 'student', 'default_points' => 0, 'color' => 'orange', 'is_present' => true, 'is_default' => false, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
         ], ['code'], ['name', 'scope', 'default_points', 'color', 'is_present', 'is_default', 'is_active', 'updated_at']);
 
         $defaultAttendanceStatusId = DB::table('attendance_statuses')

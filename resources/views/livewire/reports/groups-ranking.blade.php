@@ -196,7 +196,7 @@ new class extends Component {
             <div class="report-filter-grid grid gap-4">
                 <div class="admin-filter-field min-w-0">
                     <label>{{ __('reports.filters.academic_year') }}</label>
-                    <select wire:model.live="academic_year_id">
+                    <select wire:model.live="academic_year_id" data-record-label="year">
                         <option value="">{{ __('reports.filters.all_academic_years') }}</option>
                         @foreach ($academicYears as $academicYear)
                             <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
@@ -289,7 +289,7 @@ new class extends Component {
                     <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.rankings.table.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="text-sm">
+                        <table class="table-content text-sm">
                             <thead>
                                 <tr>
                                     <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.rankings.table.current_rank') }}</th>

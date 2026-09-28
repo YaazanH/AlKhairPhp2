@@ -458,7 +458,7 @@ new class extends Component
     <section class="surface-panel p-5 lg:p-6" data-mobile-table-filter-controls>
         <div>
             <label for="quick-attendance-search" class="mb-1 block text-sm font-medium">{{ __('crud.common.filters.search') }}</label>
-            <input id="quick-attendance-search" wire:model.live.debounce.250ms="search" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.search_placeholder') }}">
+            <input id="quick-attendance-search" wire:model.live.debounce.500ms="search" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('workflow.student_attendance.quick.search_placeholder') }}">
         </div>
     </section>
 
@@ -474,7 +474,7 @@ new class extends Component
             <div class="admin-empty-state">{{ __('workflow.student_attendance.quick.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
                             <th class="px-5 py-4 text-left lg:px-6">
@@ -512,7 +512,7 @@ new class extends Component
                                     <div class="student-inline">
                                         <x-student-avatar :student="$enrollment->student" size="sm" />
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $enrollment->student?->full_name }}</div>
+                                            <div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div>
                                             <div class="text-xs text-neutral-500">{{ $enrollment->student?->student_number ?: $enrollment->student_id }}</div>
                                         </div>
                                     </div>

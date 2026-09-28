@@ -205,8 +205,8 @@ new class extends Component {
 
             <div class="surface-panel px-5 py-4">
                 <div class="text-sm font-semibold text-white">{{ $groupRecord->name }}</div>
-                <div class="mt-1 text-sm text-neutral-400">{{ $groupRecord->course?->name ?: __('schedules.group.profile.no_course') }} | {{ $groupRecord->academicYear?->name ?: __('schedules.group.profile.no_year') }}</div>
-                <div class="mt-1 text-sm text-neutral-400">{{ $teacherName }}</div>
+                <div class="mt-1 text-sm text-neutral-400"><span class="record-course-name">{{ $groupRecord->course?->name ?: __('schedules.group.profile.no_course') }}</span> | <span class="record-year-name">{{ $groupRecord->academicYear?->name ?: __('schedules.group.profile.no_year') }}</span></div>
+                <div class="record-person-name mt-1 text-sm text-neutral-400">{{ $teacherName }}</div>
             </div>
         </div>
     </section>

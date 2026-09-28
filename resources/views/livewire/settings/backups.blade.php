@@ -1,10 +1,14 @@
 <?php
 
+use App\Exceptions\BackupConversionException;
+use App\Exceptions\BackupDatabaseMismatchException;
+use App\Exceptions\BackupDecryptionException;
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\SystemBackup;
 use App\Services\SystemBackupService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -30,6 +34,23 @@ new class extends Component {
     public string $restorePassword = '';
     public string $restoreConfirmation = '';
     public $restoreFile = null;
+
+    #[Locked]
+    public bool $needsRestoreAppKey = false;
+
+    public string $restoreAppKey = '';
+
+    public function dehydrate(): void
+    {
+        // Never include a supplied source key in the next Livewire snapshot.
+        $this->restoreAppKey = '';
+    }
+
+    public function updatedRestoreFile(): void
+    {
+        $this->reset('needsRestoreAppKey', 'restoreAppKey');
+        $this->resetValidation(['restoreFile', 'restoreAppKey', 'restoreFileOperation']);
+    }
 
     public function mount(): void
     {
@@ -174,6 +195,7 @@ new class extends Component {
     public function openFileRestore(): void
     {
         $this->authorizePermission('backups.manage');
+        $this->reset('needsRestoreAppKey', 'restoreAppKey');
         $this->restoreBackupId = null;
         $this->restoreFile = null;
         $this->restorePassword = '';
@@ -184,6 +206,7 @@ new class extends Component {
 
     public function closeFileRestore(): void
     {
+        $this->reset('needsRestoreAppKey', 'restoreAppKey');
         $this->showFileRestoreModal = false;
         $this->restoreFile = null;
         $this->restorePassword = '';
@@ -199,6 +222,7 @@ new class extends Component {
 
         $this->validate([
             'restoreFile' => ['required', 'file', 'max:'.$maximumKilobytes],
+            'restoreAppKey' => [$this->needsRestoreAppKey ? 'required' : 'nullable', 'string', 'max:2048'],
             'restorePassword' => ['required', 'string'],
             'restoreConfirmation' => ['required', 'string', Rule::in([$phrase])],
         ], [
@@ -206,6 +230,8 @@ new class extends Component {
             'restoreFile.file' => __('backups.errors.invalid_file'),
             'restoreFile.max' => __('backups.errors.file_too_large', ['size' => config('backups.max_upload_mb', 50)]),
             'restoreConfirmation.in' => __('backups.errors.confirmation'),
+            'restoreAppKey.required' => __('backups.errors.source_key_required'),
+            'restoreAppKey.max' => __('backups.errors.source_key_invalid'),
         ]);
 
         if (! $this->restoreFile instanceof TemporaryUploadedFile
@@ -222,19 +248,36 @@ new class extends Component {
         }
 
         try {
+            $this->resetErrorBag('restoreFileOperation');
             $service = app(SystemBackupService::class);
             $backup = $service->import(
                 $this->restoreFile->getRealPath(),
                 $this->restoreFile->getClientOriginalName(),
                 auth()->user(),
+                $this->needsRestoreAppKey ? trim($this->restoreAppKey) : null,
             );
+            $this->restoreAppKey = '';
             $service->restore($backup, auth()->user());
             $this->closeFileRestore();
             $this->resetPage();
             session()->flash('status', __('backups.messages.restored_from_file'));
+        } catch (BackupConversionException $exception) {
+            report($exception);
+            $this->addError('restoreFileOperation', __('backups.errors.database_conversion_failed'));
+        } catch (BackupDatabaseMismatchException $exception) {
+            $this->addError('restoreFileOperation', $exception->userMessage());
+        } catch (BackupDecryptionException $exception) {
+            $hadSourceKey = $this->needsRestoreAppKey;
+            $this->needsRestoreAppKey = true;
+            $this->addError('restoreAppKey', __($hadSourceKey
+                ? 'backups.errors.source_key_invalid'
+                : 'backups.errors.source_key_required'));
         } catch (\Throwable $exception) {
+            $this->restoreAppKey = '';
             report($exception);
             $this->addError('restoreFileOperation', __('backups.errors.restore_file_failed'));
+        } finally {
+            $this->restoreAppKey = '';
         }
     }
 
@@ -262,6 +305,11 @@ new class extends Component {
             app(SystemBackupService::class)->restore($backup, auth()->user());
             $this->closeRestore();
             session()->flash('status', __('backups.messages.restored'));
+        } catch (BackupConversionException $exception) {
+            report($exception);
+            $this->addError('restore', __('backups.errors.database_conversion_failed'));
+        } catch (BackupDatabaseMismatchException $exception) {
+            $this->addError('restore', $exception->userMessage());
         } catch (\Throwable $exception) {
             report($exception);
             $this->addError('restore', __('backups.errors.operation_failed'));
@@ -391,6 +439,7 @@ new class extends Component {
             <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
                 <thead class="bg-neutral-50 dark:bg-neutral-900/60">
                     <tr>
+                        <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('backups.table.created_at') }}</th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('backups.table.trigger') }}</th>
                         <th class="px-5 py-3 text-left font-medium">{{ __('backups.table.contents') }}</th>
@@ -402,6 +451,7 @@ new class extends Component {
                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                     @forelse ($backups as $backup)
                         <tr wire:key="system-backup-{{ $backup->id }}">
+                            <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $backups->firstItem() + $loop->index }}</td>
                             <td class="px-5 py-3">
                                 <div class="font-medium text-white"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->created_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi></div>
                                 @if ($backup->creator)
@@ -438,7 +488,7 @@ new class extends Component {
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="admin-empty-state">{{ __('backups.history.empty') }}</td></tr>
+                        <tr><td colspan="7" class="admin-empty-state">{{ __('backups.history.empty') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -552,6 +602,17 @@ new class extends Component {
                 @endif
             </label>
             @error('restoreFile')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
+            @if ($needsRestoreAppKey)
+                <div>
+                    <label for="backup-source-app-key" class="block text-sm">{{ __('backups.restore_file.source_key') }}</label>
+                    <input id="backup-source-app-key" wire:model="restoreAppKey" type="password" autocomplete="off" spellcheck="false" dir="ltr" class="mt-1 w-full rounded-xl px-4 py-3" data-backup-source-app-key>
+                    @error('restoreAppKey')
+                        @if ($message !== __('backups.errors.source_key_required'))
+                            <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                        @endif
+                    @enderror
+                </div>
+            @endif
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="block text-sm">{{ __('backups.restore.password') }}

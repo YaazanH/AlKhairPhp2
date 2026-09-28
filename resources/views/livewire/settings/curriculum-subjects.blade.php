@@ -219,7 +219,7 @@ new class extends Component {
                             </colgroup>
                             <thead class="bg-neutral-50 dark:bg-neutral-900/60">
                                 <tr>
-                                    <th data-curriculum-resource-index class="curriculum-resource-index px-3 py-3 text-center font-medium">#</th>
+                                    <th data-table-number-column data-curriculum-resource-index class="curriculum-resource-index px-3 py-3 text-center font-medium">#</th>
                                     <th class="curriculum-subject-resource-name px-5 py-3 text-left font-medium">{{ __('curricula.fields.book_name') }}</th>
                                     <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.author') }}</th>
                                     <th class="px-5 py-3 text-left font-medium">{{ __('curricula.fields.publisher') }}</th>

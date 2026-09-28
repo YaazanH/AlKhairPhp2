@@ -212,9 +212,9 @@ new class extends Component {
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.memorization.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.memorization.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $enrollmentRecord->student?->full_name }}</span>
+            <span class="record-person-name badge-soft">{{ $enrollmentRecord->student?->full_name }}</span>
             <span class="badge-soft badge-soft--emerald">{{ $enrollmentRecord->group?->name ?: __('workflow.common.no_group') }}</span>
-            <span class="badge-soft">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
+            <span class="badge-soft"><span class="record-course-name">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></span>
         </div>
     </section>
 
@@ -259,7 +259,7 @@ new class extends Component {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label for="memorization-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.teacher') }}</label>
-                            <select id="memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <select id="memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                                 <option value="">{{ __('workflow.memorization.form.select_teacher') }}</option>
                                 @foreach ($teachers as $teacher)
                                     <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
@@ -340,7 +340,7 @@ new class extends Component {
                 <div class="mt-4 space-y-3 text-sm text-neutral-300">
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.memorization.context.student') }}</div>
-                        <div class="mt-1 text-white">{{ $enrollmentRecord->student?->full_name }}</div>
+                        <div class="record-person-name mt-1 text-white">{{ $enrollmentRecord->student?->full_name }}</div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.memorization.context.group') }}</div>
@@ -348,7 +348,7 @@ new class extends Component {
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.memorization.context.course') }}</div>
-                        <div class="mt-1 text-white">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                        <div class="mt-1 text-white"><span class="record-course-name">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.memorization.context.current_juz') }}</div>
@@ -385,9 +385,10 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('workflow.memorization.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
+                            <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.table.headers.date') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.table.headers.type') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.table.headers.pages') }}</th>
@@ -401,12 +402,13 @@ new class extends Component {
                     <tbody class="divide-y divide-white/6">
                         @foreach ($sessions as $session)
                             <tr>
+                                <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.' . $session->entry_type) }}</span>
                                 </td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.memorization.table.page_range', ['from' => $session->from_page, 'to' => $session->to_page, 'count' => $session->pages_count]) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
+                                <td class="record-person-name px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->notes ?: __('workflow.common.not_available') }}</td>
                                 @can('memorization.record')
                                     <td class="px-5 py-4 lg:px-6">

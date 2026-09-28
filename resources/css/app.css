@@ -1719,6 +1719,30 @@ html:not(.dark) .page-hero::after {
     max-width: none;
 }
 
+.course-index-name,
+.memorization-course-name,
+.awqaf-course-name {
+    display: -webkit-box;
+    width: max-content;
+    max-width: 14rem;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.course-academic-year-name {
+    display: -webkit-box;
+    width: max-content;
+    max-width: 11rem;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
 .group-show-hero-layout {
     flex-wrap: wrap;
 }
@@ -1740,9 +1764,10 @@ html:not(.dark) .page-hero::after {
 }
 
 .group-show-details {
-    flex: 0 1 17rem;
-    width: min(17rem, 100%);
-    min-width: min(16rem, 100%);
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: min(26rem, 100%);
+    min-width: 0;
     align-self: flex-start;
 }
 
@@ -1754,6 +1779,7 @@ html:not(.dark) .page-hero::after {
 
 .group-show-detail {
     min-width: 0;
+    overflow: clip;
     padding: 0.65rem 0.75rem;
     border: 1px solid rgba(147, 197, 165, 0.14);
     border-radius: 0.85rem;
@@ -1767,13 +1793,19 @@ html:not(.dark) .page-hero::after {
     line-height: 1.25;
 }
 
+.group-show-detail :is(dt, dd) {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: clip;
+    text-overflow: ellipsis;
+}
+
 .group-show-detail dd {
     margin-top: 0.25rem;
     color: #f5f7f2;
     font-size: 0.86rem;
     font-weight: 700;
     line-height: 1.35;
-    overflow-wrap: anywhere;
 }
 
 html[dir='rtl'] .group-show-detail {
@@ -1827,6 +1859,19 @@ html[dir='rtl'] .group-show-details {
     height: 3.125rem;
 }
 
+@media (min-width: 1024px) {
+    .group-show-hero-widgets {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: max-content;
+        width: max-content;
+    }
+
+    .group-show-action-stack {
+        width: 15.5rem;
+    }
+}
+
 @media (min-width: 1280px) {
     .group-show-hero-layout {
         display: grid;
@@ -1840,6 +1885,7 @@ html[dir='rtl'] .group-show-details {
         max-width: 100%;
         flex: none;
         flex-wrap: nowrap;
+        justify-self: end;
         margin-inline-start: 0;
     }
 
@@ -1931,6 +1977,10 @@ html[dir='rtl'] .group-show-details {
     cursor: help;
 }
 
+.group-curriculum-status--missing {
+    color: #fca5a5;
+}
+
 .teacher-curriculum-book {
     min-width: 0;
     overflow: hidden;
@@ -2008,6 +2058,7 @@ html[dir='rtl'] .group-show-details {
 
 .teacher-curriculum-lesson-row > td {
     border-top: 1px solid rgba(255, 255, 255, 0.065);
+    vertical-align: middle;
 }
 
 .teacher-curriculum-lesson-row--taught > td {
@@ -2022,7 +2073,7 @@ html[dir='rtl'] .group-show-details {
 .teacher-curriculum-lesson-cell {
     display: flex;
     min-height: 2.35rem;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.65rem;
 }
 
@@ -2261,6 +2312,28 @@ html[dir='rtl'] .student-progress-profile__birth-year {
 
 html:not(.dark) .surface-panel--soft {
     background: linear-gradient(180deg, #edf2e7, #dde9d9);
+}
+
+/* Ordinary record tables use intrinsic column widths. Opt-in leaves custom
+   colgroups, fixed grids and attendance's compact layouts untouched. */
+.surface-table table.table-content {
+    table-layout: auto;
+    min-width: 0;
+    width: 100%;
+}
+
+.table-content :is(th, td).table-cell-compact {
+    width: 1%;
+    padding-inline: 0.75rem !important;
+    white-space: nowrap;
+}
+
+.table-content :is(th, td).table-cell-name {
+    white-space: nowrap;
+}
+
+.table-content > tbody > tr > td {
+    vertical-align: middle;
 }
 
 html:not(.dark) .surface-table thead {
@@ -2534,7 +2607,8 @@ html[dir='rtl'] .surface-table thead th > button[wire\:click^='sortBy'] {
     stroke-width: 2.15;
 }
 
-.admin-icon-button--accent {
+.admin-icon-button--accent,
+.teacher-attendance-records-table .attendance-type-switch__option--present[aria-pressed='true'] {
     border-color: rgba(64, 190, 104, 0.35);
     background: rgba(21, 128, 61, 0.2);
 }
@@ -2640,16 +2714,8 @@ html:not(.dark) :is(.settings-record-table, [data-student-progress-generic-table
 }
 
 .teacher-attendance-records-table--closed {
-    table-layout: fixed;
+    table-layout: auto;
     width: 100%;
-}
-
-.teacher-attendance-records-table--closed :is(th, td):first-child {
-    width: 34%;
-}
-
-.teacher-attendance-records-table--closed :is(th, td):not(:first-child) {
-    width: 22%;
 }
 
 .admin-collapsible {
@@ -3240,6 +3306,7 @@ html:not([dir='rtl']) .exchange-to-amount-value {
 }
 
 .pill-link--danger,
+.teacher-attendance-records-table .attendance-type-switch__option--absent[aria-pressed='true'],
 button[wire\:confirm],
 form[data-admin-confirm-message] button[type='submit'] {
     border-color: rgba(248, 113, 113, 0.42) !important;
@@ -3248,6 +3315,7 @@ form[data-admin-confirm-message] button[type='submit'] {
 }
 
 .pill-link--danger:hover,
+.teacher-attendance-records-table .attendance-type-switch__option--absent[aria-pressed='true']:hover,
 button[wire\:confirm]:hover,
 form[data-admin-confirm-message] button[type='submit']:hover {
     border-color: rgba(252, 165, 165, 0.62) !important;
@@ -3353,6 +3421,7 @@ html:not(.dark) .admin-confirm-action--deny {
 }
 
 html:not(.dark) .pill-link--danger,
+html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__option--absent[aria-pressed='true'],
 html:not(.dark) button[wire\:confirm],
 html:not(.dark) form[data-admin-confirm-message] button[type='submit'] {
     border-color: rgba(185, 28, 28, 0.3) !important;
@@ -3362,6 +3431,7 @@ html:not(.dark) form[data-admin-confirm-message] button[type='submit'] {
 }
 
 html:not(.dark) .pill-link--danger:hover,
+html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__option--absent[aria-pressed='true']:hover,
 html:not(.dark) button[wire\:confirm]:hover,
 html:not(.dark) form[data-admin-confirm-message] button[type='submit']:hover {
     border-color: rgba(153, 27, 27, 0.42) !important;
@@ -3423,6 +3493,21 @@ html:not(.dark) .admin-toolbar__title {
 
 .report-filter-grid .admin-filter-field {
     min-width: 0;
+}
+
+.reports-mobile-filter-trigger {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .reports-mobile-filter-trigger {
+        display: inline-flex;
+        flex: 0 0 auto;
+    }
+
+    .report-panel--filters:not(:has(.mobile-table-filters--open)) {
+        display: none;
+    }
 }
 
 .student-activity-report-filters {
@@ -3838,54 +3923,27 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
     display: none;
 }
 
+/* Let names reserve their actual space instead of overflowing percentage columns. */
 .points-ledger-table .points-ledger-col--student,
-.points-ledger-table .points-ledger-col--course {
-    width: 15%;
+.points-ledger-table .points-ledger-col--course,
+.points-ledger-table .points-ledger-col--void-reason {
+    width: auto;
 }
 
-.points-ledger-table .points-ledger-col--entered {
-    width: 16%;
+.points-ledger-table :is(.points-ledger-col--entered, .points-ledger-col--type, .points-ledger-col--source, .points-ledger-col--points, .points-ledger-col--state, .points-ledger-col--actions) {
+    width: 1%;
 }
 
-.points-ledger-table .points-ledger-col--type {
-    width: 15%;
-}
-
-.points-ledger-table .points-ledger-col--source {
-    width: 11%;
-}
-
-.points-ledger-table .points-ledger-col--points {
-    width: 8%;
-}
-
-.points-ledger-table .points-ledger-col--state {
-    width: 9%;
-}
-
-.points-ledger-table .points-ledger-col--actions {
-    width: 11%;
-}
-
-.points-ledger-table[data-has-void-reason='true'] :is(.points-ledger-col--student, .points-ledger-col--course, .points-ledger-col--entered, .points-ledger-col--type) {
-    width: 14%;
-}
-
-.points-ledger-table[data-has-void-reason='true'] .points-ledger-col--source,
-.points-ledger-table[data-has-void-reason='true'] .points-ledger-col--void-reason {
-    width: 10%;
-}
-
-.points-ledger-table[data-has-void-reason='true'] .points-ledger-col--points {
-    width: 7%;
-}
-
-.points-ledger-table[data-has-void-reason='true'] .points-ledger-col--state {
-    width: 8%;
-}
-
-.points-ledger-table[data-has-void-reason='true'] .points-ledger-col--actions {
-    width: 9%;
+.points-ledger-course-name {
+    display: -webkit-box;
+    width: max-content;
+    min-width: 10rem;
+    max-width: 14rem;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .points-ledger-entered-at {
@@ -4212,18 +4270,16 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     line-height: 2.25rem;
 }
 
-.app-pagination {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.75rem 1rem;
+.app-pagination-container {
+    container-type: inline-size;
+    min-width: 0;
 }
 
-.app-pagination__mobile {
-    display: flex;
-    grid-column: 1;
-    grid-row: 1;
-    gap: 0.75rem;
+.app-pagination {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem 1rem;
 }
 
 .app-pagination__desktop {
@@ -4232,12 +4288,28 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
 
 .app-pagination__summary {
     grid-column: 1;
-    grid-row: 2;
-    justify-self: center;
+    grid-row: 1;
+    justify-self: start;
+    width: max-content;
+    white-space: nowrap;
     color: var(--app-muted);
     font-size: 0.72rem;
     line-height: 1.45;
     text-align: center;
+}
+
+.app-pagination__summary-line {
+    display: flex;
+    width: 100%;
+    align-items: baseline;
+}
+
+.app-pagination__summary-line--range {
+    gap: 0.25em;
+}
+
+.app-pagination__summary-line--total {
+    justify-content: space-between;
 }
 
 .app-pagination__summary-strong {
@@ -4251,13 +4323,87 @@ html:not(.dark) .app-pagination__summary-strong {
 
 .app-pagination__nav {
     display: flex;
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
     min-width: 0;
     flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
     gap: 0.45rem;
+}
+
+.app-pagination__nav > * {
+    flex-shrink: 0;
+}
+
+.app-pagination__nav--narrow {
+    display: none;
+}
+
+@container (max-width: 42rem) {
+    .app-pagination {
+        gap: 0.65rem 0.5rem;
+    }
+
+    .app-pagination__nav--wide {
+        display: none;
+    }
+
+    .app-pagination__nav--narrow {
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .app-pagination__nav--narrow .app-pagination__icon {
+        width: 1.8rem;
+        height: 2.25rem;
+    }
+
+    .app-pagination__nav--narrow .app-pagination__page {
+        min-width: 1.8rem;
+        min-height: 2.25rem;
+        padding: 0.35rem 0.3rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+
+    .app-pagination__nav--narrow .app-pagination__page--dots {
+        min-width: 0;
+        padding-inline: 0;
+        border-color: transparent;
+        background: transparent;
+    }
+}
+
+@container (max-width: 22rem) {
+    .app-pagination {
+        gap: 0.4rem;
+    }
+
+    .app-pagination__summary {
+        font-size: 0.65rem;
+    }
+
+    .app-pagination__nav--narrow {
+        gap: 0.15rem;
+    }
+
+    .app-pagination__nav--narrow .app-pagination__page {
+        min-width: 1.5rem;
+        min-height: 2rem;
+        padding-inline: 0.2rem;
+        font-size: 0.7rem;
+    }
+
+    .app-pagination__nav--narrow .app-pagination__page--dots {
+        min-width: 0;
+        padding-inline: 0;
+    }
+
+    .app-pagination__nav--narrow .app-pagination__icon {
+        width: 1.5rem;
+        height: 2rem;
+    }
 }
 
 .app-pagination__button,
@@ -6454,14 +6600,18 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
     box-sizing: border-box;
 }
 
+.quick-saber-header {
+    display: grid;
+}
+
 .quick-saber-hero {
+    grid-area: 1 / 1;
     text-align: center;
 }
 
 .quick-saber-hero__layout {
     display: grid;
     grid-template-columns: minmax(7.5rem, 1fr) minmax(0, auto) minmax(7.5rem, 1fr);
-    min-height: 5rem;
     align-items: center;
 }
 
@@ -6472,8 +6622,9 @@ html:not(.dark) .admin-modal [class*='border-emerald'] {
 
 .quick-saber-type-switch {
     display: grid;
-    grid-column: 3;
-    grid-row: 1;
+    grid-area: 1 / 1;
+    z-index: 1;
+    margin-inline-end: 1.5rem;
     grid-auto-flow: row;
     grid-template-columns: 1fr;
     grid-template-rows: repeat(2, minmax(2.15rem, 1fr));
@@ -6956,25 +7107,48 @@ html[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {
     }
 }
 
-@media (max-width: 640px) {
+@media (min-width: 1024px) {
+    .quick-saber-type-switch {
+        margin-inline-end: 2rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .quick-saber-header {
+        gap: 1rem;
+    }
+
+    .quick-saber-hero {
+        grid-area: auto;
+    }
+
     .quick-saber-hero__layout {
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 0.75rem;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .quick-saber-hero__layout > h1 {
         grid-column: 1 !important;
         grid-row: 1;
-        justify-self: start;
-        text-align: start;
-        font-size: clamp(1.8rem, 9vw, 2.5rem) !important;
+        justify-self: center;
+        text-align: center;
     }
 
     .quick-saber-type-switch {
-        grid-column: 2 !important;
-        grid-row: 1;
-        justify-self: end !important;
-        min-width: 6.75rem;
+        grid-area: auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto;
+        justify-self: stretch;
+        min-width: 0;
+        margin-inline-end: 0;
+    }
+
+    .quick-saber-type-switch__option {
+        min-height: 2.75rem;
+    }
+
+    .quick-saber-type-switch__option + .quick-saber-type-switch__option {
+        border-block-start: 0;
+        border-inline-start: 1px solid rgba(232, 244, 235, 0.28);
     }
 }
 
@@ -10114,15 +10288,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     }
 
     .curricula-index-course-filter {
-        max-width: 50%;
-    }
-
-    .curricula-index-course-filter :is(
-        select,
-        .searchable-select__button,
-        .searchable-select__search--trigger
-    ) {
-        min-height: 2.75rem;
+        display: none;
     }
 
     [data-curricula-progress-card] {
@@ -10285,6 +10451,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     }
 
     .mobile-compact-highlights--two > .stat-card,
+    .mobile-compact-highlights--four > .stat-card,
     .mobile-compact-highlights--five > .stat-card:nth-child(4),
     .mobile-compact-highlights--five > .stat-card:nth-child(5) {
         grid-column: span 3;
@@ -10306,6 +10473,11 @@ html[dir='rtl'] .id-card-layer-card__meta {
         font-size: clamp(1.45rem, 7vw, 1.9rem);
         line-height: 1;
         letter-spacing: 0;
+    }
+
+    .report-kpi-stack.mobile-compact-highlights .metric-value {
+        font-size: clamp(1rem, 5vw, 1.5rem);
+        white-space: nowrap;
     }
 
     .responsive-records-desktop {
@@ -11348,36 +11520,6 @@ html[dir='rtl'] .id-card-layer-card__meta {
         min-width: 38rem;
     }
 
-    .app-pagination {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 0.65rem;
-    }
-
-    .app-pagination__mobile {
-        grid-column: 1;
-        grid-row: 1;
-        min-width: 0;
-        justify-content: flex-start;
-    }
-
-    .app-pagination__nav {
-        grid-column: 2;
-        grid-row: 1;
-        max-width: 100%;
-        overflow-x: auto;
-        justify-content: flex-end;
-        scrollbar-width: none;
-    }
-
-    .app-pagination__summary {
-        grid-column: 1;
-        grid-row: 2;
-    }
-
-    .app-pagination__nav::-webkit-scrollbar {
-        display: none;
-    }
-
     .app-pagination__button,
     .app-pagination__page {
         min-height: 2.25rem;
@@ -11695,7 +11837,7 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
         -webkit-overflow-scrolling: touch;
     }
 
-    .standard-mobile-table .responsive-records-desktop > table {
+    .standard-mobile-table .responsive-records-desktop > table:not(.table-content) {
         min-width: 48rem;
     }
 
@@ -11907,6 +12049,63 @@ html:not(.dark) :is([data-invoice-capture-remove-item], [data-invoice-item-delet
 html:not(.dark) .attendance-type-switch__option--present:not([aria-pressed='true']) { color: #08783a; }
 html:not(.dark) .attendance-type-switch__option--absent:not([aria-pressed='true']) { color: #b32626; }
 
+.teacher-attendance-records-table .attendance-type-switch {
+    gap: 0.25rem;
+    padding: 0.25rem;
+    overflow: visible;
+    border-radius: 0.85rem;
+    border-color: var(--app-border);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.teacher-attendance-records-table .attendance-type-switch__option {
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    background-clip: padding-box;
+    padding-inline: 0.65rem;
+    color: var(--app-muted);
+    background: transparent;
+    transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.teacher-attendance-records-table .attendance-type-switch__option:not([aria-pressed='true']):hover:not(:disabled) {
+    background: rgba(151, 219, 174, 0.07);
+    color: var(--app-text);
+}
+
+.teacher-attendance-records-table .attendance-type-switch__option--present[aria-pressed='true'] {
+    color: var(--app-text);
+}
+
+.teacher-attendance-actions-column > .admin-icon-button {
+    width: 1.2rem;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    min-height: 1.2rem;
+    flex-basis: 1.2rem;
+    padding: 0;
+    border-radius: 0.3rem;
+}
+
+.teacher-attendance-actions-column > .admin-icon-button > svg {
+    width: 0.6rem;
+    height: 0.6rem;
+    flex-basis: 0.6rem;
+}
+
+html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__option:not([aria-pressed='true']) {
+    color: var(--app-muted);
+}
+
+html:not(.dark) .teacher-attendance-records-table .attendance-type-switch {
+    border-color: var(--app-border);
+    background: rgba(32, 91, 55, 0.035);
+}
+
+html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__option {
+    box-shadow: none;
+}
+
 .attendance-group-picker {
     display: grid;
     gap: 0.65rem;
@@ -11941,6 +12140,31 @@ html:not(.dark) .attendance-type-switch__option--absent:not([aria-pressed='true'
     width: 1.15rem;
     height: 1.15rem;
     accent-color: #15803d;
+}
+
+/* Fit all five group columns on tablets, including student and present totals. */
+@media (min-width: 768px) and (max-width: 1279px) {
+    .surface-table table.attendance-day-groups-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed;
+    }
+
+    .attendance-day-groups-table :is(th, td) {
+        min-width: 0 !important;
+        padding: 0.85rem 0.6rem !important;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-day-groups-table :is(th, td):nth-child(4),
+    .attendance-day-groups-table :is(th, td):nth-child(5) {
+        width: 4.5rem !important;
+    }
+
+    .attendance-day-groups-table :is(th, td):last-child {
+        width: 5rem !important;
+    }
 }
 
 @media (max-width: 767px) {
@@ -11979,14 +12203,16 @@ html:not(.dark) .attendance-type-switch__option--absent:not([aria-pressed='true'
     }
 
     .attendance-records-table :is(th, td) {
-        width: 48% !important;
+        width: auto !important;
         min-width: 0 !important;
         padding: 0.85rem 0.65rem !important;
         white-space: normal;
         overflow-wrap: anywhere;
     }
 
-    .attendance-records-table :is(th, td):first-child { width: 52% !important; }
+    .surface-table .attendance-records-table :is(th, td):is(.student-attendance-status-column, .teacher-attendance-status-column) {
+        width: 9.25rem !important;
+    }
 
     .attendance-records-table :is(.attendance-desktop-only, .student-avatar, .student-inline__meta) {
         display: none !important;
@@ -12014,7 +12240,17 @@ html:not(.dark) .attendance-type-switch__option--absent:not([aria-pressed='true'
     }
 
     .attendance-day-groups-table :is(th, td):last-child {
-        width: 4.25rem !important;
+        width: 5.75rem !important;
+        padding-inline-end: 1.5rem !important;
+    }
+
+    .attendance-day-groups-table th:last-child {
+        white-space: nowrap;
+    }
+
+    .attendance-day-groups-table td:last-child .admin-icon-button {
+        margin-inline-start: auto;
+        margin-inline-end: 0;
     }
 
     .attendance-day-groups-table .attendance-desktop-only {
@@ -12032,6 +12268,103 @@ html:not(.dark) .attendance-type-switch__option--absent:not([aria-pressed='true'
     [data-attendance-status-select],
     [data-attendance-status-select] + .searchable-select .searchable-select__button {
         font-size: 16px;
+    }
+}
+
+@media (max-width: 767px) {
+    .surface-table > .attendance-days-table-wrapper {
+        overflow-x: hidden !important;
+    }
+
+    .surface-table table.attendance-days-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+    }
+
+    .attendance-days-table .attendance-days-mobile-hidden {
+        display: none;
+    }
+
+    .surface-table .attendance-days-table :is(th, td) {
+        min-width: 0;
+        padding: 0.85rem 0.65rem !important;
+        vertical-align: middle;
+    }
+
+    .surface-table .attendance-days-table .attendance-days-number {
+        width: 2.25rem;
+        padding-inline: 0.25rem !important;
+        font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-days-table .attendance-days-date {
+        width: 6.5rem;
+        white-space: nowrap;
+    }
+
+    .attendance-days-table .attendance-days-course {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-days-table .attendance-days-actions {
+        width: 4.5rem;
+    }
+
+    .attendance-days-table .admin-icon-button {
+        width: 2.75rem;
+        min-width: 2.75rem;
+        height: 2.75rem;
+        min-height: 2.75rem;
+    }
+}
+
+[data-attendance-status-select] + .searchable-select .searchable-select__button {
+    gap: 0.5rem;
+    padding-inline: 0.65rem;
+}
+
+[data-attendance-status-select] + .searchable-select .searchable-select__value {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.surface-table > :is(.teacher-attendance-toolbar, .student-attendance-toolbar) {
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.surface-table > :is(.teacher-attendance-toolbar, .student-attendance-toolbar) > .admin-toolbar__actions {
+    align-self: center;
+    flex: 0 0 auto !important;
+    flex-wrap: nowrap !important;
+}
+
+.student-attendance-toolbar > .attendance-day-toolbar__heading {
+    flex: 1 1 0 !important;
+    min-width: 0;
+}
+
+.student-attendance-toolbar .admin-grid-meta__title,
+.student-attendance-toolbar .admin-grid-meta__summary {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 767px) {
+    .surface-table > .teacher-attendance-toolbar {
+        padding-inline: 1rem;
+    }
+
+    .surface-table .attendance-records-table :is(th, td):is(.teacher-attendance-status-column, .student-attendance-status-column) {
+        padding-inline-end: 1.5rem !important;
     }
 }
 
@@ -12239,7 +12572,7 @@ html:not(.dark) .calendar-date-popover { border-color: #90b09b; background: radi
     }
 }
 
-/* Let attendance context size to its contents and meet the hero's outer padding. */
+/* Keep attendance context aligned with the hero and bounded by its available width. */
 .attendance-mark-hero .group-show-hero-layout {
     width: 100%;
 }
@@ -12250,26 +12583,13 @@ html:not(.dark) .calendar-date-popover { border-color: #90b09b; background: radi
     margin-inline-start: auto;
 }
 .attendance-mark-hero .group-show-details {
-    width: max-content;
     flex: none;
-}
-.attendance-mark-hero .group-show-details__grid {
-    grid-template-columns: repeat(2, minmax(max-content, 1fr));
-}
-.attendance-mark-hero__course dd {
-    white-space: nowrap;
 }
 @media (max-width: 1023px) {
     .attendance-mark-hero .group-show-hero-widgets,
     .attendance-mark-hero .group-show-details {
         width: 100%;
         min-width: 0;
-    }
-    .attendance-mark-hero .group-show-details__grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .attendance-mark-hero__course dd {
-        overflow-x: auto;
     }
 }
 
@@ -12334,4 +12654,89 @@ html:not(.dark) .memorization-juz-switcher__panel { background: #fffef9; color: 
     .student-timeline__course { padding-inline: .5rem; }
     .student-timeline__course-name { font-size: .8rem; }
     .student-timeline__milestones li { flex-basis: 8.5rem; min-width: 8.5rem; }
+}
+
+/* Keep the outer cells clear of the card border, even when compact columns
+   override the interior padding. Use logical edges for Arabic and English. */
+.surface-table table:not(:has(> thead > tr > :first-child[data-table-number-column])) > :is(thead, tbody, tfoot) > tr > :first-child {
+    padding-inline-start: 1.5rem !important;
+}
+
+.surface-table table > :is(thead, tbody, tfoot) > tr > :last-child {
+    padding-inline-end: 1.5rem !important;
+}
+
+.surface-table :is(.attendance-records-table, .attendance-day-groups-table) .attendance-row-number {
+    width: 2.5rem !important;
+    text-align: start !important;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    padding-inline-start: 0.75rem !important;
+    padding-inline-end: 0.5rem !important;
+}
+
+@media (max-width: 767px) {
+    .surface-table :is(.attendance-records-table, .attendance-day-groups-table) .attendance-person-column {
+        padding-inline-start: 0.5rem !important;
+    }
+}
+
+/* Shared record labels: preserve names and phone numbers, and bound long
+   course/year labels without changing the table cell's display type. */
+.record-person-name,
+.student-inline__name,
+.record-phone {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+}
+
+.record-person-name:not(td):not(th),
+.student-inline__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.record-phone {
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+.record-course-name,
+.record-year-name {
+    display: -webkit-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+td > .record-course-name {
+    width: max-content;
+    max-width: 14rem;
+}
+
+td > .record-year-name {
+    width: max-content;
+    max-width: 11rem;
+}
+
+select[data-record-label='person'] + .searchable-select :is(.searchable-select__option, .searchable-select__option-name),
+select[data-record-label='phone'] + .searchable-select .searchable-select__option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+select:is([data-record-label='course'], [data-record-label='year']) + .searchable-select :is(.searchable-select__value, .searchable-select__option) {
+    display: -webkit-box;
+    white-space: normal;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }

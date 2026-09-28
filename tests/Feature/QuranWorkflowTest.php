@@ -267,7 +267,7 @@ class QuranWorkflowTest extends TestCase
         $this->assertStringNotContainsString('teacher-attendance-actions-column', $laterDayComponent->html());
         $this->assertStringContainsString('teacher-attendance-records-table--closed', $laterDayComponent->html());
         $this->assertStringNotContainsString('wire:click="openManualTeacherModal"', $laterDayComponent->html());
-        $this->assertStringContainsString($present->name, $laterDayComponent->html());
+        $this->assertStringContainsString(__('workflow.teacher_attendance.table.present'), $laterDayComponent->html());
         $laterDayComponent
             ->call('toggleDayStatus')
             ->assertSet('showManualTeacherModal', false)

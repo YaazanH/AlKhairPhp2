@@ -851,7 +851,7 @@ new class extends Component {
             <div class="admin-toolbar__controls admin-toolbar__controls--compact" data-parent-table-controls>
                 <div class="admin-filter-field">
                     <label class="sr-only" for="parent-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="parent-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="parent-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -881,7 +881,7 @@ new class extends Component {
                     <article class="mobile-record-card">
                         <div class="mobile-record-card__header">
                             <div class="min-w-0">
-                                <div class="mobile-record-card__title">{{ $parent->father_name }}</div>
+                                <div class="record-person-name mobile-record-card__title">{{ $parent->father_name }}</div>
                                 <div class="mobile-record-card__subtitle">{{ $parent->parent_number ?: $parent->id }}</div>
                             </div>
                             <span class="{{ $parent->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
@@ -892,7 +892,7 @@ new class extends Component {
                         <dl class="mobile-record-card__details">
                             <div>
                                 <dt>{{ __('crud.parents.table.headers.mother') }}</dt>
-                                <dd>{{ $parent->mother_name ?: __('crud.common.not_available') }}</dd>
+                                <dd class="record-person-name">{{ $parent->mother_name ?: __('crud.common.not_available') }}</dd>
                             </div>
                             <div>
                                 <dt>{{ __('crud.parents.table.headers.students') }}</dt>
@@ -900,11 +900,11 @@ new class extends Component {
                             </div>
                             <div>
                                 <dt>{{ __('crud.parents.table.headers.father_phone') }}</dt>
-                                <dd><bdi dir="ltr">{{ $parent->father_phone ?: __('crud.common.not_available') }}</bdi></dd>
+                                <dd><bdi dir="ltr" class="record-phone">{{ $parent->father_phone ?: __('crud.common.not_available') }}</bdi></dd>
                             </div>
                             <div>
                                 <dt>{{ __('crud.parents.table.headers.mother_phone') }}</dt>
-                                <dd><bdi dir="ltr">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</bdi></dd>
+                                <dd><bdi dir="ltr" class="record-phone">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</bdi></dd>
                             </div>
                         </dl>
 
@@ -928,34 +928,36 @@ new class extends Component {
             </div>
 
             <div class="responsive-records-desktop overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.parent_number') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.students') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father_phone') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother_phone') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.status') }}</th>
-                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.parents.table.headers.actions') }}</th>
+
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.parent_number') }}</th>
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.students') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.father_phone') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.mother_phone') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.parents.table.headers.status') }}</th>
+                            <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.parents.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($parents as $parent)
                             <tr>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ $parent->father_name }}</td>
-                                <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $parent->parent_number ?: $parent->id }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ number_format($parent->students_count) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $parent->father_phone ?: __('crud.common.not_available') }}</bdi></td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</bdi></td>
-                                <td class="px-5 py-4 lg:px-6">
+
+                                <td class="record-person-name table-cell-name px-5 py-4 text-white lg:px-6">{{ $parent->father_name }}</td>
+                                <td class="table-cell-compact px-5 py-4 font-mono text-white lg:px-6">{{ $parent->parent_number ?: $parent->id }}</td>
+                                <td class="record-person-name table-cell-name px-5 py-4 text-neutral-300 lg:px-6">{{ $parent->mother_name ?: __('crud.common.not_available') }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-white lg:px-6">{{ number_format($parent->students_count) }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="record-phone inline-block">{{ $parent->father_phone ?: __('crud.common.not_available') }}</bdi></td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="record-phone inline-block">{{ $parent->mother_phone ?: __('crud.common.not_available') }}</bdi></td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <span class="{{ $parent->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ $parent->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}
                                     </span>
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @if ($this->canManageProfileLogin($parent->user, 'parent'))
                         <button type="button" wire:click="viewAccount({{ $parent->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.account') }}" aria-label="{{ __('crud.common.actions.account') }}" data-parent-account-action><x-admin-action-icon name="account" /></button>
@@ -1190,9 +1192,10 @@ new class extends Component {
             </div>
         @else
             <div class="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
+
                             <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.student') }}</th>
                             <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.student_number') }}</th>
                             <th class="px-5 py-4 text-left">{{ __('crud.parents.children.headers.grade') }}</th>
@@ -1211,7 +1214,8 @@ new class extends Component {
                                 };
                             @endphp
                             <tr>
-                                <td class="px-5 py-4 text-white">{{ $child['name'] }}</td>
+
+                                <td class="px-5 py-4 text-white"><span class="record-person-name">{{ $child['name'] }}</span></td>
                                 <td class="px-5 py-4 font-mono text-white">{{ $child['student_number'] }}</td>
                                 <td class="px-5 py-4 text-neutral-300">{{ $child['grade_level'] }}</td>
                                 <td class="px-5 py-4 text-neutral-300">{{ $child['group_name'] }}</td>
@@ -1239,7 +1243,7 @@ new class extends Component {
             @endcan
         </x-slot:headerActions>
         <div class="rounded-3xl border border-white/15 bg-white p-8 text-neutral-900 shadow-xl" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
-            <div class="text-center text-2xl font-bold">{{ $account_father_name }}</div>
+            <div class="record-person-name text-center text-2xl font-bold">{{ $account_father_name }}</div>
             <div class="mt-8 grid grid-cols-[auto_1fr] gap-x-5 gap-y-4 text-lg">
                 <div class="font-semibold">{{ __('access.profile_accounts.fields.username') }}</div><div class="font-mono">{{ $account_username ?: __('crud.common.not_available') }}</div>
                 <div class="font-semibold">{{ __('access.profile_accounts.fields.password') }}</div><div class="min-w-0 break-words">@if($issued_password)<bdi dir="ltr" class="font-mono">{{ $issued_password }}</bdi>@else<span class="text-base leading-relaxed">{{ __('access.profile_accounts.empty.issued_password') }}</span>@endif</div>

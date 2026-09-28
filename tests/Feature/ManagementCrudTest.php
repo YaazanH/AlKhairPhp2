@@ -2367,7 +2367,7 @@ class ManagementCrudTest extends TestCase
         $this->assertStringNotContainsString('width: 56.75rem !important;', $groupCss);
         $this->assertStringContainsString('.group-show-hero-layout > :first-child,', $groupCss);
         $this->assertStringContainsString('flex: 0 0 auto;', $groupCss);
-        $this->assertStringContainsString('width: min(17rem, 100%);', $groupCss);
+        $this->assertStringContainsString('width: 26rem;', $groupCss);
         $this->assertMatchesRegularExpression('/\.group-show-actions > \.admin-icon-button\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*0;[^}]*flex:\s*1 1 0;/s', $groupCss);
         $this->assertStringNotContainsString("html[dir='rtl'] .group-show-hero-widgets {\n        margin-inline-end: 2.5rem;", $groupCss);
 

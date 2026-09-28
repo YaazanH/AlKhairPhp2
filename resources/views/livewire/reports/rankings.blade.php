@@ -137,7 +137,7 @@ new class extends Component {
     <section class="surface-panel report-filter-grid p-5 lg:p-6">
         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
             <div class="admin-filter-field min-w-0">
-                <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}">
+                <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}" data-record-label="course">
                     <option value="">{{ __('reports.filters.all_courses') }}</option>
                     @foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach
                 </select>
@@ -174,7 +174,7 @@ new class extends Component {
             @if (count($ranking['comparison']['rows']) === 0)
                 <div class="px-6 py-14 text-sm text-neutral-400">{{ __('reports.rankings.table.empty') }}</div>
             @else
-                <div class="overflow-x-auto"><table class="text-sm">
+                <div class="overflow-x-auto"><table class="table-content text-sm">
                     <thead><tr>
                         <th class="px-5 py-4 text-left">{{ __('reports.rankings.table.current_rank') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('reports.rankings.table.entity') }}</th>
@@ -187,7 +187,7 @@ new class extends Component {
                         @php($movement = $movementMeta[$row['movement_state']])
                         <tr>
                             <td class="px-5 py-4 font-semibold text-white">{{ $row['display_rank'] ? '#'.$row['display_rank'] : '—' }}</td>
-                            <td class="px-5 py-4 text-white">{{ $row['entity_name'] }}</td>
+                            <td class="px-5 py-4 text-white"><span class="record-person-name">{{ $row['entity_name'] }}</span></td>
                             <td class="px-5 py-4">{{ number_format($row['first_pages']) }}</td>
                             <td class="px-5 py-4">{{ number_format($row['second_pages']) }}</td>
                             <td class="px-5 py-4">

@@ -169,7 +169,7 @@ new class extends Component {
             <div class="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
                 <div class="admin-form-field">
                     <label>{{ __('barcodes.import.fields.course') }}</label>
-                    <select wire:model="course_id">
+                    <select wire:model="course_id" data-record-label="course">
                         <option value="">{{ __('barcodes.import.placeholders.course') }}</option>
                         @foreach ($courses as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>
@@ -253,7 +253,7 @@ new class extends Component {
                             <article class="rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
-                                        <div class="font-semibold text-white">{{ $import->course?->name }}</div>
+                                        <div class="font-semibold text-white"><span class="record-course-name">{{ $import->course?->name }}</span></div>
                                         <div class="mt-1 text-neutral-400">{{ \App\Support\DateDisplay::html($import->attendance_date?->format('d-m-Y')) }}</div>
                                     </div>
                                     <span class="{{ $import->error_count > 0 ? 'status-chip status-chip--rose' : 'status-chip status-chip--emerald' }}">{{ $import->status }}</span>
@@ -306,7 +306,7 @@ new class extends Component {
 
             @if (! empty($preview['rows']))
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('barcodes.import.preview.headers.sequence') }}</th>
@@ -324,7 +324,7 @@ new class extends Component {
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['sequence_no'] }}</td>
                                     <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $row['normalized_value'] }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['action_name'] ?: __('crud.common.not_available') }}</td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['student_name'] ?: __('crud.common.not_available') }}</td>
+                                    <td class="record-person-name px-5 py-4 text-neutral-300 lg:px-6">{{ $row['student_name'] ?: __('crud.common.not_available') }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['group_name'] ?: __('workflow.common.no_group') }}</td>
                                     <td class="px-5 py-4 lg:px-6"><span class="{{ in_array($row['result'], ['ready', 'applied'], true) ? 'status-chip status-chip--emerald' : ($row['result'] === 'error' ? 'status-chip status-chip--rose' : 'status-chip status-chip--slate') }}">{{ __('barcodes.import.results.'.$row['result']) }}</span></td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['message'] }}</td>

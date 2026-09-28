@@ -362,6 +362,14 @@ new class extends Component {
             ->toArray();
     }
 
+    protected function attendanceStatusLabel(?AttendanceStatus $status): string
+    {
+        return match ($status?->code) {
+            'present', 'absent' => __('workflow.teacher_attendance.table.'.$status->code),
+            default => $status?->name ?: '-',
+        };
+    }
+
     protected function defaultTeacherAttendanceStatusId(): ?int
     {
         return AttendanceStatus::query()
@@ -440,7 +448,7 @@ new class extends Component {
             <form wire:submit="addManualTeacher" class="space-y-4">
                 <div>
                     <label for="manual-attendance-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.day_details.manual_add.teacher') }}</label>
-                    <select id="manual-attendance-teacher" wire:model="manual_teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="manual-attendance-teacher" wire:model="manual_teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                         <option value="">{{ __('workflow.teacher_attendance.day_details.manual_add.select_teacher') }}</option>
                         @foreach ($availableExtraTeachers as $teacher)
                             <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
@@ -466,10 +474,10 @@ new class extends Component {
     @endcan
 
     <section class="surface-table">
-        <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar">
+        <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar teacher-attendance-toolbar">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('workflow.teacher_attendance.table.summary', ['count' => number_format($teacherRecords->count())]) }}</div>
+                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.teacher_attendance.table.summary', $stats['marked'], ['count' => number_format($stats['marked'])]) }}</div>
             </div>
             @can('attendance.teacher.take')
                 <div class="admin-toolbar__actions">
@@ -498,14 +506,15 @@ new class extends Component {
         @if ($teacherRecords->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.teacher_attendance.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto overflow-y-visible pb-24">
+            <div class="overflow-x-auto overflow-y-visible">
                 <table class="attendance-records-table teacher-attendance-records-table text-sm {{ $dayRecord->status === 'closed' ? 'teacher-attendance-records-table--closed' : '' }}" data-attendance-records>
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
+                            <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
+                            <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
+                            <th class="teacher-attendance-status-column px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
                             @can('attendance.teacher.take')
                                 @if ($dayRecord->status !== 'closed')
                                     <th class="attendance-desktop-only admin-actions-column teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.teacher_attendance.table.headers.actions') }}</th>
@@ -527,12 +536,13 @@ new class extends Component {
                                     : __('workflow.common.not_available'));
                             @endphp
                             <tr wire:key="teacher-attendance-row-{{ $record->id }}-{{ $record->teacher_id }}">
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
+                                <td class="attendance-person-column px-5 py-4 lg:px-6">
                                     <div class="student-inline student-inline--teacher-attendance">
                                         <x-teacher-avatar :teacher="$teacher" size="sm" />
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $teacher?->first_name }} {{ $teacher?->last_name }}</div>
-                                            <div class="student-inline__meta"><bdi dir="ltr" class="inline-block">{{ $teacher?->phone }}</bdi></div>
+                                            <div class="record-person-name student-inline__name">{{ $teacher?->first_name }} {{ $teacher?->last_name }}</div>
+                                            <div class="student-inline__meta"><bdi dir="ltr" class="record-phone inline-block">{{ $teacher?->phone }}</bdi></div>
                                         </div>
                                     </div>
                                 </td>
@@ -542,9 +552,9 @@ new class extends Component {
                                         {{ __('crud.common.status_options.'.($teacher?->status ?: 'inactive')) }}
                                     </span>
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="teacher-attendance-status-column px-5 py-4 lg:px-6">
                                     @if ($dayRecord->status === 'closed' || $record->course_finished_at)
-                                        <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$record->teacher_id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
+                                        <span class="text-neutral-200">{{ $this->attendanceStatusLabel($statuses->firstWhere('id', (int) ($selected_statuses[$record->teacher_id] ?? 0)) ?? $statuses->firstWhere('is_default', true) ?? $statuses->first()) }}</span>
                                     @else
                                         <div id="teacher-attendance-record-{{ $record->teacher_id }}" class="attendance-type-switch" role="group" aria-label="{{ __('workflow.teacher_attendance.table.headers.attendance') }} — {{ $teacher?->first_name }} {{ $teacher?->last_name }}">
                                             @foreach ($attendanceChoices as $attendanceStatus)
@@ -555,7 +565,7 @@ new class extends Component {
                                                     @disabled(! auth()->user()->can('attendance.teacher.take'))
                                                     aria-pressed="{{ (int) ($selected_statuses[$record->teacher_id] ?? 0) === $attendanceStatus->id ? 'true' : 'false' }}"
                                                     @class(['attendance-type-switch__option', 'attendance-type-switch__option--present' => $attendanceStatus->is_present, 'attendance-type-switch__option--absent' => ! $attendanceStatus->is_present])
-                                                >{{ $attendanceStatus->name }}</button>
+                                                >{{ __('workflow.teacher_attendance.table.'.($attendanceStatus->is_present ? 'present' : 'absent')) }}</button>
                                             @endforeach
                                         </div>
                                         @if (! $attendanceChoices->contains('id', (int) ($selected_statuses[$record->teacher_id] ?? 0)))
@@ -565,7 +575,13 @@ new class extends Component {
                                 </td>
                                 @can('attendance.teacher.take')
                                     @if ($dayRecord->status !== 'closed')
-                                        <td class="attendance-desktop-only teacher-attendance-actions-column px-5 py-4 text-right lg:px-6">@if (! $record->course_finished_at)<button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/25 text-red-200" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 13h8l1-13"/></svg></button>@endif</td>
+                                        <td class="attendance-desktop-only teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">
+                                            @if (! $record->course_finished_at)
+                                                <button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}">
+                                                    <x-admin-action-icon name="minus" />
+                                                </button>
+                                            @endif
+                                        </td>
                                     @endif
                                 @endcan
                             </tr>

@@ -97,6 +97,7 @@ new class extends Component {
                     ->where('report_type', 'ledger')
                     ->with('generatedBy')
                     ->latest()
+                    ->orderByDesc('id')
                     ->paginate(10, pageName: 'generatedReportsPage')
                 : collect(),
             'ledgerCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
@@ -412,9 +413,10 @@ new class extends Component {
                 </div>
                 @error('createReport')<div class="mx-5 mb-4 rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div>@enderror
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
+                                <th data-table-number-column scope="col" class="table-cell-compact px-3 py-3 text-center">#</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.fields.report_no') }}</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.fields.period') }}</th>
                                 <th class="px-5 py-3 text-left">{{ __('finance.fields.cash_box') }}</th>
@@ -427,6 +429,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @forelse ($generatedReports as $generatedReport)
                                 <tr>
+                                    <td class="table-cell-compact px-3 py-3 text-center text-neutral-300" data-report-row-number="{{ $generatedReport->id }}">{{ $generatedReports->total() - $generatedReports->firstItem() - $loop->index + 1 }}</td>
                                     <td class="px-5 py-3">
                                         <div class="font-medium text-white">{{ app(FinanceReportService::class)->reportNumber($generatedReport, $generatedReport->report_data ?: []) }}</div>
                                     </td>
@@ -443,7 +446,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_generated_reports') }}</td>
+                                    <td colspan="8" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('finance.empty.no_generated_reports') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>

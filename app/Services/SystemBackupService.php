@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Exceptions\BackupConversionException;
+use App\Exceptions\BackupDatabaseMismatchException;
 use App\Models\AppSetting;
 use App\Models\SystemBackup;
 use App\Models\User;
@@ -85,7 +87,7 @@ class SystemBackupService
         }
     }
 
-    public function import(string $sourcePath, string $originalFilename, ?User $creator = null): SystemBackup
+    public function import(string $sourcePath, string $originalFilename, ?User $creator = null, #[\SensitiveParameter] ?string $applicationKey = null): SystemBackup
     {
         if (! File::isFile($sourcePath) || (filesize($sourcePath) ?: 0) === 0) {
             throw new RuntimeException('The imported backup file is empty or unavailable.');
@@ -130,6 +132,19 @@ class SystemBackupService
                 throw new RuntimeException('Unable to store the imported backup file.');
             }
 
+            if ($applicationKey !== null) {
+                $importDirectory = $this->temporaryDirectory();
+                $archivePath = $importDirectory.'/imported.zip';
+                $normalizedPath = $importDirectory.'/normalized.alkhair-backup';
+                $this->encryption->decrypt($absoluteDestination, $archivePath, $applicationKey);
+                $this->encryption->encrypt($archivePath, $normalizedPath);
+
+                if (! File::move($normalizedPath, $absoluteDestination)) {
+                    throw new RuntimeException('Unable to store the re-encrypted backup.');
+                }
+                clearstatcache(true, $absoluteDestination);
+            }
+
             $backup = SystemBackup::query()->create([
                 'uuid' => $uuid,
                 'disk' => $diskName,
@@ -166,6 +181,9 @@ class SystemBackupService
 
             throw $exception;
         } finally {
+            if (isset($importDirectory)) {
+                File::deleteDirectory($importDirectory);
+            }
             $lock->release();
         }
     }
@@ -233,7 +251,21 @@ class SystemBackupService
             $currentDriver = (string) config('database.connections.'.config('database.default').'.driver');
 
             if ($hasDatabase && $manifestDriver !== $currentDriver) {
-                throw new RuntimeException('The backup database driver does not match this installation.');
+                if ($currentDriver !== 'sqlite' || ! in_array($manifestDriver, ['mysql', 'mariadb'], true)) {
+                    throw new BackupDatabaseMismatchException($manifestDriver, $currentDriver);
+                }
+
+                $convertedPath = $prepared['directory'].'/converted.sqlite';
+                try {
+                    app(MySqlToSqliteBackupConverter::class)->convert(
+                        $prepared['database_path'],
+                        $convertedPath,
+                        (array) data_get($prepared['manifest'], 'database.tables', []),
+                    );
+                } catch (Throwable $exception) {
+                    throw new BackupConversionException('The MySQL backup could not be converted to SQLite.', previous: $exception);
+                }
+                $prepared['database_path'] = $convertedPath;
             }
 
             if ($hasDatabase) {
