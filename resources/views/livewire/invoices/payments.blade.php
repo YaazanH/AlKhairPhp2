@@ -304,7 +304,7 @@ new class extends Component {
                 @if ($invoiceRecord->original_invoice_no)
                     <bdi dir="ltr" class="mt-1 block text-sm text-neutral-300">{{ $invoiceRecord->original_invoice_no }}</bdi>
                 @endif
-                <div class="mt-1 text-sm text-neutral-400">{{ $invoiceRecord->invoicer_name ?: ($invoiceRecord->parentProfile?->father_name ?: '-') }} | {{ $invoiceTypeLabel }}</div>
+                <div class="record-person-name mt-1 text-sm text-neutral-400">{{ $invoiceRecord->invoicer_name ?: ($invoiceRecord->parentProfile?->father_name ?: '-') }} | {{ $invoiceTypeLabel }}</div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('invoices.detail.summary.status', ['status' => $invoiceStatusLabel]) }}</div>
             </div>
         </div>
@@ -405,8 +405,8 @@ new class extends Component {
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead><tr><th class="px-5 py-4 text-left lg:px-6">#</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.item_name') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.unit_price') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th>@if($canModifyItems)<th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th>@endif</tr></thead>
+                    <table class="table-content text-sm">
+                        <thead><tr><th data-table-number-column class="px-5 py-4 text-left lg:px-6">#</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.item_name') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.unit_price') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th>@if($canModifyItems)<th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th>@endif</tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($items as $item)
                                 <tr>

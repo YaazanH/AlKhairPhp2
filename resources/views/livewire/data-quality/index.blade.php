@@ -545,7 +545,7 @@ new class extends Component {
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="data-quality-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="data-quality-search" wire:model.live.debounce.300ms="search" type="search" placeholder="{{ __('data_governance.quality.search_placeholder') }}">
+                    <input id="data-quality-search" wire:model.live.debounce.500ms="search" type="search" placeholder="{{ __('data_governance.quality.search_placeholder') }}">
                 </div>
                 <div class="admin-filter-field">
                     <label class="sr-only" for="data-quality-type">{{ __('data_governance.quality.all_types') }}</label>
@@ -558,8 +558,8 @@ new class extends Component {
             </div>
         </div>
         <div class="overflow-x-auto">
-            <table class="text-sm">
-                <thead><tr><th class="w-16 px-5 py-4 text-center">#</th><th class="px-5 py-4 text-start">{{ __('data_governance.quality.issue') }}</th><th class="px-5 py-4 text-start">{{ __('data_governance.quality.records') }}</th><th class="px-5 py-4 text-center">{{ __('data_governance.quality.priority') }}</th><th class="px-5 py-4 text-center">{{ __('data_governance.quality.status') }}</th><th class="admin-actions-column px-5 py-4 text-center">{{ __('data_governance.quality.actions') }}</th></tr></thead>
+            <table class="table-content text-sm">
+                <thead><tr><th data-table-number-column class="w-16 px-5 py-4 text-center">#</th><th class="px-5 py-4 text-start">{{ __('data_governance.quality.issue') }}</th><th class="px-5 py-4 text-start">{{ __('data_governance.quality.records') }}</th><th class="px-5 py-4 text-center">{{ __('data_governance.quality.priority') }}</th><th class="px-5 py-4 text-center">{{ __('data_governance.quality.status') }}</th><th class="admin-actions-column px-5 py-4 text-center">{{ __('data_governance.quality.actions') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/10">
                 @forelse ($issues as $issue)
                     <tr>

@@ -161,7 +161,8 @@ return [
                 'marked' => 'Marked students',
             ],
             'table' => [
-                'title' => 'Group attendance sessions',
+                'title' => 'Group attendance',
+                'groups_in_view' => '{1} :count group|[0,*] :count groups',
                 'empty' => 'No group sessions were created for this attendance day.',
                 'headers' => [
                     'group' => 'Group',
@@ -201,7 +202,7 @@ return [
             ],
         ],
         'marking' => [
-            'title' => 'Mark Group Attendance',
+            'title' => 'Record attendance',
             'subtitle' => 'Mark one group roster inside the selected attendance day.',
             'back' => 'Back to attendance day',
         ],
@@ -274,7 +275,8 @@ return [
             'records' => ':count marked records',
         ],
         'table' => [
-            'title' => 'Attendance records for active enrolments',
+            'title' => 'Record attendance',
+            'present_students' => '{1} :count student present|[0,*] :count students present',
             'headers' => [
                 'student' => 'Student',
                 'enrolled' => 'Enrolled',
@@ -333,7 +335,7 @@ return [
             ],
         ],
         'day_details' => [
-            'title' => 'Teacher Attendance Day',
+            'title' => 'Supervisor attendance',
             'subtitle' => 'Review scheduled teachers for this day, add any extra teachers if needed, and mark attendance from one screen.',
             'back' => 'Back to teacher attendance days',
             'stats' => [
@@ -384,8 +386,8 @@ return [
             'available_teachers' => ':count teachers in this day list',
         ],
         'table' => [
-            'title' => 'Teacher day records',
-            'summary' => ':count teachers available for this day',
+            'title' => 'Record attendance',
+            'summary' => '{1} :count teacher present|[0,*] :count teachers present',
             'headers' => [
                 'teacher' => 'Teacher',
                 'job_title' => 'Job title',
@@ -394,6 +396,8 @@ return [
                 'actions' => 'Actions',
             ],
             'remove_teacher' => 'Remove teacher',
+            'present' => 'Present',
+            'absent' => 'Absent',
             'not_marked' => 'Not marked',
             'empty' => 'No teachers are available yet.',
         ],
@@ -1368,6 +1372,7 @@ return [
                 'course' => 'Course',
                 'teacher' => 'Teacher',
                 'status' => 'Status',
+                'total_points' => 'Total points',
                 'points' => 'Points',
                 'pages' => 'Pages',
                 'actions' => 'Actions',

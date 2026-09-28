@@ -1,4 +1,18 @@
 import jsQR from 'jsqr';
+import { debounceSearch } from './search-debounce';
+
+const delayedSearchInputs = new WeakMap();
+document.addEventListener('input', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches('[data-search-debounce]')) return;
+
+    if (!delayedSearchInputs.has(input)) {
+        delayedSearchInputs.set(input, debounceSearch(() => {
+            if (input.isConnected) input.dispatchEvent(new Event('search-debounced'));
+        }));
+    }
+    delayedSearchInputs.get(input)();
+});
 
 const adminConfirmState = {
     activeElement: null,
@@ -288,7 +302,7 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '14';
+const SEARCHABLE_SELECT_BINDING_VERSION = '15';
 const STUDENT_PROGRESS_SELECTION_MINIMUM_VISIBLE_MS = 650;
 const deferredSearchableSelectSelections = new Map();
 let searchableSelectOpenSuppressedUntil = 0;
@@ -523,6 +537,7 @@ function restoreSearchableSelectOverflow(wrapper) {
 }
 
 function closeSearchableSelect(wrapper) {
+    wrapper.cancelPendingSearch?.();
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
     wrapper.querySelector('.searchable-select__button')?.setAttribute('aria-expanded', 'false');
@@ -966,6 +981,8 @@ function enhanceSearchableSelect(select) {
     transferMobileTableFilterCriterion(select, wrapper);
 
     let optionsSignature = '';
+    let pendingSearch;
+    wrapper.cancelPendingSearch = () => pendingSearch?.cancel();
 
     const updateRequiredSelectionValidity = (valid) => {
         if (!searchSelectionRequired) {
@@ -1013,6 +1030,7 @@ function enhanceSearchableSelect(select) {
     };
 
     const sync = (force = false) => {
+        if (force) pendingSearch?.cancel();
         search.disabled = select.disabled;
 
         if (searchInputMode) {
@@ -1092,6 +1110,9 @@ function enhanceSearchableSelect(select) {
     };
 
     const handleSearchableSelectKeydown = (event) => {
+        if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
+            pendingSearch?.flush();
+        }
         if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
             event.preventDefault();
             event.stopPropagation();
@@ -1201,13 +1222,10 @@ function enhanceSearchableSelect(select) {
             requestAnimationFrame(() => search.select());
         });
 
-        search.addEventListener('input', () => {
+        pendingSearch = debounceSearch(() => {
+            if (!select.isConnected || !wrapper.isConnected || select.disabled) return;
             const hasQuery = search.value.trim() !== '';
             wrapper.classList.toggle('searchable-select--selected', hasQuery || searchableSelectHasValue(select));
-
-            if (searchSelectionRequired) {
-                searchSelectionConfirmed = false;
-            }
 
             if (!hasQuery) {
                 if (!clearable) {
@@ -1247,6 +1265,11 @@ function enhanceSearchableSelect(select) {
             buildSearchableSelectOptions(select, list, search.value);
         });
 
+        search.addEventListener('input', () => {
+            if (searchSelectionRequired) searchSelectionConfirmed = false;
+            pendingSearch();
+        });
+
         wrapper.addEventListener('focusout', (event) => {
             if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) {
                 return;
@@ -1283,6 +1306,7 @@ function enhanceSearchableSelect(select) {
             if (willOpen) {
                 releaseSearchableSelectOverflow(wrapper);
             } else {
+                pendingSearch?.cancel();
                 restoreSearchableSelectOverflow(wrapper);
             }
             button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
@@ -1299,7 +1323,12 @@ function enhanceSearchableSelect(select) {
             }
         });
 
-        search.addEventListener('input', () => buildSearchableSelectOptions(select, list, search.value));
+        pendingSearch = debounceSearch(() => {
+            if (select.isConnected && wrapper.isConnected && !select.disabled) {
+                buildSearchableSelectOptions(select, list, search.value);
+            }
+        });
+        search.addEventListener('input', pendingSearch);
         button.addEventListener('keydown', (event) => {
             if (!['ArrowDown', 'ArrowUp'].includes(event.key)) {
                 return;
@@ -1337,6 +1366,7 @@ function enhanceSearchableSelect(select) {
     }
 
     select.addEventListener('change', () => {
+        pendingSearch?.cancel();
         if (searchSelectionRequired && select.dataset.searchSelectionConfirmed === 'true') {
             searchSelectionConfirmed = select.value !== '';
             delete select.dataset.searchSelectionConfirmed;
@@ -2940,6 +2970,17 @@ function initializeMobileTableFilters(root = document) {
         }
 
         trigger.setAttribute('aria-expanded', shouldRemainOpen ? 'true' : 'false');
+        updateExternalMobileFilterTriggers(toolbar, shouldRemainOpen);
+    });
+}
+
+function updateExternalMobileFilterTriggers(toolbar, expanded) {
+    if (!toolbar.id) return;
+
+    document.querySelectorAll('[data-mobile-table-filter-target]').forEach((trigger) => {
+        if (trigger.dataset.mobileTableFilterTarget === toolbar.id) {
+            trigger.setAttribute('aria-expanded', String(expanded));
+        }
     });
 }
 
@@ -2955,6 +2996,7 @@ function openMobileTableFilters(toolbar) {
     toolbar.closest('.surface-table, .surface-panel')
         ?.classList.add('mobile-table-filter-surface--open');
     toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'true');
+    updateExternalMobileFilterTriggers(toolbar, true);
     document.body.dataset.mobileTableFilterOwner = toolbar.dataset.mobileTableFilterKey || '';
     lockMobileTableFilterViewport();
     presentMobileTableFiltersInTopLayer(toolbar);
@@ -2967,6 +3009,7 @@ function closeMobileTableFilters(toolbar) {
         toolbar.closest('.surface-table, .surface-panel')
             ?.classList.remove('mobile-table-filter-surface--open');
         toolbar.querySelector('[data-mobile-table-filter-open]')?.setAttribute('aria-expanded', 'false');
+        updateExternalMobileFilterTriggers(toolbar, false);
         initializeMobileTableHeaderActions(toolbar);
     }
 
@@ -2998,7 +3041,9 @@ function submitMobileTableFilters(toolbar) {
 document.addEventListener('click', (event) => {
     const openButton = event.target.closest?.('[data-mobile-table-filter-open]');
     if (openButton) {
-        const toolbar = openButton.closest('.mobile-table-filters');
+        const toolbar = openButton.dataset.mobileTableFilterTarget
+            ? document.getElementById(openButton.dataset.mobileTableFilterTarget)
+            : openButton.closest('.mobile-table-filters');
         openMobileTableFilters(toolbar);
 
         return;

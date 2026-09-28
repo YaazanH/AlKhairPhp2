@@ -264,7 +264,7 @@ new class extends Component {
             <div class="w-full lg:min-w-80">
                 <div class="rounded-3xl border border-white/12 bg-black/15 px-5 py-4">
                     <div class="flex items-start justify-between gap-4">
-                        <div class="text-lg font-semibold text-white">{{ $partialTestRecord->student?->full_name }}</div>
+                        <div class="record-person-name text-lg font-semibold text-white">{{ $partialTestRecord->student?->full_name }}</div>
                         @if (! $hasRelatedFinalTest && ! $partialTestRecord->enrollment?->belongsToFinishedCourse())
                             @can('quran-partial-tests.delete')
                                 <button type="button" wire:click="deleteTest" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-partial-saber-delete>
@@ -276,7 +276,7 @@ new class extends Component {
                     <p class="mt-2 text-sm leading-6 text-neutral-200">
                         {{ $partialTestRecord->enrollment?->group?->name ?: __('workflow.common.no_group') }}
                         @if ($partialTestRecord->enrollment?->group?->course?->name)
-                            · {{ $partialTestRecord->enrollment->group->course->name }}
+                            · <span class="record-course-name">{{ $partialTestRecord->enrollment->group->course->name }}</span>
                         @endif
                     </p>
                 </div>
@@ -320,7 +320,7 @@ new class extends Component {
                                     <tr>
                                         <td class="px-4 py-3">{{ $attempt->attempt_no }}</td>
                                         <td class="px-4 py-3">{{ \App\Support\DateDisplay::html($attempt->tested_on?->format('d-m-Y')) }}</td>
-                                        <td class="px-4 py-3">{{ $attempt->teacher?->first_name }} {{ $attempt->teacher?->last_name }}</td>
+                                        <td class="record-person-name px-4 py-3">{{ $attempt->teacher?->first_name }} {{ $attempt->teacher?->last_name }}</td>
                                         <td class="px-4 py-3">
                                             @if ($attempt->mistake_count !== null)
                                                 {{ $attempt->mistake_count }}
@@ -372,7 +372,7 @@ new class extends Component {
             @if (! $currentTeacher)
                 <div>
                     <label for="partial-attempt-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.teacher') }}</label>
-                    <select id="partial-attempt-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="partial-attempt-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                         <option value="">{{ __('workflow.quran_tests.form.select_teacher') }}</option>
                         @foreach ($teachers as $teacher)
                             <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>

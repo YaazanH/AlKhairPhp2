@@ -1579,17 +1579,18 @@ class SystemSettingsTest extends TestCase
         ]);
     }
 
-    public function test_shared_table_pagination_keeps_controls_on_one_row_and_summary_below(): void
+    public function test_shared_table_pagination_keeps_page_controls_and_summary_on_one_row(): void
     {
         $paginationView = file_get_contents(resource_path('views/vendor/livewire/tailwind.blade.php'));
         $paginationCss = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertStringContainsString('class="app-pagination__mobile"', $paginationView);
         $this->assertStringContainsString('class="app-pagination__desktop"', $paginationView);
-        $this->assertStringNotContainsString('app-pagination__mobile sm:hidden', $paginationView);
-        $this->assertMatchesRegularExpression('/\.app-pagination__summary\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2;[^}]*font-size:\s*0\.72rem;/s', $paginationCss);
-        $this->assertMatchesRegularExpression('/\.app-pagination__mobile\s*\{[^}]*grid-row:\s*1;/s', $paginationCss);
+        $this->assertStringNotContainsString('class="app-pagination__mobile"', $paginationView);
+        $this->assertMatchesRegularExpression('/\.app-pagination__summary\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;[^}]*font-size:\s*0\.72rem;/s', $paginationCss);
         $this->assertMatchesRegularExpression('/\.app-pagination__nav\s*\{[^}]*grid-row:\s*1;/s', $paginationCss);
+        $this->assertStringContainsString('app-pagination__summary-line--range', $paginationView);
+        $this->assertStringContainsString('app-pagination__summary-line--total', $paginationView);
+        $this->assertMatchesRegularExpression('/\.app-pagination__summary-line--total\s*\{[^}]*justify-content:\s*space-between;/s', $paginationCss);
         $this->assertStringNotContainsString(".app-pagination__summary {\n        display: none;", $paginationCss);
         $this->assertStringContainsString('flex-wrap: nowrap;', $paginationCss);
     }

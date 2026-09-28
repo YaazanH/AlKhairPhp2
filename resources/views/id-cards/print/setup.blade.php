@@ -53,7 +53,7 @@
                         <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                             <div class="admin-filter-field">
                                 <label class="sr-only" for="id-card-student-search">{{ __('id_cards.print.setup.fields.search') }}</label>
-                                <input id="id-card-student-search" type="search" placeholder="{{ __('id_cards.print.setup.placeholders.search') }}" data-id-card-student-search>
+                                <input id="id-card-student-search" type="search" data-search-debounce placeholder="{{ __('id_cards.print.setup.placeholders.search') }}" data-id-card-student-search>
                             </div>
                             <div class="admin-toolbar__actions">
                                 <span class="badge-soft" data-id-card-selected-count>{{ __('id_cards.print.setup.selected', ['count' => 0]) }}</span>
@@ -157,7 +157,7 @@
                 });
             });
 
-            searchInput?.addEventListener('input', applyFilter);
+            searchInput?.addEventListener('search-debounced', applyFilter);
             selectVisibleButton?.addEventListener('click', () => {
                 const clearSelection = selectVisibleButton.dataset.idCardSelectionMode === 'clear';
 

@@ -178,9 +178,9 @@ new class extends Component {
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.points.title') }}</h1>
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.points.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
-            <span class="badge-soft">{{ $enrollmentRecord->student?->full_name }}</span>
+            <span class="record-person-name badge-soft">{{ $enrollmentRecord->student?->full_name }}</span>
             <span class="badge-soft badge-soft--emerald">{{ $enrollmentRecord->group?->name ?: __('workflow.common.no_group') }}</span>
-            <span class="badge-soft">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span>
+            <span class="badge-soft"><span class="record-course-name">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></span>
         </div>
     </section>
 
@@ -258,7 +258,7 @@ new class extends Component {
                 <div class="mt-4 space-y-3 text-sm text-neutral-300">
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.points.context.student') }}</div>
-                        <div class="mt-1 text-white">{{ $enrollmentRecord->student?->full_name }}</div>
+                        <div class="record-person-name mt-1 text-white">{{ $enrollmentRecord->student?->full_name }}</div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.points.context.group') }}</div>
@@ -266,7 +266,7 @@ new class extends Component {
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.points.context.course') }}</div>
-                        <div class="mt-1 text-white">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                        <div class="mt-1 text-white"><span class="record-course-name">{{ $enrollmentRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.points.context.cached_points') }}</div>
@@ -301,9 +301,10 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('workflow.points.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
+                            <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.table.headers.entered_at') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.table.headers.type') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.points.table.headers.source') }}</th>
@@ -323,6 +324,7 @@ new class extends Component {
                                 $state = $transaction->effectiveState();
                             @endphp
                             <tr class="{{ $state !== 'active' ? 'opacity-60' : '' }}">
+                                <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y H:i')) }}</td>
                                 <td class="px-5 py-4 text-white lg:px-6">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $sourceLabel }}</td>

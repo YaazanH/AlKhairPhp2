@@ -1956,8 +1956,9 @@ class ManagementPagesTest extends TestCase
             ->assertOk()
             ->assertSeeText($teacherGroup->name)
             ->assertSee('class="groups-index-table', false)
-            ->assertSee('data-groups-course-column="20"', false)
-            ->assertSee('data-groups-status-column="8"', false);
+            ->assertSee('groups-index-table table-content', false)
+            ->assertDontSee('data-groups-course-column="20"', false)
+            ->assertDontSee('data-groups-status-column="8"', false);
 
         foreach ([
             route('reports.index', absolute: false),

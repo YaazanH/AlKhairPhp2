@@ -117,6 +117,8 @@ return [
         'file' => 'Encrypted backup file',
         'uploading' => 'Uploading backup…',
         'ready' => 'Backup file ready for verification.',
+        'source_key' => 'Source application key (APP_KEY)',
+        'source_key_help' => 'Enter the APP_KEY from the installation that created this backup, including base64: if present. It is used only for this import and is not saved.',
     ],
     'messages' => [
         'created' => 'The encrypted backup was created and verified successfully.',
@@ -131,13 +133,17 @@ return [
         'restore_from_file' => "A safety backup will be created first. Only the database or files included in the selected backup will be restored.\n\nRestore the selected file now?",
     ],
     'errors' => [
+        'database_conversion_failed' => 'This MySQL backup could not be converted to SQLite. Your current database has not been changed. Check the application log for the conversion error.',
+        'database_mismatch' => 'The backup was decrypted, but it uses :backup and this installation uses :local. Restore it to a matching database engine or convert the backup first.',
         'operation_failed' => 'The backup operation could not be completed. Check the application log and server storage.',
         'password' => 'The password is incorrect.',
         'confirmation' => 'Enter the exact restoration phrase.',
         'file_required' => 'Select a backup file to restore.',
         'invalid_file' => 'Select a valid .alkhair-backup file.',
         'file_too_large' => 'The backup file must not exceed :size MB.',
-        'restore_file_failed' => 'The selected file could not be verified or restored. Confirm that it is an unmodified AlKhair backup from this installation.',
+        'restore_file_failed' => 'The selected file could not be verified or restored. Confirm that it is an unmodified, compatible AlKhair backup.',
+        'source_key_required' => 'The backup could not be decrypted with this installation’s key. Enter the source APP_KEY to retry.',
+        'source_key_invalid' => 'The supplied key could not decrypt this backup. Check the source APP_KEY and that the backup file is intact.',
     ],
     'commands' => [
         'created' => 'Encrypted backup created and verified: :filename',

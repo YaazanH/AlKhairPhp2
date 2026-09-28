@@ -619,7 +619,7 @@ new class extends Component
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="assessment-result-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="assessment-result-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('workflow.assessments.results.filters.search_placeholder') }}">
+                    <input id="assessment-result-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('workflow.assessments.results.filters.search_placeholder') }}">
                 </div>
                 <div class="admin-filter-field">
                     <label class="sr-only" for="assessment-result-status-filter">{{ __('workflow.assessments.results.filters.status') }}</label>
@@ -649,7 +649,7 @@ new class extends Component
             <table class="assessment-results-data-table w-full table-fixed text-sm">
                 <thead>
                     <tr>
-                        <th class="px-2 py-2 text-center font-medium">#</th>
+                        <th data-table-number-column class="px-2 py-2 text-center font-medium">#</th>
                         <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span></button></th>
                         <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('score')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.score') }} <span>{{ $this->sortIndicator('score') }}</span></button></th>
                         <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span></button></th>
@@ -661,7 +661,7 @@ new class extends Component
                         @php($displayStatus = $this->displayStatusForEnrollment($enrollment->id))
                         <tr>
                             <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
-                            <td class="px-3 py-2"><div class="student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
+                            <td class="px-3 py-2"><div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
                             <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
                             <td class="px-3 py-2"><span class="assessment-result-status-chip {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
                             <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
@@ -678,7 +678,7 @@ new class extends Component
                     <table class="assessment-results-data-table w-full table-fixed text-sm">
                         <thead>
                             <tr>
-                                <th class="px-2 py-2 text-center font-medium">#</th>
+                                <th data-table-number-column class="px-2 py-2 text-center font-medium">#</th>
                                 <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span></button></th>
                                 <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('score')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.score') }} <span>{{ $this->sortIndicator('score') }}</span></button></th>
                                 <th class="px-3 py-2 text-left font-medium"><button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-1 font-medium text-inherit">{{ __('workflow.assessments.results.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span></button></th>
@@ -690,7 +690,7 @@ new class extends Component
                                 @php($displayStatus = $this->displayStatusForEnrollment($enrollment->id))
                                 <tr>
                                     <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
-                                    <td class="px-3 py-2"><div class="student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
+                                    <td class="px-3 py-2"><div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
                                     <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
                                     <td class="px-3 py-2"><span class="assessment-result-status-chip {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
                                     <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
@@ -731,7 +731,7 @@ new class extends Component
                             data-open-on-focus="true"
                             data-hide-placeholder-option="true"
                             data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
-                        >
+                         data-record-label="person">
                             <option value="">{{ __('workflow.assessments.results.quick_entry.select_student') }}</option>
                             @foreach ($quickEntryEnrollments as $enrollment)
                                 <option value="{{ $enrollment->id }}">{{ $enrollment->student?->full_name }}</option>

@@ -57,6 +57,8 @@ new class extends Component
 
     public array $direct_permissions = [];
 
+    public bool $scope_student_progress_all = false;
+
     public array $scope_groups = [];
 
     public array $scope_students = [];
@@ -162,6 +164,7 @@ new class extends Component
             'roles.*' => ['string', Rule::notIn(RoleRegistry::actorRoles()), Rule::exists('roles', 'name')],
             'direct_permissions' => ['nullable', 'array'],
             'direct_permissions.*' => ['string', Rule::exists('permissions', 'name')],
+            'scope_student_progress_all' => ['boolean'],
             'scope_groups' => ['nullable', 'array'],
             'scope_groups.*' => ['integer', Rule::exists('groups', 'id')],
             'scope_students' => ['nullable', 'array'],
@@ -227,6 +230,7 @@ new class extends Component
             $user->storeFinanceSignatureUpload($this->finance_signature_upload);
         }
         app(AccessScopeService::class)->syncUserOverrides($user, [
+            AccessScopeService::ALL_STUDENT_PROGRESS => ($validated['scope_student_progress_all'] ?? false) ? [1] : [],
             'group' => $validated['scope_groups'] ?? [],
             'parent' => $validated['scope_parents'] ?? [],
             'student' => $validated['scope_students'] ?? [],
@@ -266,6 +270,7 @@ new class extends Component
         $this->is_active = $user->is_active;
         $this->roles = $user->getRoleNames()->values()->all();
         $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->values()->all();
+        $this->scope_student_progress_all = app(AccessScopeService::class)->canViewAllStudentProgress($user);
         $this->scope_groups = $user->scopeOverrides->where('scope_type', 'group')->pluck('scope_id')->map(fn ($id) => (int) $id)->values()->all();
         $this->scope_parents = $user->scopeOverrides->where('scope_type', 'parent')->pluck('scope_id')->map(fn ($id) => (int) $id)->values()->all();
         $this->scope_students = $user->scopeOverrides->where('scope_type', 'student')->pluck('scope_id')->map(fn ($id) => (int) $id)->values()->all();
@@ -291,6 +296,7 @@ new class extends Component
         $this->is_active = true;
         $this->roles = [];
         $this->direct_permissions = [];
+        $this->scope_student_progress_all = false;
         $this->scope_groups = [];
         $this->scope_students = [];
         $this->scope_teachers = [];
@@ -481,7 +487,7 @@ new class extends Component
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="user-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="user-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="user-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
                 <div class="admin-filter-field">
                     <label class="sr-only" for="user-profile-filter">{{ __('access.users.filters.profile') }}</label>
@@ -517,7 +523,7 @@ new class extends Component
             <div class="responsive-records-mobile">
                 @foreach ($users as $user)
                     @php
-                        $roleNames = RoleRegistry::sortCollection($user->roles)->pluck('name');
+                        $primaryRoleName = $user->primaryRoleName();
                         $directPermissionNames = $user->permissions->pluck('name')->values();
                     @endphp
                     <article class="mobile-record-card">
@@ -525,7 +531,7 @@ new class extends Component
                             <div class="student-inline min-w-0">
                                 <x-user-avatar :user="$user" size="sm" />
                                 <div class="student-inline__body min-w-0">
-                                    <div class="student-inline__name">{{ $user->name }}</div>
+                                    <div class="record-person-name student-inline__name">{{ $user->name }}</div>
                                     <div class="student-inline__meta">{{ $user->username }}</div>
                                 </div>
                             </div>
@@ -536,14 +542,10 @@ new class extends Component
                             <div>
                                 <dt>{{ __('access.users.table.headers.roles') }}</dt>
                                 <dd>
-                                    @if ($roleNames->isEmpty())
+                                    @if (! $primaryRoleName)
                                         {{ __('crud.common.not_available') }}
                                     @else
-                                        <span class="mobile-record-card__chips">
-                                            @foreach ($roleNames as $roleName)
-                                                <span class="status-chip status-chip--slate"><x-admin.role-label :name="$roleName" /></span>
-                                            @endforeach
-                                        </span>
+                                        <span class="status-chip status-chip--slate" data-user-primary-role="{{ $user->id }}" data-role="{{ $primaryRoleName }}"><x-admin.role-label :name="$primaryRoleName" /></span>
                                     @endif
                                 </dd>
                             </div>
@@ -585,30 +587,31 @@ new class extends Component
             </div>
 
             <div class="responsive-records-desktop overflow-x-auto">
-                <table class="users-index-table table-fixed text-sm">
-                    <colgroup><col class="w-[24%]"><col class="w-[18%]"><col class="w-[24%]"><col class="w-[12%]"><col class="w-[10%]"><col class="w-[12%]"></colgroup>
+                <table class="users-index-table table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.user') }}</th>
+
+                            <th class="table-cell-name px-6 py-4 text-left">{{ __('access.users.table.headers.user') }}</th>
                             <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.roles') }}</th>
                             <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.permissions') }}</th>
-                            <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.profile') }}</th>
-                            <th class="px-6 py-4 text-left">{{ __('access.users.table.headers.status') }}</th>
-                            <th class="admin-actions-column px-6 py-4 text-center">{{ __('access.users.table.headers.actions') }}</th>
+                            <th class="table-cell-compact px-6 py-4 text-left">{{ __('access.users.table.headers.profile') }}</th>
+                            <th class="table-cell-compact px-6 py-4 text-left">{{ __('access.users.table.headers.status') }}</th>
+                            <th class="table-cell-compact admin-actions-column px-6 py-4 text-center">{{ __('access.users.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($users as $user)
                             @php
-                                $roleNames = RoleRegistry::sortCollection($user->roles)->pluck('name');
+                                $primaryRoleName = $user->primaryRoleName();
                                 $directPermissionNames = $user->permissions->pluck('name')->values();
                             @endphp
                             <tr>
-                                <td class="px-6 py-4">
+
+                                <td class="table-cell-name px-6 py-4">
                                     <div class="flex items-center gap-3">
                                         <x-user-avatar :user="$user" size="sm" />
                                         <div class="admin-identity-stack">
-                                            <div class="admin-identity-stack__title">{{ $user->name }}</div>
+                                            <div class="record-person-name admin-identity-stack__title">{{ $user->name }}</div>
                                             <div class="admin-identity-stack__meta">
                                                 <span>{{ $user->username }}</span>
                                             </div>
@@ -616,14 +619,10 @@ new class extends Component
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-neutral-300">
-                                    @if ($roleNames->isEmpty())
+                                    @if (! $primaryRoleName)
                                         {{ __('crud.common.not_available') }}
                                     @else
-                                        <div class="flex flex-wrap gap-2">
-                                            @foreach ($roleNames as $roleName)
-                                                <span class="status-chip status-chip--slate"><x-admin.role-label :name="$roleName" /></span>
-                                            @endforeach
-                                        </div>
+                                        <span class="status-chip status-chip--slate" data-user-primary-role="{{ $user->id }}" data-role="{{ $primaryRoleName }}"><x-admin.role-label :name="$primaryRoleName" /></span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 text-sm text-neutral-300">
@@ -640,9 +639,9 @@ new class extends Component
                                         </div>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-neutral-300">{{ $this->profileLabel($user) }}</td>
-                                <td class="px-6 py-4"><span class="status-chip {{ $user->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $user->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span></td>
-                                <td class="px-6 py-4">
+                                <td class="table-cell-compact px-6 py-4 text-sm text-neutral-300">{{ $this->profileLabel($user) }}</td>
+                                <td class="table-cell-compact px-6 py-4"><span class="status-chip {{ $user->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">{{ $user->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive') }}</span></td>
+                                <td class="table-cell-compact px-6 py-4">
                                     <div class="flex justify-end gap-2">
                                         @if ($this->isProfileAccount($user))
                                             <x-user-profile-actions :user="$user" />
@@ -688,7 +687,7 @@ new class extends Component
                         @foreach ($detailsRow as $label => $value)
                             <div class="min-w-0">
                                 <dt class="kpi-label">{{ $label }}</dt>
-                                <dd class="mt-1 break-words text-white"><bdi dir="{{ in_array($label, [__('access.users.fields.phone'), __('access.users.fields.username'), __('access.users.fields.email')], true) ? 'ltr' : 'auto' }}">{{ $value ?: __('crud.common.not_available') }}</bdi></dd>
+                                <dd @class(['mt-1 break-words text-white', 'record-person-name' => $label === __('access.users.fields.name'), 'record-phone' => $label === __('access.users.fields.phone')])><bdi dir="{{ in_array($label, [__('access.users.fields.phone'), __('access.users.fields.username'), __('access.users.fields.email')], true) ? 'ltr' : 'auto' }}">{{ $value ?: __('crud.common.not_available') }}</bdi></dd>
                             </div>
                         @endforeach
                     </div>
@@ -702,7 +701,7 @@ new class extends Component
             <button type="submit" form="user-account-permissions-form" class="admin-modal__close" title="{{ __('access.users.form.save_update') }}" aria-label="{{ __('access.users.form.save_update') }}" data-user-account-permissions-save><x-admin-action-icon name="save" class="size-5" /></button>
         </x-slot:headerActions>
         <form id="user-account-permissions-form" wire:submit="saveAccountPermissions" class="space-y-4">
-            <div class="text-lg font-semibold">{{ $viewedAccount?->name }}</div>
+            <div class="record-person-name text-lg font-semibold">{{ $viewedAccount?->name }}</div>
             @include('livewire.users.partials.access-overrides', ['showScopeOverrides' => false])
             @if ($errors->any())
                 <div class="text-sm text-red-400" role="alert">{{ $errors->first() }}</div>
@@ -789,7 +788,7 @@ new class extends Component
                             @if ($profile_photo_upload)
                                 <img src="{{ $profile_photo_upload->temporaryUrl() }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
                             @elseif ($profile_photo_url)
-                                <img src="{{ $profile_photo_url }}" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image">
+                                <x-avatar-image type="user" :src="$profile_photo_url" alt="{{ __('access.users.fields.profile_photo') }}" class="student-avatar__image" />
                             @else
                                 <span class="student-avatar__fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($name ?: 'U', 0, 1)) }}</span>
                             @endif

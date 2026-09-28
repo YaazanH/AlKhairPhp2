@@ -155,7 +155,7 @@ new class extends Component
                 <p class="mt-3 text-sm leading-7 text-neutral-300">{{ __('reports.quran_tests.filters_subtitle') }}</p>
             </div>
             <div class="report-filter-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.course') }}</label><select wire:model.live="course_id"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.course') }}</label><select wire:model.live="course_id" data-record-label="course"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
                 <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.group') }}</label><select wire:model.live="group_id"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
                 <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.date_from') }}</label><input wire:model.live="date_from" type="date"></div>
                 <div class="admin-filter-field min-w-0"><label>{{ __('reports.filters.date_to') }}</label><input wire:model.live="date_to" type="date"></div>
@@ -179,15 +179,15 @@ new class extends Component
                     <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.quran_tests.empty') }}</div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="text-sm">
-                            <thead><tr>
+                        <table class="table-content text-sm">
+                            <thead><tr><th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                 @foreach (['student_name' => 'student', 'partial_tests' => 'partial_tests', 'final_tests' => 'final_tests', 'group' => 'group'] as $field => $label)
                                     <th class="px-5 py-4 text-left lg:px-6"><button type="button" wire:click="sortBy('{{ $field }}')" class="inline-flex items-center gap-2 font-medium text-inherit"><span>{{ __('reports.quran_tests.headers.'.$label) }}</span>@if ($indicator = $this->sortIndicator($field))<span aria-hidden="true">{{ $indicator }}</span>@endif</button></th>
                                 @endforeach
                             </tr></thead>
                             <tbody class="divide-y divide-white/6">
                                 @foreach ($rows as $row)
-                                    <tr><td class="px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td><td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['partial_tests']) }}</td><td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['final_tests']) }}</td><td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['group'] }}</td></tr>
+                                    <tr><td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td><td class="record-person-name px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td><td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['partial_tests']) }}</td><td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['final_tests']) }}</td><td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $row['group'] }}</td></tr>
                                 @endforeach
                             </tbody>
                         </table>

@@ -16,6 +16,7 @@ use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\AccessScopeService;
 use App\Services\Landlord\TenantContext;
 use App\Services\PointLedgerService;
 use App\Services\QuranPartialTestService;
@@ -200,6 +201,10 @@ class OperationalModulesTest extends TestCase
             'idempotency_key' => 'manual-student-award-1',
             'notes' => 'Helped another student',
         ]);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('pointTransactions', fn ($transactions) => $transactions->count() === 1)
+            ->assertViewHas('stats', fn (array $stats) => $stats['points'] === 5);
     }
 
     public function test_quran_partial_testing_does_not_require_memorization_history_when_module_is_absent(): void
@@ -239,6 +244,28 @@ class OperationalModulesTest extends TestCase
         $this->assertNull($transaction);
         $this->assertDatabaseCount('point_transactions', 0);
         $this->get('/points')->assertForbidden();
+    }
+
+    public function test_full_student_progress_scope_still_respects_disabled_modules(): void
+    {
+        $this->modules(['classes']);
+        $user = $this->admin();
+        app(AccessScopeService::class)->syncUserOverrides($user, [AccessScopeService::ALL_STUDENT_PROGRESS => [1]]);
+        $year = AcademicYear::create(['name' => '2026', 'starts_on' => '2026-01-01', 'ends_on' => '2026-12-31', 'is_active' => true]);
+        $course = Course::create(['name' => 'Retained course', 'is_active' => true, 'awards_points' => true]);
+        $group = Group::create(['academic_year_id' => $year->id, 'course_id' => $course->id, 'name' => 'Retained group', 'is_active' => true]);
+        $student = Student::create(['first_name' => 'Retained', 'last_name' => 'Student', 'birth_date' => '2015-01-01', 'status' => 'active']);
+        $enrollment = Enrollment::create(['student_id' => $student->id, 'group_id' => $group->id, 'enrolled_at' => '2026-09-21', 'status' => 'active']);
+        $type = PointType::create(['name' => 'Hidden reward', 'code' => 'hidden-reward', 'category' => 'manual', 'default_points' => 5, 'is_active' => true]);
+        PointTransaction::create(['student_id' => $student->id, 'enrollment_id' => $enrollment->id, 'point_type_id' => $type->id, 'source_type' => 'manual', 'points' => 5, 'entered_at' => now()]);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('pointTransactions', fn ($transactions) => $transactions->isEmpty())
+            ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points->isEmpty())
+            ->assertDontSee('data-enrollment-total-points', false)
+            ->call('showDetails', 'points')
+            ->assertViewHas('paginatedDetails', fn ($details) => $details->total() === 0);
+        $this->assertDatabaseCount('point_transactions', 1);
     }
 
     public function test_automatic_point_retries_do_not_duplicate_or_reprice_history(): void

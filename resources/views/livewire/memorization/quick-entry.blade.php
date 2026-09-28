@@ -466,7 +466,7 @@ new class extends Component {
         <form wire:submit="save" class="space-y-5">
             <div class="admin-form-field">
                 <label for="quick-memorization-student">{{ __('workflow.memorization.quick_entry.form.student') }}</label>
-                <select id="quick-memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
+                <select id="quick-memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-record-label="person">
                     <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
                     @foreach ($studentOptions as $student)
                         <option value="{{ $student->id }}">{{ $student->full_name }}</option>
@@ -546,7 +546,7 @@ new class extends Component {
             @if ($selectedStudentId && $availableEnrollments->count() > 1)
                 <div class="admin-form-field">
                     <label for="quick-memorization-enrollment">{{ __('workflow.memorization.workbench.form.group') }}</label>
-                    <select id="quick-memorization-enrollment" wire:model.live="selectedEnrollmentId">
+                    <select id="quick-memorization-enrollment" wire:model.live="selectedEnrollmentId" data-record-label="course">
                         <option value="">{{ __('workflow.memorization.workbench.form.select_group') }}</option>
                         @foreach ($availableEnrollments as $enrollment)
                             <option value="{{ $enrollment->id }}">
@@ -566,7 +566,7 @@ new class extends Component {
             @if ($canChooseRecordingTeacher)
             <div class="admin-form-field">
                 <label for="quick-memorization-teacher">{{ __('workflow.quran_tests.form.teacher') }}</label>
-                <select id="quick-memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                <select id="quick-memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                     <option value="">{{ __('workflow.quran_tests.form.select_teacher') }}</option>
                     @foreach ($teacherOptions as $teacher)
                         <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>

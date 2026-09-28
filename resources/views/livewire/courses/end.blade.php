@@ -92,7 +92,7 @@ new class extends Component {
             .course-end-final-tests-mobile-table :is(th, td):nth-child(5) { width: 27%; }
         }
     </style>
-    <section class="page-hero p-6 lg:p-8"><div><x-back-link :href="route('courses.index')" navigate /><div class="eyebrow mt-4">{{ __('course_end.eyebrow') }}</div><h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.title') }}</h1><p class="mt-3 text-neutral-200">{{ $course->name }} — {{ __('course_end.preview_notice') }}</p></div></section>
+    <section class="page-hero p-6 lg:p-8"><div><x-back-link :href="route('courses.index')" navigate /><div class="eyebrow mt-4">{{ __('course_end.eyebrow') }}</div><h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.title') }}</h1><p class="mt-3 text-neutral-200"><span class="record-course-name">{{ $course->name }}</span> — {{ __('course_end.preview_notice') }}</p></div></section>
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         @foreach(['students','points_before','points_after','memorized_pages','final_tests'] as $key)<article class="stat-card"><div class="kpi-label">{{ __('course_end.highlights.'.$key) }}</div><div class="metric-value mt-3">{{ number_format($summary[$key]) }}</div></article>@endforeach
     </section>
@@ -100,7 +100,7 @@ new class extends Component {
         <div class="course-end-students-mobile">
             @forelse($students as $row)
                 <article class="rounded-2xl border border-white/10 bg-white/4 p-4">
-                    <div class="flex items-start gap-3"><span class="shrink-0 text-xs text-neutral-500">#{{ $students->firstItem() + $loop->index }}</span><div class="min-w-0"><div class="font-semibold text-white">{{ $row['name'] }}</div><div class="mt-1 text-xs text-neutral-400">{{ $row['group'] }}</div></div></div>
+                    <div class="flex items-start gap-3"><span class="shrink-0 text-xs text-neutral-500">#{{ $students->firstItem() + $loop->index }}</span><div class="min-w-0"><div class="font-semibold text-white"><span class="record-person-name">{{ $row['name'] }}</span></div><div class="mt-1 text-xs text-neutral-400">{{ $row['group'] }}</div></div></div>
                     <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/8 pt-4 text-sm">
                         <div><dt class="kpi-label">{{ __('course_end.table.points_after') }}</dt><dd class="mt-1 font-semibold text-white">{{ number_format($row['points_after']) }}</dd></div>
                         <div><dt class="kpi-label">{{ __('course_end.table.days_attended') }}</dt><dd class="mt-1 font-semibold text-white">{{ number_format($row['days_attended']) }}</dd></div>
@@ -113,8 +113,8 @@ new class extends Component {
                 <div class="admin-empty-state">{{ __('course_end.empty') }}</div>
             @endforelse
         </div>
-        <div class="course-end-students-desktop overflow-x-auto"><table class="course-end-table text-sm"><thead><tr>@foreach(['#','name','group','points_after','days_attended','pages','final_tests','final_score'] as $header)<th class="px-4 py-3 text-left">{{ $header === '#' ? '#' : __('course_end.table.'.$header) }}</th>@endforeach</tr></thead><tbody class="divide-y divide-white/6">
-        @forelse($students as $row)<tr><td class="px-4 py-3">{{ $students->firstItem() + $loop->index }}</td><td class="px-4 py-3 text-white">{{ $row['name'] }}</td><td class="px-4 py-3">{{ $row['group'] }}</td><td class="px-4 py-3">{{ number_format($row['points_after']) }}</td><td class="px-4 py-3">{{ number_format($row['days_attended']) }}</td><td class="px-4 py-3">{{ number_format($row['memorized_pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td><td class="px-4 py-3">{{ $row['final_score'] !== null ? number_format($row['final_score'], 2) : '-' }}</td></tr>@empty<tr><td colspan="8" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>@endforelse
+        <div class="course-end-students-desktop overflow-x-auto"><table class="course-end-table text-sm"><thead><tr>@foreach(['#','name','group','points_after','days_attended','pages','final_tests','final_score'] as $header)<th @if ($header === '#') data-table-number-column @endif class="px-4 py-3 text-left">{{ $header === '#' ? '#' : __('course_end.table.'.$header) }}</th>@endforeach</tr></thead><tbody class="divide-y divide-white/6">
+        @forelse($students as $row)<tr><td class="px-4 py-3">{{ $students->firstItem() + $loop->index }}</td><td class="px-4 py-3 text-white"><span class="record-person-name">{{ $row['name'] }}</span></td><td class="px-4 py-3">{{ $row['group'] }}</td><td class="px-4 py-3">{{ number_format($row['points_after']) }}</td><td class="px-4 py-3">{{ number_format($row['days_attended']) }}</td><td class="px-4 py-3">{{ number_format($row['memorized_pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td><td class="px-4 py-3">{{ $row['final_score'] !== null ? number_format($row['final_score'], 2) : '-' }}</td></tr>@empty<tr><td colspan="8" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>@endforelse
         </tbody></table></div>@if($students->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $students->links() }}</div>@endif
     </section>
     <section class="surface-table" data-course-end-final-tests-layout="{{ $finalTestsDesktop->total() > 5 ? 'split' : 'full' }}">
@@ -126,10 +126,10 @@ new class extends Component {
         @php($finalTestColumns = $finalTestDesktopRows->isEmpty() ? collect([collect()]) : $finalTestDesktopRows->chunk($finalTestColumnSize))
         <div class="course-end-final-tests-single {{ $finalTestsUseTwoColumns ? '' : 'course-end-final-tests-single--full' }}">
             <table class="course-end-final-tests-mobile-table w-full table-fixed text-sm">
-                <thead><tr><th>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('course_end.table.juz') }}</th><th>{{ __('course_end.table.mark') }}</th><th>{{ __('course_end.table.grade') }}</th></tr></thead>
+                <thead><tr><th data-table-number-column>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('course_end.table.juz') }}</th><th>{{ __('course_end.table.mark') }}</th><th>{{ __('course_end.table.grade') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse($finalTestMobileRows as $rowIndex => $row)
-                        <tr><td class="text-neutral-400">{{ $finalTestsMobile->firstItem() + $rowIndex }}</td><td class="font-medium text-white">{{ $row['name'] }}</td><td>{{ $row['juz'] }}</td><td>{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
+                        <tr><td class="text-neutral-400">{{ $finalTestsMobile->firstItem() + $rowIndex }}</td><td class="font-medium text-white"><span class="record-person-name">{{ $row['name'] }}</span></td><td>{{ $row['juz'] }}</td><td>{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
                     @empty
                         <tr><td colspan="5" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>
                     @endforelse
@@ -140,10 +140,10 @@ new class extends Component {
             @foreach($finalTestColumns as $columnIndex => $columnRows)
                 <div class="course-end-final-tests-table-wrap">
                     <table class="course-end-table course-end-final-tests-table text-sm">
-                        <thead><tr><th class="px-3 py-3">#</th><th class="course-end-final-tests-spacer" aria-hidden="true"></th><th class="px-3 py-3">{{ __('course_end.table.name') }}</th><th class="px-3 py-3">{{ __('course_end.table.juz') }}</th><th class="px-3 py-3">{{ __('course_end.table.mark') }}</th><th class="px-3 py-3">{{ __('course_end.table.grade') }}</th></tr></thead>
+                        <thead><tr><th data-table-number-column class="px-3 py-3">#</th><th class="course-end-final-tests-spacer" aria-hidden="true"></th><th class="px-3 py-3">{{ __('course_end.table.name') }}</th><th class="px-3 py-3">{{ __('course_end.table.juz') }}</th><th class="px-3 py-3">{{ __('course_end.table.mark') }}</th><th class="px-3 py-3">{{ __('course_end.table.grade') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse($columnRows as $rowIndex => $row)
-                                <tr><td class="px-3 py-3 text-neutral-400">{{ $finalTestsDesktop->firstItem() + ($columnIndex * $finalTestColumnSize) + $rowIndex }}</td><td class="course-end-final-tests-spacer" aria-hidden="true"></td><td class="px-3 py-3 font-medium text-white" title="{{ $row['name'] }}">{{ $row['name'] }}</td><td class="px-3 py-3">{{ $row['juz'] }}</td><td class="px-3 py-3">{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-3 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
+                                <tr><td class="px-3 py-3 text-neutral-400">{{ $finalTestsDesktop->firstItem() + ($columnIndex * $finalTestColumnSize) + $rowIndex }}</td><td class="course-end-final-tests-spacer" aria-hidden="true"></td><td class="px-3 py-3 font-medium text-white" title="{{ $row['name'] }}"><span class="record-person-name">{{ $row['name'] }}</span></td><td class="px-3 py-3">{{ $row['juz'] }}</td><td class="px-3 py-3">{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-3 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
                             @empty
                                 <tr><td colspan="6" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>
                             @endforelse

@@ -5,14 +5,13 @@ namespace App\Services;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\PointTransaction;
+use App\Support\PercentageFormatter;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class CourseEndService
 {
-    public function __construct(protected CourseCompletionRuleService $rules)
-    {
-    }
+    public function __construct(protected CourseCompletionRuleService $rules) {}
 
     public function summary(Course $course): array
     {
@@ -85,7 +84,7 @@ class CourseEndService
                     'final_tests' => $finals->count(),
                     'final_score' => $finalExamScores->isEmpty() ? null : round((float) $finalExamScores->average(), 2),
                     'final_juzs' => $finals->pluck('juz.juz_number')->filter()->sort()->implode(' - '),
-                    'final_marks' => $scores->map(fn ($score) => \App\Support\PercentageFormatter::format($score))->implode(' - '),
+                    'final_marks' => $scores->map(fn ($score) => PercentageFormatter::format($score))->implode(' - '),
                     'assessment_count' => $regularAssessmentResults->count(),
                     'assessment_average' => $assessmentScores->isEmpty() ? null : round((float) $assessmentScores->average(), 2),
                     'cheques_count' => $chequesCount,
@@ -132,7 +131,7 @@ class CourseEndService
                     'student_id' => (int) $studentTests->first()['student_id'],
                     'juz' => $studentTests->pluck('juz')->filter(fn ($juz) => $juz !== null)->implode(' - '),
                     'mark' => $averageScore,
-                    'marks' => $scores->map(fn ($score) => \App\Support\PercentageFormatter::format($score))->implode(' - '),
+                    'marks' => $scores->map(fn ($score) => PercentageFormatter::format($score))->implode(' - '),
                     'grade' => self::finalTestGradeKey($averageScore),
                     'test_count' => $studentTests->count(),
                 ];
@@ -169,6 +168,21 @@ class CourseEndService
             ->whereHas('group', fn ($query) => $query->where('course_id', $course->id))
             ->whereIn('status', ['active', 'completed'])
             ->get();
+    }
+
+    public function enrollmentTotalPoints(Enrollment $enrollment, ?array $settings = null): int
+    {
+        $settings ??= $this->rules->settings();
+        $criteria = $this->rules->criteriaForEnrollment($enrollment, $settings);
+        // Historical enrolments retain their own points even when their course is inactive.
+        // Exclude earlier completion adjustments so the criteria are applied only once.
+        $basePoints = (int) PointTransaction::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->notVoided()
+            ->where('source_type', '!=', CourseCompletionRuleService::ADJUSTMENT_SOURCE_TYPE)
+            ->sum('points');
+
+        return $this->calculatedPoints($basePoints, $criteria['passed'], $settings);
     }
 
     protected function calculatedPoints(int $basePoints, bool $passed, array $settings): int

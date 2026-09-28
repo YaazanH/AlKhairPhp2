@@ -46,7 +46,7 @@
     <div class="admin-grid-meta">
         <div>
             <h2 id="student-timeline-title" class="admin-grid-meta__title">{{ __('student_timeline.title') }}</h2>
-            <p class="student-timeline__course-name" x-text="names[current] || ''">{{ $timeline->get($timelineDefaultIndex)['name'] ?? '' }}</p>
+            <p class="student-timeline__course-name record-course-name" x-text="names[current] || ''">{{ $timeline->get($timelineDefaultIndex)['name'] ?? '' }}</p>
         </div>
         @if ($timeline->count() > 1)
             <div class="student-timeline__navigation">

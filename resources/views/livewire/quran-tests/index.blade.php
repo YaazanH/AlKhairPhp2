@@ -67,7 +67,12 @@ new class extends Component {
                 'type',
             ])
         )
-            ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
+            ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'));
+        $recordNumbers = (clone $testsQuery)->reorder()
+            ->orderBy('id')
+            ->pluck('id')->flip()->map(fn (int $index): int => $index + 1);
+
+        $testsQuery
             ->when(filled($this->search), function (Builder $query) {
                 $search = '%'.$this->search.'%';
 
@@ -124,6 +129,7 @@ new class extends Component {
 
         return [
             'tests' => $testsQuery->paginate($this->perPage),
+            'recordNumbers' => $recordNumbers,
             'filteredCount' => (clone $testsQuery)->count(),
             'studentOptions' => $studentOptions,
             'enrollmentOptions' => $this->availableEnrollmentsQuery()
@@ -211,13 +217,15 @@ new class extends Component {
 
     public function openEdit(int $testId): void
     {
-        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
+        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete']);
 
         $test = $this->quranTestsQuery(
-            QuranTest::query()->with(['student.parentProfile', 'enrollment.group.teacher', 'juz', 'type'])
+            QuranTest::query()->with(['student.parentProfile', 'enrollment.group.teacher', 'enrollment.group.course', 'juz', 'type'])
         )
             ->whereHas('type', fn (Builder $query) => $query->where('code', 'awqaf'))
             ->findOrFail($testId);
+
+        abort_unless($this->testCourseIsEditable($test), 403);
 
         $currentTeacher = $this->currentTeacher();
         abort_unless(! $currentTeacher || (int) $currentTeacher->id === (int) $test->teacher_id, 403);
@@ -277,6 +285,7 @@ new class extends Component {
             : null;
 
         if ($editingTest) {
+            abort_unless($this->testCourseIsEditable($editingTest), 403);
             abort_unless((int) $validated['selectedStudentId'] === (int) $editingTest->student_id, 403);
             $enrollment = $editingTest->enrollment;
             abort_unless($enrollment, 404);
@@ -391,6 +400,13 @@ new class extends Component {
         });
 
         session()->flash('status', __('workflow.quran_tests.messages.deleted'));
+        $this->closeFormModal();
+    }
+
+    protected function testCourseIsEditable(QuranTest $test): bool
+    {
+        return (bool) $test->enrollment?->group?->course?->is_active
+            && ! $test->enrollment?->belongsToFinishedCourse();
     }
 
     public function resetForm(): void
@@ -455,12 +471,21 @@ new class extends Component {
     {
         $studentIds = $this->quranStudentsQuery(
             Student::query()
+                ->where('status', 'active')
                 ->whereHas('enrollments', function (Builder $query) {
                     $this->quranEnrollmentsQuery($query)
                         ->where('status', 'active')
+                        ->whereNull('course_finished_at')
+                        ->whereDate('enrolled_at', '<=', today())
+                        ->where(fn (Builder $enrollmentQuery) => $enrollmentQuery
+                            ->whereNull('left_at')
+                            ->orWhereDate('left_at', '>', today()))
                         ->whereHas('group', fn (Builder $groupQuery) => $groupQuery
                             ->where('is_active', true)
-                            ->whereHas('course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true)));
+                            ->whereNull('course_finished_at')
+                            ->whereHas('course', fn (Builder $courseQuery) => $courseQuery
+                                ->where('is_active', true)
+                                ->whereNull('finished_at')));
                 })
         )
             ->orderBy('last_name')
@@ -626,7 +651,7 @@ new class extends Component {
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="quran-tests-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="quran-tests-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="quran-tests-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -656,78 +681,69 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('workflow.quran_tests.workbench.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-5 py-4 text-center lg:px-6">#</th>
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_tests.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    {{ __('workflow.quran_tests.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('tested_on') }}</span>
-                                </button>
-                            </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_tests.workbench.table.headers.juz') }} <span>{{ $this->sortIndicator('juz') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('score')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_tests.workbench.table.headers.score') }} <span>{{ $this->sortIndicator('score') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('tested_on') }}</span>
+                                </button>
+                            </th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.group') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_tests.workbench.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('teacher')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    {{ __('workflow.quran_tests.workbench.table.headers.teacher') }} <span>{{ $this->sortIndicator('teacher') }}</span>
-                                </button>
-                            </th>
                             @canany(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete'])
-                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.common.actions.actions') }}</th>
+                            <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.common.actions.actions') }}</th>
                             @endcanany
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($tests as $test)
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-center text-neutral-300 lg:px-6" data-record-number="{{ $test->id }}">{{ $recordNumbers[$test->id] }}</td>
+                                <td class="table-cell-name px-5 py-4 lg:px-6">
                                     @if ($test->student)
                                         <div class="student-inline">
-                                            <x-student-avatar :student="$test->student" size="sm" />
+
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $test->student->full_name }}</div>
+                                                <div class="record-person-name student-inline__name whitespace-nowrap">{{ $test->student->full_name }}</div>
                                             </div>
                                         </div>
                                     @else
                                         <span class="text-white">{{ __('crud.common.not_available') }}</span>
                                     @endif
                                 </td>
+                                <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($test->tested_on?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    <div class="font-medium text-white">{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                    <div class="awqaf-course-name font-medium text-white" title="{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}"><span class="record-course-name">{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($test->tested_on?->format('d-m-Y')) }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->teacher?->first_name }} {{ $test->teacher?->last_name }}</td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
                                 @canany(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete'])
-                                    <td class="px-5 py-4 text-center lg:px-6">
+                                    <td class="table-cell-compact px-5 py-4 text-center lg:px-6">
                                         <div class="flex flex-wrap justify-center gap-2">
-                                            @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
+                                            @if ($this->testCourseIsEditable($test))
                                                 <button type="button" wire:click="openEdit({{ $test->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-awqaf-saber-edit><x-admin-action-icon name="edit" /></button>
-                                            @endcanany
-                                            @if (! $test->enrollment?->belongsToFinishedCourse())
-                                                @can('quran-awqaf-tests.delete')
-                                                    <button type="button" wire:click="delete({{ $test->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-awqaf-saber-delete><x-admin-action-icon name="delete" /></button>
-                                                @endcan
                                             @endif
                                         </div>
                                     </td>
@@ -766,6 +782,7 @@ new class extends Component {
                     <table class="w-full text-sm">
                         <thead>
                             <tr>
+                                <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                 <th class="px-5 py-4 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.full_name') }}</th>
                                 <th class="px-5 py-4 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.father_name') }}</th>
                                 <th class="px-5 py-4 text-left">{{ __('workflow.quran_tests.eligible_modal.headers.birth_year') }}</th>
@@ -775,8 +792,9 @@ new class extends Component {
                         <tbody>
                             @foreach ($eligibleAwqafStudents as $eligibleStudent)
                                 <tr>
-                                    <td class="px-5 py-4 text-white">{{ $eligibleStudent->full_name }}</td>
-                                    <td class="px-5 py-4 text-neutral-300">{{ $eligibleStudent->father_name }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
+                                    <td class="record-person-name px-5 py-4 text-white">{{ $eligibleStudent->full_name }}</td>
+                                    <td class="record-person-name px-5 py-4 text-neutral-300">{{ $eligibleStudent->father_name }}</td>
                                     <td class="px-5 py-4 text-neutral-300">{{ $eligibleStudent->birth_year }}</td>
                                     <td class="px-5 py-4 text-white">{{ $eligibleStudent->eligible_juz_numbers }}</td>
                                 </tr>
@@ -797,78 +815,89 @@ new class extends Component {
         compact
     >
         <form wire:submit="save" class="space-y-4" data-searchable-refresh>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label for="quran-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>
-                    @if ($editingTestId)
-                        <input id="quran-workbench-student" type="text" value="{{ $editingStudentName }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-awqaf-saber-student-readonly>
-                    @else
-                        <select
-                            id="quran-workbench-student"
-                            wire:key="quran-workbench-student-select"
-                            wire:model.live="selectedStudentId"
-                            data-search-input="true"
-                            data-open-on-focus="true"
-                            data-hide-placeholder-option="true"
-                            data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
-                            class="w-full rounded-xl px-4 py-3 text-sm"
-                        >
-                            <option value="">{{ __('workflow.quran_tests.workbench.form.select_student') }}</option>
-                            @foreach ($studentOptions as $student)
-                                <option value="{{ $student->id }}">
-                                    {{ trim($student->first_name.' '.$student->last_name) }}
-                                </option>
+            <fieldset class="space-y-4" @disabled(! $this->canAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']))>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label for="quran-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>
+                        @if ($editingTestId)
+                            <input id="quran-workbench-student" type="text" value="{{ $editingStudentName }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-awqaf-saber-student-readonly>
+                        @else
+                            <select
+                                id="quran-workbench-student"
+                                wire:key="quran-workbench-student-select"
+                                wire:model.live="selectedStudentId"
+                                data-search-input="true"
+                                data-open-on-focus="true"
+                                data-hide-placeholder-option="true"
+                                data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
+                                class="w-full rounded-xl px-4 py-3 text-sm"
+                             data-record-label="person">
+                                <option value="">{{ __('workflow.quran_tests.workbench.form.select_student') }}</option>
+                                @foreach ($studentOptions as $student)
+                                    <option value="{{ $student->id }}">
+                                        {{ trim($student->first_name.' '.$student->last_name) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
+                        @error('selectedStudentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+
+                    <div>
+                        <label for="quran-workbench-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label>
+                        <select id="quran-workbench-juz" wire:model="juz_id" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="">{{ __('workflow.quran_tests.form.select_juz') }}</option>
+                            @foreach ($eligibleJuzs as $juz)
+                                <option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
                             @endforeach
                         </select>
-                    @endif
-                    @error('selectedStudentId') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                        @if ($selectedStudentId && $eligibleJuzs->isEmpty())
+                            <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.quran_tests.form.no_eligible_juzs') }}</div>
+                        @endif
+                        @error('juz_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
                 </div>
 
-                <div>
-                    <label for="quran-workbench-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label>
-                    <select id="quran-workbench-juz" wire:model="juz_id" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="">{{ __('workflow.quran_tests.form.select_juz') }}</option>
-                        @foreach ($eligibleJuzs as $juz)
-                            <option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
-                        @endforeach
-                    </select>
-                    @if ($selectedStudentId && $eligibleJuzs->isEmpty())
-                        <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.quran_tests.form.no_eligible_juzs') }}</div>
-                    @endif
-                    @error('juz_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-            </div>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <div>
+                        <label for="quran-workbench-date" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label>
+                        <input id="quran-workbench-date" wire:model="tested_on" type="date" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
+                        @error('tested_on') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
 
-            <div class="grid gap-4 md:grid-cols-3">
-                <div>
-                    <label for="quran-workbench-date" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label>
-                    <input id="quran-workbench-date" wire:model="tested_on" type="date" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
-                    @error('tested_on') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    <div>
+                        <label for="quran-workbench-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
+                        <input id="quran-workbench-score" wire:model="score" type="number" min="0" max="100" step="0.01" @required($status === 'passed') class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
+                    <div>
+                        <label for="quran-workbench-status" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label>
+                        <select id="quran-workbench-status" wire:model.live="status" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
+                            <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
+                            <option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option>
+                        </select>
+                        @error('status') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
                 </div>
 
-                <div>
-                    <label for="quran-workbench-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
-                    <input id="quran-workbench-score" wire:model="score" type="number" min="0" max="100" step="0.01" @required($status === 'passed') class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-                <div>
-                    <label for="quran-workbench-status" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label>
-                    <select id="quran-workbench-status" wire:model.live="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                        <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
-                        <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
-                        <option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option>
-                    </select>
-                    @error('status') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-            </div>
+            </fieldset>
 
+            @error('delete') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
             <div class="flex flex-wrap items-center gap-3">
+                @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
                 @if ($editingTestId)
                     <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-awqaf-saber-update>
                         <x-admin-action-icon name="save" class="admin-modal-action__icon" />
                     </button>
                 @else
                     <x-admin.create-and-new-button />
+                @endif
+                @endcanany
+                @if ($editingTestId)
+                    @can('quran-awqaf-tests.delete')
+                        <button type="button" wire:click="delete({{ $editingTestId }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-awqaf-saber-delete><x-admin-action-icon name="delete" /></button>
+                    @endcan
                 @endif
                 <button type="button" wire:click="closeFormModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
             </div>

@@ -3,6 +3,7 @@
 namespace App\Livewire\Concerns;
 
 use App\Models\User;
+use App\Services\AccessScopeService;
 use App\Services\ManagedUserService;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Collection;
@@ -43,7 +44,7 @@ trait LinksExistingProfileAccounts
         $this->resetValidation('existingAccountId');
         if (! $this->existingAccountId) {
             if (property_exists($this, 'access_roles') && ! $this->editingId) {
-                $this->reset(['account_username', 'account_password', 'account_is_active', 'access_roles', 'direct_permissions', 'scope_groups', 'scope_parents', 'scope_students', 'scope_teachers']);
+                $this->reset(['account_username', 'account_password', 'account_is_active', 'access_roles', 'direct_permissions', 'scope_student_progress_all', 'scope_groups', 'scope_parents', 'scope_students', 'scope_teachers']);
             }
 
             return;
@@ -58,6 +59,7 @@ trait LinksExistingProfileAccounts
             $this->account_is_active = $user->is_active;
             $this->access_roles = $user->getRoleNames()->reject(fn ($role) => in_array($role, RoleRegistry::actorRoles(), true))->values()->all();
             $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->all();
+            $this->scope_student_progress_all = app(AccessScopeService::class)->canViewAllStudentProgress($user);
             foreach (['groups' => 'group', 'parents' => 'parent', 'students' => 'student', 'teachers' => 'teacher'] as $field => $type) {
                 $this->{'scope_'.$field} = $user->scopeOverrides->where('scope_type', $type)->pluck('scope_id')->map(fn ($id) => (int) $id)->all();
             }

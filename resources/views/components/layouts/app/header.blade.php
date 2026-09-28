@@ -66,9 +66,12 @@
             <flux:dropdown position="top" align="{{ $dropdownAlign }}">
                 <flux:profile
                     class="cursor-pointer"
-                    :avatar="auth()->user()->profilePhotoUrl()"
                     :initials="auth()->user()->initials()"
-                />
+                >
+                    <x-slot:avatar>
+                        <x-user-avatar :user="auth()->user()" size="sm" />
+                    </x-slot:avatar>
+                </flux:profile>
 
                 <flux:menu>
                     <flux:menu.radio.group>

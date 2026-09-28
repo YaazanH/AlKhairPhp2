@@ -491,19 +491,19 @@ new class extends Component {
                     <dl class="group-show-details__grid">
                         <div class="group-show-detail">
                             <dt>{{ __('crud.groups.table.headers.teacher') }}</dt>
-                            <dd>{{ $teacherName }}</dd>
+                            <dd title="{{ $teacherName }}" class="record-person-name">{{ $teacherName }}</dd>
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('crud.groups.form.fields.assistant_teacher') }}</dt>
-                            <dd>{{ $assistantName }}</dd>
+                            <dd title="{{ $assistantName }}" class="record-person-name">{{ $assistantName }}</dd>
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('crud.groups.form.fields.grade_level') }}</dt>
-                            <dd>{{ $groupRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</dd>
+                            <dd title="{{ $groupRecord->gradeLevel?->name ?: __('crud.common.not_available') }}">{{ $groupRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</dd>
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('crud.groups.table.headers.students') }}</dt>
-                            <dd>{{ number_format($groupRecord->active_students_count) }}</dd>
+                            <dd title="{{ number_format($groupRecord->active_students_count) }}">{{ number_format($groupRecord->active_students_count) }}</dd>
                         </div>
                     </dl>
                 </div>
@@ -572,10 +572,10 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('crud.groups.roster.empty') }}</div>
         @else
             <div class="overflow-x-auto" data-table-scroll-region>
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-center lg:px-6">#</th>
+                            <th data-table-number-column class="px-5 py-4 text-center lg:px-6">#</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.name') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.student_number') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.students.table.headers.grade') }}</th>
@@ -593,7 +593,7 @@ new class extends Component {
                                     <div class="student-inline">
                                         @if($enrollment->student)<x-student-avatar :student="$enrollment->student" size="sm" />@endif
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $enrollment->student?->full_name ?: '—' }}</div>
+                                            <div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name ?: '—' }}</div>
                                         </div>
                                     </div>
                                 </td>
@@ -601,8 +601,8 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->gradeLevel?->name ?: '—' }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->quranCurrentJuz?->juz_number ?: '—' }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y') ?: '—') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
+                                <td class="record-person-name px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
+                                <td class="record-phone px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -612,7 +612,7 @@ new class extends Component {
         @if($roster->hasPages())<div class="border-t border-white/10 p-4">{{ $roster->links() }}</div>@endif
     </section>
 
-    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
+    <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3" data-record-label="person"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
     <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" max-width="3xl">
         <x-slot:header-actions>
@@ -660,11 +660,11 @@ new class extends Component {
         <form wire:submit="saveGroup" class="space-y-4">
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="identity">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.name') }}<input wire:model="name" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.course') }}<select wire:model.live="course_id" class="mt-1 w-full rounded-xl px-4 py-3">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></label>
+                <label class="block text-sm">{{ __('crud.groups.form.fields.course') }}<select wire:model.live="course_id" class="mt-1 w-full rounded-xl px-4 py-3" data-record-label="course">@foreach($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></label>
             </div>
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="teachers">
-                <label class="block text-sm">{{ __('crud.groups.form.fields.teacher') }}<select wire:model="teacher_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
-                <label class="block text-sm">{{ __('crud.groups.form.fields.assistant_teacher') }}<select wire:model="assistant_teacher_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
+                <label class="block text-sm">{{ __('crud.groups.form.fields.teacher') }}<select wire:model="teacher_id" class="mt-1 w-full rounded-xl px-4 py-3" data-record-label="person"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
+                <label class="block text-sm">{{ __('crud.groups.form.fields.assistant_teacher') }}<select wire:model="assistant_teacher_id" class="mt-1 w-full rounded-xl px-4 py-3" data-record-label="person"><option value="">—</option>@foreach($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select></label>
             </div>
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="learning">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.grade_level') }}<select wire:model="grade_level_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">—</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label>

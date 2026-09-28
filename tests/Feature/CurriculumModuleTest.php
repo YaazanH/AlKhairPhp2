@@ -470,7 +470,7 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('synchronizeCurriculaIndexNameWidths', $javascript);
     }
 
-    public function test_groups_and_their_curriculum_picker_are_sorted_by_course_and_grade(): void
+    public function test_groups_sort_by_course_then_name_while_curriculum_picker_keeps_grade_order(): void
     {
         $this->seed(RoleSeeder::class);
         $manager = User::factory()->create();
@@ -494,8 +494,8 @@ class CurriculumModuleTest extends TestCase
 
         $component = Volt::test('groups.index')
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
-                $alphaEarlierGroup->id,
                 $alphaLaterGroup->id,
+                $alphaEarlierGroup->id,
                 $zuluEarlierGroup->id,
             ])
             ->assertViewHas('curricula', fn ($curricula) => $curricula->pluck('id')->all() === [
@@ -503,7 +503,7 @@ class CurriculumModuleTest extends TestCase
                 $laterCurriculum->id,
                 $ungradedCurriculum->id,
             ])
-            ->assertSee('data-groups-curriculum-column="8"', false)
+            ->assertSee('groups-index-table table-content', false)
             ->assertSee('data-group-curriculum-status', false)
             ->assertSee('title="'.$earlierCurriculum->name.'"', false)
             ->assertSee(__('curricula.fields.curriculum'));
@@ -511,8 +511,8 @@ class CurriculumModuleTest extends TestCase
         $component
             ->set('courseFilter', (string) $alphaCourse->id)
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
-                $alphaEarlierGroup->id,
                 $alphaLaterGroup->id,
+                $alphaEarlierGroup->id,
             ]);
 
         Volt::test('groups.show', ['group' => $alphaEarlierGroup])
@@ -530,8 +530,8 @@ class CurriculumModuleTest extends TestCase
             strpos($groupsView, "{{ __('crud.groups.table.headers.students') }}"),
         );
         $this->assertLessThan(
-            strpos($groupsView, '<td class="px-5 py-4 text-center lg:px-6">'),
-            strpos($groupsView, '<td class="px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>'),
+            strpos($groupsView, '<td class="table-cell-compact px-5 py-4 text-center lg:px-6">'),
+            strpos($groupsView, '<td class="table-cell-compact px-5 py-4 text-white lg:px-6">{{ $group->enrollments_count }}</td>'),
         );
         $this->assertStringContainsString('margin-inline-end: 0;', $styles);
         $this->assertStringContainsString('.group-curriculum-status {', $styles);

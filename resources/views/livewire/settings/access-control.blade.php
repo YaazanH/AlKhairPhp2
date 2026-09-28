@@ -407,7 +407,7 @@ new class extends Component {
     <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" x-data="{ draggedRole: null, roleDropTarget: null, settledRole: null }">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
             <div class="admin-grid-meta__title">{{ __('access.common.roles') }}</div>
-            <div class="access-role-table-controls flex flex-wrap items-end gap-3" data-mobile-table-filter-controls><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.300ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><x-add-action-button wire:click="openCreateRoleModal" :label="__('access.roles.actions.create')" /></div>
+            <div class="access-role-table-controls flex flex-wrap items-end gap-3" data-mobile-table-filter-controls><div class="admin-filter-field"><label class="sr-only" for="role-search">{{ __('access.roles.fields.search') }}</label><input id="role-search" wire:model.live.debounce.500ms="role_search" type="text" placeholder="{{ __('access.roles.fields.search') }}"></div><x-add-action-button wire:click="openCreateRoleModal" :label="__('access.roles.actions.create')" /></div>
         </div>
 
         @if ($roles->isEmpty())
@@ -587,7 +587,7 @@ new class extends Component {
 
                 <div class="admin-filter-field">
                     <label class="sr-only" for="permission-search">{{ __('access.roles.fields.permission_search') }}</label>
-                    <input id="permission-search" wire:model.live.debounce.300ms="permission_search" type="text" placeholder="{{ __('access.roles.fields.permission_search') }}">
+                    <input id="permission-search" wire:model.live.debounce.500ms="permission_search" type="text" placeholder="{{ __('access.roles.fields.permission_search') }}">
                 </div>
 
                 <div class="role-permission-groups">

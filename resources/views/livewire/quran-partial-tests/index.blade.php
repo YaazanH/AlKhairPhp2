@@ -84,7 +84,12 @@ new class extends Component
                     'juz',
                     'parts.attempts',
                 ])
-        )
+        );
+        $recordNumbers = (clone $testsQuery)->reorder()
+            ->orderBy('id')
+            ->pluck('id')->flip()->map(fn (int $index): int => $index + 1);
+
+        $testsQuery
             ->when(filled($this->search), function (Builder $query) {
                 $search = '%'.$this->search.'%';
 
@@ -131,6 +136,7 @@ new class extends Component
 
         return [
             'partialTests' => $testsQuery->paginate($this->perPage),
+            'recordNumbers' => $recordNumbers,
             'filteredCount' => (clone $testsQuery)->count(),
             'studentOptions' => $studentOptions,
             'juzOptions' => QuranJuz::query()->orderBy('juz_number')->get(),
@@ -470,7 +476,7 @@ new class extends Component
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="partial-tests-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="partial-tests-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="partial-tests-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -499,53 +505,55 @@ new class extends Component
             <div class="admin-empty-state">{{ __('workflow.quran_partial_tests.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-5 py-4 text-center lg:px-6">#</th>
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_partial_tests.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.common.filters.course') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_partial_tests.table.headers.juz') }} <span>{{ $this->sortIndicator('juz') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.parts') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.parts') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('last_tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_partial_tests.table.headers.last_tested_on') }} <span>{{ $this->sortIndicator('last_tested_on') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.common.filters.course') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_partial_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
                             </th>
-                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.actions') }}</th>
+                            <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.quran_partial_tests.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($partialTests as $partialTest)
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-center text-neutral-300 lg:px-6" data-record-number="{{ $partialTest->id }}">{{ $recordNumbers[$partialTest->id] }}</td>
+                                <td class="table-cell-name px-5 py-4 lg:px-6">
                                     <div class="student-inline">
-                                        <x-student-avatar :student="$partialTest->student" size="sm" />
+
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ trim(($partialTest->student?->first_name ?? '').' '.($partialTest->student?->last_name ?? '')) }}</div>
+                                            <div class="record-person-name student-inline__name whitespace-nowrap">{{ trim(($partialTest->student?->first_name ?? '').' '.($partialTest->student?->last_name ?? '')) }}</div>
                                         </div>
                                     </div>
                                 </td>
+                                <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $partialTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6"><span dir="ltr" class="inline-block">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</span></td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($partialTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    <div class="whitespace-nowrap font-medium text-white">{{ $partialTest->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                    <div class="whitespace-nowrap font-medium text-white"><span class="record-course-name">{{ $partialTest->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $partialTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><span dir="ltr" class="inline-block">{{ $partialTest->parts->where('status', 'passed')->count() }} / 4</span></td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($partialTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
-                                <td class="px-5 py-4 text-center lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_partial_tests.statuses.'.$partialTest->status) }}</span></td>
+                                <td class="table-cell-compact px-5 py-4 text-center lg:px-6">
                                     <div class="flex flex-wrap justify-center gap-2">
                                         <x-open-action-button :href="route('quran-partial-tests.show', $partialTest)" wire:navigate :label="__('workflow.quran_partial_tests.actions.open')" />
                                     </div>
@@ -578,7 +586,7 @@ new class extends Component
                         data-hide-placeholder-option="true"
                         data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}"
                         class="w-full rounded-xl px-4 py-3 text-sm"
-                    >
+                     data-record-label="person">
                         <option value="">{{ __('workflow.quran_partial_tests.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
                             <option value="{{ $student->id }}">
@@ -625,7 +633,7 @@ new class extends Component
                 @foreach ($openTestWarnings as $warning)
                     <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
                         <div class="text-sm font-semibold text-white">{{ __('workflow.common.labels.juz_number', ['number' => $warning['juz_number']]) }}</div>
-                        <div class="mt-1 text-sm text-neutral-300">{{ $warning['group'] }} @if ($warning['course']) · {{ $warning['course'] }} @endif</div>
+                        <div class="mt-1 text-sm text-neutral-300">{{ $warning['group'] }} @if ($warning['course']) · <span class="record-course-name">{{ $warning['course'] }}</span> @endif</div>
                         <div class="mt-2 text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.quran_partial_tests.warnings.parts_progress', ['count' => $warning['parts_passed']]) }}</div>
                     </div>
                 @endforeach

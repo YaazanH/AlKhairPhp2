@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AccessScopeService
 {
+    public const ALL_STUDENT_PROGRESS = 'student_progress_all';
+
     protected array $memoizedIds = [];
 
     protected array $memoizedUserRelations = [];
@@ -47,6 +49,8 @@ class AccessScopeService
         if ($rows->isNotEmpty()) {
             UserScopeOverride::query()->insert($rows->all());
         }
+
+        $user->unsetRelation('scopeOverrides');
 
         unset(
             $this->memoizedIds["groups.{$user->id}"],
@@ -146,6 +150,24 @@ class AccessScopeService
         }
 
         return in_array((int) $student->id, $this->accessibleStudentIds($user), true);
+    }
+
+    public function canViewAllStudentProgress(?User $user): bool
+    {
+        return $user?->scopeOverrides()
+            ->where('scope_type', self::ALL_STUDENT_PROGRESS)
+            ->where('scope_id', 1)
+            ->exists() ?? false;
+    }
+
+    public function canAccessStudentProgress(?User $user, Student $student): bool
+    {
+        return $this->canViewAllStudentProgress($user) || $this->canAccessStudent($user, $student);
+    }
+
+    public function scopeStudentProgressStudents(Builder $query, ?User $user): Builder
+    {
+        return $this->canViewAllStudentProgress($user) ? $query : $this->scopeStudents($query, $user);
     }
 
     public function canAccessStudentAttendanceDay(?User $user, StudentAttendanceDay $studentAttendanceDay): bool

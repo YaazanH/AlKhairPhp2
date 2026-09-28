@@ -438,7 +438,7 @@ new class extends Component {
             <x-add-action-button wire:click="openTemplateModal" :label="__('finance.report_templates.create')" />
         </div>
         <div class="overflow-x-auto">
-            <table class="text-sm">
+            <table class="table-content text-sm">
                 <thead>
                     <tr>
                         <th class="px-5 py-3 text-left">{{ __('finance.fields.name') }}</th>

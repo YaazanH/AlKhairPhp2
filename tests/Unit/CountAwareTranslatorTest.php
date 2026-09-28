@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Number;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -60,6 +61,24 @@ class CountAwareTranslatorTest extends TestCase
         $this->assertSame('الجزء 2', __('workflow.common.labels.juz_number', ['number' => 2]));
         $this->assertSame('unknown.key', __('unknown.key', ['count' => 2]));
         $this->assertIsArray(__('counts'));
+    }
+
+    public function test_attendance_group_count_uses_arabic_singular_dual_and_plural_forms(): void
+    {
+        $key = 'workflow.student_attendance.day_details.table.groups_in_view';
+        foreach ([0 => '0 حلقة', 1 => 'حلقة واحدة', 2 => 'حلقتان', 3 => '3 حلقات', 10 => '10 حلقات', 11 => '11 حلقة', 103 => '103 حلقة'] as $count => $expected) {
+            $this->assertSame($expected, trans_choice($key, $count, ['count' => $count], 'ar'));
+        }
+        $this->assertSame('٣ حلقات', __($key, ['count' => '٣'], 'ar'));
+    }
+
+    public function test_present_student_count_uses_arabic_numerals_and_plural_forms(): void
+    {
+        foreach ([0 => '٠ طالب حاضر', 1 => 'طالب واحد حاضر', 2 => 'طالبان حاضران', 3 => '٣ طلاب حاضرون', 10 => '١٠ طلاب حاضرون', 17 => '١٧ طالب حاضر'] as $count => $expected) {
+            $this->assertSame($expected, trans_choice('workflow.student_attendance.table.present_students', $count, [
+                'count' => Number::format($count, locale: 'ar-u-nu-arab'),
+            ], 'ar'));
+        }
     }
 
     public function test_adjectives_and_compound_counts_are_translated_independently(): void

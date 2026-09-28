@@ -357,7 +357,7 @@ new class extends Component {
                 <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('invoices.index.table.empty') }}</div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.index.table.headers.invoice') }}</th>

@@ -85,7 +85,14 @@ new class extends Component
             ])
         )
             ->where('scope', $this->classesEnabled ? 'groups' : 'center')
-            ->whereNull('course_finished_at')
+            ->whereNull('course_finished_at');
+
+        // Number visible days chronologically before search, status filters, or pagination.
+        $dayNumbers = (clone $daysQuery)->reorder()
+            ->orderBy('attendance_date')->orderBy('id')
+            ->pluck('id')->flip()->map(fn (int $index): int => $index + 1);
+
+        $daysQuery
             ->when(filled($this->search), fn (Builder $query) => $query->whereDate('attendance_date', $this->search))
             ->when(
                 in_array($this->statusFilter, ['open', 'closed'], true),
@@ -100,6 +107,7 @@ new class extends Component
 
         return [
             'days' => $daysQuery->paginate($this->perPage),
+            'dayNumbers' => $dayNumbers,
             'filteredCount' => (clone $daysQuery)->count(),
             'courseOptions' => $this->classesEnabled
                 ? $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name'])
@@ -360,7 +368,7 @@ new class extends Component
     <div class="admin-modal-portal">
         <x-admin.modal :show="$showExportModal" :title="__('workflow.student_attendance.export.title')" close-method="closeExportModal" max-width="2xl" full-viewport>
             <div class="grid gap-4 sm:grid-cols-2">
-                <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label><select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label><select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3" data-record-label="course"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
             </div>
@@ -373,19 +381,18 @@ new class extends Component
         @if ($days->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.days.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto">
-                <table class="text-sm">
+            <div class="attendance-days-table-wrapper overflow-x-auto">
+                <table class="attendance-days-table text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.date') }}</th>
-                            @if($classesEnabled)
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
-                                <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>
-                            @endif
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
-                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.days.table.headers.actions') }}</th>
+                            <th data-table-number-column scope="col" class="attendance-days-number px-5 py-4 text-center lg:px-6">#</th>
+                            <th class="attendance-days-date px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.date') }}</th>
+                            @if($classesEnabled)<th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
+                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>@endif
+                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
+                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
+                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
+                            <th class="attendance-days-actions admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.days.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -400,26 +407,27 @@ new class extends Component
                                     : $day->centerRecords->filter(fn ($record) => $record->status?->is_present)->count();
                             @endphp
                             <tr>
-                                <td class="px-5 py-4 text-white lg:px-6">
+                                <td class="attendance-days-number px-5 py-4 text-center text-neutral-300 lg:px-6">{{ $dayNumbers[$day->id] }}</td>
+                                <td class="attendance-days-date px-5 py-4 text-white lg:px-6">
                                     <div class="flex flex-col items-start font-semibold">
                                         <span class="text-xs font-medium text-neutral-400">{{ $day->attendance_date?->locale(app()->getLocale())->translatedFormat('l') }}</span>
                                         <span class="mt-1">{{ \App\Support\DateDisplay::html($day->attendance_date?->format('d-m-Y')) }}</span>
                                     </div>
                                 </td>
-                                @if($classesEnabled)
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6"><div>{{ $day->course?->name ?: __('workflow.common.no_course') }}</div></td>
-                                    <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupCount) }}</td>
-                                @endif
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($studentCount) }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($attendedCount) }}</td>
-                                <td class="px-5 py-4 lg:px-6">
+                                @if($classesEnabled)<td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6">
+                                    <div><span class="record-course-name">{{ $day->course?->name ?: __('workflow.common.no_course') }}</span></div>
+                                </td>
+                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupCount) }}</td>@endif
+                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($studentCount) }}</td>
+                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($attendedCount) }}</td>
+                                <td class="attendance-days-mobile-hidden px-5 py-4 lg:px-6">
                                     <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ __('workflow.common.day_status.'.$day->status) }}
                                     </span>
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="attendance-days-actions px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <x-open-action-button :href="$classesEnabled ? route('student-attendance.show', $day) : route('student-attendance.center.show', $day)" wire:navigate :label="__('workflow.student_attendance.days.table.view')" />
+                                        <x-open-action-button :href="$classesEnabled ? route('student-attendance.show', $day) : route('student-attendance.center.show', $day)" :class="$day->status === 'open' ? 'admin-icon-button--accent' : ''" wire:navigate :label="__('workflow.student_attendance.days.table.view')" />
                                     </div>
                                 </td>
                             </tr>
@@ -448,7 +456,7 @@ new class extends Component
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.course') }}</label>
-                    <select id="attendance-day-course" wire:model.live="course_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm">
+                    <select id="attendance-day-course" wire:model.live="course_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm" data-record-label="course">
                         <option value="" disabled hidden>{{ __('workflow.student_attendance.days.form.select_course') }}</option>
                         @foreach ($courseOptions as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>

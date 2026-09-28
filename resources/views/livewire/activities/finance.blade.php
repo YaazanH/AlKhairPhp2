@@ -321,7 +321,7 @@ new class extends Component {
                 <form wire:submit="saveRegistration" class="space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('activities.finance.registrations.fields.student') }}</label>
-                        <select wire:model.live="registration_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model.live="registration_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" data-record-label="person">
                             <option value="">{{ __('activities.finance.registrations.placeholders.student') }}</option>
                             @foreach ($students as $student)
                                 <option value="{{ $student->id }}">{{ $student->full_name }}</option>
@@ -332,7 +332,7 @@ new class extends Component {
 
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('activities.finance.registrations.fields.enrollment') }}</label>
-                        <select wire:model="registration_enrollment_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="registration_enrollment_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" data-record-label="person">
                             <option value="">{{ __('activities.finance.registrations.placeholders.enrollment') }}</option>
                             @foreach ($enrollments as $enrollment)
                                 <option value="{{ $enrollment->id }}">{{ $enrollment->student?->full_name }} | {{ $enrollment->group?->name }}</option>
@@ -380,7 +380,7 @@ new class extends Component {
                 <form wire:submit="savePayment" class="space-y-4">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('activities.finance.payments.fields.registration') }}</label>
-                        <select wire:model="payment_registration_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                        <select wire:model="payment_registration_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" data-record-label="person">
                             <option value="">{{ __('activities.finance.payments.placeholders.registration') }}</option>
                             @foreach ($paymentRegistrations as $registration)
                                 <option value="{{ $registration->id }}">{{ $registration->student?->full_name }}</option>
@@ -474,16 +474,17 @@ new class extends Component {
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.enrollment') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.fee') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.paid') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.status') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.registrations.headers.actions') }}</th></tr></thead>
+                    <table class="table-content text-sm">
+                        <thead><tr><th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.enrollment') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.fee') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.paid') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.registrations.headers.status') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.registrations.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($registrations as $registration)
                                 <tr>
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                     <td class="px-5 py-3">
                                         <div class="student-inline">
                                             <x-student-avatar :student="$registration->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $registration->student?->full_name }}</div>
+                                                <div class="record-person-name student-inline__name">{{ $registration->student?->full_name }}</div>
                                             </div>
                                         </div>
                                     </td>
@@ -494,7 +495,7 @@ new class extends Component {
                                     <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editRegistration({{ $registration->id }})" class="pill-link pill-link--compact">{{ __('activities.common.actions.edit') }}</button><button type="button" wire:click="deleteRegistration({{ $registration->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('activities.common.actions.delete') }}</button></div></td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('activities.finance.registrations.empty') }}</td></tr>
+                                <tr><td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('activities.finance.registrations.empty') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -509,17 +510,18 @@ new class extends Component {
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.method') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.payments.headers.actions') }}</th></tr></thead>
+                    <table class="table-content text-sm">
+                        <thead><tr><th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.student') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.method') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.amount') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.payments.headers.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.payments.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($payments as $payment)
                                 <tr class="{{ $payment->voided_at ? 'opacity-60' : '' }}">
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                     <td class="px-5 py-3">{{ \App\Support\DateDisplay::html($payment->paid_at?->format('d-m-Y')) }}</td>
                                     <td class="px-5 py-3">
                                         <div class="student-inline">
                                             <x-student-avatar :student="$payment->registration?->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $payment->registration?->student?->full_name }}</div>
+                                                <div class="record-person-name student-inline__name">{{ $payment->registration?->student?->full_name }}</div>
                                             </div>
                                         </div>
                                     </td>
@@ -529,7 +531,7 @@ new class extends Component {
                                     <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end">@if (! $payment->voided_at)<button type="button" wire:click="voidPayment({{ $payment->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('activities.common.actions.void') }}</button>@endif</div></td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('activities.finance.payments.empty') }}</td></tr>
+                                <tr><td colspan="7" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('activities.finance.payments.empty') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -544,11 +546,12 @@ new class extends Component {
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
-                        <thead><tr><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.description') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.amount') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.expenses.headers.actions') }}</th></tr></thead>
+                    <table class="table-content text-sm">
+                        <thead><tr><th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.date') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.category') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.description') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('activities.finance.expenses.headers.amount') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.finance.expenses.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($expenses as $expense)
                                 <tr>
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                     <td class="px-5 py-3">{{ \App\Support\DateDisplay::html($expense->spent_on?->format('d-m-Y')) }}</td>
                                     <td class="px-5 py-3">{{ $expense->category?->name ?: '-' }}</td>
                                     <td class="px-5 py-3">{{ $expense->description }}</td>
@@ -556,7 +559,7 @@ new class extends Component {
                                     <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editExpense({{ $expense->id }})" class="pill-link pill-link--compact">{{ __('activities.common.actions.edit') }}</button><button type="button" wire:click="deleteExpense({{ $expense->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('activities.common.actions.delete') }}</button></div></td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('activities.finance.expenses.empty') }}</td></tr>
+                                <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('activities.finance.expenses.empty') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>

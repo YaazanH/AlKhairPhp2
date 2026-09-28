@@ -20,6 +20,7 @@ use App\Models\PointType;
 use App\Models\QuranFinalTest;
 use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
@@ -27,6 +28,9 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\AccessScopeService;
+use App\Services\CourseCompletionRuleService;
+use App\Services\CourseEndService;
 use App\Support\AvatarDefaults;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -403,7 +407,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('function createSearchableSelectChevron(inputMode = false)', $searchableSelectScript);
         $this->assertStringContainsString('stroke-linecap="round" stroke-linejoin="round"', $searchableSelectScript);
         $this->assertStringContainsString('function searchableSelectPlaceholderOption(select)', $searchableSelectScript);
-        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '14'", $searchableSelectScript);
+        $this->assertStringContainsString("const SEARCHABLE_SELECT_BINDING_VERSION = '15'", $searchableSelectScript);
         $this->assertStringContainsString("select.dataset.scrollToSelected === 'false'", $searchableSelectScript);
         $this->assertStringContainsString("const clearSearchAfterSelect = searchInputMode && select.dataset.clearSearchAfterSelect === 'true'", $searchableSelectScript);
         $this->assertStringContainsString("const deferClearAfterSelect = clearSearchAfterSelect && select.dataset.deferClearAfterSelect === 'true'", $searchableSelectScript);
@@ -456,6 +460,46 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('align-items: center;', $searchableSelectCss);
         $this->assertStringContainsString('display: none;', $searchableSelectCss);
         $this->assertStringContainsString('.searchable-select__option--highlighted,', $searchableSelectCss);
+    }
+
+    public function test_enrollment_total_points_reuse_course_end_rules_in_overview_and_details(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$parentUser, $student] = $this->makeScopedProgressData();
+        $this->actingAs($parentUser);
+        $enrollment = $student->enrollments()->firstOrFail();
+        $transaction = PointTransaction::query()->where('enrollment_id', $enrollment->id)->firstOrFail();
+        $transaction->update(['points' => 650]);
+        foreach (['required_passed_final_tests' => 0, 'required_memorized_pages' => 100, 'required_passed_quizzes' => 0, 'retain_percentage' => 50, 'minimum_points' => 0] as $key => $value) {
+            AppSetting::storeValue('course_completion', $key, $value, 'integer');
+        }
+        $adjustment = $transaction->replicate();
+        $adjustment->fill(['source_type' => CourseCompletionRuleService::ADJUSTMENT_SOURCE_TYPE, 'points' => -300])->save();
+        $voided = $transaction->replicate();
+        $voided->fill(['points' => 9000, 'voided_at' => now()])->save();
+        $countBefore = PointTransaction::count();
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 400)
+            ->assertSee(__('workflow.student_progress.enrollments.headers.total_points'))
+            ->call('showDetails', 'enrollments')
+            ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 400);
+
+        AppSetting::storeValue('course_completion', 'required_memorized_pages', 0, 'integer');
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 700);
+
+        $enrollment->group->course->update(['is_active' => false]);
+        $enrollment->update(['status' => 'completed']);
+        Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 700);
+
+        foreach ([0 => 200, 100 => 200, 200 => 200, 201 => 300, 600 => 600] as $base => $expected) {
+            $transaction->update(['points' => $base]);
+            $this->assertSame($expected, app(CourseEndService::class)->enrollmentTotalPoints($enrollment->fresh()));
+        }
+        $this->assertSame($countBefore, PointTransaction::count());
+        $this->assertNull($adjustment->fresh()->voided_at);
     }
 
     public function test_progress_enrollments_only_show_active_and_completed_rows(): void
@@ -655,6 +699,110 @@ class StudentProgressPageTest extends TestCase
         $parent->unsetRelation('roles')->unsetRelation('permissions');
         $component = Volt::test('students.progress', ['student' => $student]);
         $this->assertNull($component->viewData('timeline')->first()['days']);
+    }
+
+    public function test_teacher_can_read_complete_progress_history_without_separate_module_permissions(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student, $otherStudent] = $this->makeScopedProgressData();
+        $oldEnrollment = $student->enrollments()->firstOrFail();
+        $user = User::factory()->create();
+        $user->givePermissionTo('students.view');
+        $teacher = Teacher::create([
+            'user_id' => $user->id, 'first_name' => 'Current', 'last_name' => 'Teacher',
+            'phone' => '0999333000', 'status' => 'active',
+        ]);
+        $group = $oldEnrollment->group->replicate();
+        $group->fill([
+            'teacher_id' => $teacher->id, 'name' => 'Current Teacher Group',
+            'course_id' => Course::create(['name' => 'New Teacher Course', 'is_active' => true])->id,
+        ])->save();
+        Enrollment::create([
+            'student_id' => $student->id, 'group_id' => $group->id,
+            'enrolled_at' => '2026-09-20', 'status' => 'active',
+        ]);
+        $juz = QuranJuz::firstOrFail();
+        $partial = QuranPartialTest::create([
+            'student_id' => $student->id, 'enrollment_id' => $oldEnrollment->id,
+            'juz_id' => $juz->id, 'status' => 'in_progress',
+        ]);
+        $partial->parts()->create(['part_number' => 1, 'status' => 'passed']);
+        $final = QuranFinalTest::create([
+            'student_id' => $student->id, 'enrollment_id' => $oldEnrollment->id,
+            'juz_id' => $juz->id, 'status' => 'passed', 'passed_on' => '2026-09-15',
+        ]);
+        $final->attempts()->create([
+            'teacher_id' => $oldEnrollment->group->teacher_id, 'attempt_no' => 1,
+            'tested_on' => '2026-09-15', 'score' => 95, 'status' => 'passed',
+        ]);
+        $awqaf = QuranTest::where('student_id', $student->id)->firstOrFail()->replicate();
+        $awqaf->quran_test_type_id = QuranTestType::where('code', 'awqaf')->value('id');
+        $awqaf->save();
+        $status = AttendanceStatus::create([
+            'name' => 'Progress present', 'code' => 'progress-present', 'scope' => 'student',
+            'is_present' => true, 'is_active' => true,
+        ]);
+        $day = GroupAttendanceDay::create([
+            'group_id' => $oldEnrollment->group_id, 'attendance_date' => '2026-09-15', 'status' => 'closed',
+        ]);
+        StudentAttendanceRecord::create([
+            'group_attendance_day_id' => $day->id, 'enrollment_id' => $oldEnrollment->id,
+            'attendance_status_id' => $status->id,
+        ]);
+
+        $this->actingAs($user);
+        $this->assertFalse($user->can('memorization.view'));
+        $this->assertFalse(app(AccessScopeService::class)->canAccessEnrollment($user, $oldEnrollment));
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSee('Weekly Quiz')->assertSee('Teacher Shared Note')->assertSee('Parent visible points')
+            ->assertDontSee('Hidden Quiz')->assertDontSee('Other Shared Note')
+            ->assertViewHas('enrollments', fn ($rows) => $rows->count() === 2)
+            ->assertViewHas('memorizationRows', fn ($rows) => $rows->pluck('page')->all() === [581, 582, 583])
+            ->assertViewHas('stats', fn ($stats) => $stats['attendance_days'] === 1 && $stats['quran_partial_tests'] === 1 && $stats['quran_final_tests'] === 1)
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()->passed_parts === 1 && $rows->first()->final_passed && $rows->first()->awqaf_passed)
+            ->call('showDetails', 'memorization')
+            ->assertViewHas('paginatedDetails', fn ($rows) => $rows->total() === 3)
+            ->call('showDetails', 'enrollments')
+            ->assertViewHas('paginatedDetails', fn ($rows) => $rows->total() === 2);
+
+        $this->get(route('students.progress', $otherStudent, absolute: false))->assertForbidden();
+    }
+
+    public function test_all_student_progress_scope_is_read_only_and_does_not_expand_other_pages(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student, $otherStudent] = $this->makeScopedProgressData();
+        $user = User::factory()->create();
+        $user->givePermissionTo(['students.view', 'students.update', 'quran-tests.record']);
+        Teacher::create([
+            'user_id' => $user->id, 'first_name' => 'Progress', 'last_name' => 'Viewer',
+            'phone' => '0999333001', 'status' => 'active',
+        ]);
+        $scopes = app(AccessScopeService::class);
+        $scopes->syncUserOverrides($user, [AccessScopeService::ALL_STUDENT_PROGRESS => [1]]);
+        $this->actingAs($user);
+
+        Volt::test('students.progress', ['student' => null])
+            ->assertViewHas('studentOptions', fn ($students) => $students->count() === 2)
+            ->set('selectedStudentId', $otherStudent->id)
+            ->assertSee('Hidden Quiz')->assertSee('Other Shared Note')
+            ->assertDontSee('data-student-progress-photo-upload', false);
+        $this->get(route('students.progress', $student, absolute: false))->assertOk();
+        $this->get(route('students.index', absolute: false))->assertOk()->assertDontSee('Parent Student')->assertDontSee('Other Student');
+        $this->get(route('students.files', $student, absolute: false))->assertForbidden();
+        $this->assertFalse($scopes->canAccessStudent($user, $student));
+        $this->assertSame([], $scopes->accessibleEnrollmentIds($user));
+        $this->assertSame([], $scopes->accessibleGroupIds($user));
+        Volt::test('students.progress', ['student' => $student])
+            ->set('progressPhotoUpload', UploadedFile::fake()->image('forbidden.jpg'))
+            ->assertForbidden();
+        Volt::test('students.progress', ['student' => $student])
+            ->call('openAwqafTest', QuranJuz::firstOrFail()->id)
+            ->assertSet('showAwqafTestModal', false);
+
+        $scopes->syncUserOverrides($user, []);
+        $this->get(route('students.progress', $student, absolute: false))->assertForbidden();
+        Volt::test('students.progress', ['student' => null])->set('selectedStudentId', $otherStudent->id)->assertForbidden();
     }
 
     private function makeScopedProgressData(): array

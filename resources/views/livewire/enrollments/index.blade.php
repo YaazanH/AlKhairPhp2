@@ -456,7 +456,7 @@ new class extends Component {
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="enrollment-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="enrollment-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="enrollment-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -471,7 +471,7 @@ new class extends Component {
 
                 <div class="admin-filter-field admin-filter-field--course">
                     <label class="sr-only" for="enrollment-course-filter">{{ __('crud.common.filters.course') }}</label>
-                    <select id="enrollment-course-filter" wire:model.live="courseFilter">
+                    <select id="enrollment-course-filter" wire:model.live="courseFilter" data-record-label="course">
                         <option value="all">{{ __('crud.common.filters.all_courses') }}</option>
                         @foreach ($filterCourses as $course)
                             <option value="{{ $course->id }}">{{ $course->name }}</option>
@@ -481,7 +481,7 @@ new class extends Component {
 
                 <div class="admin-filter-field">
                     <label class="sr-only" for="enrollment-group-filter">{{ __('crud.common.filters.group') }}</label>
-                    <select id="enrollment-group-filter" wire:model.live="groupFilter">
+                    <select id="enrollment-group-filter" wire:model.live="groupFilter" data-record-label="course">
                         <option value="all">{{ __('crud.common.filters.all_groups') }}</option>
                         @foreach ($filterGroups as $group)
                             <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' - '.$group->course->name : '' }}</option>
@@ -502,15 +502,16 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('crud.enrollments.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('crud.enrollments.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('group')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('crud.enrollments.table.headers.group') }} <span>{{ $this->sortIndicator('group') }}</span>
                                 </button>
@@ -520,18 +521,18 @@ new class extends Component {
                                     {{ __('crud.enrollments.table.headers.course') }} <span>{{ $this->sortIndicator('course') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('enrolled_at')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('crud.enrollments.table.headers.enrolled') }} <span>{{ $this->sortIndicator('enrolled_at') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('crud.enrollments.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
                             </th>
                             @can('enrollments.update')
-                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
+                                <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.enrollments.table.headers.actions') }}</th>
                             @endcan
                         </tr>
                     </thead>
@@ -545,24 +546,25 @@ new class extends Component {
                                 };
                             @endphp
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $enrollments->firstItem() + $loop->index }}</td>
+                                <td class="table-cell-name px-5 py-4 lg:px-6">
                                     @if ($enrollment->student)
                                         <div class="student-inline">
                                             <x-student-avatar :student="$enrollment->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $enrollment->student->full_name }}</div>
+                                                <div class="record-person-name student-inline__name">{{ $enrollment->student->full_name }}</div>
                                             </div>
                                         </div>
                                     @else
                                         <span class="text-white">{{ __('crud.common.not_available') }}</span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
+                                <td class="table-cell-name px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->group?->name ?: __('crud.common.not_available') }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><span class="record-course-name">{{ $enrollment->group?->course?->name ?: __('crud.common.not_available') }}</span></td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="{{ $enrollmentStatusClass }}">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>
                                 @can('enrollments.update')
-                                    <td class="px-5 py-4 lg:px-6">
+                                    <td class="table-cell-compact px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-center gap-2">
                                             <button type="button" wire:click="edit({{ $enrollment->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}">
                                                 <x-admin-action-icon name="edit" />
@@ -597,7 +599,7 @@ new class extends Component {
                 @if ($editingId)
                     <input id="enrollment-student" value="{{ $editingStudent?->full_name }}" readonly data-enrollment-student-readonly class="w-full rounded-xl px-4 py-3 text-sm">
                 @else
-                    <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-focus-next-searchable-on-tab="enrollment-group" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="enrollment-student" wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-focus-next-searchable-on-tab="enrollment-group" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                         <option value="">{{ __('crud.enrollments.form.placeholders.select_student') }}</option>
                         @foreach ($students as $student)
                             <option value="{{ $student->id }}">{{ $student->full_name }}</option>

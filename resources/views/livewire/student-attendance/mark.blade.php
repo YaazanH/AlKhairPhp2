@@ -85,6 +85,10 @@ new class extends Component
                 ->get(),
             'markedCount' => collect($this->selected_statuses)->filter()->count(),
             'activeEnrollmentCount' => $enrollments->count(),
+            'presentCount' => $groupDay->records()
+                ->whereIn('enrollment_id', $enrollments->modelKeys())
+                ->whereHas('status', fn ($query) => $query->where('is_present', true))
+                ->count(),
             'isDayClosed' => $groupDay->studentAttendanceDay?->status === 'closed',
         ];
     }
@@ -346,15 +350,15 @@ new class extends Component
                     <dl class="group-show-details__grid">
                         <div class="group-show-detail">
                             <dt>{{ __('workflow.student_attendance.context.group') }}</dt>
-                            <dd>{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</dd>
+                            <dd title="{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}">{{ $groupDayRecord->group?->name ?: __('workflow.common.no_group') }}</dd>
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('workflow.student_attendance.context.teacher') }}</dt>
-                            <dd>{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</dd>
+                            <dd title="{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}" class="record-person-name">{{ $groupDayRecord->group?->teacher ? $groupDayRecord->group->teacher->first_name.' '.$groupDayRecord->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</dd>
                         </div>
                         <div class="group-show-detail attendance-mark-hero__course">
                             <dt>{{ __('workflow.student_attendance.context.course') }}</dt>
-                            <dd>{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</dd>
+                            <dd title="{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}"><span class="record-course-name">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></dd>
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('workflow.student_attendance.context.date') }}</dt>
@@ -380,7 +384,7 @@ new class extends Component
         <div class="admin-grid-meta items-center">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($activeEnrollmentCount)]) }}</div>
+                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.table.present_students', $presentCount, ['count' => \Illuminate\Support\Number::format($presentCount, locale: app()->getLocale() === 'ar' ? 'ar-u-nu-arab' : app()->getLocale())]) }}</div>
             </div>
             @if ($canAddStudent)
                 <button type="button" wire:click="openAddStudentModal" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.groups.roster.add_student') }}" aria-label="{{ __('crud.groups.roster.add_student') }}" data-attendance-add-student><x-admin-action-icon name="add" /></button>
@@ -393,34 +397,37 @@ new class extends Component
         @if ($enrollments->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto overflow-y-visible pb-24">
+            <div class="overflow-x-auto overflow-y-visible">
                 <table class="attendance-records-table text-sm" data-attendance-records>
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
+                            <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
+                            <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.enrolled') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.current_points') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
+                            <th class="student-attendance-status-column px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($enrollments as $enrollment)
-                            <tr>
-                                <td class="px-5 py-4 lg:px-6">
+                            <tr wire:key="attendance-enrollment-{{ $currentGroupDay->id }}-{{ $enrollment->id }}">
+                                <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
+                                <td class="attendance-person-column px-5 py-4 lg:px-6">
                                     <div class="student-inline">
                                         <x-student-avatar :student="$enrollment->student" size="sm" />
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $enrollment->student?->full_name }}</div>
+                                            <div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
                                 <td class="attendance-desktop-only px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="student-attendance-status-column px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)
                                         <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
+                                            wire:key="attendance-status-{{ $currentGroupDay->id }}-{{ $enrollment->id }}"
                                             data-search-input="false" data-dropdown-search="false" data-attendance-status-select
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
                                             wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
@@ -447,7 +454,7 @@ new class extends Component
         <form wire:submit="addStudent(true)" class="space-y-5">
             <div class="admin-form-field">
                 <label for="attendance-roster-student">{{ __('workflow.student_attendance.table.headers.student') }}</label>
-                <select id="attendance-roster-student" wire:model="rosterStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}">
+                <select id="attendance-roster-student" wire:model="rosterStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-record-label="person">
                     <option value="">{{ __('crud.common.select') }}</option>
                     @foreach ($availableStudents as $student)
                         <option value="{{ $student->id }}">{{ $student->full_name }}</option>

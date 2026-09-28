@@ -36,16 +36,17 @@
                 <details
                     class="admin-collapsible"
                     data-user-scope-overrides
-                    @if ($errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
+                    @if ($errors->has('scope_student_progress_all') || $errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
                 >
                     <summary class="admin-collapsible__summary">
                         <span>{{ __('access.users.sections.scope') }}</span>
                         <span class="admin-collapsible__count">
-                            {{ count($scope_groups) + count($scope_students) + count($scope_teachers) + count($scope_parents) }}/{{ $availableScopeGroups->count() + $availableScopeStudents->count() + $availableScopeTeachers->count() + $availableScopeParents->count() }}
+                            {{ (int) $scope_student_progress_all + count($scope_groups) + count($scope_students) + count($scope_teachers) + count($scope_parents) }}/{{ 1 + $availableScopeGroups->count() + $availableScopeStudents->count() + $availableScopeTeachers->count() + $availableScopeParents->count() }}
                         </span>
                     </summary>
                     <div>
                         <div class="space-y-4">
+                        @include('livewire.users.partials.student-progress-scope')
                         <details class="admin-collapsible">
                             <summary class="admin-collapsible__summary">
                                 <span>{{ __('access.users.scopes.groups') }}</span>
@@ -55,7 +56,7 @@
                                 @forelse ($availableScopeGroups as $scopeGroup)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
                                         <input wire:model="scope_groups" type="checkbox" value="{{ $scopeGroup->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeGroup->name }}{{ $scopeGroup->course ? ' | '.$scopeGroup->course->name : '' }}</span>
+                                        <span>{{ $scopeGroup->name }}<span class="record-course-name">{{ $scopeGroup->course ? ' | '.$scopeGroup->course->name : '' }}</span></span>
                                     </label>
                                 @empty
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -72,7 +73,7 @@
                                 @forelse ($availableScopeStudents as $scopeStudent)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
                                         <input wire:model="scope_students" type="checkbox" value="{{ $scopeStudent->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
+                                        <span class="record-person-name">{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
                                     </label>
                                 @empty
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -89,7 +90,7 @@
                                 @forelse ($availableScopeTeachers as $scopeTeacher)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
                                         <input wire:model="scope_teachers" type="checkbox" value="{{ $scopeTeacher->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeTeacher->first_name }} {{ $scopeTeacher->last_name }}</span>
+                                        <span class="record-person-name">{{ $scopeTeacher->first_name }} {{ $scopeTeacher->last_name }}</span>
                                     </label>
                                 @empty
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -106,7 +107,7 @@
                                 @forelse ($availableScopeParents as $scopeParent)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
                                         <input wire:model="scope_parents" type="checkbox" value="{{ $scopeParent->id }}" class="mt-0.5 rounded">
-                                        <span>{{ $scopeParent->father_name }} ({{ $scopeParent->students_count }})</span>
+                                        <span class="record-person-name">{{ $scopeParent->father_name }} ({{ $scopeParent->students_count }})</span>
                                     </label>
                                 @empty
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>

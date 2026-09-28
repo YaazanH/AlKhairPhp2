@@ -134,7 +134,7 @@
                                             <div class="admin-toolbar__controls">
                                                 <div class="admin-filter-field">
                                                     <label @class(['sr-only' => ($studentCardMode ?? false) || ($courseReportMode ?? false)])>{{ __('crud.common.filters.search') }}</label>
-                                                    <input type="search" data-source-search="{{ $entity }}" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                                                    <input type="search" data-search-debounce data-source-search="{{ $entity }}" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                                                 </div>
                                                 @if ($entity === 'student')
                                                     <div class="admin-filter-field">
@@ -651,7 +651,7 @@
             });
 
             document.querySelectorAll('[data-source-search]').forEach((input) => {
-                input.addEventListener('input', () => applySourceFilter(input.dataset.sourceSearch));
+                input.addEventListener('search-debounced', () => applySourceFilter(input.dataset.sourceSearch));
             });
 
             document.querySelectorAll('[data-source-group-filter], [data-source-status-filter], [data-source-printed-filter]').forEach((select) => {

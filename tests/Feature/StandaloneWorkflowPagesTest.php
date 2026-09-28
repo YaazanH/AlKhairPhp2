@@ -1054,6 +1054,148 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSee('data-eligible-awqaf-table', false)
             ->assertSee('data-settings-record-table', false)
             ->assertDontSee(__('workflow.quran_tests.eligible_modal.summary', ['count' => 1]));
+
+        $assertEligible = fn (bool $eligible) => Volt::test('quran-tests.index')
+            ->call('openEligibleAwqafModal')
+            ->assertViewHas('eligibleAwqafStudents', fn ($rows) => $rows->contains('id', $firstEnrollment->student_id) === $eligible);
+        $assertEligible(true);
+
+        foreach ([
+            [$firstEnrollment->student, 'status', 'inactive'],
+            [$firstEnrollment, 'status', 'completed'],
+            [$firstEnrollment, 'enrolled_at', today()->addDay()],
+            [$firstEnrollment, 'left_at', today()->subDay()],
+            [$firstEnrollment, 'course_finished_at', now()],
+            [$firstEnrollment->group, 'is_active', false],
+            [$firstEnrollment->group, 'course_finished_at', now()],
+            [$firstEnrollment->group->course, 'is_active', false],
+            [$firstEnrollment->group->course, 'finished_at', now()],
+        ] as [$model, $field, $value]) {
+            $original = $model->getAttribute($field);
+            $model->update([$field => $value]);
+            $assertEligible(false);
+            $model->update([$field => $original]);
+        }
+
+        $assertEligible(true);
+    }
+
+    public function test_awqaf_edits_are_blocked_when_the_course_becomes_inactive(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles(['super_admin']);
+        $test = $this->makeAwqafLayoutTest($teacher, $enrollment);
+
+        $editor = Volt::test('quran-tests.index')
+            ->assertDontSee('data-awqaf-saber-delete', false)
+            ->call('openEdit', $test->id)
+            ->assertSee('data-awqaf-saber-delete', false);
+
+        $enrollment->group->course->update(['is_active' => false]);
+
+        Volt::test('quran-tests.index')
+            ->assertDontSee('data-awqaf-saber-edit', false)
+            ->call('openEdit', $test->id)
+            ->assertForbidden();
+
+        $editor->set('score', '99')->call('save')->assertForbidden();
+        $this->assertDatabaseHas('quran_tests', ['id' => $test->id, 'score' => 96]);
+    }
+
+    public function test_awqaf_delete_only_user_can_delete_from_the_dialog_but_cannot_save(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles([]);
+        auth()->user()->syncPermissions(['quran-awqaf-tests.view', 'quran-awqaf-tests.delete']);
+        $test = $this->makeAwqafLayoutTest($teacher, $enrollment);
+
+        Volt::test('quran-tests.index')
+            ->assertDontSee('data-awqaf-saber-delete', false)
+            ->call('openEdit', $test->id)
+            ->assertSee('data-awqaf-saber-delete', false)
+            ->assertDontSee('data-awqaf-saber-update', false)
+            ->set('score', '99')
+            ->call('save')
+            ->assertForbidden();
+
+        Volt::test('quran-tests.index')
+            ->call('openEdit', $test->id)
+            ->call('delete', $test->id)
+            ->assertHasNoErrors()
+            ->assertSet('showFormModal', false)
+            ->assertSet('editingTestId', null);
+
+        $this->assertDatabaseMissing('quran_tests', ['id' => $test->id]);
+    }
+
+    public function test_memorization_and_saber_record_numbers_stay_stable_across_pages_and_filters(): void
+    {
+        [$teacher, $enrollment] = $this->teacherContext();
+        auth()->user()->syncRoles(['super_admin']);
+        $records = ['memorization' => [], 'quran-partial-tests' => [], 'quran-final-tests' => [], 'quran-tests' => []];
+        $awqafTypeId = QuranTestType::query()->where('code', 'awqaf')->value('id');
+        foreach ([1, 2, 3] as $number) {
+            $juzId = QuranJuz::query()->where('juz_number', $number)->value('id');
+            $base = ['enrollment_id' => $enrollment->id, 'student_id' => $enrollment->student_id];
+            $records['memorization'][] = MemorizationSession::create($base + [
+                'teacher_id' => $teacher->id,
+                'recorded_on' => '2026-09-0'.$number,
+                'entry_type' => $number === 3 ? 'review' : 'new',
+                'from_page' => $number,
+                'to_page' => $number,
+                'pages_count' => 1,
+            ])->id;
+            foreach (['quran-partial-tests' => QuranPartialTest::class, 'quran-final-tests' => QuranFinalTest::class] as $page => $model) {
+                $records[$page][] = $model::create($base + [
+                    'created_by' => auth()->id(),
+                    'juz_id' => $juzId,
+                    'status' => $number === 3 ? 'passed' : 'in_progress',
+                ])->id;
+            }
+            $records['quran-tests'][] = QuranTest::create($base + [
+                'teacher_id' => $teacher->id,
+                'juz_id' => $juzId,
+                'quran_test_type_id' => $awqafTypeId,
+                'tested_on' => '2026-09-0'.$number,
+                'score' => 95,
+                'status' => $number === 3 ? 'failed' : 'passed',
+                'attempt_no' => 1,
+            ])->id;
+        }
+
+        foreach ($records as $page => $ids) {
+            $expected = array_combine($ids, [1, 2, 3]);
+            $component = Volt::test($page.'.index')
+                ->assertViewHas('recordNumbers', fn ($numbers) => $numbers->all() === $expected)
+                ->set('perPage', 2)
+                ->call('setPage', 2)
+                ->assertSee('data-record-number="'.$ids[0].'">1</td>', false)
+                ->call('sortBy', 'student')
+                ->assertViewHas('recordNumbers', fn ($numbers) => $numbers->all() === $expected);
+
+            $component->set($page === 'memorization' ? 'entryTypeFilter' : 'statusFilter', match ($page) {
+                'memorization' => 'review',
+                'quran-tests' => 'failed',
+                default => 'passed',
+            })->assertViewHas('recordNumbers', fn ($numbers) => $numbers->all() === $expected)
+                ->assertSee('data-record-number="'.$ids[2].'">3</td>', false)
+                ->assertDontSee('data-record-number="'.$ids[0].'"', false);
+        }
+    }
+
+    private function makeAwqafLayoutTest(Teacher $teacher, Enrollment $enrollment): QuranTest
+    {
+        return QuranTest::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $enrollment->student_id,
+            'teacher_id' => $teacher->id,
+            'juz_id' => QuranJuz::query()->where('juz_number', 1)->value('id'),
+            'quran_test_type_id' => QuranTestType::query()->where('code', 'awqaf')->value('id'),
+            'tested_on' => '2026-09-12',
+            'score' => 96,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
     }
 
     private function teacherContext(): array

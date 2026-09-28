@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Exceptions\BackupDecryptionException;
 use RuntimeException;
+use SensitiveParameter;
 
 class BackupEncryptionService
 {
@@ -23,7 +25,7 @@ class BackupEncryptionService
             : $this->encryptWithOpenSsl($sourcePath, $destinationPath);
     }
 
-    public function decrypt(string $sourcePath, string $destinationPath): void
+    public function decrypt(string $sourcePath, string $destinationPath, #[SensitiveParameter] ?string $applicationKey = null): void
     {
         $source = fopen($sourcePath, 'rb');
 
@@ -38,13 +40,13 @@ class BackupEncryptionService
         }
 
         if (hash_equals(self::SODIUM_MAGIC, $magic)) {
-            $this->decryptWithSodium($sourcePath, $destinationPath);
+            $this->decryptWithSodium($sourcePath, $destinationPath, $this->key($applicationKey));
 
             return;
         }
 
         if (hash_equals(self::OPENSSL_MAGIC, $magic)) {
-            $this->decryptWithOpenSsl($sourcePath, $destinationPath);
+            $this->decryptWithOpenSsl($sourcePath, $destinationPath, $this->key($applicationKey));
 
             return;
         }
@@ -118,7 +120,7 @@ class BackupEncryptionService
         ];
     }
 
-    private function decryptWithSodium(string $sourcePath, string $destinationPath): void
+    private function decryptWithSodium(string $sourcePath, string $destinationPath, #[SensitiveParameter] string $key): void
     {
         $source = fopen($sourcePath, 'rb');
         $destination = fopen($destinationPath, 'xb');
@@ -141,7 +143,7 @@ class BackupEncryptionService
             }
 
             $header = $this->readExact($source, SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_HEADERBYTES);
-            $state = sodium_crypto_secretstream_xchacha20poly1305_init_pull($header, $this->key());
+            $state = sodium_crypto_secretstream_xchacha20poly1305_init_pull($header, $key);
             $sawFinalChunk = false;
             $maximumCiphertextLength = max(64 * 1024, (int) config('backups.encryption_chunk_size', 1024 * 1024))
                 + SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_ABYTES;
@@ -166,7 +168,7 @@ class BackupEncryptionService
                 $ciphertext = $this->readExact($source, $length);
                 $pulled = sodium_crypto_secretstream_xchacha20poly1305_pull($state, $ciphertext);
                 if ($pulled === false) {
-                    throw new RuntimeException('Backup authentication failed. The file is damaged or uses another application key.');
+                    throw new BackupDecryptionException('Backup authentication failed. The file is damaged or uses another application key.');
                 }
 
                 [$plaintext, $tag] = $pulled;
@@ -190,9 +192,9 @@ class BackupEncryptionService
         }
     }
 
-    private function key(): string
+    private function key(#[SensitiveParameter] ?string $applicationKey = null): string
     {
-        $configuredKey = (string) config('app.key');
+        $configuredKey = $applicationKey ?? (string) config('app.key');
         if ($configuredKey === '') {
             throw new RuntimeException('APP_KEY must be configured before backups can be encrypted.');
         }
@@ -202,6 +204,10 @@ class BackupEncryptionService
             : $configuredKey;
 
         if (! is_string($keyMaterial) || $keyMaterial === '') {
+            if ($applicationKey !== null) {
+                throw new BackupDecryptionException('The supplied application key is invalid.');
+            }
+
             throw new RuntimeException('APP_KEY is invalid.');
         }
 
@@ -266,7 +272,7 @@ class BackupEncryptionService
         ];
     }
 
-    private function decryptWithOpenSsl(string $sourcePath, string $destinationPath): void
+    private function decryptWithOpenSsl(string $sourcePath, string $destinationPath, #[SensitiveParameter] string $key): void
     {
         $source = fopen($sourcePath, 'rb');
         $destination = fopen($destinationPath, 'xb');
@@ -320,14 +326,14 @@ class BackupEncryptionService
                 $plaintext = openssl_decrypt(
                     substr($frame, self::OPENSSL_TAG_BYTES + 1),
                     'aes-256-gcm',
-                    $this->key(),
+                    $key,
                     OPENSSL_RAW_DATA,
                     $noncePrefix.pack('N', $counter),
                     substr($frame, 1, self::OPENSSL_TAG_BYTES),
                     pack('N', $counter),
                 );
                 if ($plaintext === false) {
-                    throw new RuntimeException('Backup authentication failed. The file is damaged or uses another application key.');
+                    throw new BackupDecryptionException('Backup authentication failed. The file is damaged or uses another application key.');
                 }
 
                 $this->writeAll($destination, $plaintext);
