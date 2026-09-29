@@ -1856,7 +1856,7 @@ new class extends Component {
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="student-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="student-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.students.filters.search_placeholder') }}">
+                    <input id="student-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.students.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -1886,10 +1886,11 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('crud.students.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">
+
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.student') }}</span>
                                     @if ($sortIndicator = $this->sortIndicator('student'))
@@ -1897,7 +1898,7 @@ new class extends Component {
                                     @endif
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('student_number')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.student_number') }}</span>
                                     @if ($sortIndicator = $this->sortIndicator('student_number'))
@@ -1905,7 +1906,7 @@ new class extends Component {
                                     @endif
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('parent')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.parent') }}</span>
                                     @if ($sortIndicator = $this->sortIndicator('parent'))
@@ -1921,7 +1922,7 @@ new class extends Component {
                                     @endif
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.juz') }}</span>
                                     @if ($sortIndicator = $this->sortIndicator('juz'))
@@ -1929,7 +1930,7 @@ new class extends Component {
                                     @endif
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('enrollments')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.enrollments') }}</span>
                                     @if ($sortIndicator = $this->sortIndicator('enrollments'))
@@ -1937,7 +1938,7 @@ new class extends Component {
                                     @endif
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.status') }}</span>
                                     @if ($sortIndicator = $this->sortIndicator('status'))
@@ -1946,7 +1947,7 @@ new class extends Component {
                                 </button>
                             </th>
                             @if (auth()->user()->can('students.view') || auth()->user()->can('students.update') || auth()->user()->can('students.delete'))
-                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.students.table.headers.actions') }}</th>
+                                <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.students.table.headers.actions') }}</th>
                             @endif
                         </tr>
                     </thead>
@@ -1961,23 +1962,24 @@ new class extends Component {
                                 };
                             @endphp
                             <tr>
-                                  <td class="px-5 py-4 lg:px-6">
+
+                                  <td class="table-cell-name px-5 py-4 lg:px-6">
                                       <div class="student-inline">
                                           <x-student-avatar :student="$student" size="sm" />
                                           <div class="student-inline__body">
-                                              <div class="student-inline__name">{{ $student->full_name }}</div>
+                                              <div class="record-person-name student-inline__name">{{ $student->full_name }}</div>
                                               <div class="student-inline__meta">{{ $student->school_name ?: __('crud.students.table.no_school') }}</div>
                                           </div>
                                       </div>
                                   </td>
-                                  <td class="px-5 py-4 font-mono text-white lg:px-6">{{ $student->student_number ?: $student->id }}</td>
-                                   <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</td>
+                                  <td class="table-cell-compact px-5 py-4 font-mono text-white lg:px-6">{{ $student->student_number ?: $student->id }}</td>
+                                   <td class="record-person-name table-cell-name px-5 py-4 text-neutral-300 lg:px-6">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->quranCurrentJuz ? __('crud.students.labels.juz_number', ['number' => $student->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-white lg:px-6">{{ $student->enrollments_count }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="{{ $studentStatusClass }}">{{ __('crud.common.status_options.'.$student->status) }}</span></td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ $student->quranCurrentJuz ? __('crud.students.labels.juz_number', ['number' => $student->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-white lg:px-6">{{ $student->enrollments_count }}</td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="{{ $studentStatusClass }}">{{ __('crud.common.status_options.'.$student->status) }}</span></td>
                                 @if (auth()->user()->can('students.view') || auth()->user()->can('students.update') || auth()->user()->can('students.delete'))
-                                    <td class="px-5 py-4 lg:px-6">
+                                    <td class="table-cell-compact px-5 py-4 lg:px-6">
                                         <div class="flex flex-nowrap justify-center gap-2 whitespace-nowrap">
                                             @can('students.update')
                                                 @if ($this->canManageProfileLogin($student->user, 'student'))
@@ -2057,7 +2059,7 @@ new class extends Component {
             @elseif ($bulk_scope === 'course')
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.course') }}</label>
-                    <select wire:model.live="bulk_course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select wire:model.live="bulk_course_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course">
                         <option value="">{{ __('crud.common.filters.all_courses') }}</option>
                         @foreach ($bulkCourses as $bulkCourse)
                             <option value="{{ $bulkCourse->id }}">{{ $bulkCourse->name }}</option>
@@ -2068,7 +2070,7 @@ new class extends Component {
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('crud.students.bulk_status.fields.course') }}</label>
-                        <select wire:model.live="bulk_course_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <select wire:model.live="bulk_course_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course">
                             <option value="">{{ __('crud.common.filters.all_courses') }}</option>
                             @foreach ($bulkCourses as $bulkCourse)
                                 <option value="{{ $bulkCourse->id }}">{{ $bulkCourse->name }}</option>
@@ -2150,7 +2152,7 @@ new class extends Component {
                 @foreach ($duplicateFields as $label => $value)
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
                         <div class="kpi-label">{{ $label }}</div>
-                        <div class="mt-2 text-sm font-semibold text-white">{{ $value }}</div>
+                        <div @class(['mt-2 text-sm font-semibold text-white', 'record-person-name' => in_array($label, [__('crud.students.form.fields.first_name'), __('crud.students.form.fields.last_name'), __('crud.students.form.fields.parent')], true), 'record-phone' => $label === __('crud.students.form.fields.phone')])>{{ $value }}</div>
                     </div>
                 @endforeach
             </div>
@@ -2212,7 +2214,7 @@ new class extends Component {
                             data-hide-placeholder-option="true"
                             data-search-placeholder="{{ __('crud.students.form.placeholders.select_parent') }}"
                             class="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"
-                        >
+                         data-record-label="person">
                             <option value="">{{ __('crud.students.form.placeholders.select_parent') }}</option>
                             @foreach ($parents as $parent)
                                 @php
@@ -2245,7 +2247,7 @@ new class extends Component {
                     <div data-student-parent-locked>
                         <label class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
                         <div class="flex h-[2.875rem] w-full items-center rounded-xl border border-white/10 bg-black/10 px-4 text-sm">
-                            <span>{{ $connectedParent?->father_name ?: __('crud.common.not_available') }}</span>
+                            <span class="record-person-name">{{ $connectedParent?->father_name ?: __('crud.common.not_available') }}</span>
                             <button type="button" wire:click="clearSelectedParent" class="admin-icon-button ms-auto" title="{{ __('crud.students.form.parent_shortcut.remove_relationship') }}" aria-label="{{ __('crud.students.form.parent_shortcut.remove_relationship') }}" data-student-parent-unlink-action>
                                 <x-admin-action-icon name="unlink" />
                             </button>
@@ -2258,7 +2260,7 @@ new class extends Component {
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <div class="text-sm font-semibold text-white">{{ __('crud.students.form.parent_shortcut.edit_title') }}</div>
-                            <div class="mt-1 text-sm text-neutral-400">{{ $connectedParent?->father_name }}</div>
+                            <div class="record-person-name mt-1 text-sm text-neutral-400">{{ $connectedParent?->father_name }}</div>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             @can('parents.update')
@@ -2461,7 +2463,7 @@ new class extends Component {
             @if (! $editingId)
                 <div data-student-enrollment-group-field>
                     <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                    <select id="student-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="student-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course">
                         <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
                         @foreach ($enrollmentGroups as $group)
                             <option value="{{ $group->id }}">
@@ -2486,7 +2488,7 @@ new class extends Component {
                     @if ($editingStudentNeedsActiveCourseEnrollment && auth()->user()->can('enrollments.create'))
                         <div data-student-edit-enrollment-group>
                             <label for="student-edit-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                            <select id="student-edit-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <select id="student-edit-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course">
                                 <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
                                 @foreach ($enrollmentGroups as $group)
                                     <option value="{{ $group->id }}">

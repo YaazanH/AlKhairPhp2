@@ -376,7 +376,7 @@ new class extends Component {
             <x-back-link :href="route('courses.end', $course)" />
             <div class="eyebrow mt-4">{{ __('course_end.point_market.eyebrow') }}</div>
             <h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.point_market.title') }}</h1>
-            <p class="mt-3 text-neutral-200">{{ __('course_end.point_market.subtitle', ['course' => $course->name]) }}</p>
+            <p class="mt-3 text-neutral-200"><span class="record-course-name">{{ __('course_end.point_market.subtitle', ['course' => $course->name]) }}</span></p>
             </div>
             <dl class="point-market-hero__summary" data-point-market-summary>
                 <div class="point-market-hero__metric shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner">
@@ -412,7 +412,7 @@ new class extends Component {
         <div class="point-market-table-wrap">
             <table class="point-market-generic-table point-market-invoice-table text-sm">
                 <colgroup><col class="point-market-col--number"><col class="point-market-col--number">@for($column = 0; $column < 4; $column++)<col class="point-market-col--text">@endfor<col class="point-market-col--medium"><col class="point-market-col--medium">@for($column = 0; $column < 4; $column++)<col class="point-market-col--amount">@endfor<col><col></colgroup>
-                <thead><tr><th class="point-market-table__number">#</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.category') }}</th><th colspan="3" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.description') }}</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.issuer') }}</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.original_invoice_no') }}</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.total') }}</th><th colspan="2" class="point-market-table__action px-3 py-3"></th></tr></thead>
+                <thead><tr><th data-table-number-column class="point-market-table__number">#</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.category') }}</th><th colspan="3" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.description') }}</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.issuer') }}</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.original_invoice_no') }}</th><th colspan="2" class="px-4 py-3 text-start">{{ __('course_end.point_market.invoice_table.total') }}</th><th colspan="2" class="point-market-table__action px-3 py-3"></th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse($addedInvoiceLinks as $link)
                         @php($invoice = $link->invoice)
@@ -443,7 +443,7 @@ new class extends Component {
                         @if($invoice && $availableItems->isNotEmpty() && $isExpanded)
                             <tr class="point-market-detail-header" wire:key="point-market-invoice-items-header-{{ $link->id }}">
                                 <th class="point-market-table__select"><input type="checkbox" wire:click="toggleAllInvoiceItems({{ $invoice->id }})" @checked($availableItems->pluck('id')->every(fn($id) => collect($selectedItemIds)->map(fn($selected) => (int) $selected)->contains($id))) aria-label="{{ __('course_end.point_market.item_table.select_all') }}"></th>
-                                <th class="point-market-table__number">#</th>
+                                <th data-table-number-column class="point-market-table__number">#</th>
                                 <th colspan="4" class="text-start">{{ __('course_end.point_market.item_table.item') }}</th>
                                 <th colspan="2">{{ __('course_end.point_market.item_table.quantity') }}</th>
                                 <th colspan="2">{{ __('course_end.point_market.item_table.unit_price') }}</th>
@@ -501,7 +501,7 @@ new class extends Component {
                     <div class="point-market-table-wrap">
                         <table class="point-market-generic-table point-market-department-table text-sm">
                             <colgroup><col class="point-market-col--utility"><col class="point-market-col--utility">@for($column = 0; $column < 5; $column++)<col class="point-market-col--equal">@endfor</colgroup>
-                            <thead><tr><th class="point-market-table__remove"></th><th class="point-market-table__number">#</th><th class="px-4 py-3 text-start">{{ __('course_end.point_market.department.item') }}</th><th class="px-4 py-3">{{ __('course_end.point_market.department.quantity') }}</th><th class="px-4 py-3">{{ __('course_end.point_market.department.invoice_unit_price') }} (<bdi dir="ltr">{{ $invoiceCurrencyLabel }}</bdi>)</th><th class="px-4 py-3">{{ __('course_end.point_market.department.invoice_unit_price') }} (<bdi dir="ltr">{{ $localCurrencyLabel }}</bdi>)</th><th class="px-4 py-3">{{ __('course_end.point_market.department.points') }}</th></tr></thead>
+                            <thead><tr><th class="point-market-table__remove"></th><th data-table-number-column class="point-market-table__number">#</th><th class="px-4 py-3 text-start">{{ __('course_end.point_market.department.item') }}</th><th class="px-4 py-3">{{ __('course_end.point_market.department.quantity') }}</th><th class="px-4 py-3">{{ __('course_end.point_market.department.invoice_unit_price') }} (<bdi dir="ltr">{{ $invoiceCurrencyLabel }}</bdi>)</th><th class="px-4 py-3">{{ __('course_end.point_market.department.invoice_unit_price') }} (<bdi dir="ltr">{{ $localCurrencyLabel }}</bdi>)</th><th class="px-4 py-3">{{ __('course_end.point_market.department.points') }}</th></tr></thead>
                             <tbody class="divide-y divide-white/6">
                                 @php($previousDepartmentInvoiceId = null)
                                 @forelse($department->items as $item)
@@ -530,7 +530,7 @@ new class extends Component {
     <x-admin.modal :show="$showInvoiceModal" :title="__('course_end.point_market.add_invoice')" close-method="closeInvoiceModal" max-width="6xl" compact>
         <div class="surface-table settings-record-table point-market-modal-table-wrap" data-point-market-generic-table>
             <table class="point-market-generic-table point-market-modal-table text-sm">
-                <thead><tr><th class="point-market-table__select"></th><th class="point-market-table__number">#</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.category') }}</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.issuer') }}</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.items_count') }}</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.total') }}</th></tr></thead>
+                <thead><tr><th class="point-market-table__select"></th><th data-table-number-column class="point-market-table__number">#</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.category') }}</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.issuer') }}</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.items_count') }}</th><th class="px-3 py-3">{{ __('course_end.point_market.invoice_table.total') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse($availableInvoices as $invoice)
                         @php($availableInvoiceCurrency = $invoice->financeRequest?->acceptedCurrency ?: $invoice->financeRequest?->requestedCurrency)

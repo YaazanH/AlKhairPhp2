@@ -65,7 +65,12 @@ new class extends Component {
                     'student.parentProfile',
                     'teacher',
                 ])
-        )
+        );
+        $recordNumbers = (clone $sessionsQuery)->reorder()
+            ->orderBy('id')
+            ->pluck('id')->flip()->map(fn (int $index): int => $index + 1);
+
+        $sessionsQuery
             ->when(filled($this->search), function (Builder $query) {
                 $search = '%'.$this->search.'%';
 
@@ -107,6 +112,7 @@ new class extends Component {
 
         return [
             'sessions' => $sessionsQuery->paginate($this->perPage),
+            'recordNumbers' => $recordNumbers,
             'filteredCount' => (clone $sessionsQuery)->count(),
             'studentOptions' => $studentOptions,
             'teachers' => $this->currentTeacher()
@@ -528,7 +534,7 @@ new class extends Component {
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="memorization-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="memorization-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="memorization-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -548,70 +554,72 @@ new class extends Component {
             <div class="admin-empty-state">{{ __('workflow.memorization.workbench.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-5 py-4 text-center lg:px-6">#</th>
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('student')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.memorization.workbench.table.headers.student') }} <span>{{ $this->sortIndicator('student') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('recorded_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.memorization.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('recorded_on') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('entry_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    {{ __('workflow.memorization.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('entry_type') }}</span>
-                                </button>
-                            </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('pages_count')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.memorization.workbench.table.headers.pages') }} <span>{{ $this->sortIndicator('pages_count') }}</span>
                                 </button>
                             </th>
-                            <th class="px-5 py-4 text-left lg:px-6">
+                            <th class="table-cell-name whitespace-nowrap px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('teacher')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.memorization.workbench.table.headers.teacher') }} <span>{{ $this->sortIndicator('teacher') }}</span>
                                 </button>
                             </th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.group') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('entry_type')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.type') }} <span>{{ $this->sortIndicator('entry_type') }}</span>
+                                </button>
+                            </th>
                             @can('memorization.record')
-                                <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.memorization.workbench.table.headers.actions') }}</th>
+                                <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.memorization.workbench.table.headers.actions') }}</th>
                             @endcan
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($sessions as $session)
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-center text-neutral-300 lg:px-6" data-record-number="{{ $session->id }}">{{ $recordNumbers[$session->id] }}</td>
+                                <td class="table-cell-name px-5 py-4 lg:px-6">
                                     @if ($session->student)
                                         <div class="student-inline">
-                                            <x-student-avatar :student="$session->student" size="sm" />
+
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name">{{ $session->student->full_name }}</div>
+                                                <div class="record-person-name student-inline__name whitespace-nowrap">{{ $session->student->full_name }}</div>
                                             </div>
                                         </div>
                                     @else
                                         <span class="text-white">{{ __('crud.common.not_available') }}</span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
-                                    <div class="font-medium text-white">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
-                                </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
-                                <td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
-                                <td class="px-5 py-4 text-white lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
+                                <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-white lg:px-6">
                                     @if ((int) $session->from_page === (int) $session->to_page)
                                         <bdi dir="ltr">{{ $session->from_page }}</bdi>
                                     @else
-                                        <span dir="ltr" class="inline-flex items-center gap-1.5"><span>({{ $session->pages_count }})</span><bdi>{{ $session->from_page }} - {{ $session->to_page }}</bdi></span>
+                                        <span dir="ltr" class="inline-flex flex-nowrap items-center gap-1.5 whitespace-nowrap"><span>({{ $session->pages_count }})</span><bdi>{{ $session->from_page }} - {{ $session->to_page }}</bdi></span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
+                                <td class="record-person-name table-cell-name whitespace-nowrap px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                    <div class="memorization-course-name font-medium text-white" title="{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}"><span class="record-course-name">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
+                                </td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
                                 @can('memorization.record')
-                                    <td class="px-5 py-4 lg:px-6">
+                                    <td class="table-cell-compact px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-center gap-2">
                                             <button type="button" wire:click="editSession({{ $session->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
                                         </div>
@@ -645,7 +653,7 @@ new class extends Component {
                     @if($editingSessionId)
                         <input id="memorization-student" type="text" value="{{ $editingStudentName }}" readonly class="w-full rounded-xl px-4 py-3 text-sm" data-memorization-student-readonly>
                     @else
-                        <select id="memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <select id="memorization-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                             <option value="">{{ __('workflow.memorization.workbench.form.select_student') }}</option>
                             @foreach ($studentOptions as $student)
                                 <option value="{{ $student->id }}">{{ $student->full_name }}</option>
@@ -665,7 +673,7 @@ new class extends Component {
                 @else
                     <div>
                     <label for="memorization-teacher" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.teacher') }}</label>
-                    <select id="memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="memorization-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                         <option value="">{{ __('workflow.memorization.form.select_teacher') }}</option>
                         @foreach ($teachers as $teacher)
                             <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>

@@ -223,7 +223,7 @@ new class extends Component {
     <section class="surface-table">
         <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.exchange.history') }}</div></div></div>
         <div class="overflow-x-auto">
-            <table class="text-sm">
+            <table class="table-content text-sm">
                 <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.exchange_no') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.from') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.to') }}</th><th class="px-5 py-3 text-left">{{ __('finance.exchange.rates') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @foreach ($exchanges as $exchange)

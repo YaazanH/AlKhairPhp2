@@ -20,7 +20,7 @@
         @endif
     </div>
     <div class="overflow-x-auto">
-        <table class="text-sm">
+        <table class="table-content text-sm">
             <thead>
                 <tr>
                     <th class="px-5 py-3 text-left">{{ $recordLabel }}</th>
@@ -61,7 +61,7 @@
                         @endif
                         <td class="px-5 py-3">
                             <div>{{ $request->activity?->title ?: '-' }}</div>
-                            <div class="text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div>
+                            <div class="record-person-name text-xs text-neutral-500">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : '-' }}</div>
                         </td>
                         <td class="px-5 py-3">
                             <div>{{ $request->category?->name ?: ($request->pullRequestKind?->name ?: app(\App\Services\FinanceService::class)->financeRequestTypeLabel($request->type)) }}</div>

@@ -412,10 +412,10 @@ new class extends Component {
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.people_count') }}</label><input wire:model="requested_count" type="text" inputmode="numeric" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_count') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             @endif
             @can('finance.pull-requests.review')
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select>@error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person"><option value="">{{ __('finance.actions.choose_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select>@error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             @endcan
-            <div class="lg:col-span-4"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.reason') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
+            <div class="lg:col-span-4"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
             @if ($terms !== '')
                 <div class="lg:col-span-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
                     <label class="flex flex-wrap items-center gap-3">
@@ -466,7 +466,7 @@ new class extends Component {
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.requester') }}</div>
                     <div class="mt-2 text-lg font-semibold text-white">{{ $reviewRequest->requestedBy?->name ?: '-' }}</div>
-                    <div class="mt-1 text-sm text-neutral-400">{{ $reviewRequest->teacher ? trim($reviewRequest->teacher->first_name.' '.$reviewRequest->teacher->last_name) : '-' }}</div>
+                    <div class="record-person-name mt-1 text-sm text-neutral-400">{{ $reviewRequest->teacher ? trim($reviewRequest->teacher->first_name.' '.$reviewRequest->teacher->last_name) : '-' }}</div>
                 </div>
                 <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{{ __('finance.fields.pull_kind') }}</div>
@@ -477,7 +477,7 @@ new class extends Component {
 
             @if ($reviewRequest->requested_reason)
                 <div class="mt-4 rounded-3xl border border-emerald-300/15 bg-emerald-500/[0.06] p-4 text-sm leading-6 text-neutral-200">
-                    <div class="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200/80">{{ __('finance.fields.reason') }}</div>
+                    <div class="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200/80">{{ __('finance.common.description') }}</div>
                     {{ $reviewRequest->requested_reason }}
                 </div>
             @endif
@@ -578,13 +578,13 @@ new class extends Component {
             @endcan
         </div>
         <div class="overflow-x-auto">
-            <table class="text-sm">
+            <table class="table-content text-sm">
                 <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.amounts') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.status') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse ($requests as $request)
                         <tr>
                             <td class="px-5 py-3"><div class="font-medium text-white">{{ $request->request_no }}</div><div class="text-xs text-neutral-500">{{ \App\Support\DateDisplay::html($request->created_at?->format('d-m-Y H:i')) }}</div></td>
-                            <td class="px-5 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td>
+                            <td class="record-person-name px-5 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td>
                             <td class="px-5 py-3"><div>{{ $request->pullRequestKind?->name ?: '-' }}</div><div class="text-xs text-neutral-500">{{ $request->pullRequestKind ? __('finance.pull_modes.'.$request->pullRequestKind->mode) : '-' }}</div></td>
                             <td class="px-5 py-3">
                                 @if ($request->status === 'declined')

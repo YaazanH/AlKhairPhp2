@@ -121,10 +121,12 @@ new class extends Component {
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
             <div>
                 <div class="eyebrow">{{ __('reports.hero.eyebrow') }}</div>
-                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.hero.title') }}</h1>
-                <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">
-                    {{ __('reports.hero.subtitle') }}
-                </p>
+                <div class="flex items-center justify-between gap-4">
+                    <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('reports.hero.title') }}</h1>
+                    <button type="button" class="admin-icon-button reports-mobile-filter-trigger" data-mobile-table-filter-open data-mobile-table-filter-target="reports-overview-filters" aria-controls="reports-overview-filters" aria-expanded="false" title="{{ __('crud.common.filters.search') }}" aria-label="{{ __('crud.common.filters.search') }}">
+                        <x-admin-action-icon name="search" />
+                    </button>
+                </div>
 
             </div>
 
@@ -133,9 +135,9 @@ new class extends Component {
 
     <div class="reports-overview-grid grid items-stretch gap-6 xl:grid-cols-3">
         <section class="surface-panel report-panel report-panel--filters min-w-0 p-5 lg:p-6 xl:col-span-3">
-            <div class="date-control-peer-group report-filter-grid grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+            <div id="reports-overview-filters" data-mobile-table-filter-controls class="date-control-peer-group report-filter-grid grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
                 <div class="admin-filter-field min-w-0">
-                    <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
+                    <select wire:model.live="course_id" aria-label="{{ __('reports.filters.course') }}" data-record-label="course"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>
                 </div>
                 <div class="admin-filter-field min-w-0">
                     <select wire:model.live="group_id" aria-label="{{ __('reports.filters.group') }}"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select>
@@ -146,11 +148,13 @@ new class extends Component {
                 <div class="admin-filter-field min-w-0">
                     <input wire:model.live="date_to" type="date" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select">
                 </div>
-                <x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" />
+                <div class="admin-filter-field min-w-0">
+                    <x-clear-filter-button wire:click="clearFilters" :label="__('reports.filters.clear')" />
+                </div>
             </div>
         </section>
 
-        <section class="report-kpi-stack grid min-w-0 gap-3 md:grid-cols-3 xl:col-span-3">
+        <section class="report-kpi-stack mobile-compact-highlights grid min-w-0 gap-3 md:grid-cols-3 xl:col-span-3">
             @foreach ($headlineCards as $card)
                 <article class="stat-card p-5">
                     <div class="kpi-label">{{ $card['label'] }}</div>
@@ -228,9 +232,10 @@ new class extends Component {
                 <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.leaderboard.points_empty') }}</div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
+                                <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.leaderboard.headers.student') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.leaderboard.headers.net_points') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.leaderboard.headers.transactions') }}</th>
@@ -239,7 +244,8 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($report['points_leaderboard'] as $row)
                                 <tr>
-                                    <td class="px-5 py-4 lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
+                                    <td class="record-person-name px-5 py-4 lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
                                     <td class="px-5 py-4 text-white lg:px-6">{{ number_format($row['net_points']) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($row['transactions']) }}</td>
                                 </tr>
@@ -259,9 +265,10 @@ new class extends Component {
                 <div class="px-6 py-14 text-sm leading-7 text-neutral-400">{{ __('reports.leaderboard.memorization_empty') }}</div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
+                                <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.leaderboard.headers.student') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.leaderboard.headers.pages') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('reports.leaderboard.headers.sessions') }}</th>
@@ -270,7 +277,8 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($report['memorization_leaderboard'] as $row)
                                 <tr>
-                                    <td class="px-5 py-4 lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
+                                    <td class="record-person-name px-5 py-4 lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
                                     <td class="px-5 py-4 text-white lg:px-6">{{ number_format($row['pages']) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($row['sessions']) }}</td>
                                 </tr>

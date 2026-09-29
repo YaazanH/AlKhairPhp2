@@ -2,7 +2,7 @@
     @if ($selectedManagerStudent ?? null)
         <div class="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-start">
             <x-student-avatar :student="$selectedManagerStudent['student']" size="lg" class="dashboard-leaderboard__avatar shrink-0" />
-            <div><h3 class="text-2xl font-semibold text-white">{{ $selectedManagerStudent['student']->full_name }}</h3><p class="mt-1 text-sm text-neutral-400">{{ $defaultCourse?->name }}</p></div>
+            <div><h3 class="record-person-name text-2xl font-semibold text-white">{{ $selectedManagerStudent['student']->full_name }}</h3><p class="mt-1 text-sm text-neutral-400"><span class="record-course-name">{{ $defaultCourse?->name }}</span></p></div>
         </div>
         <div class="mt-6 grid gap-4 sm:grid-cols-3">
             <div class="stat-card"><div class="kpi-label">{{ __('dashboard.manager.analytics.points') }}</div><div class="metric-value mt-4">{{ number_format($selectedManagerStudent['points']) }}</div></div>

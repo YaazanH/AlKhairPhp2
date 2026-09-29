@@ -351,7 +351,7 @@ new class extends Component
                                     <input type="checkbox" wire:model="manual_group_ids" value="{{ $group->id }}">
                                     <span class="min-w-0">
                                         <span class="block font-semibold">{{ $group->name }}</span>
-                                        <span class="mt-1 block text-xs text-neutral-400">{{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span>
+                                        <span class="record-person-name mt-1 block text-xs text-neutral-400">{{ $group->teacher ? $group->teacher->first_name.' '.$group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}</span>
                                     </span>
                                 </label>
                             @endforeach
@@ -374,10 +374,10 @@ new class extends Component
     @endif
 
     <section class="surface-table">
-        <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar">
-            <div>
-                <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.day_details.table.title') }} · {{ $dayRecord->course?->name ?: __('workflow.common.no_course') }}</div>
-                <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($dayRecord->groupAttendanceDays->count())]) }}</div>
+        <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar student-attendance-toolbar">
+            <div class="attendance-day-toolbar__heading">
+                <div class="admin-grid-meta__title" title="{{ __('workflow.student_attendance.day_details.table.title') }}">{{ __('workflow.student_attendance.day_details.table.title') }}</div>
+                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.day_details.table.groups_in_view', $dayRecord->groupAttendanceDays->count(), ['count' => number_format($dayRecord->groupAttendanceDays->count())]) }}</div>
             </div>
             @if ($canAddManualGroup || $canQuickAttend || $canToggleDayStatus)
                 <div class="admin-toolbar__actions">
@@ -421,7 +421,8 @@ new class extends Component
                 <table class="attendance-day-groups-table text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
+                            <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
+                            <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
@@ -431,10 +432,11 @@ new class extends Component
                     <tbody class="divide-y divide-white/6">
                         @foreach ($dayRecord->groupAttendanceDays as $groupDay)
                             <tr wire:key="attendance-day-group-{{ $groupDay->id }}">
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
+                                <td class="attendance-person-column px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $groupDay->group?->name ?: __('workflow.common.no_group') }}</div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                <td class="record-person-name px-5 py-4 text-neutral-300 lg:px-6">
                                     {{ $groupDay->group?->teacher ? $groupDay->group->teacher->first_name.' '.$groupDay->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
                                 </td>
                                 <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>

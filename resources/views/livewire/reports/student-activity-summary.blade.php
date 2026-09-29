@@ -255,7 +255,7 @@ new class extends Component
                 <div class="admin-grid-meta admin-grid-meta--controls soft-keyline border-b px-5 py-5 lg:px-6">
                     <h2 class="font-display text-2xl text-white">{{ __('reports.student_activity.table_title') }}</h2>
                     <div class="admin-toolbar__controls student-activity-report-filters">
-                        <div class="admin-filter-field"><label class="sr-only" for="activity-course">{{ __('reports.filters.course') }}</label><select id="activity-course" wire:model.live="course_id"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                        <div class="admin-filter-field"><label class="sr-only" for="activity-course">{{ __('reports.filters.course') }}</label><select id="activity-course" wire:model.live="course_id" data-record-label="course"><option value="">{{ __('reports.filters.all_courses') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
                         <div class="admin-filter-field"><label class="sr-only" for="activity-group">{{ __('reports.filters.group') }}</label><select id="activity-group" wire:model.live="group_id"><option value="">{{ __('reports.filters.all_groups') }}</option>@foreach ($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
                         <div class="admin-filter-field"><label class="sr-only" for="activity-from">{{ __('reports.filters.date_from') }}</label><input id="activity-from" wire:model.live="date_from" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}"></div>
                         <div class="admin-filter-field"><label class="sr-only" for="activity-to">{{ __('reports.filters.date_to') }}</label><input id="activity-to" wire:model.live="date_to" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}"></div>
@@ -325,7 +325,7 @@ new class extends Component
                             <tbody class="divide-y divide-white/6">
                                 @foreach ($rows as $row)
                                     <tr>
-                                        <td class="px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
+                                        <td class="record-person-name px-5 py-4 font-medium text-white lg:px-6">{{ $row['student_name'] ?: __('reports.leaderboard.unknown_student') }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ $row['current_juz'] ?: '-' }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6">{{ number_format($row['memorized_pages']) }}</td>
                                         <td class="px-5 py-4 text-neutral-200 lg:px-6"><bdi dir="ltr">{{ $row['latest_partial_quarters'] }}/4</bdi></td>

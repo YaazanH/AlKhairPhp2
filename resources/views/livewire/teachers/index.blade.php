@@ -41,6 +41,8 @@ new class extends Component {
     public string $access_role_id = '';
     public array $access_roles = [];
     public array $direct_permissions = [];
+    public bool $scope_student_progress_all = false;
+
     public array $scope_groups = [];
     public array $scope_students = [];
     public array $scope_teachers = [];
@@ -190,6 +192,7 @@ new class extends Component {
             'access_roles.*' => ['string', 'distinct', Rule::notIn(RoleRegistry::actorRoles()), Rule::exists('roles', 'name')],
             'direct_permissions' => ['nullable', 'array'],
             'direct_permissions.*' => ['string', Rule::exists('permissions', 'name')],
+            'scope_student_progress_all' => ['boolean'],
             'scope_groups' => ['nullable', 'array'],
             'scope_groups.*' => ['integer', Rule::exists('groups', 'id')],
             'scope_students' => ['nullable', 'array'],
@@ -307,6 +310,7 @@ new class extends Component {
 
         $result['user']->syncPermissions($validated['direct_permissions'] ?? []);
         app(AccessScopeService::class)->syncUserOverrides($result['user'], [
+            AccessScopeService::ALL_STUDENT_PROGRESS => ($validated['scope_student_progress_all'] ?? false) ? [1] : [],
             'group' => $validated['scope_groups'] ?? [],
             'parent' => $validated['scope_parents'] ?? [],
             'student' => $validated['scope_students'] ?? [],
@@ -377,6 +381,7 @@ new class extends Component {
             $this->access_roles = [$teacher->accessRole->name];
         }
         $this->direct_permissions = $teacher->user?->getDirectPermissions()->pluck('name')->values()->all() ?? [];
+        $this->scope_student_progress_all = app(AccessScopeService::class)->canViewAllStudentProgress($teacher->user);
         $this->scope_groups = $teacher->user?->scopeOverrides->where('scope_type', 'group')->pluck('scope_id')->map(fn ($id) => (int) $id)->values()->all() ?? [];
         $this->scope_parents = $teacher->user?->scopeOverrides->where('scope_type', 'parent')->pluck('scope_id')->map(fn ($id) => (int) $id)->values()->all() ?? [];
         $this->scope_students = $teacher->user?->scopeOverrides->where('scope_type', 'student')->pluck('scope_id')->map(fn ($id) => (int) $id)->values()->all() ?? [];
@@ -524,6 +529,7 @@ new class extends Component {
         $this->access_role_id = '';
         $this->access_roles = [];
         $this->direct_permissions = [];
+        $this->scope_student_progress_all = false;
         $this->scope_groups = [];
         $this->scope_students = [];
         $this->scope_teachers = [];
@@ -552,6 +558,7 @@ new class extends Component {
         $this->access_role_id = '';
         $this->access_roles = [];
         $this->direct_permissions = [];
+        $this->scope_student_progress_all = false;
         $this->scope_groups = [];
         $this->scope_students = [];
         $this->scope_teachers = [];
@@ -744,7 +751,7 @@ new class extends Component {
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="teacher-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="teacher-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="teacher-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -797,7 +804,7 @@ new class extends Component {
                             <div class="student-inline min-w-0">
                                 <x-teacher-avatar :teacher="$teacher" size="sm" />
                                 <div class="student-inline__body min-w-0">
-                                    <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
+                                    <div class="record-person-name student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
                                     <div class="student-inline__meta">{{ $teacher->user?->username ?: __('crud.common.not_available') }}</div>
                                 </div>
                             </div>
@@ -809,7 +816,7 @@ new class extends Component {
                         <dl class="mobile-record-card__details">
                             <div>
                                 <dt>{{ __('crud.teachers.table.headers.phone') }}</dt>
-                                <dd><bdi dir="ltr">{{ $teacher->phone ?: __('crud.common.not_available') }}</bdi></dd>
+                                <dd><bdi dir="ltr" class="record-phone">{{ $teacher->phone ?: __('crud.common.not_available') }}</bdi></dd>
                             </div>
                             <div>
                                 <dt>{{ __('crud.teachers.table.headers.access_role') }}</dt>
@@ -846,15 +853,16 @@ new class extends Component {
             </div>
 
             <div class="responsive-records-desktop overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.name') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.phone') }}</th>
+
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.name') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.phone') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.helping') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.status') }}</th>
-                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.teachers.table.headers.actions') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.helping') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.status') }}</th>
+                            <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.teachers.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -868,18 +876,19 @@ new class extends Component {
                                     : __('crud.common.not_available');
                             @endphp
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
+
+                                <td class="table-cell-name px-5 py-4 lg:px-6">
                                     <div class="student-inline">
                                         <x-teacher-avatar :teacher="$teacher" size="sm" />
                                         <div class="student-inline__body">
-                                            <div class="student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
+                                            <div class="record-person-name student-inline__name">{{ $teacher->first_name }} {{ $teacher->last_name }}</div>
                                             <div class="student-inline__meta">{{ $teacher->user?->username ?: __('crud.common.not_available') }}</div>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="inline-block">{{ $teacher->phone }}</bdi></td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="record-phone inline-block">{{ $teacher->phone }}</bdi></td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     @can('teachers.update')
                                         <button type="button" wire:click="toggleHelping({{ $teacher->id }})" class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                             {{ $teacher->is_helping ? __('crud.teachers.helping_options.helping') : __('crud.teachers.helping_options.not_helping') }}
@@ -890,12 +899,12 @@ new class extends Component {
                                         </span>
                                     @endcan
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <span class="{{ $teacher->status === 'active' ? 'status-chip status-chip--emerald' : ($teacher->status === 'pending' ? 'status-chip status-chip--gold' : (in_array($teacher->status, ['blocked', 'declined'], true) ? 'status-chip status-chip--rose' : 'status-chip status-chip--slate')) }}">
                                         {{ __('crud.common.status_options.' . $teacher->status) }}
                                     </span>
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
                                         @can('teachers.review-signups')
                                             @if ($teacher->status === 'pending')
@@ -1013,7 +1022,7 @@ new class extends Component {
                             @if ($photo_upload)
                                 <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('crud.teachers.photo.preview_alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
                             @elseif ($photo_path)
-                                <img src="{{ asset('storage/'.ltrim($photo_path, '/')) }}" alt="{{ __('crud.teachers.photo.alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
+                                <x-avatar-image type="teacher" :src="asset('storage/'.ltrim($photo_path, '/'))" alt="{{ __('crud.teachers.photo.alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm" />
                             @else
                                 <x-teacher-avatar :teacher="(object) ['first_name' => $first_name, 'last_name' => $last_name, 'photo_path' => null]" size="lg" />
                             @endif
@@ -1060,7 +1069,7 @@ new class extends Component {
             <details
                 class="admin-collapsible"
                 data-teacher-additional-permissions
-                @if ($errors->has('direct_permissions') || $errors->has('direct_permissions.*') || $errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
+                @if ($errors->has('direct_permissions') || $errors->has('direct_permissions.*') || $errors->has('scope_student_progress_all') || $errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
             >
                 <summary class="admin-collapsible__summary">
                     <span>{{ __('access.users.sections.additional_permissions') }}</span>
@@ -1102,15 +1111,16 @@ new class extends Component {
                     <details
                         class="admin-collapsible"
                         data-teacher-scope-overrides
-                        @if ($errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
+                        @if ($errors->has('scope_student_progress_all') || $errors->has('scope_groups') || $errors->has('scope_students') || $errors->has('scope_teachers') || $errors->has('scope_parents')) open @endif
                     >
                         <summary class="admin-collapsible__summary">
                             <span>{{ __('access.users.sections.scope') }}</span>
                             <span class="admin-collapsible__count">
-                                {{ count($scope_groups) + count($scope_students) + count($scope_teachers) + count($scope_parents) }}/{{ $availableScopeGroups->count() + $availableScopeStudents->count() + $availableScopeTeachers->count() + $availableScopeParents->count() }}
+                                {{ (int) $scope_student_progress_all + count($scope_groups) + count($scope_students) + count($scope_teachers) + count($scope_parents) }}/{{ 1 + $availableScopeGroups->count() + $availableScopeStudents->count() + $availableScopeTeachers->count() + $availableScopeParents->count() }}
                             </span>
                         </summary>
                         <div class="space-y-4">
+                            @include('livewire.users.partials.student-progress-scope')
                             <details class="admin-collapsible">
                                 <summary class="admin-collapsible__summary">
                                     <span>{{ __('access.users.scopes.groups') }}</span>
@@ -1120,7 +1130,7 @@ new class extends Component {
                                     @forelse ($availableScopeGroups as $scopeGroup)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
                                             <input wire:model="scope_groups" type="checkbox" value="{{ $scopeGroup->id }}" class="mt-0.5 rounded">
-                                            <span>{{ $scopeGroup->name }}{{ $scopeGroup->course ? ' | '.$scopeGroup->course->name : '' }}</span>
+                                            <span>{{ $scopeGroup->name }}<span class="record-course-name">{{ $scopeGroup->course ? ' | '.$scopeGroup->course->name : '' }}</span></span>
                                         </label>
                                     @empty
                                         <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -1137,7 +1147,7 @@ new class extends Component {
                                     @forelse ($availableScopeStudents as $scopeStudent)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
                                             <input wire:model="scope_students" type="checkbox" value="{{ $scopeStudent->id }}" class="mt-0.5 rounded">
-                                            <span>{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
+                                            <span class="record-person-name">{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
                                         </label>
                                     @empty
                                         <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -1154,7 +1164,7 @@ new class extends Component {
                                     @forelse ($availableScopeTeachers as $scopeTeacher)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
                                             <input wire:model="scope_teachers" type="checkbox" value="{{ $scopeTeacher->id }}" class="mt-0.5 rounded">
-                                            <span>{{ $scopeTeacher->first_name }} {{ $scopeTeacher->last_name }}</span>
+                                            <span class="record-person-name">{{ $scopeTeacher->first_name }} {{ $scopeTeacher->last_name }}</span>
                                         </label>
                                     @empty
                                         <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -1171,7 +1181,7 @@ new class extends Component {
                                     @forelse ($availableScopeParents as $scopeParent)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
                                             <input wire:model="scope_parents" type="checkbox" value="{{ $scopeParent->id }}" class="mt-0.5 rounded">
-                                            <span>{{ $scopeParent->father_name }} ({{ $scopeParent->students_count }})</span>
+                                            <span class="record-person-name">{{ $scopeParent->father_name }} ({{ $scopeParent->students_count }})</span>
                                         </label>
                                     @empty
                                         <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>
@@ -1239,7 +1249,7 @@ new class extends Component {
                         @if ($photo_upload)
                             <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('crud.teachers.photo.preview_alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
                         @elseif ($photo_path)
-                            <img src="{{ asset('storage/'.ltrim($photo_path, '/')) }}" alt="{{ __('crud.teachers.photo.alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm">
+                            <x-avatar-image type="teacher" :src="asset('storage/'.ltrim($photo_path, '/'))" alt="{{ __('crud.teachers.photo.alt') }}" class="h-24 w-24 rounded-3xl object-cover shadow-sm" />
                         @else
                             <x-teacher-avatar :teacher="(object) ['first_name' => $first_name, 'last_name' => $last_name, 'photo_path' => null]" size="lg" />
                         @endif

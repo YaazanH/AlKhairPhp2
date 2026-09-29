@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -203,7 +204,7 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('data-app-sidebar-navigation-mobile-empty', $sidebarNavigationMenu);
         $this->assertStringContainsString('ArabicMonthFormatter::monthYearWithHijri(now())', $sidebar);
         $this->assertStringContainsString(':justify-subtitle-to-title="true"', $sidebar);
-        $this->assertArrayHasKey('finance_reports', app(\App\Services\SidebarNavigationService::class)->defaultItems());
+        $this->assertArrayHasKey('finance_reports', app(SidebarNavigationService::class)->defaultItems());
         $this->assertStringNotContainsString('$desktopDropdownAlign', $sidebar);
 
         $preferences = file_get_contents(resource_path('views/components/account-menu-preferences.blade.php'));
@@ -217,7 +218,8 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('.mobile-header-mark {', $styles);
         $this->assertStringContainsString("html[dir='rtl'] .mobile-header-mark {", $styles);
         $this->assertStringContainsString('margin-inline-end: 0.375rem;', $styles);
-        $this->assertStringNotContainsString('margin-inline-end: 1.5rem;', $styles);
+        preg_match_all('/[^{}]*\.mobile-header-mark[^{}]*\{([^{}]*)\}/', $styles, $mobileHeaderRules);
+        $this->assertStringNotContainsString('margin-inline-end: 1.5rem;', implode("\n", $mobileHeaderRules[1]));
         $this->assertStringNotContainsString('html:not(.dark) .mobile-header-mark {', $styles);
         $this->assertStringContainsString('.app-logo-period-subtitle {', $styles);
 

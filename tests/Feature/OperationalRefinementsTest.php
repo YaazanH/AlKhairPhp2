@@ -227,12 +227,22 @@ class OperationalRefinementsTest extends TestCase
         $absent = AttendanceStatus::create(['name' => 'Absent', 'code' => 'absent', 'scope' => 'both', 'is_present' => false, 'is_active' => true]);
         $day = app(TeacherAttendanceDayService::class)->createOrSyncDay('2026-09-26', collect([$group->teacher]), courseId: $group->course_id);
 
+        app()->setLocale('en');
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
+            ->assertSee('>Present</button>', false)->assertSee('>Absent</button>', false);
+        app()->setLocale('ar');
         $component = Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day]);
-        $component->call('chooseTeacherStatus', $group->teacher_id, $absent->id)->assertHasNoErrors();
+        $component->assertSee('>حضور</button>', false)->assertSee('>غياب</button>', false)
+            ->assertDontSee('>Present</button>', false)->assertDontSee('>Absent</button>', false);
+        $component->call('chooseTeacherStatus', $group->teacher_id, $absent->id)->assertHasNoErrors()
+            ->assertSee(trans_choice('workflow.teacher_attendance.table.summary', 0, ['count' => 0]));
         $this->assertSame($absent->id, $day->records()->first()->attendance_status_id);
-        $component->call('chooseTeacherStatus', $group->teacher_id, $present->id)->assertHasNoErrors();
+        $component->call('chooseTeacherStatus', $group->teacher_id, $present->id)->assertHasNoErrors()
+            ->assertSee(trans_choice('workflow.teacher_attendance.table.summary', 1, ['count' => 1]));
         $this->assertSame($present->id, $day->records()->first()->attendance_status_id);
         $day->update(['status' => 'closed']);
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
+            ->assertSee('>حضور</span>', false)->assertDontSee('>Present</span>', false);
         $component->call('chooseTeacherStatus', $group->teacher_id, $absent->id)->assertStatus(409);
         $this->assertSame($present->id, $day->records()->first()->attendance_status_id);
     }
@@ -258,6 +268,115 @@ class OperationalRefinementsTest extends TestCase
         $this->assertDatabaseHas('student_attendance_records', ['enrollment_id' => $enrollment->id, 'group_attendance_day_id' => $groupDay->id, 'attendance_status_id' => $status->id]);
         $component->set('rosterStudentId', $other->id)->call('addStudent', false)
             ->assertHasNoErrors()->assertSet('showAddStudentModal', false);
+    }
+
+    public function test_student_present_totals_include_every_present_status(): void
+    {
+        $this->signIn();
+        app()->setLocale('ar');
+        $group = $this->group();
+        $statuses = collect([
+            ['present', 'حضور', true],
+            ['late', 'حضور متأخر', false],
+            ['early', 'حضور مبكر', false],
+            ['early-leave', 'انصراف مبكر', false],
+            ['custom_present', 'حضور مخصص', true],
+            ['absent', 'غياب', false],
+        ])->map(fn ($values) => AttendanceStatus::create([
+            'code' => $values[0], 'name' => $values[1], 'is_present' => $values[2],
+            'scope' => 'student', 'is_active' => true, 'is_default' => $values[0] === 'absent',
+        ]));
+        (require database_path('migrations/2026_09_28_000000_count_arrival_and_early_departure_statuses_as_present.php'))->up();
+        $statuses->each->refresh();
+        $this->assertFalse($statuses->last()->is_present);
+        $enrollments = $statuses->map(function ($status) use ($group) {
+            $student = Student::create(['first_name' => $status->code, 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'status' => 'active']);
+
+            return Enrollment::create(['student_id' => $student->id, 'group_id' => $group->id, 'status' => 'active', 'enrolled_at' => '2026-09-26']);
+        });
+        $service = app(StudentAttendanceDayService::class);
+        $day = $service->createOrSyncDay('2026-09-26', collect([$group]));
+        foreach ($statuses as $index => $status) {
+            $service->recordEnrollmentStatus($day, $enrollments[$index], $status);
+        }
+        $groupDay = $day->groupAttendanceDays()->firstOrFail();
+
+        Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
+            ->assertViewHas('presentCount', 5)->assertSee('٥ طلاب حاضرون')
+            ->set('selected_statuses.'.$enrollments[1]->id, $statuses->last()->id)
+            ->call('saveEnrollmentStatus', $enrollments[1]->id)->assertHasNoErrors()
+            ->assertViewHas('presentCount', 4)->assertSee('٤ طلاب حاضرون');
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->assertViewHas('dayRecord', fn ($record) => $record->groupAttendanceDays->sum('present_records_count') === 4);
+        Volt::test('student-attendance.index')
+            ->assertViewHas('days', fn ($days) => $days->first()->groupAttendanceDays->sum('present_records_count') === 4);
+    }
+
+    public function test_attendance_day_numbers_follow_dates_and_survive_filtering_and_pagination(): void
+    {
+        $this->signIn();
+        $group = $this->group();
+
+        foreach ([StudentAttendanceDay::class => 'student-attendance.index', TeacherAttendanceDay::class => 'teachers.attendance'] as $model => $view) {
+            // Create out of chronological order so the number cannot be the database ID.
+            $latest = $model::create(['attendance_date' => '2026-09-28', 'course_id' => $group->course_id, 'status' => 'open']);
+            $first = $model::create(['attendance_date' => '2026-09-26', 'course_id' => $group->course_id, 'status' => 'closed']);
+            $middle = $model::create(['attendance_date' => '2026-09-27', 'course_id' => $group->course_id, 'status' => 'closed']);
+            $expectedNumbers = [$first->id => 1, $middle->id => 2, $latest->id => 3];
+
+            $component = Volt::test($view)->set('perPage', 2)
+                ->assertViewHas('dayNumbers', fn ($numbers) => $numbers->all() === $expectedNumbers)
+                ->assertViewHas('days', fn ($days) => $days->pluck('id')->all() === [$latest->id, $middle->id]);
+            $component->call('setPage', 2)
+                ->assertViewHas('days', fn ($days) => $days->pluck('id')->all() === [$first->id])
+                ->assertViewHas('dayNumbers', fn ($numbers) => $numbers->all() === $expectedNumbers);
+            $component->set('statusFilter', 'open')
+                ->assertViewHas('days', fn ($days) => $days->pluck('id')->all() === [$latest->id])
+                ->assertViewHas('dayNumbers', fn ($numbers) => $numbers[$latest->id] === 3);
+            $component->set('statusFilter', 'all')->set('search', '2026-09-27')
+                ->assertViewHas('days', fn ($days) => $days->pluck('id')->all() === [$middle->id])
+                ->assertViewHas('dayNumbers', fn ($numbers) => $numbers[$middle->id] === 2);
+        }
+    }
+
+    public function test_adding_students_preserves_attendance_identity_when_the_roster_reorders(): void
+    {
+        $this->signIn();
+        $group = $this->group();
+        $present = AttendanceStatus::create(['name' => 'Present', 'code' => 'present', 'scope' => 'student', 'is_present' => true, 'is_default' => true, 'is_active' => true]);
+        $absent = AttendanceStatus::create(['name' => 'Absent', 'code' => 'absent', 'scope' => 'student', 'is_present' => false, 'is_active' => true]);
+        $students = collect(['Ziad', 'Ahmad', 'Omar'])->map(fn ($name) => Student::create([
+            'first_name' => $name, 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'status' => 'active',
+        ]));
+        $existing = Enrollment::create(['student_id' => $students[0]->id, 'group_id' => $group->id, 'status' => 'active', 'enrolled_at' => '2026-09-26']);
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay('2026-09-26', collect([$group]));
+        $groupDay = $day->groupAttendanceDays()->firstOrFail();
+        $component = Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
+            ->set('selected_statuses.'.$existing->id, $absent->id)
+            ->call('saveEnrollmentStatus', $existing->id)->assertHasNoErrors();
+
+        $rows = [$existing];
+        foreach ($students->slice(1) as $student) {
+            $component->call('openAddStudentModal')
+                ->set('rosterStudentId', $student->id)->call('addStudent', true)
+                ->assertHasNoErrors()->assertSet('showAddStudentModal', true)
+                ->assertSet('selected_statuses.'.$existing->id, $absent->id);
+            $added = Enrollment::where('student_id', $student->id)->firstOrFail();
+            $rows[] = $added;
+            foreach ($rows as $enrollment) {
+                $component->assertSee('wire:key="attendance-enrollment-'.$groupDay->id.'-'.$enrollment->id.'"', false)
+                    ->assertSee('wire:key="attendance-status-'.$groupDay->id.'-'.$enrollment->id.'"', false);
+            }
+            $component->assertSet('selected_statuses.'.$added->id, $present->id);
+        }
+
+        $component->call('closeAddStudentModal')
+            ->assertSeeInOrder(['Ahmad Student', 'Omar Student', 'Ziad Student'])
+            ->set('selected_statuses.'.$added->id, $absent->id)
+            ->call('saveEnrollmentStatus', $added->id)->assertHasNoErrors()
+            ->assertSet('selected_statuses.'.$existing->id, $absent->id)
+            ->assertSet('selected_statuses.'.$rows[1]->id, $present->id);
+        $this->assertDatabaseHas('student_attendance_records', ['enrollment_id' => $added->id, 'group_attendance_day_id' => $groupDay->id, 'attendance_status_id' => $absent->id]);
     }
 
     public function test_attendance_enrollment_rechecks_eligibility_and_prevents_duplicates(): void

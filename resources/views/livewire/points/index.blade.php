@@ -474,7 +474,7 @@ new class extends Component {
             <div class="admin-toolbar__controls admin-toolbar__controls--compact">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="points-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="points-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="points-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -497,8 +497,8 @@ new class extends Component {
         @if ($transactions->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.points.workbench.table.empty') }}</div>
         @else
-            <div class="points-ledger-desktop overflow-hidden">
-                <table class="points-ledger-table w-full table-fixed text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}">
+            <div class="points-ledger-desktop overflow-x-auto">
+                <table class="points-ledger-table table-content text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}">
                     <colgroup>
                         <col class="points-ledger-col--student">
                         <col class="points-ledger-col--course">
@@ -557,12 +557,12 @@ new class extends Component {
                                 $state = $transaction->effectiveState();
                             @endphp
                             <tr class="{{ $state !== 'active' ? 'opacity-60' : '' }}">
-                                <td class="px-3 py-4">
+                                <td class="table-cell-name px-3 py-4">
                                     @if ($transaction->student)
                                         <div class="student-inline">
                                             <x-student-avatar :student="$transaction->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="student-inline__name whitespace-nowrap">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
+                                                <div class="record-person-name student-inline__name whitespace-nowrap">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
                                             </div>
                                         </div>
                                     @else
@@ -570,7 +570,7 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="px-3 py-4 text-neutral-300">
-                                    <div class="truncate font-medium text-white" title="{{ $transaction->enrollment?->group?->course?->name }}">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</div>
+                                    <div class="points-ledger-course-name font-medium text-white" title="{{ $transaction->enrollment?->group?->course?->name }}"><span class="record-course-name">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <span class="points-ledger-entered-at" dir="ltr">
@@ -627,7 +627,7 @@ new class extends Component {
                                 <div class="student-inline min-w-0">
                                     <x-student-avatar :student="$transaction->student" size="sm" />
                                     <div class="student-inline__body min-w-0">
-                                        <div class="points-ledger-mobile__student-name">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
+                                        <div class="record-person-name points-ledger-mobile__student-name">{{ trim($transaction->student->first_name.' '.$transaction->student->last_name) }}</div>
                                     </div>
                                 </div>
                             @else
@@ -640,7 +640,7 @@ new class extends Component {
                         </div>
 
                         <div class="points-ledger-mobile__course">
-                            {{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}
+                            <span class="record-course-name">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span>
                         </div>
 
                         <dl class="points-ledger-mobile__metrics">
@@ -712,7 +712,7 @@ new class extends Component {
                     @if ($editingTransactionId)
                         <input id="points-workbench-student" type="text" value="{{ $editingStudentName }}" readonly aria-readonly="true" data-points-edit-student-name class="w-full rounded-xl px-4 py-3 text-sm">
                     @else
-                        <select id="points-workbench-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <select id="points-workbench-student" wire:model.live="selectedStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
                             <option value="">{{ __('workflow.points.workbench.form.select_student') }}</option>
                             @foreach ($studentOptions as $student)
                                 <option value="{{ $student->id }}">

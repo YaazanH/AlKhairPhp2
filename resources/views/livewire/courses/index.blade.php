@@ -957,7 +957,7 @@ new class extends Component
             <div class="admin-toolbar__controls">
                 <div class="admin-filter-field">
                     <label class="sr-only" for="course-search">{{ __('crud.common.filters.search') }}</label>
-                    <input id="course-search" wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
+                    <input id="course-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
                 <div class="admin-filter-field">
@@ -971,7 +971,7 @@ new class extends Component
 
                 <div class="admin-filter-field course-academic-year-filter">
                     <label class="sr-only" for="course-academic-year-filter">{{ __('crud.common.filters.academic_year') }}</label>
-                    <select id="course-academic-year-filter" wire:model.live="academicYearFilter">
+                    <select id="course-academic-year-filter" wire:model.live="academicYearFilter" data-record-label="year">
                         <option value="all">{{ __('crud.common.filters.all_academic_years') }}</option>
                         @foreach ($academicYears as $academicYear)
                             <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>
@@ -996,24 +996,26 @@ new class extends Component
             <div class="admin-empty-state">{{ __('crud.courses.table.empty') }}</div>
         @else
             <div class="overflow-x-auto">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
+                            <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.course') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.dates') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.academic_year') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.groups') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.points') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.status') }}</th>
-                            <th class="px-5 py-4 text-center lg:px-6" data-course-end-column>{{ __('crud.courses.table.headers.end_course') }}</th>
-                            <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.courses.table.headers.actions') }}</th>
+                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.academic_year') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.groups') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.points') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('crud.courses.table.headers.status') }}</th>
+                            <th class="table-cell-compact px-5 py-4 text-center lg:px-6" data-course-end-column>{{ __('crud.courses.table.headers.end_course') }}</th>
+                            <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.courses.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($courses as $course)
                             <tr>
+                                <td class="table-cell-compact whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $courses->firstItem() + $loop->index }}</td>
                                 <td class="px-5 py-4 lg:px-6">
-                                    <div class="font-semibold text-white">{{ $course->name }}</div>
+                                    <div class="course-index-name font-semibold text-white" title="{{ $course->name }}"><span class="record-course-name">{{ $course->name }}</span></div>
                                 </td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     {{ \App\Support\DateDisplay::html($course->starts_on || $course->ends_on
@@ -1023,14 +1025,16 @@ new class extends Component
                                         ])
                                         : __('crud.common.not_available')) }}
                                 </td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $course->academicYear?->name ?: __('crud.common.not_available') }}</td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($course->groups_count) }}</td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6">
+                                    <div class="course-academic-year-name" title="{{ $course->academicYear?->name ?: __('crud.common.not_available') }}"><span class="record-year-name">{{ $course->academicYear?->name ?: __('crud.common.not_available') }}</span></div>
+                                </td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($course->groups_count) }}</td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <span class="{{ $course->awards_points ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
                                         {{ $course->awards_points ? __('crud.courses.table.points_enabled') : __('crud.courses.table.points_disabled') }}
                                     </span>
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     @if ($course->is_default)
                                         <span class="status-chip status-chip--gold">{{ __('crud.courses.table.default') }}</span>
                                     @else
@@ -1039,14 +1043,14 @@ new class extends Component
                                         </span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4 text-center lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 text-center lg:px-6">
                                     @if ($course->is_active && $course->awards_points)
                                         <a href="{{ route('courses.end', $course) }}" wire:navigate class="pill-link pill-link--compact pill-link--accent min-w-max px-4" data-course-end-action>{{ __('crud.courses.actions.end_course') }}</a>
                                     @else
                                         <span aria-hidden="true">—</span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <div class="flex flex-nowrap justify-end gap-2">
                                         @can('courses.update')
                                             @if ($course->is_active)
@@ -1095,7 +1099,7 @@ new class extends Component
                 </div>
                 <div>
                     <label for="course-academic-year" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.academic_year') }}</label>
-                    <select id="course-academic-year" wire:model="academic_year_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="course-academic-year" wire:model="academic_year_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="year">
                         <option value="">{{ __('crud.courses.form.select_academic_year') }}</option>
                         @foreach ($activeAcademicYears as $academicYear)
                             <option value="{{ $academicYear->id }}">{{ $academicYear->name }}</option>

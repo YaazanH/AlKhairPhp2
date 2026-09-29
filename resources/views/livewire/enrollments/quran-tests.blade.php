@@ -245,9 +245,10 @@ new class extends Component {
                 <div class="admin-empty-state">{{ __('workflow.quran_tests.table.empty') }}</div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
+                                <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.table.headers.date') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.table.headers.juz') }}</th>
                                 <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.table.headers.attempt') }}</th>
@@ -258,6 +259,7 @@ new class extends Component {
                         <tbody class="divide-y divide-white/6">
                             @foreach ($tests as $test)
                                 <tr>
+                                    <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($test->tested_on?->format('d-m-Y')) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number]) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $test->attempt_no }}</td>

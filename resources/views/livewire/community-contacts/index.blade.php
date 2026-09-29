@@ -218,7 +218,7 @@ new class extends Component {
         <div class="admin-grid-meta admin-grid-meta--controls community-contacts-grid-meta">
             <div class="admin-grid-meta__title">{{ __('community_contacts.table.title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact community-contacts-toolbar">
-            <input wire:model.live.debounce.300ms="search" type="search" class="community-contacts-search flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('community_contacts.filters.search') }}">
+            <input wire:model.live.debounce.500ms="search" type="search" class="community-contacts-search flex-1 rounded-xl px-4 py-3 text-sm" placeholder="{{ __('community_contacts.filters.search') }}">
 
             <select wire:model.live="categoryFilter" class="w-36 rounded-xl px-3 py-3 text-sm">
                 <option value="all">{{ __('community_contacts.filters.all_categories') }}</option>
@@ -241,20 +241,22 @@ new class extends Component {
         </div>
 
         <div class="overflow-x-auto">
-            <table class="text-sm">
+            <table class="table-content text-sm">
                 <thead>
                     <tr>
-                        <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.name') }}</th>
+                        <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
+                        <th class="table-cell-name px-5 py-4 text-left">{{ __('community_contacts.table.headers.name') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.category') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.contact') }}</th>
-                        <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.status') }}</th>
-                        <th class="admin-actions-column px-5 py-4 text-center">{{ __('community_contacts.table.headers.actions') }}</th>
+                        <th class="table-cell-compact px-5 py-4 text-left">{{ __('community_contacts.table.headers.status') }}</th>
+                        <th class="table-cell-compact admin-actions-column px-5 py-4 text-center">{{ __('community_contacts.table.headers.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/10">
                     @forelse ($contacts as $contact)
                         <tr>
-                            <td class="px-5 py-4">
+                            <td class="table-cell-compact whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $contacts->firstItem() + $loop->index }}</td>
+                            <td class="table-cell-name px-5 py-4">
                                 <div class="font-semibold text-white">{{ $contact->name }}</div>
                                 @if ($contact->organization)
                                     <div class="mt-1 text-xs text-neutral-400">{{ $contact->organization }}</div>
@@ -263,13 +265,13 @@ new class extends Component {
                             <td class="px-5 py-4 text-neutral-300">{{ $contact->category ?: __('community_contacts.empty.category') }}</td>
                             <td class="px-5 py-4 text-neutral-300">
                                 @if ($contact->phone)
-                                    <div dir="ltr" class="inline-block text-left" style="unicode-bidi: isolate;">{{ $contact->phone }}</div>
+                                    <div dir="ltr" class="record-phone inline-block text-left" style="unicode-bidi: isolate;">{{ $contact->phone }}</div>
                                 @endif
                                 @if ($contact->email)
                                     <div class="mt-1 text-xs text-neutral-400">{{ $contact->email }}</div>
                                 @endif
                             </td>
-                            <td class="px-5 py-4">
+                            <td class="table-cell-compact px-5 py-4">
                                 <span @class([
                                     'rounded-full border px-3 py-1 text-xs font-semibold',
                                     'border-emerald-400/30 bg-emerald-500/10 text-emerald-100' => $contact->is_active,
@@ -278,7 +280,7 @@ new class extends Component {
                                     {{ $contact->is_active ? __('community_contacts.statuses.active') : __('community_contacts.statuses.inactive') }}
                                 </span>
                             </td>
-                            <td class="px-5 py-4">
+                            <td class="table-cell-compact px-5 py-4">
                                 <div class="community-contact-row-actions flex justify-end gap-2">
                                     @can('community-contacts.update')
                                         <button type="button" wire:click="edit({{ $contact->id }})" class="pill-link pill-link--compact whitespace-nowrap px-4">{{ __('crud.common.actions.edit') }}</button>
@@ -291,7 +293,7 @@ new class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-5 py-8 text-center text-neutral-400">{{ __('community_contacts.table.empty') }}</td>
+                            <td colspan="6" class="px-5 py-8 text-center text-neutral-400">{{ __('community_contacts.table.empty') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

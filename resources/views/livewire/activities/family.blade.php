@@ -227,7 +227,7 @@ new class extends Component {
                     </div>
 
                     <div class="mt-6 overflow-x-auto">
-                        <table class="text-sm">
+                        <table class="table-content text-sm">
                             <thead>
                                 <tr>
                                     <th class="px-5 py-3 text-left font-medium">{{ __('activities.family.table.headers.student') }}</th>
@@ -250,7 +250,7 @@ new class extends Component {
                                             <div class="student-inline">
                                                 <x-student-avatar :student="$entry['student']" size="sm" />
                                                 <div class="student-inline__body">
-                                                    <div class="student-inline__name">{{ $entry['student']->full_name }}</div>
+                                                    <div class="record-person-name student-inline__name">{{ $entry['student']->full_name }}</div>
                                                     <div class="text-xs text-neutral-500">{{ $entry['student']->gradeLevel?->name ?: __('dashboard.common.no_grade') }}</div>
                                                 </div>
                                             </div>

@@ -185,8 +185,8 @@ new class extends Component {
             </div>
 
             <div class="surface-panel px-5 py-4">
-                <div class="text-sm font-semibold text-white">{{ $studentRecord->first_name }} {{ $studentRecord->last_name }}</div>
-                <div class="mt-1 text-sm text-neutral-400">{{ $studentRecord->parentProfile?->father_name ?: __('media.student_files.profile.no_parent') }}</div>
+                <div class="record-person-name text-sm font-semibold text-white">{{ $studentRecord->first_name }} {{ $studentRecord->last_name }}</div>
+                <div class="record-person-name mt-1 text-sm text-neutral-400">{{ $studentRecord->parentProfile?->father_name ?: __('media.student_files.profile.no_parent') }}</div>
                 <div class="mt-1 text-sm text-neutral-400">{{ $studentRecord->gradeLevel?->name ?: __('media.student_files.profile.no_grade') }}</div>
             </div>
         </div>
@@ -225,7 +225,7 @@ new class extends Component {
                     @if ($photo_upload)
                         <img src="{{ $photo_upload->temporaryUrl() }}" alt="{{ __('media.student_files.photo.preview_alt') }}" class="h-44 w-44 rounded-3xl object-cover shadow-sm">
                     @elseif ($photoUrl)
-                        <img src="{{ $photoUrl }}" alt="{{ __('media.student_files.photo.alt') }}" class="h-44 w-44 rounded-3xl object-cover shadow-sm">
+                        <x-avatar-image type="student" :src="$photoUrl" alt="{{ __('media.student_files.photo.alt') }}" class="h-44 w-44 rounded-3xl object-cover shadow-sm" />
                     @else
                         <div class="flex h-44 w-44 items-center justify-center rounded-3xl border border-dashed border-white/15 text-center text-sm text-neutral-400">
                             {{ __('media.student_files.photo.empty') }}
@@ -330,9 +330,10 @@ new class extends Component {
                     </div>
                 @else
                     <div class="overflow-x-auto">
-                        <table class="text-sm">
+                        <table class="table-content text-sm">
                             <thead>
                                 <tr>
+                                    <th data-table-number-column scope="col" class="w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                     <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.file') }}</th>
                                     <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.type') }}</th>
                                     <th class="px-4 py-4 text-left lg:px-5">{{ __('media.student_files.files.headers.uploaded_by') }}</th>
@@ -343,6 +344,7 @@ new class extends Component {
                             <tbody class="divide-y divide-white/6">
                                 @foreach ($studentFiles as $studentFile)
                                     <tr>
+                                        <td class="whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $loop->iteration }}</td>
                                         <td class="px-4 py-4 lg:px-5">
                                             <div class="font-medium text-white">{{ $studentFile->original_name }}</div>
                                             <div class="text-xs text-neutral-500">{{ $studentFile->file_path }}</div>

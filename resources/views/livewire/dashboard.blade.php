@@ -965,7 +965,7 @@ new class extends Component {
                         <x-user-avatar :user="auth()->user()" size="lg" />
                     </div>
                     <div class="min-w-0">
-                        <div class="mt-2 truncate text-xl font-semibold text-white">{{ $profileName }}</div>
+                        <div class="record-person-name mt-2 truncate text-xl font-semibold text-white">{{ $profileName }}</div>
                         <p class="mt-1 truncate text-sm leading-6 text-neutral-300">{{ $profileJob }}</p>
                     </div>
                 </div>
@@ -974,7 +974,14 @@ new class extends Component {
     </section>
 
     @if (! empty($stats))
-        <div class="{{ $dashboardRole === 'manager' ? 'dashboard-manager-highlights gap-3' : 'gap-4' }} grid md:grid-cols-2 xl:grid-cols-4">
+        <div @class([
+            'mobile-compact-highlights grid md:grid-cols-2 xl:grid-cols-4',
+            'dashboard-manager-highlights gap-3' => $dashboardRole === 'manager',
+            'gap-4' => $dashboardRole !== 'manager',
+            'mobile-compact-highlights--two' => count($stats) === 2,
+            'mobile-compact-highlights--four' => count($stats) === 4,
+            'mobile-compact-highlights--five' => count($stats) === 5,
+        ])>
             @foreach ($stats as $stat)
                 <article class="stat-card">
                     <div class="kpi-label">{{ $stat['label'] }}</div>
@@ -1233,7 +1240,7 @@ new class extends Component {
                                             data-performance-tooltip
                                             aria-hidden="true"
                                         >
-                                            <strong>{{ $entry['student']->full_name }}</strong>
+                                            <strong class="record-person-name">{{ $entry['student']->full_name }}</strong>
                                             <small>{{ __('counts.points', ['count' => number_format($entry['points'])]) }} · {{ trans_choice('dashboard.manager.analytics.pages_count', $entry['pages'], ['count' => number_format($entry['pages'])]) }}</small>
                                         </span>
                                     @endif
@@ -1321,7 +1328,7 @@ new class extends Component {
                             <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}">
                                 <div class="dashboard-curriculum-hotbar__identity">
                                     <span class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</span>
-                                    <div class="dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
+                                    <div class="record-person-name dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
                                 </div>
                                 <div class="dashboard-curriculum-hotbar__track">
                                     <span class="dashboard-curriculum-hotbar__fill dashboard-curriculum-hotbar__fill--{{ $row['tone'] }}" style="width: {{ $row['percentage'] }}%" aria-hidden="true"></span>
@@ -1423,7 +1430,7 @@ new class extends Component {
                         <div class="mt-6 space-y-3">
                             @foreach ($teacherTopMemorizingStudents as $index => $row)
                                 <div class="teacher-memorization-ranking-row grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_auto] items-center gap-3">
-                                    <div class="truncate text-sm text-neutral-200">{{ $row['student']->full_name }}</div>
+                                    <div class="record-person-name truncate text-sm text-neutral-200">{{ $row['student']->full_name }}</div>
                                     <div class="relative h-5">
                                         <span class="absolute inset-y-1/2 start-0 h-px -translate-y-1/2 rounded-full bg-emerald-400/75" style="width: {{ ($row['pages'] / $teacherLollipopMax) * 100 }}%"></span>
                                         <span class="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-emerald-400 shadow" style="inset-inline-start: calc({{ ($row['pages'] / $teacherLollipopMax) * 100 }}% - .4375rem)"></span>
@@ -1456,9 +1463,9 @@ new class extends Component {
                     @if ($teacherTopStudents->isEmpty())
                         <div class="admin-empty-state">{{ __('dashboard.teacher.group_dashboard.empty_students') }}</div>
                     @else
-                        <div class="teacher-points-table overflow-x-auto"><table class="text-sm"><thead><tr>
-                            <th class="px-4 py-3 text-start">#</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th>
-                        </tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherTopStudents as $row)<tr><td class="px-4 py-3">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-4 py-3">{{ number_format($row['points']) }}</td><td class="px-4 py-3">{{ number_format($row['pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td></tr>@endforeach</tbody></table></div>
+                        <div class="teacher-points-table overflow-x-auto"><table class="table-content text-sm"><thead><tr>
+                            <th data-table-number-column class="px-4 py-3 text-start">#</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-4 py-3 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th>
+                        </tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherTopStudents as $row)<tr><td class="px-4 py-3">{{ $loop->iteration }}</td><td class="record-person-name px-4 py-3 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-4 py-3">{{ number_format($row['points']) }}</td><td class="px-4 py-3">{{ number_format($row['pages']) }}</td><td class="px-4 py-3">{{ number_format($row['final_tests']) }}</td></tr>@endforeach</tbody></table></div>
                     @endif
                 </article>
 
@@ -1478,12 +1485,12 @@ new class extends Component {
             </section>
 
             <x-admin.modal :show="$showTeacherLeaderboardModal" :title="__('dashboard.teacher.group_dashboard.all_students')" close-method="closeTeacherLeaderboard" max-width="4xl" compact>
-                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">#</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.days_attended') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_exam_score') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherRankedStudents as $row)<tr><td class="px-3 py-2">{{ $loop->iteration }}</td><td class="px-3 py-2 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-3 py-2">{{ number_format($row['days_attended']) }}</td><td class="px-3 py-2">{{ number_format($row['points']) }}</td><td class="px-3 py-2">{{ number_format($row['pages']) }}</td><td class="px-3 py-2">{{ number_format($row['final_tests']) }}</td><td class="px-3 py-2">{{ $row['final_exam_score'] === null ? '—' : \App\Support\PercentageFormatter::format($row['final_exam_score']) }}</td></tr>@endforeach</tbody></table></div>
+                <div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="px-3 py-2 text-start">#</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.days_attended') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.points') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.pages') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_tests') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.final_exam_score') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherRankedStudents as $row)<tr><td class="px-3 py-2">{{ $loop->iteration }}</td><td class="record-person-name px-3 py-2 font-medium text-white">{{ $row['student']->full_name }}</td><td class="px-3 py-2">{{ number_format($row['days_attended']) }}</td><td class="px-3 py-2">{{ number_format($row['points']) }}</td><td class="px-3 py-2">{{ number_format($row['pages']) }}</td><td class="px-3 py-2">{{ number_format($row['final_tests']) }}</td><td class="px-3 py-2">{{ $row['final_exam_score'] === null ? '—' : \App\Support\PercentageFormatter::format($row['final_exam_score']) }}</td></tr>@endforeach</tbody></table></div>
             </x-admin.modal>
 
             <x-admin.modal :show="$showTeacherMemorizationsModal" :title="__('dashboard.teacher.group_dashboard.all_memorizations')" close-method="closeTeacherMemorizations" max-width="3xl" compact>
                 <div class="space-y-3">
-                    <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.page_number') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.date') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherLatestMemorizations as $session)<tr><td class="px-3 py-2 font-medium text-white">{{ $session->student?->full_name }}</td><td class="px-3 py-2"><span dir="ltr">{{ $session->from_page === $session->to_page ? $session->from_page : $session->from_page.'–'.$session->to_page }}</span></td><td class="px-3 py-2">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td></tr>@endforeach</tbody></table></div>
+                    <div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.student') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.page_number') }}</th><th class="px-3 py-2 text-start">{{ __('dashboard.teacher.group_dashboard.columns.date') }}</th></tr></thead><tbody class="divide-y divide-white/6">@foreach ($teacherLatestMemorizations as $session)<tr><td class="record-person-name px-3 py-2 font-medium text-white">{{ $session->student?->full_name }}</td><td class="px-3 py-2"><span dir="ltr">{{ $session->from_page === $session->to_page ? $session->from_page : $session->from_page.'–'.$session->to_page }}</span></td><td class="px-3 py-2">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td></tr>@endforeach</tbody></table></div>
                     @if ($teacherLatestMemorizations->hasPages())<div>{{ $teacherLatestMemorizations->links() }}</div>@endif
                 </div>
             </x-admin.modal>
@@ -1508,7 +1515,7 @@ new class extends Component {
                                     <div>
                                         <div class="text-base font-semibold text-white">{{ $cardPreview['group']?->name ?: __('dashboard.common.no_group') }}</div>
                                         <div class="mt-1 text-sm text-neutral-300">
-                                            {{ $cardPreview['group']?->course?->name ?: __('dashboard.common.no_course') }}
+                                            <span class="record-course-name">{{ $cardPreview['group']?->course?->name ?: __('dashboard.common.no_course') }}</span>
                                         </div>
                                     </div>
                                     <span class="badge-soft badge-soft--emerald">{{ $cardPreview['template']->name }}</span>

@@ -525,7 +525,7 @@ new class extends Component
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
-                        <div><label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label><select id="assessment-group-course" wire:model.live="groupCourseFilter" required data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-lg px-3 py-2 text-sm"><option value="" disabled hidden>{{ __('crud.common.select') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@error('groupCourseFilter')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
+                        <div><label for="assessment-group-course" class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.course') }}</label><select id="assessment-group-course" wire:model.live="groupCourseFilter" required data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-lg px-3 py-2 text-sm" data-record-label="course"><option value="" disabled hidden>{{ __('crud.common.select') }}</option>@foreach ($courses as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@error('groupCourseFilter')<div class="mt-1 text-sm text-red-600">{{ $message }}</div>@enderror</div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.groups') }}</label>
                             <div class="assessment-group-scope-control flex gap-2">
@@ -577,7 +577,7 @@ new class extends Component
                                 : in_array((string) $group->id, array_map('strval', $group_ids), true);
                         @endphp
                         <button type="button" wire:click="toggleGroup({{ $group->id }})" class="assessment-group-picker-option rounded-xl border px-3 py-3 text-start {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 text-neutral-300' }}" data-assessment-group-picker-option>
-                            <span class="assessment-group-picker-option__copy"><span class="block font-medium">{{ $group->name }}</span><span class="block text-xs text-neutral-500">{{ $group->course?->name }}</span></span>
+                            <span class="assessment-group-picker-option__copy"><span class="block font-medium">{{ $group->name }}</span><span class="block text-xs text-neutral-500"><span class="record-course-name">{{ $group->course?->name }}</span></span></span>
                             <span class="assessment-group-picker-option__check flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-white/20' }}" data-assessment-group-picker-check>{{ $isSelected ? '✓' : '' }}</span>
                         </button>
                     @endforeach
@@ -596,7 +596,7 @@ new class extends Component
                 <div class="admin-toolbar__controls">
                     <div class="admin-filter-field admin-filter-field--course">
                         <label class="sr-only" for="assessment-course-filter">{{ __('workflow.assessments.index.filters.course') }}</label>
-                        <select id="assessment-course-filter" wire:model.live="courseFilter">
+                        <select id="assessment-course-filter" wire:model.live="courseFilter" data-record-label="course">
                             <option value="all">{{ __('workflow.assessments.index.filters.all_courses') }}</option>
                             @foreach ($courses as $course)
                                 <option value="{{ $course->id }}">{{ $course->name }}</option>
@@ -623,7 +623,7 @@ new class extends Component
                     <table class="w-full text-sm assessment-index-table">
                         <thead>
                             <tr>
-                                <th class="w-[4%] px-2 py-3 text-center font-medium">#</th>
+                                <th data-table-number-column class="w-[4%] px-2 py-3 text-center font-medium">#</th>
                                 <th class="w-[20%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
                                 <th class="w-[18%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
                                 <th class="w-[12%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
@@ -648,7 +648,7 @@ new class extends Component
                                             {{ $assessment->type?->name ?: __('workflow.common.not_available') }}
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3"><div class="truncate" title="{{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') }}">{{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') ?: __('workflow.common.not_available') }}</div></td>
+                                    <td class="px-4 py-3"><div class="truncate" title="{{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') }}"><span class="record-course-name">{{ $assessmentGroups->pluck('course.name')->filter()->unique()->implode(', ') ?: __('workflow.common.not_available') }}</span></div></td>
                                     <td class="px-5 py-3">
                                         <div>{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</div>
                                     </td>

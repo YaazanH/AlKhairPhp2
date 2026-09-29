@@ -1646,7 +1646,7 @@ new class extends Component
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                                 @foreach ($academicYears as $academicYear)
                                     <tr>
-                                        <td class="px-5 py-3"><div class="font-medium">{{ $academicYear->name }}</div></td>
+                                        <td class="px-5 py-3"><div class="font-medium"><span class="record-year-name">{{ $academicYear->name }}</span></div></td>
                                         <td class="px-5 py-3">{{ \App\Support\DateDisplay::html(__('settings.organization.labels.date_range', ['start' => $academicYear->starts_on?->format('d-m-Y'), 'end' => $academicYear->ends_on?->format('d-m-Y')])) }}</td>
                                         <td class="px-5 py-3">@if ($academicYear->is_current)<span class="status-chip status-chip--emerald">{{ __('settings.organization.labels.current_year') }}</span>@else—@endif</td>
                                         <td class="px-5 py-3">{{ $academicYear->courses_count }}</td>

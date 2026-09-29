@@ -14,6 +14,8 @@ use App\Models\QuranPartialTest;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\MemorizationService;
+use App\Services\QuranPartialTestService;
 use App\Services\SidebarNavigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -364,6 +366,71 @@ class QuickQuranTestEntryTest extends TestCase
 
         Volt::test('quran-tests.quick-entry')
             ->assertSee('Outside Student');
+    }
+
+    public function test_quick_entry_can_start_another_memorized_juz_while_a_partial_saber_is_unfinished(): void
+    {
+        [, $teacher, $student, $enrollment, $firstJuz] = $this->context();
+        $secondJuz = QuranJuz::query()->where('juz_number', 2)->firstOrFail();
+        $incompleteJuz = QuranJuz::query()->where('juz_number', 3)->firstOrFail();
+
+        foreach ([$firstJuz, $secondJuz, $incompleteJuz] as $juz) {
+            app(MemorizationService::class)->saveSession($enrollment, [
+                'recorded_on' => now()->toDateString(),
+                'teacher_id' => $teacher->id,
+                'entry_type' => 'new',
+                'from_page' => $juz->from_page,
+                'to_page' => $juz->is($incompleteJuz) ? $juz->from_page : $juz->to_page,
+                'notes' => null,
+            ]);
+        }
+
+        $service = app(QuranPartialTestService::class);
+        $existingTest = $service->create($enrollment, $firstJuz);
+        $service->recordAttempt($existingTest->parts()->where('part_number', 1)->firstOrFail(), $teacher, [
+            'mistake_count' => 0,
+            'tested_on' => now()->toDateString(),
+        ]);
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->assertViewHas('partialJuzs', fn ($juzs) => $juzs->pluck('id')->all() === [$firstJuz->id, $secondJuz->id])
+            ->assertSet('partialTestId', $existingTest->id)
+            ->assertSet('partialQuarter', 2)
+            ->set('partialJuzId', $secondJuz->id)
+            ->assertSet('partialTestId', null)
+            ->assertViewHas('availableQuarters', fn ($quarters) => $quarters->all() === [1, 2, 3, 4])
+            ->set('partialQuarter', 3)
+            ->set('mistakeCount', '0')
+            ->call('savePartial')
+            ->assertHasNoErrors();
+
+        $newTest = QuranPartialTest::query()->where('student_id', $student->id)->where('juz_id', $secondJuz->id)->firstOrFail();
+        $this->assertSame('in_progress', $existingTest->fresh()->status);
+        $this->assertSame('in_progress', $newTest->status);
+        $this->assertSame([3], $newTest->parts()->where('status', 'passed')->pluck('part_number')->all());
+        $this->assertSame([1], $existingTest->parts()->where('status', 'passed')->pluck('part_number')->all());
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->set('partialJuzId', $firstJuz->id)
+            ->assertSet('partialTestId', $existingTest->id)
+            ->assertSet('partialQuarter', 2)
+            ->set('mistakeCount', '0')
+            ->call('savePartial')
+            ->assertHasNoErrors();
+
+        $this->assertSame([1, 2], $existingTest->parts()->where('status', 'passed')->orderBy('part_number')->pluck('part_number')->all());
+        $this->assertDatabaseCount('quran_partial_tests', 2);
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->set('partialJuzId', $incompleteJuz->id)
+            ->set('mistakeCount', '0')
+            ->call('savePartial')
+            ->assertStatus(422);
+
+        $this->assertDatabaseCount('quran_partial_tests', 2);
     }
 
     private function context(): array

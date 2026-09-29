@@ -230,6 +230,9 @@
         @case('add')
             <path stroke-linecap="round" d="M12 5v14M5 12h14" />
             @break
+        @case('minus')
+            <path stroke-linecap="round" d="M5 12h14" />
+            @break
         @case('more')
             <circle cx="5.5" cy="12" r="1.35" fill="currentColor" stroke="none" />
             <circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none" />

@@ -150,13 +150,14 @@ new class extends Component
         $student = $this->studentsQuery()->with('pageAchievements')->findOrFail($validated['partialStudentId']);
         $enrollment = $this->enrollmentFor($student);
         $recordingTeacher = $this->recordingTeacher();
+        abort_unless($this->availablePartialJuzs()->contains('id', (int) $validated['partialJuzId']), 422);
         $availableQuarterNumbers = $this->availablePartialQuarters()->all();
         abort_unless(in_array((int) $validated['partialQuarter'], $availableQuarterNumbers, true), 422);
 
         DB::transaction(function () use ($student, $enrollment, $recordingTeacher, $validated): void {
             $test = $this->partialTestId
                 ? $this->partialTestsQuery()->where('student_id', $student->id)->findOrFail($this->partialTestId)
-                : app(QuranPartialTestService::class)->create($enrollment, QuranJuz::query()->findOrFail($validated['partialJuzId']));
+                : app(QuranPartialTestService::class)->create($enrollment, QuranJuz::query()->findOrFail($validated['partialJuzId']), allowAnotherOpenCycle: true);
 
             $part = $test->parts()->where('part_number', (int) $validated['partialQuarter'])->where('status', 'pending')->firstOrFail();
             app(QuranPartialTestService::class)->recordAttempt($part, $recordingTeacher, [
@@ -320,9 +321,9 @@ new class extends Component
             ->where('status', 'in_progress')
             ->pluck('juz_id')
             ->map(fn ($id) => (int) $id);
-        $juzIds = $openJuzIds->isNotEmpty()
-            ? $openJuzIds
-            : app(QuranPartialTestService::class)->eligibleJuzIdsForStudent($student);
+        $juzIds = $openJuzIds
+            ->merge(app(QuranPartialTestService::class)->eligibleJuzIdsForStudent($student))
+            ->unique();
 
         return QuranJuz::query()->whereIn('id', $juzIds)->orderBy('juz_number')->get();
     }
@@ -387,21 +388,23 @@ new class extends Component
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero quick-saber-hero p-6 lg:p-8">
-        <div class="quick-saber-hero__layout">
-            <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('quick-tests.title') }}</h1>
-            @if ($entriesEnabled && $canRecordPartial && $canRecordFinal)
-                <div class="quick-saber-type-switch" role="tablist" aria-label="{{ __('quick-tests.saber_type') }}">
-                    <button type="button" role="tab" aria-selected="{{ $tab === 'partial' ? 'true' : 'false' }}" wire:click="switchTab('partial')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'partial'])>
-                        {{ __('quick-tests.partial') }}
-                    </button>
-                    <button type="button" role="tab" aria-selected="{{ $tab === 'final' ? 'true' : 'false' }}" wire:click="switchTab('final')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'final'])>
-                        {{ __('quick-tests.final') }}
-                    </button>
-                </div>
-            @endif
-        </div>
-    </section>
+    <div class="quick-saber-header">
+        <section class="page-hero quick-saber-hero p-6 lg:p-8">
+            <div class="quick-saber-hero__layout">
+                <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('quick-tests.title') }}</h1>
+            </div>
+        </section>
+        @if ($entriesEnabled && $canRecordPartial && $canRecordFinal)
+            <div class="quick-saber-type-switch" role="tablist" aria-label="{{ __('quick-tests.saber_type') }}">
+                <button type="button" role="tab" aria-selected="{{ $tab === 'partial' ? 'true' : 'false' }}" wire:click="switchTab('partial')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'partial'])>
+                    {{ __('quick-tests.partial') }}
+                </button>
+                <button type="button" role="tab" aria-selected="{{ $tab === 'final' ? 'true' : 'false' }}" wire:click="switchTab('final')" @class(['quick-saber-type-switch__option', 'is-active' => $tab === 'final'])>
+                    {{ __('quick-tests.final') }}
+                </button>
+            </div>
+        @endif
+    </div>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
@@ -415,7 +418,7 @@ new class extends Component
                 <div class="quick-saber-form__row">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('quick-tests.student') }}</label>
-                        <select wire:model.live="partialStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                        <select wire:model.live="partialStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="quick-saber-control w-full rounded-xl px-4 text-sm" data-record-label="person">
                             <option value="">{{ __('quick-tests.select_student') }}</option>
                             @foreach ($students as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach
                         </select>
@@ -472,7 +475,7 @@ new class extends Component
                 <div class="quick-saber-form__row">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('quick-tests.student') }}</label>
-                        <select wire:model.live="finalStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="quick-saber-control w-full rounded-xl px-4 text-sm">
+                        <select wire:model.live="finalStudentId" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="quick-saber-control w-full rounded-xl px-4 text-sm" data-record-label="person">
                             <option value="">{{ __('quick-tests.select_student') }}</option>
                             @foreach ($students as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach
                         </select>

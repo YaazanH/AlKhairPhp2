@@ -139,7 +139,7 @@ new class extends Component {
             <div class="p-8 text-center text-sm text-neutral-400">{{ __('crud.students.bulk_photos.empty') }}</div>
         @else
             <div class="surface-table-wrapper overflow-visible">
-                <table class="text-sm">
+                <table class="table-content text-sm">
                     <thead>
                         <tr>
                             <th>{{ __('crud.students.bulk_photos.headers.photo') }}</th>
@@ -158,7 +158,7 @@ new class extends Component {
                                 </td>
                                 <td class="font-medium">{{ $match['file_name'] }}</td>
                                 <td>
-                                    <select wire:model="matches.{{ $loop->index }}.student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="min-w-72 rounded-2xl px-4 py-3 text-sm">
+                                    <select wire:model="matches.{{ $loop->index }}.student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="min-w-72 rounded-2xl px-4 py-3 text-sm" data-record-label="person">
                                         <option value="">{{ __('crud.students.bulk_photos.no_match') }}</option>
                                         @foreach ($studentOptions as $student)
                                             <option value="{{ $student->id }}">{{ $student->full_name }}</option>

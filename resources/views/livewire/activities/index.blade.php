@@ -280,7 +280,7 @@ new class extends Component {
                     @if ($audience_scope === 'single_group')
                         <div>
                             <label for="activity-group" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.group') }}</label>
-                            <select id="activity-group" wire:model="group_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <select id="activity-group" wire:model="group_id" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" data-record-label="course">
                                 <option value="">{{ __('activities.index.form.placeholders.group') }}</option>
                                 @foreach ($groups as $group)
                                     <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
@@ -293,7 +293,7 @@ new class extends Component {
                     @elseif ($audience_scope === 'multiple_groups')
                         <div>
                             <label for="activity-groups" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.groups') }}</label>
-                            <select id="activity-groups" wire:model="selected_group_ids" multiple size="7" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                            <select id="activity-groups" wire:model="selected_group_ids" multiple size="7" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" data-record-label="course">
                                 @foreach ($groups as $group)
                                     <option value="{{ $group->id }}">{{ $group->name }}{{ $group->course ? ' | '.$group->course->name : '' }}</option>
                                 @endforeach
@@ -378,17 +378,18 @@ new class extends Component {
                 <div class="admin-empty-state">{{ __('activities.index.table.empty') }}</div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="text-sm">
+                    <table class="table-content text-sm">
                         <thead>
                             <tr>
+                                <th data-table-number-column scope="col" class="table-cell-compact w-12 whitespace-nowrap px-3 py-4 text-center">#</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.activity') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.audience') }}</th>
-                                <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.date') }}</th>
-                                <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.registrations') }}</th>
+                                <th class="table-cell-compact px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.date') }}</th>
+                                <th class="table-cell-compact px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.registrations') }}</th>
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.financials') }}</th>
-                                <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.status') }}</th>
+                                <th class="table-cell-compact px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.status') }}</th>
                                 @if (auth()->user()->can('activities.finance.view') || auth()->user()->can('activities.update') || auth()->user()->can('activities.delete'))
-                                    <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.index.table.headers.actions') }}</th>
+                                    <th class="table-cell-compact admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.index.table.headers.actions') }}</th>
                                 @endif
                             </tr>
                         </thead>
@@ -402,6 +403,7 @@ new class extends Component {
                                     };
                                 @endphp
                                 <tr>
+                                    <td class="table-cell-compact whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $activities->firstItem() + $loop->index }}</td>
                                     <td class="px-5 py-3">
                                         <div class="font-medium">{{ $activity->title }}</div>
                                         @if ($activity->description)
@@ -412,19 +414,19 @@ new class extends Component {
                                         <div class="font-medium">{{ $audienceLabel }}</div>
                                         <div class="text-xs text-neutral-500">{{ __('activities.common.audience.'.$activity->audience_scope) }}</div>
                                     </td>
-                                    <td class="px-5 py-3">{{ \App\Support\DateDisplay::html($activity->activity_date?->format('d-m-Y')) }}</td>
-                                    <td class="px-5 py-3">{{ number_format($activity->registrations_count) }}</td>
+                                    <td class="table-cell-compact px-5 py-3">{{ \App\Support\DateDisplay::html($activity->activity_date?->format('d-m-Y')) }}</td>
+                                    <td class="table-cell-compact px-5 py-3">{{ number_format($activity->registrations_count) }}</td>
                                     <td class="px-5 py-3">
                                         <div>{{ __('activities.index.table.financials.expected', ['amount' => number_format((float) $activity->expected_revenue_cached, 2)]) }}</div>
                                         <div class="text-xs text-neutral-500">{{ __('activities.index.table.financials.breakdown', ['collected' => number_format((float) $activity->collected_revenue_cached, 2), 'expenses' => number_format((float) $activity->expense_total_cached, 2)]) }}</div>
                                     </td>
-                                    <td class="px-5 py-3">
+                                    <td class="table-cell-compact px-5 py-3">
                                         <span class="status-chip {{ $activity->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">
                                             {{ \Illuminate\Support\Str::headline((string) ($activity->status ?: ($activity->is_active ? 'active' : 'inactive'))) }}
                                         </span>
                                     </td>
                                     @if (auth()->user()->can('activities.finance.view') || auth()->user()->can('activities.update') || auth()->user()->can('activities.delete'))
-                                        <td class="px-5 py-3">
+                                        <td class="table-cell-compact px-5 py-3">
                                             <div class="admin-action-cluster admin-action-cluster--end">
                                                 @can('activities.finance.view')
                                                     <a href="{{ route('activities.finance', $activity) }}" wire:navigate class="pill-link pill-link--compact">

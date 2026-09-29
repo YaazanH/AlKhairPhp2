@@ -1650,6 +1650,7 @@ class FinanceAndActivitiesTest extends TestCase
     {
         $this->signIn();
 
+        $reportIds = [];
         foreach (range(1, 11) as $reportNumber) {
             $report = FinanceGeneratedReport::query()->create([
                 'report_type' => 'ledger',
@@ -1665,6 +1666,7 @@ class FinanceAndActivitiesTest extends TestCase
                 ],
                 'generated_by' => auth()->id(),
             ]);
+            $reportIds[$reportNumber] = $report->id;
             $report->forceFill([
                 'created_at' => now()->startOfDay()->addMinutes($reportNumber),
                 'updated_at' => now()->startOfDay()->addMinutes($reportNumber),
@@ -1672,10 +1674,13 @@ class FinanceAndActivitiesTest extends TestCase
         }
 
         Volt::test('finance.reports')
+            ->assertSee('data-report-row-number="'.$reportIds[11].'">11</td>', false)
+            ->assertSee('data-report-row-number="'.$reportIds[2].'">2</td>', false)
             ->assertSee('PAGE-REPORT-11')
             ->assertSee('PAGE-REPORT-2')
             ->assertDontSee('>PAGE-REPORT-1</div>', false)
             ->call('setPage', 2, 'generatedReportsPage')
+            ->assertSee('data-report-row-number="'.$reportIds[1].'">1</td>', false)
             ->assertSee('>PAGE-REPORT-1</div>', false)
             ->assertDontSee('PAGE-REPORT-11');
     }
@@ -2735,7 +2740,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString("finance-transaction-amount--out' => \$transaction->direction === 'out'", $financeDashboardSource);
         $this->assertStringContainsString('.finance-transaction-amount--in {', $financeTableCss);
         $this->assertStringContainsString('.finance-transaction-amount--out {', $financeTableCss);
-        $this->assertStringContainsString('<th class="px-2 py-3 text-center">#</th>', $financeDashboardSource);
+        $this->assertStringContainsString('<th data-table-number-column class="px-2 py-3 text-center">#</th>', $financeDashboardSource);
         $this->assertStringContainsString('{{ $transactions->firstItem() + $loop->index }}', $financeDashboardSource);
         $this->assertStringContainsString('<div class="finance-transaction-reference" data-finance-spacing-content="reference"><div class="finance-transaction-primary" aria-label="{{ $specialTransactionNumber }}">', $financeDashboardSource);
         $this->assertSame(6, substr_count($financeDashboardSource, 'wire:key="finance-transactions-filter-'));

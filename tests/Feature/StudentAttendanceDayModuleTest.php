@@ -464,6 +464,17 @@ class StudentAttendanceDayModuleTest extends TestCase
                 '2',
                 '1',
             ]);
+
+        Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
+            ->assertViewHas('presentCount', 1)
+            ->set('selected_statuses.'.$secondEnrollment->id, (string) $present->id)
+            ->call('saveEnrollmentStatus', $secondEnrollment->id)
+            ->assertHasNoErrors()
+            ->assertViewHas('presentCount', 2)
+            ->set('selected_statuses.'.$firstEnrollment->id, (string) $absent->id)
+            ->call('saveEnrollmentStatus', $firstEnrollment->id)
+            ->assertHasNoErrors()
+            ->assertViewHas('presentCount', 1);
     }
 
     public function test_manager_can_toggle_student_attendance_day_status_for_all_groups(): void

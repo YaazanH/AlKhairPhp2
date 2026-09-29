@@ -259,8 +259,8 @@ new class extends Component
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.student_attendance.subtitle') }}</p>
         <div class="mt-6 flex flex-wrap gap-3">
             <span class="badge-soft">{{ $groupRecord->name }}</span>
-            <span class="badge-soft badge-soft--emerald">{{ $groupRecord->course?->name ?: __('workflow.common.no_course') }}</span>
-            <span class="badge-soft">{{ $groupRecord->academicYear?->name ?: __('workflow.common.no_academic_year') }}</span>
+            <span class="badge-soft badge-soft--emerald"><span class="record-course-name">{{ $groupRecord->course?->name ?: __('workflow.common.no_course') }}</span></span>
+            <span class="badge-soft"><span class="record-year-name">{{ $groupRecord->academicYear?->name ?: __('workflow.common.no_academic_year') }}</span></span>
         </div>
     </section>
 
@@ -319,17 +319,17 @@ new class extends Component
                 <div class="mt-4 space-y-3 text-sm text-neutral-300">
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.student_attendance.context.teacher') }}</div>
-                        <div class="mt-1 text-white">
+                        <div class="record-person-name mt-1 text-white">
                             {{ $groupRecord->teacher ? $groupRecord->teacher->first_name.' '.$groupRecord->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
                         </div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.student_attendance.context.course') }}</div>
-                        <div class="mt-1 text-white">{{ $groupRecord->course?->name ?: __('workflow.common.no_course') }}</div>
+                        <div class="mt-1 text-white"><span class="record-course-name">{{ $groupRecord->course?->name ?: __('workflow.common.no_course') }}</span></div>
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.18em] text-neutral-500">{{ __('workflow.student_attendance.context.academic_year') }}</div>
-                        <div class="mt-1 text-white">{{ $groupRecord->academicYear?->name ?: __('workflow.common.no_academic_year') }}</div>
+                        <div class="mt-1 text-white"><span class="record-year-name">{{ $groupRecord->academicYear?->name ?: __('workflow.common.no_academic_year') }}</span></div>
                     </div>
                 </div>
             </section>
@@ -376,21 +376,23 @@ new class extends Component
                 <table class="attendance-records-table text-sm" data-attendance-records>
                     <thead>
                         <tr>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
+                            <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
+                            <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.student') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.enrolled') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.current_points') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
+                            <th class="student-attendance-status-column px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.table.headers.attendance') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($enrollments as $enrollment)
                             <tr>
-                                <td class="px-5 py-4 lg:px-6">
-                                    <div class="font-semibold text-white">{{ $enrollment->student?->full_name }}</div>
+                                <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
+                                <td class="attendance-person-column px-5 py-4 lg:px-6">
+                                    <div class="record-person-name font-semibold text-white">{{ $enrollment->student?->full_name }}</div>
                                 </td>
                                 <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
                                 <td class="attendance-desktop-only px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
-                                <td class="px-5 py-4 lg:px-6">
+                                <td class="student-attendance-status-column px-5 py-4 lg:px-6">
                                     @if ($isDayClosed)
                                         <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else

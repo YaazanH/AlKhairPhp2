@@ -24,7 +24,7 @@
 
 <span {{ $attributes->class(['student-avatar', $sizeClass]) }}>
     @if ($photoUrl)
-        <img src="{{ $photoUrl }}" alt="{{ $name !== '' ? $name : 'Student photo' }}" class="student-avatar__image">
+        <x-avatar-image type="student" :src="$photoUrl" alt="{{ $name !== '' ? $name : 'Student photo' }}" class="student-avatar__image" />
     @else
         <span class="student-avatar__fallback">{{ $initials !== '' ? $initials : 'S' }}</span>
     @endif

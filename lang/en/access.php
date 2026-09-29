@@ -119,6 +119,8 @@ return [
             'help' => 'Use extra scope assignments to extend a specific user beyond their normal role-linked data without changing the role defaults.',
             'groups' => 'Extra groups',
             'students' => 'Extra students',
+            'student_progress_all' => 'View all students in Student Progress only',
+            'student_progress_all_help' => 'Allows viewing progress data for all students. Does not expand access to other student pages or editing permissions.',
             'teachers' => 'Extra teachers',
             'parents' => 'Extra parents',
             'empty' => 'No records available.',

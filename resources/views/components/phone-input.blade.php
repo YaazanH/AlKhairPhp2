@@ -109,7 +109,7 @@
             class="phone-country-menu absolute left-0 z-50 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
             <div class="border-b border-neutral-700 p-2">
-                <input x-ref="countrySearch" x-model="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">
+                <input x-ref="countrySearch" x-model.debounce.500ms="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">
             </div>
             <div class="phone-country-options max-h-72 touch-pan-y overflow-y-auto overscroll-contain py-1" role="listbox" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
                 <template x-for="country in filteredCountries" :key="country.region">
