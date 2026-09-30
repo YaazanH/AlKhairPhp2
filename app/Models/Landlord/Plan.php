@@ -12,12 +12,14 @@ class Plan extends LandlordModel
         'name',
         'description',
         'is_active',
+        'storage_limit_bytes',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'storage_limit_bytes' => 'integer',
         ];
     }
 

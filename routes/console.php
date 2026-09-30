@@ -9,6 +9,10 @@ Schedule::command('backup:run --scheduled')
     ->everyMinute()
     ->withoutOverlapping(120);
 
+Schedule::command('saas:backup-tenants')
+    ->everyMinute()
+    ->withoutOverlapping(120);
+
 Schedule::command('backup:health')
     ->hourly()
     ->withoutOverlapping(30);

@@ -56,6 +56,11 @@
                         <span class="settings-tab__title">{{ __('backups.navigation_title') }}</span>
                     </a>
                 @endcan
+                @can('storage.view')
+                    <a href="{{ route('settings.storage') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.storage' ? 'is-active' : '' }}">
+                        <span class="settings-tab__title">Storage</span>
+                    </a>
+                @endcan
             </div>
         </section>
         @endunless

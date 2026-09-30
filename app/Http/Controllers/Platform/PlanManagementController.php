@@ -37,7 +37,7 @@ class PlanManagementController extends Controller
         try {
             $plan = $this->plans->create([
                 'code' => $data['code'], 'name' => $data['name'],
-                'description' => $data['description'] ?? null, 'is_active' => (bool) ($data['is_active'] ?? false),
+                'description' => $data['description'] ?? null, 'is_active' => (bool) ($data['is_active'] ?? false), 'storage_limit_bytes' => $this->storageBytes($data['storage_limit_gb'] ?? null),
             ], $data['modules'] ?? [], $request->user('platform'), $request->ip());
         } catch (DomainException $exception) {
             return back()->withInput()->withErrors(['modules' => $exception->getMessage()]);
@@ -101,7 +101,7 @@ class PlanManagementController extends Controller
 
         $this->plans->update($plan, [
             'name' => $data['name'], 'description' => $data['description'] ?? null,
-            'is_active' => (bool) ($data['is_active'] ?? false),
+            'is_active' => (bool) ($data['is_active'] ?? false), 'storage_limit_bytes' => $this->storageBytes($data['storage_limit_gb'] ?? null),
         ], $data['modules'] ?? [], $request->user('platform'), $request->ip());
         $request->session()->forget('platform.plan_preview.'.$plan->id);
 
@@ -168,6 +168,7 @@ class PlanManagementController extends Controller
         return $request->validate([
             'code' => [$plan?->exists ? 'sometimes' : 'required', 'alpha_dash', 'max:80', Rule::unique('landlord.plans', 'code')->ignore($plan?->id)],
             'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:2000'],
+            'storage_limit_gb' => ['nullable', 'numeric', 'min:0.1', 'max:100000'],
             'modules' => ['array'], 'modules.*' => ['string'], 'is_active' => ['nullable', 'boolean'],
             'confirm_impact' => ['nullable', 'boolean'],
             'features' => ['array'], 'features.*' => ['string', 'exists:landlord.features,code'],
@@ -196,5 +197,10 @@ class PlanManagementController extends Controller
         }
 
         return $code;
+    }
+
+    private function storageBytes(mixed $gigabytes): ?int
+    {
+        return blank($gigabytes) ? null : (int) round((float) $gigabytes * 1024 * 1024 * 1024);
     }
 }

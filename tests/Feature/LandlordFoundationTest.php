@@ -6,7 +6,9 @@ use App\Http\Middleware\EnsureTenantFeature;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\SaasBackupSetting;
 use App\Models\Landlord\Tenant;
+use App\Models\Landlord\TenantBackup;
 use App\Models\Landlord\TenantFeatureOverride;
 use App\Models\Landlord\TenantSubscription;
 use App\Services\Landlord\TenantContext;
@@ -92,6 +94,40 @@ class LandlordFoundationTest extends TestCase
             [Feature::CORE, Feature::FINANCE, Feature::CUSTOM_PRINTING],
             $completePlan->features->pluck('code')->all(),
         );
+    }
+
+    public function test_saas_backup_metadata_and_storage_limit_are_landlord_data(): void
+    {
+        $plan = Plan::query()->create([
+            'code' => 'storage-limited',
+            'name' => 'Storage limited',
+            'is_active' => true,
+            'storage_limit_bytes' => 10 * 1024 * 1024 * 1024,
+        ]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Al Noor Centre',
+            'slug' => 'al-noor',
+            'database_name' => 'alkhair_tenant_'.str_repeat('b', 32),
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+        $backup = TenantBackup::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'tenant_id' => $tenant->id,
+            'disk' => 'local',
+            'file_path' => 'saas-backups/example.alkhair-backup',
+            'filename' => 'example.alkhair-backup',
+            'trigger' => TenantBackup::TRIGGER_SCHEDULED,
+            'status' => TenantBackup::STATUS_COMPLETED,
+            'verified_at' => now(),
+        ]);
+
+        $settings = SaasBackupSetting::current();
+
+        $this->assertSame(30, $settings->retention_count);
+        $this->assertSame(10 * 1024 * 1024 * 1024, $plan->storage_limit_bytes);
+        $this->assertTrue($backup->isUsable());
+        $this->assertTrue($tenant->backups()->whereKey($backup)->exists());
     }
 
     public function test_feature_access_requires_an_operational_tenant_and_current_subscription_unless_core(): void

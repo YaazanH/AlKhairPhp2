@@ -162,6 +162,7 @@ class RoleSeeder extends Seeder
             'data-quality.resolve',
             'data-audit.view',
             'backups.manage',
+            'storage.view',
             'settings.manage',
             'website.manage',
             'student-notes.view',

@@ -4,6 +4,8 @@ use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\AuthenticatePlatform;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
 use App\Http\Middleware\EnsureTenantFeature;
+use App\Http\Middleware\EnsureNoTenantContext;
+use App\Http\Middleware\EnforceTenantStorageQuota;
 use App\Http\Middleware\EnsureTenantModules;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
@@ -47,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             DiscardInvalidRememberCookie::class,
             RequireTenantPasswordChange::class,
             EnsureTenantModules::class,
+            EnforceTenantStorageQuota::class,
             RedirectToTenantSetup::class,
             SetLocale::class,
             MeasurePerformance::class,
@@ -62,6 +65,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'no-store' => PreventPageCaching::class,
             'platform.auth' => AuthenticatePlatform::class,
             'tenant.feature' => EnsureTenantFeature::class,
+            'no-tenant' => EnsureNoTenantContext::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

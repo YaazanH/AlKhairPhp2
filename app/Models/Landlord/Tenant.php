@@ -56,6 +56,11 @@ class Tenant extends LandlordModel
         return $this->hasMany(TenantProvisioningAttempt::class);
     }
 
+    public function backups(): HasMany
+    {
+        return $this->hasMany(TenantBackup::class);
+    }
+
     public function isOperational(): bool
     {
         return in_array($this->status, [self::STATUS_TRIAL, self::STATUS_ACTIVE], true);

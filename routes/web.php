@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminExportController;
+use App\Http\Controllers\BackupSettingsEntryController;
 use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\CourseCalendarPdfController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Platform\PlanManagementController;
 use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
 use App\Http\Controllers\Platform\TenantManagementController;
+use App\Http\Controllers\Platform\TenantBackupController as PlatformTenantBackupController;
 use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
 use App\Http\Controllers\Platform\TenantSubscriptionController;
@@ -27,6 +29,9 @@ use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\RequiredPasswordChangeController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
+use App\Http\Controllers\TenantBackupController;
+use App\Http\Controllers\TenantStorageUsageController;
+use App\Http\Controllers\Platform\StorageUsageController;
 use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\TenantPublicMediaController;
 use App\Http\Controllers\TenantSetupController;
@@ -49,6 +54,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 
     Route::middleware('platform.auth')->group(function (): void {
         Route::get('/', PlatformDashboardController::class)->name('dashboard');
+        Route::get('backups', [PlatformTenantBackupController::class, 'index'])->name('backups.index');
+        Route::get('storage', StorageUsageController::class)->name('storage.index');
+        Route::put('backups/settings', [PlatformTenantBackupController::class, 'updateSettings'])->name('backups.settings.update');
+        Route::post('backups', [PlatformTenantBackupController::class, 'create'])->name('backups.create');
+        Route::get('backups/{tenantBackup}/download', [PlatformTenantBackupController::class, 'download'])->name('backups.download');
+        Route::post('backups/{tenantBackup}/restore', [PlatformTenantBackupController::class, 'restore'])->name('backups.restore');
         Route::get('packages', [PlanManagementController::class, 'index'])->name('plans.index');
         Route::get('packages/create', [PlanManagementController::class, 'create'])->name('plans.create');
         Route::post('packages', [PlanManagementController::class, 'store'])->name('plans.store');
@@ -166,8 +177,13 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/finance', 'settings.finance')->middleware(['tenant.feature:finance', 'permission:finance.settings.manage'])->name('settings.finance');
     Volt::route('settings/permissions', 'settings.access-control')->middleware('permission:roles.manage')->name('settings.access-control');
     Route::redirect('settings/access-control', '/settings/permissions')->middleware('permission:roles.manage')->name('legacy.settings.access-control');
-    Volt::route('settings/backups', 'settings.backups')->middleware('permission:backups.manage')->name('settings.backups');
-    Route::get('settings/backups/{systemBackup}/download', SystemBackupDownloadController::class)->middleware('permission:backups.manage')->name('settings.backups.download');
+    Route::get('settings/backups', BackupSettingsEntryController::class)->middleware('permission:backups.manage')->name('settings.backups');
+    Volt::route('settings/system-backups', 'settings.backups')->middleware(['permission:backups.manage', 'no-tenant'])->name('settings.system-backups');
+    Route::get('settings/backups/{systemBackup}/download', SystemBackupDownloadController::class)->middleware(['permission:backups.manage', 'no-tenant'])->name('settings.backups.download');
+    Route::get('settings/tenant-backups', [TenantBackupController::class, 'index'])->middleware('permission:backups.manage')->name('settings.tenant-backups');
+    Route::get('settings/tenant-backups/{tenantBackup}/download', [TenantBackupController::class, 'download'])->middleware('permission:backups.manage')->name('settings.tenant-backups.download');
+    Route::post('settings/tenant-backups/{tenantBackup}/restore', [TenantBackupController::class, 'restore'])->middleware('permission:backups.manage')->name('settings.tenant-backups.restore');
+    Route::get('settings/storage', TenantStorageUsageController::class)->middleware('permission:storage.view')->name('settings.storage');
     Volt::route('settings/website', 'settings.website')->middleware('permission:website.manage')->name('settings.website');
     Volt::route('settings/website/pages', 'settings.website-pages')->middleware('permission:website.manage')->name('settings.website.pages');
     Volt::route('settings/website/navigation', 'settings.website-navigation')->middleware('permission:website.manage')->name('settings.website.navigation');

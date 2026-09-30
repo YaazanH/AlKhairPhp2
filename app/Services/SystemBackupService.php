@@ -63,14 +63,21 @@ class SystemBackupService
         return $this->settings();
     }
 
-    public function create(?User $creator = null, string $trigger = SystemBackup::TRIGGER_MANUAL, string $scope = SystemBackup::SCOPE_DATABASE): SystemBackup
+    public function create(
+        ?User $creator = null,
+        string $trigger = SystemBackup::TRIGGER_MANUAL,
+        string $scope = SystemBackup::SCOPE_DATABASE,
+        bool $applyRetention = true,
+    ): SystemBackup
     {
         if (! in_array($trigger, [SystemBackup::TRIGGER_MANUAL, SystemBackup::TRIGGER_SCHEDULED, SystemBackup::TRIGGER_PRE_RESTORE], true)) {
             throw new RuntimeException('Unsupported backup trigger.');
         }
 
         $this->assertScope($scope);
-        if ($trigger === SystemBackup::TRIGGER_SCHEDULED && $scope !== SystemBackup::SCOPE_DATABASE) {
+        if ($trigger === SystemBackup::TRIGGER_SCHEDULED
+            && $scope !== SystemBackup::SCOPE_DATABASE
+            && ! config('backups.allow_scheduled_full', false)) {
             throw new RuntimeException('Scheduled backups must contain only the database.');
         }
 
@@ -81,7 +88,7 @@ class SystemBackupService
         }
 
         try {
-            return $this->createUnlocked($creator, $trigger, scope: $scope);
+            return $this->createUnlocked($creator, $trigger, applyRetention: $applyRetention, scope: $scope);
         } finally {
             $lock->release();
         }
@@ -231,7 +238,13 @@ class SystemBackupService
         $backup->delete();
     }
 
-    public function restore(SystemBackup $backup, ?User $actor = null): void
+    public function restore(
+        SystemBackup $backup,
+        ?User $actor = null,
+        bool $createSafetyBackup = true,
+        bool $useMaintenanceMode = true,
+        bool $replaceFiles = false,
+    ): void
     {
         if (! $backup->isUsable()) {
             throw new RuntimeException('Only completed and verified backups can be restored.');
@@ -273,10 +286,14 @@ class SystemBackupService
             }
             // Do not prune retention while restoring: the selected recovery point
             // and its new safety copy must remain available throughout the operation.
-            $safetyBackup = $this->createUnlocked($actor, SystemBackup::TRIGGER_PRE_RESTORE, false, $scope);
+            $safetyBackup = $createSafetyBackup
+                ? $this->createUnlocked($actor, SystemBackup::TRIGGER_PRE_RESTORE, false, $scope)
+                : null;
             $backupHistory = SystemBackup::query()->get()->map(fn (SystemBackup $item): array => $item->getAttributes())->all();
 
-            Artisan::call('down');
+            if ($useMaintenanceMode) {
+                Artisan::call('down');
+            }
 
             try {
                 if ($hasDatabase) {
@@ -284,6 +301,9 @@ class SystemBackupService
                     $this->restoreBackupHistory($backupHistory);
                 }
                 if ($scope !== SystemBackup::SCOPE_DATABASE) {
+                    if ($replaceFiles) {
+                        $this->clearRestoreDataRoots();
+                    }
                     $this->restoreFiles($prepared['zip'], $prepared['manifest']);
                 }
 
@@ -296,11 +316,15 @@ class SystemBackupService
                     'error_message' => null,
                 ])->save();
 
-                SystemBackup::query()
-                    ->where('uuid', $safetyBackup->uuid)
-                    ->update(['error_message' => null]);
+                if ($safetyBackup) {
+                    SystemBackup::query()
+                        ->where('uuid', $safetyBackup->uuid)
+                        ->update(['error_message' => null]);
+                }
             } finally {
-                Artisan::call('up');
+                if ($useMaintenanceMode) {
+                    Artisan::call('up');
+                }
             }
         } finally {
             if (isset($prepared['zip']) && $prepared['zip'] instanceof ZipArchive) {
@@ -1166,6 +1190,14 @@ class SystemBackupService
                 File::delete($temporaryDestination);
                 throw new RuntimeException("Unable to restore uploaded file [{$relative}].");
             }
+        }
+    }
+
+    private function clearRestoreDataRoots(): void
+    {
+        foreach ($this->dataRoots() as $root) {
+            File::deleteDirectory($root);
+            File::ensureDirectoryExists($root);
         }
     }
 

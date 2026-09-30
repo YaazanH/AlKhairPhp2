@@ -16,6 +16,8 @@
             <div class="px-3 pt-4"><a href="{{ route('platform.dashboard') }}" class="text-lg font-bold text-white">AlKhair <span class="text-emerald-400">Platform</span></a><p class="mt-1 text-xs text-zinc-400">SaaS administration</p></div>
             <flux:navlist variant="outline" class="mt-6">
                 <flux:navlist.item icon="squares-2x2" href="{{ route('platform.dashboard') }}" :current="request()->routeIs('platform.dashboard')">Overview</flux:navlist.item>
+                <flux:navlist.item icon="archive-box" href="{{ route('platform.backups.index') }}" :current="request()->routeIs('platform.backups.*')">Backups</flux:navlist.item>
+                <flux:navlist.item icon="circle-stack" href="{{ route('platform.storage.index') }}" :current="request()->routeIs('platform.storage.*')">Storage</flux:navlist.item>
                 <flux:navlist.item icon="building-office-2" href="{{ route('platform.plans.index') }}" :current="request()->routeIs('platform.plans.*')">Packages</flux:navlist.item>
                 <flux:navlist.item icon="plus-circle" href="{{ route('platform.tenants.create') }}" :current="request()->routeIs('platform.tenants.create')">New tenant</flux:navlist.item>
             </flux:navlist>

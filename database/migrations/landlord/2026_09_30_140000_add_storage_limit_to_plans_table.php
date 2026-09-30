@@ -1,0 +1,22 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    protected $connection = 'landlord';
+
+    public function up(): void
+    {
+        Schema::table('plans', function (Blueprint $table) {
+            $table->unsignedBigInteger('storage_limit_bytes')->nullable()->after('is_active');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('plans', fn (Blueprint $table) => $table->dropColumn('storage_limit_bytes'));
+    }
+};
