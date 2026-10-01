@@ -22,7 +22,10 @@ return new class extends Migration
             $table->id();
             $table->uuid('uuid')->unique();
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('tenant_subscription_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('tenant_subscription_id')
+                ->nullable()
+                ->constrained('tenant_subscriptions', 'id', 'platform_billing_subscription_foreign')
+                ->nullOnDelete();
             $table->unsignedBigInteger('credit_syp')->default(0);
             $table->unsignedBigInteger('debit_syp')->default(0);
             $table->string('type', 40);
@@ -38,7 +41,11 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('platform_subscription_ledger_entries');
-        Schema::table('tenant_subscriptions', function (Blueprint $table) { $table->dropColumn(['grace_ends_at', 'renews_automatically']); });
-        Schema::table('plans', function (Blueprint $table) { $table->dropColumn(['price_syp', 'billing_period_days']); });
+        Schema::table('tenant_subscriptions', function (Blueprint $table) {
+            $table->dropColumn(['grace_ends_at', 'renews_automatically']);
+        });
+        Schema::table('plans', function (Blueprint $table) {
+            $table->dropColumn(['price_syp', 'billing_period_days']);
+        });
     }
 };
