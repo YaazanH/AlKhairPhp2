@@ -15,14 +15,20 @@
                     @if ($canSubmitProblem)<option value="problem">Report a problem</option>@endif
                     @if ($canSubmitSuggestion)<option value="suggestion">Suggest an improvement</option>@endif
                 </select>
-                <select name="priority" x-show="type === 'problem'" x-cloak class="w-full rounded border p-3">
+                <select name="priority" x-show="type === 'problem'" x-bind:disabled="type !== 'problem'" x-bind:required="type === 'problem'" x-cloak class="w-full rounded border p-3">
                     <option value="normal">Problem priority: Normal</option>
                     <option value="high">Problem priority: High</option>
                     <option value="critical">Problem priority: Critical</option>
                 </select>
-                <input name="reported_url" type="hidden" value="{{ url()->current() }}">
+                <select name="impact" x-show="type === 'problem'" x-bind:disabled="type !== 'problem'" x-bind:required="type === 'problem'" x-cloak class="w-full rounded border p-3">
+                    <option value="">Who is affected?</option>
+                    @foreach (\App\Models\TenantSupportRequest::impactOptions() as $value => $label)
+                        <option value="{{ $value }}">Impact: {{ $label }}</option>
+                    @endforeach
+                </select>
                 <input name="subject" required placeholder="Short subject" class="w-full rounded border p-3">
                 <textarea name="message" required rows="5" placeholder="Describe what happened or what would help" class="w-full rounded border p-3"></textarea>
+                <textarea name="expected_result" x-show="type === 'problem'" x-bind:disabled="type !== 'problem'" x-bind:required="type === 'problem'" x-cloak rows="3" placeholder="What did you expect to happen?" class="w-full rounded border p-3"></textarea>
                 <button class="rounded bg-emerald-700 px-4 py-3 text-white">Submit</button>
             </form>
         @endif
@@ -39,6 +45,10 @@
                             <span class="ms-2 text-sm text-zinc-500">Priority: {{ str($item->priority)->title() }}</span>
                         @endif
                         <p class="mt-1 text-sm">{{ $item->message }}</p>
+                        @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM)
+                            @if ($item->expected_result)<p class="mt-2 text-sm"><strong>Expected:</strong> {{ $item->expected_result }}</p>@endif
+                            @if ($item->impact)<p class="mt-1 text-sm text-zinc-500">Impact: {{ \App\Models\TenantSupportRequest::impactOptions()[$item->impact] ?? $item->impact }}</p>@endif
+                        @endif
 
                         <div class="mt-4 space-y-2 border-t pt-3">
                             @forelse ($item->messages as $supportMessage)

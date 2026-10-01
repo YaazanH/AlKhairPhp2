@@ -25,6 +25,8 @@ class TenantSupportContextTest extends TestCase
                 'type' => TenantSupportRequest::TYPE_PROBLEM,
                 'subject' => 'Cannot save attendance',
                 'message' => 'The save button does not respond.',
+                'expected_result' => 'The attendance entry should be saved.',
+                'impact' => TenantSupportRequest::IMPACT_SEVERAL_USERS,
                 'priority' => 'high',
             ])
             ->assertRedirect();

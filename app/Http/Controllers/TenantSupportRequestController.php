@@ -31,7 +31,9 @@ class TenantSupportRequestController extends Controller
             'type' => ['required', Rule::in([TenantSupportRequest::TYPE_PROBLEM, TenantSupportRequest::TYPE_SUGGESTION])],
             'subject' => ['required', 'string', 'max:180'],
             'message' => ['required', 'string', 'max:5000'],
-            'priority' => ['nullable', Rule::in(['normal', 'high', 'critical'])],
+            'expected_result' => ['nullable', 'string', 'max:5000', 'required_if:type,problem'],
+            'impact' => ['nullable', Rule::in(array_keys(TenantSupportRequest::impactOptions())), 'required_if:type,problem'],
+            'priority' => ['nullable', Rule::in(['normal', 'high', 'critical']), 'required_if:type,problem'],
         ]);
 
         $permission = $data['type'] === TenantSupportRequest::TYPE_PROBLEM
@@ -48,6 +50,8 @@ class TenantSupportRequestController extends Controller
             ];
         } else {
             $data['priority'] = null;
+            $data['expected_result'] = null;
+            $data['impact'] = null;
         }
 
         TenantSupportRequest::query()->create($data + ['submitted_by_user_id' => $request->user()->id]);
@@ -99,6 +103,7 @@ class TenantSupportRequestController extends Controller
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(TenantSupportRequest::statusesForType($supportRequest->type))],
+            'priority' => ['nullable', Rule::in(['normal', 'high', 'critical'])],
             'tenant_admin_note' => ['nullable', 'string', 'max:5000'],
             'forward' => ['nullable', 'boolean'],
         ]);
@@ -107,6 +112,10 @@ class TenantSupportRequestController extends Controller
             'status' => $data['status'],
             'tenant_admin_note' => $data['tenant_admin_note'] ?? null,
         ]);
+
+        if ($supportRequest->type === TenantSupportRequest::TYPE_PROBLEM) {
+            $supportRequest->priority = $data['priority'] ?? $supportRequest->priority;
+        }
 
         if ($request->boolean('forward')) {
             $supportRequest->fill([

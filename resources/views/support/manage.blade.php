@@ -17,8 +17,10 @@
                     </div>
                     <p class="mt-2">{{ $item->message }}</p>
                     <p class="mt-2 text-sm text-zinc-500">Submitted by {{ $item->submittedBy?->name }}</p>
-                    @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM && $item->priority)
-                        <p class="mt-1 text-sm text-zinc-500">Priority: {{ str($item->priority)->title() }}</p>
+                    @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM)
+                        @if ($item->priority)<p class="mt-1 text-sm text-zinc-500">Priority: {{ str($item->priority)->title() }}</p>@endif
+                        @if ($item->expected_result)<p class="mt-2 text-sm"><strong>Expected:</strong> {{ $item->expected_result }}</p>@endif
+                        @if ($item->impact)<p class="mt-1 text-sm text-zinc-500">Impact: {{ \App\Models\TenantSupportRequest::impactOptions()[$item->impact] ?? $item->impact }}</p>@endif
                     @endif
                     @if ($platformCase)
                         <div class="mt-3 rounded border border-sky-200 bg-sky-50 p-3 text-sm">
@@ -72,6 +74,13 @@
                                 <option value="{{ $status }}" @selected($item->status === $status)>{{ \App\Models\TenantSupportRequest::statusLabel($status) }}</option>
                             @endforeach
                         </select>
+                        @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM)
+                            <select name="priority" class="rounded border p-3">
+                                @foreach (['normal', 'high', 'critical'] as $priority)
+                                    <option value="{{ $priority }}" @selected($item->priority === $priority)>Priority: {{ str($priority)->title() }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                         <textarea name="tenant_admin_note" placeholder="Internal note, not visible to the submitter" class="rounded border p-3">{{ $item->tenant_admin_note }}</textarea>
                         <label>
                             <input type="checkbox" name="forward" value="1">

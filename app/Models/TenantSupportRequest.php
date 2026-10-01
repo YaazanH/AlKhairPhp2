@@ -31,8 +31,14 @@ class TenantSupportRequest extends Model
 
     public const STATUS_DECLINED = 'declined';
 
+    public const IMPACT_INDIVIDUAL = 'individual';
+
+    public const IMPACT_SEVERAL_USERS = 'several_users';
+
+    public const IMPACT_ALL_USERS = 'all_users';
+
     protected $fillable = [
-        'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'reported_url', 'browser_info', 'app_version',
+        'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'expected_result', 'impact', 'reported_url', 'browser_info', 'app_version',
         'submitted_by_user_id', 'forwarded_by_user_id', 'forwarded_at', 'tenant_admin_note',
     ];
 
@@ -55,6 +61,15 @@ class TenantSupportRequest extends Model
             ],
             default => [],
         };
+    }
+
+    public static function impactOptions(): array
+    {
+        return [
+            self::IMPACT_INDIVIDUAL => 'Only me or one person',
+            self::IMPACT_SEVERAL_USERS => 'A group or several people',
+            self::IMPACT_ALL_USERS => 'Most or all users',
+        ];
     }
 
     public static function newIncidentReference(): string
