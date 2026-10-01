@@ -25,6 +25,7 @@ use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
 use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\Platform\SubscriptionVoucherController;
+use App\Http\Controllers\Platform\SubscriptionReceiptController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
@@ -103,6 +104,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::delete('tenants/{tenant}', [TenantManagementController::class, 'destroy'])->middleware('platform.permission:manage.tenants')->name('tenants.destroy');
         Route::put('tenants/{tenant}/subscription', [TenantSubscriptionController::class, 'update'])->middleware('platform.permission:manage.tenants')->name('tenants.subscription.update');
         Route::post('tenants/{tenant}/subscription/payments', [TenantSubscriptionController::class, 'recordOfflinePayment'])->middleware('platform.permission:manage.plans')->name('tenants.subscription.payments.store');
+        Route::get('subscription-payments/{entry}/receipt', SubscriptionReceiptController::class)->middleware('platform.permission:manage.plans')->name('subscription-payments.receipt');
         Route::post('logout', [PlatformAuthenticatedSessionController::class, 'destroy'])->name('logout');
     });
 });
@@ -309,4 +311,5 @@ require __DIR__.'/auth.php';
 
 // Run the web session and locale middleware for unknown website/dashboard URLs.
 Route::fallback(fn () => abort(404));
+
 
