@@ -18,6 +18,7 @@
             <flux:navlist variant="outline" class="mt-6">
                 <flux:navlist.item icon="squares-2x2" href="{{ route('platform.dashboard') }}" :current="request()->routeIs('platform.dashboard')">Overview</flux:navlist.item>
                 <flux:navlist.item icon="building-office-2" href="{{ route('platform.plans.index') }}" :current="request()->routeIs('platform.plans.*')">Packages</flux:navlist.item>
+                @if(auth('platform')->user()->hasPlatformPermission('view.subscriptions'))<flux:navlist.item icon="credit-card" href="{{ route('platform.subscription-settings.edit') }}" :current="request()->routeIs('platform.subscription-settings.*')">Subscriptions</flux:navlist.item>@endif
                 <flux:navlist.item icon="plus-circle" href="{{ route('platform.tenants.create') }}" :current="request()->routeIs('platform.tenants.create')">New tenant</flux:navlist.item>
                 @if(auth('platform')->user()->hasPlatformPermission('manage.platform-users'))<flux:navlist.item icon="users" href="{{ route('platform.access.index') }}" :current="request()->routeIs('platform.access.*')">Platform users</flux:navlist.item>@endif
             </flux:navlist>

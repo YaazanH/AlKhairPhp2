@@ -33,12 +33,67 @@
 
     @if($editing)
         <section class="grid gap-5 md:grid-cols-2">
-            <div class="rounded-3xl border bg-white p-6 shadow-sm"><div class="flex items-center justify-between gap-3"><h2 class="font-semibold">Package</h2><a href="{{ route('platform.plans.index') }}" class="text-sm text-emerald-700">Manage packages</a></div><form class="mt-4 flex flex-col gap-3 sm:flex-row" method="POST" action="{{ route('platform.tenants.subscription.update', $tenant) }}">@csrf @method('PUT')<div class="grid flex-1 gap-2"><select name="plan" class="min-w-0 rounded-xl border p-3">@foreach($plans as $plan)<option value="{{ $plan->code }}" @selected($tenant->subscription?->plan?->code === $plan->code)>{{ $plan->name }}{{ $plan->is_active ? '' : ' (inactive)' }}</option>@endforeach</select><select name="voucher_id" class="rounded-xl border p-3"><option value="">No voucher</option>@foreach($vouchers as $voucher)<option value="{{ $voucher->id }}" @selected($tenant->subscription?->subscription_voucher_id === $voucher->id)>{{ $voucher->code }} — {{ $voucher->name }}</option>@endforeach</select><label class="flex items-center gap-2 text-sm"><input type="hidden" name="renews_automatically" value="0"><input type="checkbox" name="renews_automatically" value="1" @checked($tenant->subscription?->renews_automatically)> Renew automatically from prepaid balance</label><p class="text-xs text-zinc-500">Expires: {{ $tenant->subscription?->ends_at?->format('Y-m-d H:i') ?? 'No expiry set' }}@if($tenant->subscription?->grace_ends_at) · Grace ends: {{ $tenant->subscription->grace_ends_at->format('Y-m-d H:i') }}@endif</p></div><button class="rounded-xl border px-4 py-3">Save package</button></form></div>
+            <div class="rounded-3xl border bg-white p-6 shadow-sm">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="font-semibold">Package and period</h2>
+                    <a href="{{ route('platform.plans.index') }}" class="text-sm text-emerald-700">Manage packages</a>
+                </div>
+                @if(auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))
+                <form class="mt-4 grid gap-3" method="POST" action="{{ route('platform.tenants.subscription.update', $tenant) }}">
+                    @csrf
+                    @method('PUT')
+                    <label class="grid gap-1 text-sm">Package
+                        <select name="plan" class="rounded-xl border p-3">@foreach($plans as $plan)<option value="{{ $plan->code }}" @selected(old('plan', $tenant->subscription?->plan?->code) === $plan->code)>{{ $plan->name }}{{ $plan->is_active ? '' : ' (inactive)' }}</option>@endforeach</select>
+                    </label>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="grid gap-1 text-sm">Initial status
+                            <select name="subscription_status" class="rounded-xl border p-3"><option value="active" @selected(old('subscription_status', $tenant->subscription?->status) === 'active')>Active</option><option value="trial" @selected(old('subscription_status', $tenant->subscription?->status) === 'trial')>Trial</option></select>
+                        </label>
+                        <label class="grid gap-1 text-sm">Period
+                            <select name="period_type" class="rounded-xl border p-3">@foreach(['monthly' => 'Monthly', 'annual' => 'Annual', 'custom' => 'Custom'] as $value => $label)<option value="{{ $value }}" @selected(old('period_type', $tenant->subscription?->period_type ?? 'monthly') === $value)>{{ $label }}</option>@endforeach</select>
+                        </label>
+                    </div>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="grid gap-1 text-sm">Starts at<input name="starts_at" type="datetime-local" value="{{ old('starts_at', $tenant->subscription?->starts_at?->format('Y-m-d\TH:i')) }}" class="rounded-xl border p-3"></label>
+                        <label class="grid gap-1 text-sm">Custom end date<input name="ends_at" type="datetime-local" value="{{ old('ends_at', $tenant->subscription?->ends_at?->format('Y-m-d\TH:i')) }}" class="rounded-xl border p-3"></label>
+                    </div>
+                    <label class="grid gap-1 text-sm">Voucher<select name="voucher_id" class="rounded-xl border p-3"><option value="">No voucher</option>@foreach($vouchers as $voucher)<option value="{{ $voucher->id }}" @selected((string) old('voucher_id', $tenant->subscription?->subscription_voucher_id) === (string) $voucher->id)>{{ $voucher->code }} â€” {{ $voucher->name }}</option>@endforeach</select></label>
+                    <label class="flex items-center gap-2 text-sm"><input type="hidden" name="renews_automatically" value="0"><input type="checkbox" name="renews_automatically" value="1" @checked(old('renews_automatically', $tenant->subscription?->renews_automatically))> Renew automatically from prepaid balance</label>
+                    <p class="text-xs text-zinc-500">Current status: {{ str($tenant->subscription?->status ?? 'not configured')->replace('_', ' ')->title() }} Â· Expires: {{ $tenant->subscription?->ends_at?->format('Y-m-d H:i') ?? 'No expiry set' }}@if($tenant->subscription?->grace_ends_at) Â· Grace ends: {{ $tenant->subscription->grace_ends_at->format('Y-m-d H:i') }}@endif</p>
+                    <button class="rounded-xl border px-4 py-3">Save subscription</button>
+                </form>
+                @else
+                    <p class="mt-4 text-sm text-zinc-600">You need the manage subscriptions permission to change the package or subscription period.</p>
+                @endif
+            </div>
             <div class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Offline payment credit</h2><p class="mt-1 text-sm text-zinc-500">Record cash or manual transfer in SYP. This credits the tenant balance for a future automatic renewal.</p><form method="POST" action="{{ route('platform.tenants.subscription.payments.store', $tenant) }}" class="mt-4 grid gap-3">@csrf<input name="amount_syp" type="number" min="1" required placeholder="Amount (SYP)" class="rounded-xl border p-3"><input name="reference" required maxlength="100" placeholder="Receipt or transfer reference" class="rounded-xl border p-3"><button class="rounded-xl border px-4 py-3">Record offline payment</button></form></div>
-            <div class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Lifecycle</h2><p class="mt-1 text-sm text-zinc-500">Suspension blocks tenant business access without deleting data.</p><form class="mt-4" method="POST" action="{{ route('platform.tenants.status', $tenant) }}">@csrf @method('PATCH')<input type="hidden" name="status" value="{{ $tenant->status === 'suspended' ? 'active' : 'suspended' }}"><button class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">{{ $tenant->status === 'suspended' ? 'Activate tenant' : 'Suspend tenant' }}</button></form></div>
+            <div class="rounded-3xl border bg-white p-6 shadow-sm">
+                <h2 class="font-semibold">Lifecycle</h2>
+                <p class="mt-1 text-sm text-zinc-500">Cancellation keeps paid access through the subscription end date and seven-day grace period. Suspension blocks tenant access without deleting data.</p>
+                @if(in_array($tenant->subscription?->status, ['cancelled', 'suspended'], true))
+                    <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                        <p class="font-semibold">{{ str($tenant->subscription->status)->title() }}</p>
+                        @if($tenant->subscription->cancelled_at)<p>Cancelled: {{ $tenant->subscription->cancelled_at->format('Y-m-d H:i') }}</p>@endif
+                        @if($tenant->subscription->ends_at)<p>Paid period ends: {{ $tenant->subscription->ends_at->format('Y-m-d H:i') }}</p>@endif
+                        @if($retentionEligibleAt)<p>Retention review date: {{ $retentionEligibleAt->format('Y-m-d H:i') }} ({{ $suspendedDataRetentionMonths }} months after suspension)</p>@endif
+                    </div>
+                    @if(auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))<form class="mt-4" method="POST" action="{{ route('platform.tenants.subscription.reactivate', $tenant) }}">@csrf<button class="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900">Reactivate subscription</button></form>@endif
+                @else
+                    @if(auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))
+                    <form class="mt-4 grid gap-3" method="POST" action="{{ route('platform.tenants.subscription.cancel', $tenant) }}">
+                        @csrf
+                        <label class="grid gap-1 text-sm">Type <strong>{{ $tenant->slug }}</strong> to confirm cancellation<input name="confirm_slug" required autocomplete="off" class="rounded-xl border p-3"></label>
+                        <button class="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-rose-900">Cancel at end of paid period</button>
+                    </form>
+                    @else
+                        <p class="mt-4 text-sm text-zinc-600">You need the manage subscriptions permission to cancel this subscription.</p>
+                    @endif
+                @endif
+                <form class="mt-4 border-t pt-4" method="POST" action="{{ route('platform.tenants.status', $tenant) }}">@csrf @method('PATCH')<input type="hidden" name="status" value="{{ $tenant->status === 'suspended' ? 'active' : 'suspended' }}"><button class="text-sm text-amber-800 underline">{{ $tenant->status === 'suspended' ? 'Manually activate tenant' : 'Manually suspend tenant' }}</button></form>
+            </div>
         </section>
 
-        <section class="rounded-3xl border bg-white p-6 shadow-sm"><div class="flex justify-between"><div><h2 class="font-semibold">Subscription billing history</h2><p class="text-sm text-zinc-500">Immutable Platform billing entries.</p></div><strong class="text-emerald-700">{{ number_format($billingBalance) }} SYP</strong></div><table class="mt-4 w-full text-sm"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Credit</th><th>Charge</th></tr></thead><tbody>@forelse($billingEntries as $entry)<tr><td>{{ $entry->created_at->format('Y-m-d H:i') }}</td><td>{{ str($entry->type)->replace('_',' ')->title() }}</td><td>{{ $entry->reference ?: ($entry->metadata['voucher_code'] ?? '—') }} @if($entry->type === 'offline_payment')<a class="text-emerald-700 underline" target="_blank" href="{{ route('platform.subscription-payments.receipt', $entry) }}">Receipt</a>@endif</td><td>{{ $entry->credit_syp ? number_format($entry->credit_syp).' SYP' : '—' }}</td><td>{{ $entry->debit_syp ? number_format($entry->debit_syp).' SYP' : '—' }}</td></tr>@empty<tr><td colspan="5">No billing entries yet.</td></tr>@endforelse</tbody></table></section>
+        <section class="rounded-3xl border bg-white p-6 shadow-sm"><div class="flex justify-between"><div><h2 class="font-semibold">Subscription billing history</h2><p class="text-sm text-zinc-500">Immutable Platform billing entries.</p></div><strong class="text-emerald-700">{{ number_format($billingBalance) }} SYP</strong></div><table class="mt-4 w-full text-sm"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Credit</th><th>Charge</th></tr></thead><tbody>@forelse($billingEntries as $entry)<tr><td>{{ $entry->created_at->format('Y-m-d H:i') }}</td><td>{{ str($entry->type)->replace('_',' ')->title() }}</td><td>{{ $entry->reference ?: ($entry->metadata['voucher_code'] ?? 'â€”') }} @if($entry->type === 'offline_payment')<a class="text-emerald-700 underline" target="_blank" href="{{ route('platform.subscription-payments.receipt', $entry) }}">Receipt</a>@endif</td><td>{{ $entry->credit_syp ? number_format($entry->credit_syp).' SYP' : 'â€”' }}</td><td>{{ $entry->debit_syp ? number_format($entry->debit_syp).' SYP' : 'â€”' }}</td></tr>@empty<tr><td colspan="5">No billing entries yet.</td></tr>@endforelse</tbody></table></section>
 
         <section class="rounded-3xl border bg-white p-6 shadow-sm">
             <div><p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Additive only</p><h2 class="mt-1 text-lg font-semibold">Tenant-specific extras</h2><p class="mt-1 text-sm text-zinc-500">Grey checked modules are already supplied by the package and cannot be selected again. Choose only the additional modules needed by this tenant.</p></div>

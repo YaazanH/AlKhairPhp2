@@ -164,7 +164,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | In progress |
+| Status | Implemented |
 | Priority | P1 |
 | Requested outcome | Every tenant has a clear plan, start date, end date, and operational status so the platform can manage trials, renewals, expiry, suspension, and cancellation consistently. |
 | Agreed plan and period model | A plan defines what the tenant receives. A subscription defines its start date, end date, and selected period: monthly, annual, or custom end date. Platform staff manages the subscription. |
@@ -174,7 +174,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed suspended-user message | When a tenant is suspended, all tenant users see a simple service-unavailable message directing them to their organisation administrator. Do not show payment or subscription details to ordinary users. |
 | Agreed cancellation and retention | A Platform user marks a subscription cancelled. The tenant remains usable through its paid end date and grace period, then becomes suspended. Keep suspended tenant data for a retention period controlled in Platform settings, initially twelve months. Permanent deletion is a separate explicit, audited Platform action. |
 | Agreed trial scope | Do not create a separate standalone trial feature. When a short evaluation period is needed, a Platform user creates a normal tenant subscription with a short custom end date; it follows the same warning, grace-period, suspension, and retention rules. |
-| Product decisions still needed | Trial length, grace period, expiry behaviour, what remains visible to a suspended tenant, data-retention policy after cancellation, renewal rules, and whether subscriptions are monthly, annual, or custom-date. |
+| Implemented decisions | Monthly, annual, and custom periods; tenant-administrator expiry warnings; seven-day grace; generic suspended access page; cancellation at paid-period end; Platform-controlled retention setting; explicit audited deletion; and reactivation. |
 
 ### SAAS-009 — Platform payment recording for offline and online payments
 

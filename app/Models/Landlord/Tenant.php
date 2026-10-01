@@ -27,10 +27,18 @@ class Tenant extends LandlordModel
         'slug',
         'database_name',
         'status',
+        'suspended_at',
         'timezone',
         'locale',
         'logo_path',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'suspended_at' => 'datetime',
+        ];
+    }
 
     public function getRouteKeyName(): string
     {

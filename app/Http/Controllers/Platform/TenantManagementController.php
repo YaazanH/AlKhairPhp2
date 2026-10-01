@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
-use App\Models\Landlord\Tenant;
-use App\Models\Landlord\TenantDomain;
+use App\Models\Landlord\SaasPlatformSetting;
 use App\Models\Landlord\SubscriptionVoucher;
+use App\Models\Landlord\Tenant;
 use App\Services\Landlord\PlanModuleManager;
 use App\Services\Landlord\TenantModuleAccess;
 use App\Services\Landlord\TenantStorage;
@@ -34,6 +34,7 @@ class TenantManagementController extends Controller
 
     public function edit(Tenant $tenant, PlanModuleManager $planModules, TenantModuleAccess $moduleAccess): View
     {
+        $platformSettings = SaasPlatformSetting::current();
         $snapshot = $moduleAccess->snapshot($tenant);
         $packageModules = $tenant->subscription?->plan
             ? $planModules->preview(null, $planModules->selectedCodes($tenant->subscription->plan))['effective']
@@ -52,6 +53,8 @@ class TenantManagementController extends Controller
             'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->orderBy('code')->get(),
             'billingEntries' => PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->latest()->limit(20)->get(),
             'billingBalance' => (int) PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->sum(DB::raw('credit_syp - debit_syp')),
+            'suspendedDataRetentionMonths' => $platformSettings->suspended_data_retention_months,
+            'retentionEligibleAt' => $tenant->suspended_at?->copy()->addMonthsNoOverflow($platformSettings->suspended_data_retention_months),
             'moduleCatalog' => $planModules->catalog(),
             'moduleSnapshot' => $snapshot,
             'packageModules' => $packageModules,
@@ -84,7 +87,10 @@ class TenantManagementController extends Controller
             );
         }
 
-        $tenant->update(['status' => $data['status']]);
+        $tenant->update([
+            'status' => $data['status'],
+            'suspended_at' => $data['status'] === Tenant::STATUS_SUSPENDED ? now() : null,
+        ]);
         $this->audit($request, $tenant, 'tenant_status_updated', ['status' => $data['status']]);
 
         return back()->with('status', __('platform.tenant.status_updated'));

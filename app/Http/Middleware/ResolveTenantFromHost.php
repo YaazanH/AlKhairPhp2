@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Services\Landlord\TenantContext;
 use Closure;
@@ -37,7 +38,18 @@ class ResolveTenantFromHost
             ->where('host', $host)
             ->first();
 
-        if ($domain === null || ! $domain->tenant->isOperational() || blank($domain->tenant->database_name)) {
+        if ($domain === null) {
+            abort(404);
+        }
+
+        if (in_array($domain->tenant->status, [
+            Tenant::STATUS_SUSPENDED,
+            Tenant::STATUS_EXPIRED,
+        ], true)) {
+            return response()->view('tenant-suspended', ['tenant' => $domain->tenant], 503);
+        }
+
+        if (! $domain->tenant->isOperational() || blank($domain->tenant->database_name)) {
             abort(404);
         }
 

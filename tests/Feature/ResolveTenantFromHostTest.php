@@ -9,7 +9,6 @@ use App\Services\Landlord\TenantContext;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
 class ResolveTenantFromHostTest extends TestCase
@@ -86,7 +85,7 @@ class ResolveTenantFromHostTest extends TestCase
         $this->assertSame('http://al-noor.example.test', $data['app_url']);
     }
 
-    public function test_unknown_or_inactive_tenant_subdomains_are_not_served(): void
+    public function test_suspended_tenant_sees_the_generic_service_page(): void
     {
         $tenant = Tenant::query()->create([
             'uuid' => (string) Str::uuid(),
@@ -101,16 +100,13 @@ class ResolveTenantFromHostTest extends TestCase
             'is_primary' => true,
         ]);
 
-        foreach (['missing.example.test', 'suspended.example.test'] as $host) {
-            try {
-                app(ResolveTenantFromHost::class)->handle(
-                    request()->duplicate(server: ['HTTP_HOST' => $host]),
-                    fn () => response()->noContent(),
-                );
-                $this->fail('Expected an unknown or inactive tenant host to be rejected.');
-            } catch (NotFoundHttpException) {
-                $this->addToAssertionCount(1);
-            }
-        }
+        $response = app(ResolveTenantFromHost::class)->handle(
+            request()->duplicate(server: ['HTTP_HOST' => 'suspended.example.test']),
+            fn () => response()->noContent(),
+        );
+
+        $this->assertSame(503, $response->getStatusCode());
+        $this->assertStringContainsString(__('subscription.suspended.title'), $response->getContent());
+        $this->assertStringNotContainsString('payment', strtolower($response->getContent()));
     }
 }

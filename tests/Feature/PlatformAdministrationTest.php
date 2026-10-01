@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\SaasPlatformSetting;
 use App\Models\Landlord\Tenant;
+use App\Models\Landlord\TenantSubscription;
 use App\Services\Landlord\TenantModuleAccess;
 use Database\Seeders\LandlordCatalogSeeder;
 use Illuminate\Console\Command;
@@ -262,6 +264,95 @@ class PlatformAdministrationTest extends TestCase
         $this->assertDatabaseHas('platform_audit_events', [
             'tenant_id' => $tenant->id,
             'event' => 'tenant_subscription_updated',
+        ], 'landlord');
+    }
+
+    public function test_platform_owner_can_set_an_annual_subscription_period(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'annual@example.test',
+            'password' => 'secret-password',
+        ]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Annual Centre',
+            'slug' => 'annual-centre',
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->put(route('platform.tenants.subscription.update', $tenant), [
+                'plan' => 'core',
+                'subscription_status' => TenantSubscription::STATUS_ACTIVE,
+                'period_type' => TenantSubscription::PERIOD_ANNUAL,
+                'starts_at' => '2026-10-01 12:00:00',
+                'renews_automatically' => '1',
+            ])
+            ->assertRedirect(route('platform.dashboard'));
+
+        $subscription = $tenant->subscription()->sole();
+        $this->assertSame(TenantSubscription::PERIOD_ANNUAL, $subscription->period_type);
+        $this->assertTrue($subscription->ends_at->equalTo('2027-10-01 12:00:00'));
+        $this->assertTrue($subscription->renews_automatically);
+    }
+
+    public function test_custom_subscription_uses_its_selected_end_and_disables_automatic_renewal(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'custom-period@example.test',
+            'password' => 'secret-password',
+        ]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Evaluation Centre',
+            'slug' => 'evaluation-centre',
+            'status' => Tenant::STATUS_TRIAL,
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->put(route('platform.tenants.subscription.update', $tenant), [
+                'plan' => 'core',
+                'subscription_status' => TenantSubscription::STATUS_TRIAL,
+                'period_type' => TenantSubscription::PERIOD_CUSTOM,
+                'starts_at' => '2026-10-01 12:00:00',
+                'ends_at' => '2026-10-10 12:00:00',
+                'renews_automatically' => '1',
+            ])
+            ->assertRedirect(route('platform.dashboard'));
+
+        $subscription = $tenant->subscription()->sole();
+        $this->assertSame(TenantSubscription::PERIOD_CUSTOM, $subscription->period_type);
+        $this->assertTrue($subscription->ends_at->equalTo('2026-10-10 12:00:00'));
+        $this->assertFalse($subscription->renews_automatically);
+    }
+
+    public function test_platform_owner_can_update_the_suspended_data_retention_setting(): void
+    {
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'retention@example.test',
+            'password' => 'secret-password',
+        ]);
+
+        $this->assertSame(12, SaasPlatformSetting::current()->suspended_data_retention_months);
+
+        $this->actingAs($administrator, 'platform')
+            ->put(route('platform.subscription-settings.update'), [
+                'suspended_data_retention_months' => 18,
+            ])
+            ->assertSessionHas('status', 'Subscription retention settings saved.');
+
+        $this->assertSame(18, SaasPlatformSetting::current()->fresh()->suspended_data_retention_months);
+        $this->assertDatabaseHas('platform_audit_events', [
+            'platform_administrator_id' => $administrator->id,
+            'event' => 'subscription_retention_setting_updated',
         ], 'landlord');
     }
 

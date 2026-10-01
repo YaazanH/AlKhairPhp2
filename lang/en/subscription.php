@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'suspended' => [
+        'title' => 'Service temporarily unavailable',
+        'message' => ':organisation is currently unavailable. Please contact your organisation administrator for assistance.',
+    ],
     'notice' => [
         'expiring' => [
             'title' => 'Subscription renewal needed',
