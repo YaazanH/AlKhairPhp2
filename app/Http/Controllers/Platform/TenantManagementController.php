@@ -50,6 +50,8 @@ class TenantManagementController extends Controller
                 })
                 ->orderBy('name')->get(),
             'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->orderBy('code')->get(),
+            'billingEntries' => PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->latest()->limit(20)->get(),
+            'billingBalance' => (int) PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->sum(DB::raw('credit_syp - debit_syp')),
             'moduleCatalog' => $planModules->catalog(),
             'moduleSnapshot' => $snapshot,
             'packageModules' => $packageModules,
