@@ -7,6 +7,7 @@ use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
+use App\Models\Landlord\SubscriptionVoucher;
 use App\Services\Landlord\PlanModuleManager;
 use App\Services\Landlord\TenantModuleAccess;
 use App\Services\Landlord\TenantStorage;
@@ -25,6 +26,7 @@ class TenantManagementController extends Controller
     {
         return view('platform.tenants.create', [
             'plans' => Plan::query()->where('is_active', true)->orderBy('name')->get(),
+            'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->orderBy('code')->get(),
             'moduleCatalog' => $planModules->catalog(),
         ]);
     }
@@ -46,6 +48,7 @@ class TenantManagementController extends Controller
                     }
                 })
                 ->orderBy('name')->get(),
+            'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->orderBy('code')->get(),
             'moduleCatalog' => $planModules->catalog(),
             'moduleSnapshot' => $snapshot,
             'packageModules' => $packageModules,
