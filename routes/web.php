@@ -155,8 +155,8 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('setup/foundation', [TenantSetupController::class, 'foundation'])->name('tenant-setup.foundation');
     Route::patch('setup/modules/{module}', [TenantSetupController::class, 'module'])->name('tenant-setup.module');
     Route::post('setup/finish', [TenantSetupController::class, 'finish'])->name('tenant-setup.finish');
-    Route::get('support', [TenantSupportRequestController::class, 'index'])->middleware('permission:support.submit')->name('support.index');
-    Route::post('support', [TenantSupportRequestController::class, 'store'])->middleware('permission:support.submit')->name('support.store');
+    Route::get('support', [TenantSupportRequestController::class, 'index'])->name('support.index');
+    Route::post('support', [TenantSupportRequestController::class, 'store'])->name('support.store');
     Route::get('support/manage', [TenantSupportRequestController::class, 'manage'])->middleware('permission:support.manage')->name('support.manage');
     Route::put('support/manage/{supportRequest}', [TenantSupportRequestController::class, 'update'])->middleware('permission:support.manage')->name('support.update');
 
@@ -319,6 +319,7 @@ require __DIR__.'/auth.php';
 
 // Run the web session and locale middleware for unknown website/dashboard URLs.
 Route::fallback(fn () => abort(404));
+
 
 
 
