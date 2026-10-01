@@ -113,6 +113,7 @@ class TenantSupportRequestController extends Controller
             'status' => ['required', Rule::in(TenantSupportRequest::statusesForType($supportRequest->type))],
             'priority' => ['nullable', Rule::in(['normal', 'high', 'critical'])],
             'tenant_admin_note' => ['nullable', 'string', 'max:5000'],
+            'decline_reason' => ['nullable', 'string', 'max:5000'],
             'forward' => ['nullable', 'boolean'],
         ]);
 
@@ -123,6 +124,12 @@ class TenantSupportRequestController extends Controller
 
         if ($supportRequest->type === TenantSupportRequest::TYPE_PROBLEM) {
             $supportRequest->priority = $data['priority'] ?? $supportRequest->priority;
+        }
+
+        if ($supportRequest->type === TenantSupportRequest::TYPE_SUGGESTION) {
+            $supportRequest->decline_reason = $data['status'] === TenantSupportRequest::STATUS_DECLINED
+                ? ($data['decline_reason'] ?? null)
+                : null;
         }
 
         if ($request->boolean('forward')) {

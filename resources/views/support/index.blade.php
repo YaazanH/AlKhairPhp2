@@ -62,6 +62,7 @@
                             @if ($item->current_workaround)<p class="mt-1 text-sm"><strong>Current workaround:</strong> {{ $item->current_workaround }}</p>@endif
                             @if ($item->affected_users)<p class="mt-1 text-sm text-zinc-500">Affected users: {{ $item->affected_users }}</p>@endif
                             @if ($item->business_impact)<p class="mt-1 text-sm text-zinc-500">Business impact: {{ \App\Models\TenantSupportRequest::businessImpactOptions()[$item->business_impact] ?? $item->business_impact }}</p>@endif
+                            @if ($item->decline_reason)<p class="mt-2 text-sm"><strong>Tenant administrator response:</strong> {{ $item->decline_reason }}</p>@endif
                         @endif
 
                         <div class="mt-4 space-y-2 border-t pt-3">

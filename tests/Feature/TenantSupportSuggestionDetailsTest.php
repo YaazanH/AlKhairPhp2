@@ -38,6 +38,36 @@ class TenantSupportSuggestionDetailsTest extends TestCase
         ]);
     }
 
+    public function test_tenant_administrator_can_decline_a_suggestion_with_a_reason(): void
+    {
+        $reporter = User::factory()->create();
+        $administrator = User::factory()->create();
+        Permission::findOrCreate('support.manage', 'web');
+        $administrator->givePermissionTo('support.manage');
+        $suggestion = TenantSupportRequest::query()->create([
+            'type' => TenantSupportRequest::TYPE_SUGGESTION,
+            'status' => TenantSupportRequest::STATUS_SUBMITTED,
+            'subject' => 'Weekly summary',
+            'message' => 'A weekly summary would help.',
+            'desired_outcome' => 'See the weekly summary in one place.',
+            'affected_users' => 'Teachers and administrators.',
+            'business_impact' => TenantSupportRequest::BUSINESS_IMPACT_MEDIUM,
+            'submitted_by_user_id' => $reporter->id,
+        ]);
+
+        $this->actingAs($administrator)
+            ->put(route('support.update', $suggestion), [
+                'status' => TenantSupportRequest::STATUS_DECLINED,
+                'decline_reason' => 'This duplicates a report already available to the tenant.',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(TenantSupportRequest::STATUS_DECLINED, $suggestion->fresh()->status);
+        $this->assertSame('This duplicates a report already available to the tenant.', $suggestion->fresh()->decline_reason);
+        $this->assertContains(TenantSupportRequest::STATUS_IMPLEMENTED_INTERNALLY, TenantSupportRequest::statusesForType(TenantSupportRequest::TYPE_SUGGESTION));
+        $this->assertNotContains(TenantSupportRequest::STATUS_PLANNED, TenantSupportRequest::statusesForType(TenantSupportRequest::TYPE_SUGGESTION));
+    }
+
     public function test_problem_reports_do_not_keep_suggestion_only_details(): void
     {
         $reporter = User::factory()->create();

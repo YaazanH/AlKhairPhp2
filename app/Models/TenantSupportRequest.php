@@ -31,6 +31,8 @@ class TenantSupportRequest extends Model
 
     public const STATUS_DECLINED = 'declined';
 
+    public const STATUS_IMPLEMENTED_INTERNALLY = 'implemented_internally';
+
     public const IMPACT_INDIVIDUAL = 'individual';
 
     public const IMPACT_SEVERAL_USERS = 'several_users';
@@ -45,7 +47,7 @@ class TenantSupportRequest extends Model
 
     protected $fillable = [
         'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'expected_result', 'impact', 'desired_outcome', 'current_workaround', 'affected_users', 'business_impact', 'reported_url', 'browser_info', 'app_version',
-        'submitted_by_user_id', 'forwarded_by_user_id', 'forwarded_at', 'tenant_admin_note',
+        'submitted_by_user_id', 'forwarded_by_user_id', 'forwarded_at', 'tenant_admin_note', 'decline_reason',
     ];
 
     protected function casts(): array
@@ -62,8 +64,7 @@ class TenantSupportRequest extends Model
             ],
             self::TYPE_SUGGESTION => [
                 self::STATUS_SUBMITTED, self::STATUS_UNDER_REVIEW, self::STATUS_FORWARDED,
-                self::STATUS_PLANNED, self::STATUS_IN_PROGRESS, self::STATUS_RELEASED,
-                self::STATUS_DECLINED,
+                self::STATUS_IMPLEMENTED_INTERNALLY, self::STATUS_DECLINED,
             ],
             default => [],
         };
@@ -113,6 +114,7 @@ class TenantSupportRequest extends Model
             self::STATUS_IN_PROGRESS => 'In progress',
             self::STATUS_RELEASED => 'Released',
             self::STATUS_DECLINED => 'Declined',
+            self::STATUS_IMPLEMENTED_INTERNALLY => 'Implemented internally',
             default => str($status)->replace('_', ' ')->title()->toString(),
         };
     }

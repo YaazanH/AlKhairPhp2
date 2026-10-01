@@ -26,6 +26,7 @@
                         @if ($item->current_workaround)<p class="mt-1 text-sm"><strong>Current workaround:</strong> {{ $item->current_workaround }}</p>@endif
                         @if ($item->affected_users)<p class="mt-1 text-sm text-zinc-500">Affected users: {{ $item->affected_users }}</p>@endif
                         @if ($item->business_impact)<p class="mt-1 text-sm text-zinc-500">Business impact: {{ \App\Models\TenantSupportRequest::businessImpactOptions()[$item->business_impact] ?? $item->business_impact }}</p>@endif
+                        @if ($item->decline_reason)<p class="mt-2 text-sm"><strong>Decline reason:</strong> {{ $item->decline_reason }}</p>@endif
                     @endif
                     @if ($platformCase)
                         <div class="mt-3 rounded border border-sky-200 bg-sky-50 p-3 text-sm">
@@ -85,6 +86,8 @@
                                     <option value="{{ $priority }}" @selected($item->priority === $priority)>Priority: {{ str($priority)->title() }}</option>
                                 @endforeach
                             </select>
+                        @else
+                            <textarea name="decline_reason" placeholder="Reason to share with the submitter if this suggestion is declined" class="rounded border p-3">{{ $item->decline_reason }}</textarea>
                         @endif
                         <textarea name="tenant_admin_note" placeholder="Internal note, not visible to the submitter" class="rounded border p-3">{{ $item->tenant_admin_note }}</textarea>
                         <label>
