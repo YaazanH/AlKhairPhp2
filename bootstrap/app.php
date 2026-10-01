@@ -3,18 +3,19 @@
 use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\AuthenticatePlatform;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
-use App\Http\Middleware\EnsureTenantFeature;
-use App\Http\Middleware\EnsureNoTenantContext;
+use App\Http\Middleware\EnforcePlatformSupportAccess;
 use App\Http\Middleware\EnforceTenantStorageQuota;
+use App\Http\Middleware\EnsureNoTenantContext;
+use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\EnsureTenantModules;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
 use App\Http\Middleware\RedirectToTenantSetup;
-use App\Http\Middleware\RequireTenantPasswordChange;
-use App\Http\Middleware\RequirePlatformPermission;
-use App\Http\Middleware\RequirePlatformPasswordChange;
 use App\Http\Middleware\RequirePlatformOwner;
+use App\Http\Middleware\RequirePlatformPasswordChange;
+use App\Http\Middleware\RequirePlatformPermission;
+use App\Http\Middleware\RequireTenantPasswordChange;
 use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
@@ -51,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             DiscardInvalidRememberCookie::class,
             RequireTenantPasswordChange::class,
+            EnforcePlatformSupportAccess::class,
             EnsureTenantModules::class,
             EnforceTenantStorageQuota::class,
             RedirectToTenantSetup::class,
@@ -58,7 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             MeasurePerformance::class,
         ]);
 
-        $middleware->api(append: [EnsureTenantModules::class]);
+        $middleware->api(append: [EnforcePlatformSupportAccess::class, EnsureTenantModules::class]);
 
         // Resolve the selected language before CSRF checks, authentication,
         // and route bindings can reject a request.

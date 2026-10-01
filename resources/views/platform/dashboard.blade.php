@@ -46,6 +46,16 @@
                         <td class="px-5 py-4">{{ $tenant->subscription?->plan?->name ?? 'Not assigned' }}</td>
                         <td class="px-5 py-4"><div class="flex items-center gap-3"><a class="text-emerald-700 hover:underline" href="{{ route('platform.tenants.edit', $tenant) }}">Manage</a>
                             @if ($websiteUrl)
+                                @php($supportLevels = collect(['read' => 'Read only', 'edit' => 'Read and edit', 'delete' => 'Full support'])->filter(fn ($label, $level) => auth('platform')->user()->hasPlatformPermission('support-access.'.$level)))
+                                @if($supportLevels->isNotEmpty())
+                                    <form method="POST" action="{{ route('platform.tenants.support-access.store', $tenant) }}" target="_blank" rel="noopener" class="flex items-center gap-2">
+                                        @csrf
+                                        <select name="access_level" class="rounded-lg border px-2 py-1.5 text-xs" aria-label="Support access level for {{ $tenant->name }}">
+                                            @foreach($supportLevels as $level => $label)<option value="{{ $level }}">{{ $label }}</option>@endforeach
+                                        </select>
+                                        <button class="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white" title="Open a secure 60-minute support session">Open tenant</button>
+                                    </form>
+                                @endif
                                 <a href="{{ $websiteUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100" aria-label="Open {{ $tenant->name }} website" title="Open tenant website">
                                     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/></svg>
                                 </a>

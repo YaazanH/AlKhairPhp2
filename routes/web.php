@@ -1,8 +1,8 @@
 <?php
 
 use App\Http\Controllers\AdminExportController;
-use App\Http\Controllers\BackupSettingsEntryController;
 use App\Http\Controllers\AssessmentResultPdfController;
+use App\Http\Controllers\BackupSettingsEntryController;
 use App\Http\Controllers\BarcodeActionPrintController;
 use App\Http\Controllers\CourseCalendarPdfController;
 use App\Http\Controllers\CourseEndExportController;
@@ -15,20 +15,22 @@ use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
 use App\Http\Controllers\Platform\PlanManagementController;
+use App\Http\Controllers\Platform\PlatformAccessController;
 use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
-use App\Http\Controllers\Platform\PlatformAccessController;
 use App\Http\Controllers\Platform\PlatformRequiredPasswordChangeController;
-use App\Http\Controllers\Platform\TenantManagementController;
+use App\Http\Controllers\Platform\PlatformSubscriptionSettingController;
+use App\Http\Controllers\Platform\PlatformSupportAttachmentController;
+use App\Http\Controllers\Platform\PlatformSupportCaseController;
+use App\Http\Controllers\Platform\StorageUsageController;
+use App\Http\Controllers\Platform\SubscriptionReceiptController;
+use App\Http\Controllers\Platform\SubscriptionVoucherController;
 use App\Http\Controllers\Platform\TenantBackupController as PlatformTenantBackupController;
+use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
 use App\Http\Controllers\Platform\TenantSubscriptionController;
-use App\Http\Controllers\Platform\SubscriptionVoucherController;
-use App\Http\Controllers\Platform\SubscriptionReceiptController;
-use App\Http\Controllers\Platform\PlatformSupportCaseController;
-use App\Http\Controllers\Platform\PlatformSupportAttachmentController;
-use App\Http\Controllers\Platform\PlatformSubscriptionSettingController;
+use App\Http\Controllers\Platform\TenantSupportAccessController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
@@ -36,14 +38,14 @@ use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\RequiredPasswordChangeController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
-use App\Http\Controllers\TenantBackupController;
-use App\Http\Controllers\TenantStorageUsageController;
-use App\Http\Controllers\Platform\StorageUsageController;
 use App\Http\Controllers\TeacherAttendanceExportController;
+use App\Http\Controllers\TenantBackupController;
 use App\Http\Controllers\TenantPublicMediaController;
 use App\Http\Controllers\TenantSetupController;
-use App\Http\Controllers\TenantSupportRequestController;
+use App\Http\Controllers\TenantStorageUsageController;
 use App\Http\Controllers\TenantSupportAttachmentController;
+use App\Http\Controllers\TenantSupportHandoffController;
+use App\Http\Controllers\TenantSupportRequestController;
 use App\Http\Controllers\WebsiteController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -76,7 +78,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('access/roles/{role}', [PlatformAccessController::class, 'updateRole'])->middleware('platform.owner')->name('access.roles.update');
         Route::delete('access/roles/{role}', [PlatformAccessController::class, 'destroyRole'])->middleware('platform.owner')->name('access.roles.destroy');
         Route::put('access/users/{administrator}/roles', [PlatformAccessController::class, 'syncAdministratorRoles'])->middleware('platform.owner')->name('access.users.roles');
-                Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
+        Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
         Route::get('support', [PlatformSupportCaseController::class, 'index'])->name('support.index');
         Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->name('support.update');
         Route::post('support/suggestion-groups', [PlatformSupportCaseController::class, 'storeSuggestionGroup'])->name('support.suggestion-groups.store');
@@ -105,6 +107,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('tenants', [TenantProvisioningController::class, 'store'])->middleware('platform.permission:manage.tenants')->name('tenants.store');
         Route::get('tenants/create', [TenantManagementController::class, 'create'])->middleware('platform.permission:manage.tenants')->name('tenants.create');
         Route::get('tenants/{tenant}/edit', [TenantManagementController::class, 'edit'])->middleware('platform.permission:view.tenants')->name('tenants.edit');
+        Route::post('tenants/{tenant}/support-access', [TenantSupportAccessController::class, 'store'])->middleware('platform.permission:support-access.read,support-access.edit,support-access.delete')->name('tenants.support-access.store');
         Route::put('tenants/{tenant}', [TenantManagementController::class, 'update'])->middleware('platform.permission:manage.tenants')->name('tenants.update');
         Route::patch('tenants/{tenant}/status', [TenantManagementController::class, 'setStatus'])->middleware('platform.permission:manage.tenants')->name('tenants.status');
         Route::put('tenants/{tenant}/administrator-password', [TenantManagementController::class, 'resetAdministratorPassword'])->middleware('platform.permission:manage.tenants')->name('tenants.administrator-password');
@@ -121,6 +124,9 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 });
 
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
+Route::get('support-access/{token}', TenantSupportHandoffController::class)
+    ->middleware('throttle:10,1')
+    ->name('tenant-support.consume');
 Route::get('storage/{path}', TenantPublicMediaController::class)
     ->where('path', '.*')
     ->name('tenant.public-media');

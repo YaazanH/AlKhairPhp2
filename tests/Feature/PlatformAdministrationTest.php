@@ -89,8 +89,10 @@ class PlatformAdministrationTest extends TestCase
             ->assertSee('Tenant overview')
             ->assertSee('Al Noor Centre')
             ->assertSee('Manage')
-            ->assertSee('href="http://open-centre.localhost"', false)
-            ->assertSee('Open Open Centre website');
+            ->assertSee('href="http://open-centre.localhost:8000"', false)
+            ->assertSee('Open Open Centre website')
+            ->assertSee(route('platform.tenants.support-access.store', $openTenant), false)
+            ->assertSee('Open tenant');
     }
 
     public function test_inactive_platform_administrator_cannot_sign_in(): void

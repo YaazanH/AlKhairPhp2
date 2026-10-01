@@ -37,7 +37,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | Planned |
+| Status | Implemented |
 | Priority | P2 |
 | Requested outcome | A platform administrator can open a selected tenant from the Platform dashboard without manually entering tenant credentials. |
 | User-facing entry point | A tenant action such as **Open tenant** in Platform administration. |
@@ -50,7 +50,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed support-session visibility | Do not show a visible support-session banner or End Session control inside the tenant application in the first version. Keep all support access events in Platform audit history. |
 | Agreed tenant-side controls | Do not add tenant-side viewing or revoking of Platform support access in the first version. Defer those controls until there is demonstrated tenant need. |
 | Required audit information | Platform administrator, tenant, time, outcome, and source IP address. |
-| Product decisions still needed | Maximum token lifetime, whether access is read-only or full support access, visible support-session indicator, and whether tenant staff can view or revoke platform access. |
+| Implemented decisions | Platform roles grant separate read, edit, or delete support access. The Platform creates a hashed, single-use five-minute handoff and redirects to the tenant without credentials. The tenant starts an audited 60-minute session, centrally blocks actions above its granted level, and redirects to a clean URL. Tenant-side banners and revocation controls remain deferred. |
 
 ### SAAS-002 — Tenant-controlled product naming and branding source
 
