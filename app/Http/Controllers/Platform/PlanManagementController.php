@@ -37,7 +37,7 @@ class PlanManagementController extends Controller
         try {
             $plan = $this->plans->create([
                 'code' => $data['code'], 'name' => $data['name'],
-                'description' => $data['description'] ?? null, 'is_active' => (bool) ($data['is_active'] ?? false), 'storage_limit_bytes' => $this->storageBytes($data['storage_limit_gb'] ?? null),
+                'description' => $data['description'] ?? null, 'is_active' => (bool) ($data['is_active'] ?? false), 'storage_limit_bytes' => $this->storageBytes($data['storage_limit_gb'] ?? null), 'price_syp' => (int) ($data['price_syp'] ?? 0), 'billing_period_days' => (int) ($data['billing_period_days'] ?? 30),
             ], $data['modules'] ?? [], $request->user('platform'), $request->ip());
         } catch (DomainException $exception) {
             return back()->withInput()->withErrors(['modules' => $exception->getMessage()]);
@@ -101,7 +101,7 @@ class PlanManagementController extends Controller
 
         $this->plans->update($plan, [
             'name' => $data['name'], 'description' => $data['description'] ?? null,
-            'is_active' => (bool) ($data['is_active'] ?? false), 'storage_limit_bytes' => $this->storageBytes($data['storage_limit_gb'] ?? null),
+            'is_active' => (bool) ($data['is_active'] ?? false), 'storage_limit_bytes' => $this->storageBytes($data['storage_limit_gb'] ?? null), 'price_syp' => (int) ($data['price_syp'] ?? 0), 'billing_period_days' => (int) ($data['billing_period_days'] ?? 30),
         ], $data['modules'] ?? [], $request->user('platform'), $request->ip());
         $request->session()->forget('platform.plan_preview.'.$plan->id);
 
@@ -169,6 +169,8 @@ class PlanManagementController extends Controller
             'code' => [$plan?->exists ? 'sometimes' : 'required', 'alpha_dash', 'max:80', Rule::unique('landlord.plans', 'code')->ignore($plan?->id)],
             'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:2000'],
             'storage_limit_gb' => ['nullable', 'numeric', 'min:0.1', 'max:100000'],
+            'price_syp' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'billing_period_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
             'modules' => ['array'], 'modules.*' => ['string'], 'is_active' => ['nullable', 'boolean'],
             'confirm_impact' => ['nullable', 'boolean'],
             'features' => ['array'], 'features.*' => ['string', 'exists:landlord.features,code'],

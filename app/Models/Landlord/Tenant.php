@@ -57,6 +57,11 @@ class Tenant extends LandlordModel
         return $this->hasMany(TenantProvisioningAttempt::class);
     }
 
+    public function billingEntries(): HasMany
+    {
+        return $this->hasMany(PlatformSubscriptionLedgerEntry::class);
+    }
+
     public function backups(): HasMany
     {
         return $this->hasMany(TenantBackup::class);

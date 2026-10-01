@@ -95,6 +95,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('tenants/{tenant}/extras', [TenantModuleExtrasController::class, 'update'])->middleware('platform.permission:manage.tenants')->name('tenants.extras.update');
         Route::delete('tenants/{tenant}', [TenantManagementController::class, 'destroy'])->middleware('platform.permission:manage.tenants')->name('tenants.destroy');
         Route::put('tenants/{tenant}/subscription', [TenantSubscriptionController::class, 'update'])->middleware('platform.permission:manage.tenants')->name('tenants.subscription.update');
+        Route::post('tenants/{tenant}/subscription/payments', [TenantSubscriptionController::class, 'recordOfflinePayment'])->middleware('platform.permission:manage.plans')->name('tenants.subscription.payments.store');
         Route::post('logout', [PlatformAuthenticatedSessionController::class, 'destroy'])->name('logout');
     });
 });
