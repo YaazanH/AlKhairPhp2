@@ -1,1 +1,51 @@
-<x-layouts.app><div class="mx-auto max-w-5xl space-y-6 p-6"><header><h1 class="text-2xl font-bold">Tenant support requests</h1><p class="text-zinc-500">Review internal reports and forward the requests that need Platform attention.</p><p class="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-900">{{ $openCount }} need attention</p></header><div class="space-y-4">@forelse($requests as $item)<form method="POST" action="{{ route('support.update',$item) }}" class="rounded-2xl border p-5">@csrf @method('PUT')<div class="flex justify-between"><strong>{{ $item->subject }}</strong><span>{{ str($item->type)->title() }}</span></div><p class="mt-2">{{ $item->message }}</p><p class="mt-2 text-sm text-zinc-500">Submitted by {{ $item->submittedBy?->name }}</p>@if($platformCases->get($item->id)?->platform_note)<div class="mt-3 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm"><strong>Platform reply for tenant administrator</strong><p class="mt-1">{{ $platformCases->get($item->id)->platform_note }}</p></div>@endif<div class="mt-3 grid gap-3"><select name="status" class="rounded border p-3">@foreach(['submitted','under_review','planned','in_progress','released','declined'] as $status)<option value="{{ $status }}" @selected($item->status===$status)>{{ str($status)->replace('_',' ')->title() }}</option>@endforeach</select><textarea name="tenant_admin_note" placeholder="Internal note" class="rounded border p-3">{{ $item->tenant_admin_note }}</textarea><label><input type="checkbox" name="forward" value="1" @checked($item->forwarded_at)> Forward to Platform</label><button class="rounded bg-emerald-700 px-4 py-2 text-white">Save</button></div></form>@empty<p>No requests yet.</p>@endforelse</div></div></x-layouts.app>
+<x-layouts.app>
+    <div class="mx-auto max-w-5xl space-y-6 p-6">
+        <header>
+            <h1 class="text-2xl font-bold">Tenant support requests</h1>
+            <p class="text-zinc-500">Review internal reports and forward requests that need Platform attention.</p>
+            <p class="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-900">{{ $openCount }} need attention</p>
+        </header>
+
+        <div class="space-y-4">
+            @forelse ($requests as $item)
+                @php($platformCase = $platformCases->get($item->id))
+                <form method="POST" action="{{ route('support.update', $item) }}" class="rounded-2xl border p-5">
+                    @csrf
+                    @method('PUT')
+                    <div class="flex justify-between gap-4">
+                        <strong>{{ $item->subject }}</strong>
+                        <span>{{ str($item->type)->title() }}</span>
+                    </div>
+                    <p class="mt-2">{{ $item->message }}</p>
+                    <p class="mt-2 text-sm text-zinc-500">Submitted by {{ $item->submittedBy?->name }}</p>
+                    @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM && $item->priority)
+                        <p class="mt-1 text-sm text-zinc-500">Priority: {{ str($item->priority)->title() }}</p>
+                    @endif
+                    @if ($platformCase)
+                        <div class="mt-3 rounded border border-sky-200 bg-sky-50 p-3 text-sm">
+                            <strong>Platform case: {{ \App\Models\Landlord\PlatformSupportCase::statusLabel($platformCase->status) }}</strong>
+                            @if ($platformCase->platform_note)
+                                <p class="mt-1"><strong>Reply for tenant administrator:</strong> {{ $platformCase->platform_note }}</p>
+                            @endif
+                        </div>
+                    @endif
+                    <div class="mt-3 grid gap-3">
+                        <select name="status" class="rounded border p-3">
+                            @foreach ($statusOptions[$item->type] as $status)
+                                <option value="{{ $status }}" @selected($item->status === $status)>{{ \App\Models\TenantSupportRequest::statusLabel($status) }}</option>
+                            @endforeach
+                        </select>
+                        <textarea name="tenant_admin_note" placeholder="Internal note" class="rounded border p-3">{{ $item->tenant_admin_note }}</textarea>
+                        <label>
+                            <input type="checkbox" name="forward" value="1">
+                            {{ $platformCase ? 'Send the latest request details to Platform' : 'Forward to Platform' }}
+                        </label>
+                        <button class="rounded bg-emerald-700 px-4 py-2 text-white">Save</button>
+                    </div>
+                </form>
+            @empty
+                <p>No requests yet.</p>
+            @endforelse
+        </div>
+    </div>
+</x-layouts.app>
