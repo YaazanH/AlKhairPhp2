@@ -24,6 +24,7 @@ use App\Http\Controllers\Platform\TenantBackupController as PlatformTenantBackup
 use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
 use App\Http\Controllers\Platform\TenantSubscriptionController;
+use App\Http\Controllers\Platform\SubscriptionVoucherController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
@@ -76,6 +77,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('backups', [PlatformTenantBackupController::class, 'create'])->middleware('platform.permission:manage.backups')->name('backups.create');
         Route::get('backups/{tenantBackup}/download', [PlatformTenantBackupController::class, 'download'])->middleware('platform.permission:view.backups')->name('backups.download');
         Route::post('backups/{tenantBackup}/restore', [PlatformTenantBackupController::class, 'restore'])->middleware('platform.permission:restore.backups')->name('backups.restore');
+        Route::get('vouchers', [SubscriptionVoucherController::class, 'index'])->middleware('platform.permission:manage.plans')->name('vouchers.index');
+        Route::post('vouchers', [SubscriptionVoucherController::class, 'store'])->middleware('platform.permission:manage.plans')->name('vouchers.store');
+        Route::patch('vouchers/{voucher}/status', [SubscriptionVoucherController::class, 'status'])->middleware('platform.permission:manage.plans')->name('vouchers.status');
+        Route::get('vouchers', [SubscriptionVoucherController::class, 'index'])->middleware('platform.permission:manage.plans')->name('vouchers.index');
+        Route::post('vouchers', [SubscriptionVoucherController::class, 'store'])->middleware('platform.permission:manage.plans')->name('vouchers.store');
+        Route::patch('vouchers/{voucher}/status', [SubscriptionVoucherController::class, 'status'])->middleware('platform.permission:manage.plans')->name('vouchers.status');
         Route::get('packages', [PlanManagementController::class, 'index'])->middleware('platform.permission:manage.plans')->name('plans.index');
         Route::get('packages/create', [PlanManagementController::class, 'create'])->middleware('platform.permission:manage.plans')->name('plans.create');
         Route::post('packages', [PlanManagementController::class, 'store'])->middleware('platform.permission:manage.plans')->name('plans.store');
@@ -302,3 +309,4 @@ require __DIR__.'/auth.php';
 
 // Run the web session and locale middleware for unknown website/dashboard URLs.
 Route::fallback(fn () => abort(404));
+
