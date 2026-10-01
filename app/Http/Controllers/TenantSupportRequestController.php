@@ -18,7 +18,7 @@ class TenantSupportRequestController extends Controller
         $user = $request->user();
 
         return view('support.index', [
-            'requests' => TenantSupportRequest::query()->where('submitted_by_user_id', $user->id)->latest()->get(),
+            'requests' => TenantSupportRequest::query()->where('submitted_by_user_id', $user->id)->with('messages.sender')->latest()->get(),
             'canSubmitProblem' => $user->can('support.problems.submit'),
             'canSubmitSuggestion' => $user->can('support.suggestions.submit'),
             'canManage' => $user->can('support.manage'),
@@ -53,7 +53,7 @@ class TenantSupportRequestController extends Controller
     public function manage(): View
     {
         $tenant = app(TenantContext::class)->tenant();
-        $requests = TenantSupportRequest::query()->with('submittedBy')->latest()->get();
+        $requests = TenantSupportRequest::query()->with(['submittedBy', 'messages.sender'])->latest()->get();
         $cases = PlatformSupportCase::query()
             ->where('tenant_id', $tenant->id)
             ->get()
@@ -68,6 +68,26 @@ class TenantSupportRequestController extends Controller
             ],
             'openCount' => TenantSupportRequest::query()->whereIn('status', TenantSupportRequest::attentionStatuses())->count(),
         ]);
+    }
+
+    public function storeMessage(Request $request, TenantSupportRequest $supportRequest): RedirectResponse
+    {
+        $data = $request->validate(['message' => ['required', 'string', 'max:5000']]);
+        $user = $request->user();
+        $isTenantAdministrator = $user->can('support.manage');
+
+        abort_unless(
+            $isTenantAdministrator || ($supportRequest->submitted_by_user_id === $user->id && ! $supportRequest->isClosed()),
+            403,
+        );
+
+        $supportRequest->messages()->create([
+            'sender_user_id' => $user->id,
+            'is_tenant_administrator' => $isTenantAdministrator,
+            'message' => $data['message'],
+        ]);
+
+        return back()->with('status', 'Message added.');
     }
 
     public function update(Request $request, TenantSupportRequest $supportRequest, SupportCaseForwarder $forwarder): RedirectResponse

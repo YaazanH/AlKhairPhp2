@@ -9,9 +9,7 @@
         <div class="space-y-4">
             @forelse ($requests as $item)
                 @php($platformCase = $platformCases->get($item->id))
-                <form method="POST" action="{{ route('support.update', $item) }}" class="rounded-2xl border p-5">
-                    @csrf
-                    @method('PUT')
+                <section class="rounded-2xl border p-5">
                     <div class="flex justify-between gap-4">
                         <strong>{{ $item->subject }}</strong>
                         <span>{{ str($item->type)->title() }}</span>
@@ -29,20 +27,41 @@
                             @endif
                         </div>
                     @endif
-                    <div class="mt-3 grid gap-3">
+
+                    <div class="mt-4 space-y-2 border-t pt-3">
+                        @forelse ($item->messages as $supportMessage)
+                            <div class="rounded bg-zinc-50 p-3 text-sm">
+                                <strong>{{ $supportMessage->is_tenant_administrator ? 'Tenant administrator' : $supportMessage->sender?->name }}</strong>
+                                <span class="text-zinc-500">{{ $supportMessage->created_at->format('Y-m-d H:i') }}</span>
+                                <p class="mt-1">{{ $supportMessage->message }}</p>
+                            </div>
+                        @empty
+                            <p class="text-sm text-zinc-500">No conversation yet.</p>
+                        @endforelse
+                    </div>
+
+                    <form method="POST" action="{{ route('support.messages.store', $item) }}" class="mt-3 flex gap-2">
+                        @csrf
+                        <input name="message" required maxlength="5000" placeholder="Reply to the submitter" class="min-w-0 flex-1 rounded border p-2">
+                        <button class="rounded border px-3">Reply</button>
+                    </form>
+
+                    <form method="POST" action="{{ route('support.update', $item) }}" class="mt-4 grid gap-3 border-t pt-4">
+                        @csrf
+                        @method('PUT')
                         <select name="status" class="rounded border p-3">
                             @foreach ($statusOptions[$item->type] as $status)
                                 <option value="{{ $status }}" @selected($item->status === $status)>{{ \App\Models\TenantSupportRequest::statusLabel($status) }}</option>
                             @endforeach
                         </select>
-                        <textarea name="tenant_admin_note" placeholder="Internal note" class="rounded border p-3">{{ $item->tenant_admin_note }}</textarea>
+                        <textarea name="tenant_admin_note" placeholder="Internal note, not visible to the submitter" class="rounded border p-3">{{ $item->tenant_admin_note }}</textarea>
                         <label>
                             <input type="checkbox" name="forward" value="1">
                             {{ $platformCase ? 'Send the latest request details to Platform' : 'Forward to Platform' }}
                         </label>
-                        <button class="rounded bg-emerald-700 px-4 py-2 text-white">Save</button>
-                    </div>
-                </form>
+                        <button class="rounded bg-emerald-700 px-4 py-2 text-white">Save request</button>
+                    </form>
+                </section>
             @empty
                 <p>No requests yet.</p>
             @endforelse

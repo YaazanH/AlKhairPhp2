@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TenantSupportRequest extends Model
 {
@@ -84,5 +85,15 @@ class TenantSupportRequest extends Model
     public function forwardedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'forwarded_by_user_id');
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(TenantSupportMessage::class)->oldest();
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->status === self::STATUS_CLOSED;
     }
 }
