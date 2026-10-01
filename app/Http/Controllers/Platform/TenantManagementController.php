@@ -57,15 +57,11 @@ class TenantManagementController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'alpha_dash', 'max:80', Rule::notIn(config('tenancy.reserved_subdomains', []))],
             'timezone' => ['nullable', 'timezone'],
             'locale' => ['nullable', Rule::in(array_keys(config('app.supported_locales', [])))],
         ]);
-        $slug = Str::slug($data['slug']);
-        abort_if(Tenant::query()->where('slug', $slug)->whereKeyNot($tenant->id)->exists(), 422, __('platform.tenant.slug_taken'));
-        $tenant->update(['name' => $data['name'], 'slug' => $slug, 'timezone' => $data['timezone'] ?: null, 'locale' => $data['locale'] ?: null]);
-        TenantDomain::query()->updateOrCreate(['tenant_id' => $tenant->id, 'is_primary' => true], ['host' => $slug.'.'.config('tenancy.base_domain')]);
-        $this->audit($request, $tenant, 'tenant_updated', ['slug' => $slug]);
+        $tenant->update(['name' => $data['name'], 'timezone' => $data['timezone'] ?: null, 'locale' => $data['locale'] ?: null]);
+        $this->audit($request, $tenant, 'tenant_updated', ['slug' => $tenant->slug]);
 
         return redirect()->route('platform.tenants.edit', $tenant)->with('status', __('platform.tenant.updated'));
     }

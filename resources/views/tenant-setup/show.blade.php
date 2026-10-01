@@ -3,7 +3,7 @@
         <section class="page-hero p-6 lg:p-8">
             <div class="eyebrow">{{ __('onboarding.eyebrow') }}</div>
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('onboarding.title') }}</h1>
-            <p class="mt-4 max-w-3xl text-neutral-200">{{ __('onboarding.description') }}</p>
+            <p class="mt-4 max-w-3xl text-neutral-200">Set up your organisation profile first. Users, students, groups, and courses are created later from their normal pages.</p>
         </section>
 
         @if (session('status'))
@@ -14,12 +14,18 @@
         @endif
 
         @php($foundation = $setup['modules']['foundation'] ?? null)
+        @php($optionalSteps = collect($setup['modules'])->except('foundation'))
+        <section class="grid gap-3 sm:grid-cols-3" aria-label="Setup progress">
+            <div class="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4"><div class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Step 1 · Required</div><div class="mt-1 font-semibold text-white">Organisation profile</div><div class="mt-1 text-xs text-neutral-300">Name, logo, language, and timezone.</div></div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4"><div class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Step 2 · Optional</div><div class="mt-1 font-semibold text-white">Module settings</div><div class="mt-1 text-xs text-neutral-300">{{ $optionalSteps->count() }} available setup cards.</div></div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4"><div class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Step 3</div><div class="mt-1 font-semibold text-white">Start working</div><div class="mt-1 text-xs text-neutral-300">Use the dashboard whenever you are ready.</div></div>
+        </section>
         <section class="surface-panel p-5 lg:p-6" data-setup-foundation>
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <div class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">{{ __('onboarding.required') }}</div>
                     <h2 class="mt-2 text-2xl font-semibold text-white">{{ __('onboarding.foundation.title') }}</h2>
-                    <p class="mt-2 text-sm text-neutral-300">{{ __('onboarding.foundation.description') }}</p>
+                    <p class="mt-2 text-sm text-neutral-300">This is the only required step. You can change these details later in Organisation Settings.</p>
                 </div>
                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ ($foundation['status'] ?? '') === 'ready' ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">
                     {{ ($foundation['status'] ?? '') === 'ready' ? __('onboarding.ready') : __('onboarding.needs_setup') }}
@@ -62,8 +68,8 @@
 
         @if (($foundation['status'] ?? '') === 'ready')
             <section class="surface-panel p-5 lg:p-6" data-setup-modules>
-                <h2 class="text-2xl font-semibold text-white">{{ __('onboarding.modules.title') }}</h2>
-                <p class="mt-2 text-sm text-neutral-300">{{ __('onboarding.modules.description') }}</p>
+                <h2 class="text-2xl font-semibold text-white">Optional module setup</h2>
+                <p class="mt-2 text-sm text-neutral-300">Open a card only if you want to configure it now. You can return later from Settings.</p>
                 <div class="mt-6 grid gap-4 md:grid-cols-2">
                     @foreach ($setup['modules'] as $code => $module)
                         @continue($code === 'foundation')
@@ -83,12 +89,12 @@
                                     <form method="POST" action="{{ route('tenant-setup.module', $code) }}">
                                         @csrf @method('PATCH')
                                         <input type="hidden" name="status" value="ready">
-                                        <button class="pill-link pill-link--compact" type="submit">{{ __('onboarding.modules.mark_ready') }}</button>
+                                        <button class="pill-link pill-link--compact" type="submit">I finished this setup</button>
                                     </form>
                                     <form method="POST" action="{{ route('tenant-setup.module', $code) }}">
                                         @csrf @method('PATCH')
                                         <input type="hidden" name="status" value="skipped">
-                                        <button class="pill-link pill-link--compact" type="submit">{{ __('onboarding.modules.skip') }}</button>
+                                        <button class="pill-link pill-link--compact" type="submit">Set up later</button>
                                     </form>
                                 @endif
                             </div>
@@ -103,7 +109,7 @@
                 @else
                     <form method="POST" action="{{ route('tenant-setup.finish') }}">
                         @csrf
-                        <button class="pill-link" type="submit">{{ __('onboarding.skip_remaining') }}</button>
+                        <button class="pill-link" type="submit">Finish setup and open dashboard</button>
                     </form>
                 @endif
             </div>

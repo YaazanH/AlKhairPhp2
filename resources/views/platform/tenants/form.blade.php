@@ -14,7 +14,11 @@
         <form method="POST" action="{{ $editing ? route('platform.tenants.update', $tenant) : route('platform.tenants.store') }}" class="mt-5 grid gap-4 md:grid-cols-2">
             @csrf @if($editing) @method('PUT') @endif
             <label class="grid gap-1 text-sm font-medium">Organisation name<input name="name" value="{{ old('name', $tenant?->name) }}" required class="rounded-xl border p-3 font-normal @error('name') border-red-400 @enderror">@error('name')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
-            <label class="grid gap-1 text-sm font-medium">Subdomain<input name="slug" value="{{ old('slug', $tenant?->slug) }}" required class="rounded-xl border p-3 font-normal @error('slug') border-red-400 @enderror">@error('slug')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
+            @if($editing)
+                <label class="grid gap-1 text-sm font-medium">Tenant address<input value="{{ $tenant->slug }}.{{ config('tenancy.base_domain') }}" readonly class="rounded-xl border bg-zinc-50 p-3 font-normal text-zinc-500"><span class="text-xs font-normal text-zinc-500">This address is permanent. Renaming the organisation does not change it.</span></label>
+            @else
+                <label class="grid gap-1 text-sm font-medium">Subdomain<input name="slug" value="{{ old('slug') }}" required data-tenant-slug class="rounded-xl border p-3 font-normal @error('slug') border-red-400 @enderror"><span class="text-xs font-normal text-zinc-500">Your tenant will use <strong data-tenant-url>https://your-name.{{ config('tenancy.base_domain') }}</strong>. This address cannot be changed later.</span>@error('slug')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
+            @endif
             <label class="grid gap-1 text-sm font-medium">Timezone<select name="timezone" class="rounded-xl border p-3 font-normal @error('timezone') border-red-400 @enderror"><option value="">Default timezone</option><option value="Asia/Damascus" @selected(old('timezone', $tenant?->timezone) === 'Asia/Damascus')>Asia/Damascus</option><option value="UTC" @selected(old('timezone', $tenant?->timezone) === 'UTC')>UTC</option></select>@error('timezone')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
             <label class="grid gap-1 text-sm font-medium">Default language<select name="locale" class="rounded-xl border p-3 font-normal @error('locale') border-red-400 @enderror"><option value="">Default language</option><option value="ar" @selected(old('locale', $tenant?->locale) === 'ar')>Arabic</option><option value="en" @selected(old('locale', $tenant?->locale) === 'en')>English</option></select>@error('locale')<span class="text-xs font-normal text-red-700">{{ $message }}</span>@enderror</label>
             @unless($editing)
@@ -56,3 +60,8 @@
         <section class="rounded-3xl border border-red-200 bg-red-50 p-6"><h2 class="font-semibold text-red-900">Delete tenant</h2><p class="mt-1 text-sm text-red-800">Permanently removes its database and files. Type <strong>{{ $tenant->slug }}</strong> to confirm.</p><form method="POST" action="{{ route('platform.tenants.destroy', $tenant) }}" class="mt-4 flex max-w-lg flex-col gap-2 sm:flex-row" onsubmit="return confirm('Permanently delete this tenant?')">@csrf @method('DELETE')<input name="confirm_slug" placeholder="{{ $tenant->slug }}" class="min-w-0 flex-1 rounded-xl border border-red-300 p-3"><button class="rounded-xl bg-red-700 px-4 py-3 text-white">Delete</button></form></section>
     @endif
 </x-platform-layout>
+@unless($editing)
+<script>
+document.addEventListener('DOMContentLoaded', () => { const input = document.querySelector('[data-tenant-slug]'); const output = document.querySelector('[data-tenant-url]'); if (!input || !output) return; const update = () => { const slug = input.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); output.textContent = 'https://' + (slug || 'your-name') + '.{{ config('tenancy.base_domain') }}'; }; input.addEventListener('input', update); update(); });
+</script>
+@endunless

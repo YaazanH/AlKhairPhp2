@@ -307,19 +307,18 @@ class PlatformAdministrationTest extends TestCase
             ->put(route('platform.tenants.update', $tenant), [
                 'name' => 'New Name', 'slug' => 'new-name',
                 'timezone' => 'Asia/Damascus', 'locale' => 'ar',
-            ])->assertRedirect(route('platform.tenants.edit', 'new-name'));
+            ])->assertRedirect(route('platform.tenants.edit', 'old-name'));
 
-        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'name' => 'New Name', 'slug' => 'new-name'], 'landlord');
-        $this->assertDatabaseHas('tenant_domains', ['tenant_id' => $tenant->id, 'host' => 'new-name.'.config('tenancy.base_domain')], 'landlord');
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'name' => 'New Name', 'slug' => 'old-name'], 'landlord');
 
         $this->actingAs($administrator, 'platform')
-            ->patch(route('platform.tenants.status', 'new-name'), ['status' => Tenant::STATUS_SUSPENDED])
+            ->patch(route('platform.tenants.status', 'old-name'), ['status' => Tenant::STATUS_SUSPENDED])
             ->assertRedirect();
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
 
         $this->actingAs($administrator, 'platform')
-            ->patch(route('platform.tenants.status', 'new-name'), ['status' => Tenant::STATUS_ACTIVE])
+            ->patch(route('platform.tenants.status', 'old-name'), ['status' => Tenant::STATUS_ACTIVE])
             ->assertUnprocessable();
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
