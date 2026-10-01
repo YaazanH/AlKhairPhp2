@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\SaasPlatformSetting;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
@@ -354,6 +355,60 @@ class PlatformAdministrationTest extends TestCase
             'platform_administrator_id' => $administrator->id,
             'event' => 'subscription_retention_setting_updated',
         ], 'landlord');
+    }
+
+    public function test_platform_owner_can_record_an_offline_payment_and_view_or_download_its_receipt(): void
+    {
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Payment Officer',
+            'email' => 'payments@example.test',
+            'password' => 'secret-password',
+        ]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Al Noor Centre',
+            'slug' => 'al-noor-payments',
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.tenants.subscription.payments.store', $tenant), [
+                'amount_syp' => 75000,
+                'payment_method' => PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_BANK_TRANSFER,
+                'paid_at' => now()->subHour()->format('Y-m-d H:i:s'),
+                'reference' => 'TRANSFER-204',
+                'note' => 'Advance subscription payment.',
+            ])
+            ->assertSessionHas('status', 'Offline SYP payment recorded as tenant credit.');
+
+        $payment = PlatformSubscriptionLedgerEntry::query()->sole();
+        $this->assertSame(75000, $payment->credit_syp);
+        $this->assertSame('SYP', $payment->currency);
+        $this->assertSame(PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_BANK_TRANSFER, $payment->payment_method);
+        $this->assertSame('Advance subscription payment.', $payment->note);
+        $this->assertNotNull($payment->receipt_number);
+
+        $receiptHtml = view('platform.billing.receipt', [
+            'entry' => $payment->load(['tenant', 'recordedBy']),
+        ])->render();
+        $this->assertStringContainsString($payment->receipt_number, $receiptHtml);
+        $this->assertStringContainsString('Al Noor Centre', $receiptHtml);
+        $this->assertStringContainsString('Bank Transfer', $receiptHtml);
+        $this->assertStringContainsString('75,000 SYP', $receiptHtml);
+        $this->assertStringContainsString('Advance subscription payment.', $receiptHtml);
+        $this->assertStringContainsString('Payment Officer', $receiptHtml);
+
+        $this->actingAs($administrator, 'platform')
+            ->get(route('platform.subscription-payments.receipt', $payment))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('Content-Disposition', 'inline; filename="subscription-receipt-'.$payment->receipt_number.'.pdf"');
+
+        $this->actingAs($administrator, 'platform')
+            ->get(route('platform.subscription-payments.receipt', ['entry' => $payment, 'download' => 1]))
+            ->assertOk()
+            ->assertHeader('Content-Disposition', 'attachment; filename="subscription-receipt-'.$payment->receipt_number.'.pdf"');
     }
 
     public function test_platform_administrator_can_choose_the_features_in_a_package(): void

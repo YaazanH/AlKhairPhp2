@@ -114,8 +114,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('tenants/{tenant}/subscription', [TenantSubscriptionController::class, 'update'])->middleware('platform.permission:manage.subscriptions')->name('tenants.subscription.update');
         Route::post('tenants/{tenant}/subscription/cancel', [TenantSubscriptionController::class, 'cancel'])->middleware('platform.permission:manage.subscriptions')->name('tenants.subscription.cancel');
         Route::post('tenants/{tenant}/subscription/reactivate', [TenantSubscriptionController::class, 'reactivate'])->middleware('platform.permission:manage.subscriptions')->name('tenants.subscription.reactivate');
-        Route::post('tenants/{tenant}/subscription/payments', [TenantSubscriptionController::class, 'recordOfflinePayment'])->middleware('platform.permission:manage.plans')->name('tenants.subscription.payments.store');
-        Route::get('subscription-payments/{entry}/receipt', SubscriptionReceiptController::class)->middleware('platform.permission:manage.plans')->name('subscription-payments.receipt');
+        Route::post('tenants/{tenant}/subscription/payments', [TenantSubscriptionController::class, 'recordOfflinePayment'])->middleware('platform.permission:manage.subscriptions')->name('tenants.subscription.payments.store');
+        Route::get('subscription-payments/{entry}/receipt', SubscriptionReceiptController::class)->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('subscription-payments.receipt');
         Route::post('logout', [PlatformAuthenticatedSessionController::class, 'destroy'])->name('logout');
     });
 });

@@ -8,9 +8,13 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RequirePlatformPermission
 {
-    public function handle(Request $request, Closure $next, string $permission): Response
+    public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
-        abort_unless($request->user('platform')?->hasPlatformPermission($permission), 403);
+        $administrator = $request->user('platform');
+        abort_unless(
+            collect($permissions)->contains(fn (string $permission): bool => $administrator?->hasPlatformPermission($permission) === true),
+            403,
+        );
 
         return $next($request);
     }

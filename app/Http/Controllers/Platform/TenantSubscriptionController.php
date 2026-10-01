@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAuditEvent;
+use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
 use App\Services\Landlord\SubscriptionBillingService;
@@ -98,8 +99,23 @@ class TenantSubscriptionController extends Controller
 
     public function recordOfflinePayment(Request $request, Tenant $tenant): RedirectResponse
     {
-        $data = $request->validate(['amount_syp' => ['required', 'integer', 'min:1', 'max:999999999999'], 'reference' => ['required', 'string', 'max:100']]);
-        $this->billing->recordOfflinePayment($tenant, (int) $data['amount_syp'], $data['reference'], $request->user('platform'), $request->ip());
+        $data = $request->validate([
+            'amount_syp' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'payment_method' => ['required', Rule::in(PlatformSubscriptionLedgerEntry::PAYMENT_METHODS)],
+            'paid_at' => ['required', 'date', 'before_or_equal:now'],
+            'reference' => ['required', 'string', 'max:100'],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $this->billing->recordOfflinePayment(
+            $tenant,
+            (int) $data['amount_syp'],
+            $data['payment_method'],
+            Carbon::parse($data['paid_at']),
+            $data['reference'],
+            $data['note'] ?? null,
+            $request->user('platform'),
+            $request->ip(),
+        );
 
         return back()->with('status', 'Offline SYP payment recorded as tenant credit.');
     }

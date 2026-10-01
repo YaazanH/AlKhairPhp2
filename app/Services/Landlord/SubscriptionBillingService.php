@@ -4,13 +4,16 @@ namespace App\Services\Landlord;
 
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\PlatformAuditEvent;
+use App\Models\Landlord\PlatformSubscriptionAllocation;
 use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 
 class SubscriptionBillingService
 {
@@ -19,11 +22,40 @@ class SubscriptionBillingService
         return (int) PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->sum(DB::raw('credit_syp - debit_syp'));
     }
 
-    public function recordOfflinePayment(Tenant $tenant, int $amountSyp, string $reference, PlatformAdministrator $actor, ?string $ipAddress): PlatformSubscriptionLedgerEntry
-    {
-        return DB::connection('landlord')->transaction(function () use ($tenant, $amountSyp, $reference, $actor, $ipAddress): PlatformSubscriptionLedgerEntry {
-            $entry = PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $tenant->subscription?->id, 'credit_syp' => $amountSyp, 'type' => PlatformSubscriptionLedgerEntry::TYPE_OFFLINE_PAYMENT, 'reference' => $reference, 'recorded_by_platform_administrator_id' => $actor->id]);
-            $this->audit($actor, $tenant, 'subscription_offline_payment_recorded', ['entry_id' => $entry->id, 'amount_syp' => $amountSyp, 'reference' => $reference], $ipAddress);
+    public function recordOfflinePayment(
+        Tenant $tenant,
+        int $amountSyp,
+        string $paymentMethod,
+        CarbonInterface $paidAt,
+        string $reference,
+        ?string $note,
+        PlatformAdministrator $actor,
+        ?string $ipAddress,
+    ): PlatformSubscriptionLedgerEntry {
+        return DB::connection('landlord')->transaction(function () use ($tenant, $amountSyp, $paymentMethod, $paidAt, $reference, $note, $actor, $ipAddress): PlatformSubscriptionLedgerEntry {
+            $uuid = (string) Str::uuid();
+            $entry = PlatformSubscriptionLedgerEntry::query()->create([
+                'uuid' => $uuid,
+                'tenant_id' => $tenant->id,
+                'tenant_subscription_id' => $tenant->subscription?->id,
+                'credit_syp' => $amountSyp,
+                'type' => PlatformSubscriptionLedgerEntry::TYPE_OFFLINE_PAYMENT,
+                'receipt_number' => 'SYP-'.$paidAt->format('Ymd').'-'.strtoupper(substr(str_replace('-', '', $uuid), 0, 12)),
+                'payment_method' => $paymentMethod,
+                'currency' => 'SYP',
+                'paid_at' => $paidAt,
+                'reference' => $reference,
+                'note' => $note,
+                'recorded_by_platform_administrator_id' => $actor->id,
+            ]);
+            $this->audit($actor, $tenant, 'subscription_offline_payment_recorded', [
+                'entry_id' => $entry->id,
+                'receipt_number' => $entry->receipt_number,
+                'amount_syp' => $amountSyp,
+                'payment_method' => $paymentMethod,
+                'paid_at' => $paidAt->toIso8601String(),
+                'reference' => $reference,
+            ], $ipAddress);
 
             return $entry;
         });
@@ -125,7 +157,8 @@ class SubscriptionBillingService
                 if ($canRenew && $this->balance($tenant) >= $charge) {
                     $start = max(now(), $locked->ends_at);
                     $end = $this->periodEnd($locked->period_type, $start);
-                    PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $locked->id, 'debit_syp' => $charge, 'type' => PlatformSubscriptionLedgerEntry::TYPE_RENEWAL, 'metadata' => ['plan_code' => $plan->code, 'price_syp' => $price, 'discount_syp' => $discount, 'voucher_code' => $voucher?->code, 'period_type' => $locked->period_type, 'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String()]]);
+                    $chargeEntry = PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $locked->id, 'debit_syp' => $charge, 'type' => PlatformSubscriptionLedgerEntry::TYPE_RENEWAL, 'currency' => 'SYP', 'metadata' => ['plan_code' => $plan->code, 'price_syp' => $price, 'discount_syp' => $discount, 'voucher_code' => $voucher?->code, 'period_type' => $locked->period_type, 'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String()]]);
+                    $this->allocatePaymentCredits($tenant, $chargeEntry);
                     $locked->update(['status' => TenantSubscription::STATUS_ACTIVE, 'starts_at' => $start, 'ends_at' => $end, 'grace_ends_at' => null, 'cancelled_at' => null, 'cancelled_by_platform_administrator_id' => null]);
                     $tenant->update(['status' => Tenant::STATUS_ACTIVE, 'suspended_at' => null]);
                     if ($voucher) {
@@ -167,6 +200,44 @@ class SubscriptionBillingService
             TenantSubscription::PERIOD_ANNUAL => $start->copy()->addYearNoOverflow(),
             default => $start->copy()->addMonthNoOverflow(),
         };
+    }
+
+    private function allocatePaymentCredits(Tenant $tenant, PlatformSubscriptionLedgerEntry $charge): void
+    {
+        $remaining = $charge->debit_syp;
+        $payments = PlatformSubscriptionLedgerEntry::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('type', PlatformSubscriptionLedgerEntry::TYPE_OFFLINE_PAYMENT)
+            ->withSum('paymentAllocations as allocated_syp', 'amount_syp')
+            ->orderByRaw('paid_at is null')
+            ->orderBy('paid_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($payments as $payment) {
+            $available = $payment->credit_syp - (int) ($payment->allocated_syp ?? 0);
+            $allocated = min($available, $remaining);
+
+            if ($allocated <= 0) {
+                continue;
+            }
+
+            PlatformSubscriptionAllocation::query()->create([
+                'payment_entry_id' => $payment->id,
+                'charge_entry_id' => $charge->id,
+                'amount_syp' => $allocated,
+            ]);
+            $remaining -= $allocated;
+
+            if ($remaining === 0) {
+                return;
+            }
+        }
+
+        if ($remaining !== 0) {
+            throw new LogicException('The subscription charge could not be fully allocated from tenant credit.');
+        }
     }
 
     private function audit(?PlatformAdministrator $actor, Tenant $tenant, string $event, array $properties, ?string $ipAddress = null): void

@@ -66,7 +66,27 @@
                     <p class="mt-4 text-sm text-zinc-600">You need the manage subscriptions permission to change the package or subscription period.</p>
                 @endif
             </div>
-            <div class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Offline payment credit</h2><p class="mt-1 text-sm text-zinc-500">Record cash or manual transfer in SYP. This credits the tenant balance for a future automatic renewal.</p><form method="POST" action="{{ route('platform.tenants.subscription.payments.store', $tenant) }}" class="mt-4 grid gap-3">@csrf<input name="amount_syp" type="number" min="1" required placeholder="Amount (SYP)" class="rounded-xl border p-3"><input name="reference" required maxlength="100" placeholder="Receipt or transfer reference" class="rounded-xl border p-3"><button class="rounded-xl border px-4 py-3">Record offline payment</button></form></div>
+            <div class="rounded-3xl border bg-white p-6 shadow-sm">
+                <h2 class="font-semibold">Offline subscription payment</h2>
+                <p class="mt-1 text-sm text-zinc-500">Record received money in SYP as prepaid tenant credit. This is separate from the tenant's internal finance.</p>
+                @if(auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))
+                    <form method="POST" action="{{ route('platform.tenants.subscription.payments.store', $tenant) }}" class="mt-4 grid gap-3">
+                        @csrf
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="grid gap-1 text-sm">Amount (SYP)<input name="amount_syp" type="number" min="1" required value="{{ old('amount_syp') }}" class="rounded-xl border p-3"></label>
+                            <label class="grid gap-1 text-sm">Payment method<select name="payment_method" required class="rounded-xl border p-3"><option value="cash" @selected(old('payment_method') === 'cash')>Cash</option><option value="bank_transfer" @selected(old('payment_method') === 'bank_transfer')>Bank transfer</option><option value="cheque" @selected(old('payment_method') === 'cheque')>Cheque</option><option value="other" @selected(old('payment_method') === 'other')>Other</option></select></label>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="grid gap-1 text-sm">Paid at<input name="paid_at" type="datetime-local" required value="{{ old('paid_at', now()->format('Y-m-d\TH:i')) }}" max="{{ now()->format('Y-m-d\TH:i') }}" class="rounded-xl border p-3"></label>
+                            <label class="grid gap-1 text-sm">Reference or receipt number<input name="reference" required maxlength="100" value="{{ old('reference') }}" class="rounded-xl border p-3"></label>
+                        </div>
+                        <label class="grid gap-1 text-sm">Note <span class="text-xs text-zinc-500">Optional</span><textarea name="note" maxlength="2000" rows="3" class="rounded-xl border p-3">{{ old('note') }}</textarea></label>
+                        <button class="rounded-xl border px-4 py-3">Record payment and create receipt</button>
+                    </form>
+                @else
+                    <p class="mt-4 text-sm text-zinc-600">You need the manage subscriptions permission to record payments.</p>
+                @endif
+            </div>
             <div class="rounded-3xl border bg-white p-6 shadow-sm">
                 <h2 class="font-semibold">Lifecycle</h2>
                 <p class="mt-1 text-sm text-zinc-500">Cancellation keeps paid access through the subscription end date and seven-day grace period. Suspension blocks tenant access without deleting data.</p>
@@ -93,7 +113,9 @@
             </div>
         </section>
 
-        <section class="rounded-3xl border bg-white p-6 shadow-sm"><div class="flex justify-between"><div><h2 class="font-semibold">Subscription billing history</h2><p class="text-sm text-zinc-500">Immutable Platform billing entries.</p></div><strong class="text-emerald-700">{{ number_format($billingBalance) }} SYP</strong></div><table class="mt-4 w-full text-sm"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Credit</th><th>Charge</th></tr></thead><tbody>@forelse($billingEntries as $entry)<tr><td>{{ $entry->created_at->format('Y-m-d H:i') }}</td><td>{{ str($entry->type)->replace('_',' ')->title() }}</td><td>{{ $entry->reference ?: ($entry->metadata['voucher_code'] ?? '—') }} @if($entry->type === 'offline_payment')<a class="text-emerald-700 underline" target="_blank" href="{{ route('platform.subscription-payments.receipt', $entry) }}">Receipt</a>@endif</td><td>{{ $entry->credit_syp ? number_format($entry->credit_syp).' SYP' : '—' }}</td><td>{{ $entry->debit_syp ? number_format($entry->debit_syp).' SYP' : '—' }}</td></tr>@empty<tr><td colspan="5">No billing entries yet.</td></tr>@endforelse</tbody></table></section>
+        @if(auth('platform')->user()->hasPlatformPermission('view.subscriptions') || auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))
+            <section class="rounded-3xl border bg-white p-6 shadow-sm"><div class="flex justify-between"><div><h2 class="font-semibold">Subscription billing history</h2><p class="text-sm text-zinc-500">Immutable Platform billing entries.</p></div><strong class="text-emerald-700">{{ number_format($billingBalance) }} SYP</strong></div><div class="mt-4 overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>Date</th><th>Type</th><th>Method / reference</th><th>Credit</th><th>Charge</th><th>Receipt</th></tr></thead><tbody>@forelse($billingEntries as $entry)<tr><td>{{ ($entry->paid_at ?? $entry->created_at)->format('Y-m-d H:i') }}</td><td>{{ str($entry->type)->replace('_',' ')->title() }}</td><td>@if($entry->payment_method){{ str($entry->payment_method)->replace('_', ' ')->title() }} · @endif{{ $entry->reference ?: ($entry->metadata['voucher_code'] ?? '—') }}</td><td>{{ $entry->credit_syp ? number_format($entry->credit_syp).' SYP' : '—' }}</td><td>{{ $entry->debit_syp ? number_format($entry->debit_syp).' SYP' : '—' }}</td><td>@if($entry->type === 'offline_payment')<span class="flex gap-2"><a class="text-emerald-700 underline" target="_blank" href="{{ route('platform.subscription-payments.receipt', $entry) }}">View</a><a class="text-emerald-700 underline" href="{{ route('platform.subscription-payments.receipt', ['entry' => $entry, 'download' => 1]) }}">Download</a></span>@else—@endif</td></tr>@empty<tr><td colspan="6">No billing entries yet.</td></tr>@endforelse</tbody></table></div></section>
+        @endif
 
         <section class="rounded-3xl border bg-white p-6 shadow-sm">
             <div><p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Additive only</p><h2 class="mt-1 text-lg font-semibold">Tenant-specific extras</h2><p class="mt-1 text-sm text-zinc-500">Grey checked modules are already supplied by the package and cannot be selected again. Choose only the additional modules needed by this tenant.</p></div>

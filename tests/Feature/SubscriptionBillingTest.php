@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
@@ -40,13 +41,17 @@ class SubscriptionBillingTest extends TestCase
         [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
         $admin = $this->admin();
         $billing = app(SubscriptionBillingService::class);
-        $billing->recordOfflinePayment($tenant, 50000, 'Cash receipt 17', $admin, '127.0.0.1');
+        $payment = $billing->recordOfflinePayment($tenant, 50000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now()->subDay(), 'Cash receipt 17', 'Paid at the Platform office.', $admin, '127.0.0.1');
+        $this->assertStringStartsWith('SYP-20260930-', $payment->receipt_number);
+        $this->assertSame('SYP', $payment->currency);
+        $this->assertSame('Paid at the Platform office.', $payment->note);
         $this->assertSame(50000, $billing->balance($tenant));
         $result = $billing->processDueSubscriptions();
         $this->assertSame(1, $result['renewed']);
         $this->assertSame(0, $billing->balance($tenant));
         $this->assertTrue($subscription->fresh()->ends_at->equalTo(now()->addMonthNoOverflow()));
         $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'debit_syp' => 50000, 'type' => 'renewal'], 'landlord');
+        $this->assertDatabaseHas('platform_subscription_allocations', ['payment_entry_id' => $payment->id, 'amount_syp' => 50000], 'landlord');
     }
 
     public function test_voucher_reduces_one_subscription_renewal_and_records_its_snapshot(): void
@@ -54,7 +59,7 @@ class SubscriptionBillingTest extends TestCase
         [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
         $voucher = SubscriptionVoucher::query()->create(['code' => 'WELCOME20', 'name' => 'Welcome', 'discount_type' => 'percent', 'discount_value' => 20, 'max_redemptions' => 1]);
         $subscription->update(['subscription_voucher_id' => $voucher->id]);
-        app(SubscriptionBillingService::class)->recordOfflinePayment($tenant, 40000, 'Cash receipt 18', $this->admin(), null);
+        app(SubscriptionBillingService::class)->recordOfflinePayment($tenant, 40000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'Cash receipt 18', null, $this->admin(), null);
         app(SubscriptionBillingService::class)->processDueSubscriptions();
         $this->assertSame(0, app(SubscriptionBillingService::class)->balance($tenant));
         $this->assertSame(1, $voucher->fresh()->redemptions);
@@ -78,7 +83,7 @@ class SubscriptionBillingTest extends TestCase
         [$tenant, $subscription] = $this->subscription('2026-10-05 12:00:00');
         $admin = $this->admin();
         $billing = app(SubscriptionBillingService::class);
-        $billing->recordOfflinePayment($tenant, 50000, 'Cash receipt 19', $admin, null);
+        $billing->recordOfflinePayment($tenant, 50000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'Cash receipt 19', null, $admin, null);
 
         $billing->cancel($tenant, $admin, '127.0.0.1');
 
@@ -117,6 +122,34 @@ class SubscriptionBillingTest extends TestCase
         $this->assertNull($subscription->fresh()->grace_ends_at);
         $this->assertTrue($subscription->fresh()->starts_at->equalTo(now()));
         $this->assertTrue($subscription->fresh()->ends_at->equalTo(now()->addMonthNoOverflow()));
+    }
+
+    public function test_partial_payments_remain_as_credit_and_are_allocated_fifo_when_the_balance_is_enough(): void
+    {
+        [$tenant] = $this->subscription('2026-10-01 11:00:00');
+        $billing = app(SubscriptionBillingService::class);
+        $admin = $this->admin();
+        $first = $billing->recordOfflinePayment($tenant, 20000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_BANK_TRANSFER, now()->subDays(2), 'BANK-20', null, $admin, null);
+
+        $this->assertSame(1, $billing->processDueSubscriptions()['grace_started']);
+        $this->assertSame(20000, $billing->balance($tenant));
+
+        $second = $billing->recordOfflinePayment($tenant, 30000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CHEQUE, now()->subDay(), 'CHQ-30', null, $admin, null);
+        $this->assertSame(1, $billing->processDueSubscriptions()['renewed']);
+
+        $charge = PlatformSubscriptionLedgerEntry::query()->where('type', PlatformSubscriptionLedgerEntry::TYPE_RENEWAL)->sole();
+        $this->assertDatabaseHas('platform_subscription_allocations', ['payment_entry_id' => $first->id, 'charge_entry_id' => $charge->id, 'amount_syp' => 20000], 'landlord');
+        $this->assertDatabaseHas('platform_subscription_allocations', ['payment_entry_id' => $second->id, 'charge_entry_id' => $charge->id, 'amount_syp' => 30000], 'landlord');
+        $this->assertSame(0, $billing->balance($tenant));
+    }
+
+    public function test_subscription_ledger_entries_cannot_be_edited(): void
+    {
+        [$tenant] = $this->subscription('2026-10-05 12:00:00');
+        $payment = app(SubscriptionBillingService::class)->recordOfflinePayment($tenant, 1000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_OTHER, now(), 'OTHER-1', null, $this->admin(), null);
+
+        $this->expectException(\LogicException::class);
+        $payment->update(['reference' => 'changed']);
     }
 
     private function subscription(string $endsAt): array

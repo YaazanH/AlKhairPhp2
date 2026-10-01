@@ -180,7 +180,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | In progress |
+| Status | Implemented |
 | Priority | P1 |
 | Requested outcome | The platform can record how a tenant subscription was paid and use that record when activating or renewing the tenant. |
 | Agreed first version | Support manual offline payment records only: cash, bank transfer, cheque, or other method; amount; currency; paid date; reference or receipt number; note; and the Platform user who recorded it. |
@@ -193,7 +193,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed price-change rule | A plan price change affects only charges created for future subscription periods. A tenant keeps the recorded price for an already-paid period. |
 | Future online path | Add payment-provider integrations behind a provider interface after the manual flow is proven. Provider callbacks must be verified, idempotent, and audited before changing subscription status. |
 | Boundary | Platform subscription payments are landlord data. They are not the tenant's internal finance, invoices, or student payments. |
-| Product decisions still needed | Currency and tax rules, partial payments, refunds, receipt format, approval workflow for offline payments, payment providers, and whether payment automatically renews a subscription. |
+| Implemented decisions | SYP-only offline payments are recorded immediately as immutable prepaid credits with method, paid date, reference, note, receipt number, and recording user. Renewal charges keep price and discount snapshots and allocate available payment credits FIFO. Partial credit remains available; refunds and online providers remain outside this first version. |
 
 ### SAAS-010 — Voucher and discount codes
 
