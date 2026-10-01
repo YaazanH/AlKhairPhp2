@@ -19,7 +19,10 @@ class TenantPublicMediaController extends Controller
         $access = app(CurrentModuleAccess::class);
         $normalizedPath = ltrim($path, '/');
 
-        if (str_starts_with($normalizedPath, 'website/')) {
+        if (str_starts_with($normalizedPath, 'logo/')) {
+            // Tenant identity logos are deliberately public so the Platform
+            // list and the tenant login/public surfaces can use one asset.
+        } elseif (str_starts_with($normalizedPath, 'website/')) {
             $websiteEnabled = $access->enabled('public_website');
             $publicPaths = app(WebsiteService::class)->publicMediaPaths();
             $loginPaths = array_values(array_filter($publicPaths, fn (string $publicPath): bool => $publicPath === 'website/branding/logo.jpeg'

@@ -26,12 +26,17 @@
                 </span>
             </div>
 
-            <form method="POST" action="{{ route('tenant-setup.foundation') }}" class="mt-6 grid gap-5 md:grid-cols-2">
+            <form method="POST" action="{{ route('tenant-setup.foundation') }}" enctype="multipart/form-data" class="mt-6 grid gap-5 md:grid-cols-2">
                 @csrf
                 @method('PATCH')
                 <label class="block md:col-span-2">
                     <span class="mb-2 block text-sm font-medium text-neutral-200">{{ __('onboarding.foundation.name') }}</span>
                     <input name="school_name" value="{{ old('school_name', $settings->get('school_name') ?: $tenant->name) }}" required class="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white">
+                </label>
+                <label class="block md:col-span-2">
+                    <span class="mb-2 block text-sm font-medium text-neutral-200">Tenant logo <span class="text-xs font-normal text-neutral-400">Optional</span></span>
+                    <input type="file" name="tenant_logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white">
+                    @error('tenant_logo')<span class="mt-1 block text-sm text-red-200">{{ $message }}</span>@enderror
                 </label>
                 <label class="block">
                     <span class="mb-2 block text-sm font-medium text-neutral-200">{{ __('onboarding.foundation.language') }}</span>

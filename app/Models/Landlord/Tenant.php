@@ -29,6 +29,7 @@ class Tenant extends LandlordModel
         'status',
         'timezone',
         'locale',
+        'logo_path',
     ];
 
     public function getRouteKeyName(): string

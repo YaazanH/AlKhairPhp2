@@ -130,6 +130,20 @@ class LandlordFoundationTest extends TestCase
         $this->assertTrue($tenant->backups()->whereKey($backup)->exists());
     }
 
+    public function test_tenant_identity_logo_is_landlord_metadata(): void
+    {
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Al Noor Centre',
+            'slug' => 'al-noor',
+            'status' => Tenant::STATUS_ACTIVE,
+            'logo_path' => 'logo/al-noor.png',
+        ]);
+
+        $this->assertSame('logo/al-noor.png', $tenant->fresh()->logo_path);
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'logo_path' => 'logo/al-noor.png'], 'landlord');
+    }
+
     public function test_feature_access_requires_an_operational_tenant_and_current_subscription_unless_core(): void
     {
         $this->seed(LandlordCatalogSeeder::class);
