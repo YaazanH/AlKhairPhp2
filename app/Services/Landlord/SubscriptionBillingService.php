@@ -38,13 +38,17 @@ class SubscriptionBillingService
                 $plan = $locked->plan;
                 if (! $tenant || ! $plan) return 'none';
                 $price = $plan->price_syp;
-                if ($locked->renews_automatically && $this->balance($tenant) >= $price) {
+                $voucher = $locked->voucher;
+                $discount = ($voucher && $voucher->isUsable()) ? $voucher->discountFor($price) : 0;
+                $charge = $price - $discount;
+                if ($locked->renews_automatically && $this->balance($tenant) >= $charge) {
                     $start = max(now(), $locked->ends_at);
                     $end = $start->copy()->addDays($plan->billing_period_days);
-                    PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $locked->id, 'debit_syp' => $price, 'type' => PlatformSubscriptionLedgerEntry::TYPE_RENEWAL, 'metadata' => ['plan_code' => $plan->code, 'price_syp' => $price, 'billing_period_days' => $plan->billing_period_days, 'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String()]]);
+                    PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $locked->id, 'debit_syp' => $charge, 'type' => PlatformSubscriptionLedgerEntry::TYPE_RENEWAL, 'metadata' => ['plan_code' => $plan->code, 'price_syp' => $price, 'discount_syp' => $discount, 'voucher_code' => $voucher?->code, 'billing_period_days' => $plan->billing_period_days, 'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String()]]);
                     $locked->update(['status' => TenantSubscription::STATUS_ACTIVE, 'starts_at' => $start, 'ends_at' => $end, 'grace_ends_at' => null]);
                     $tenant->update(['status' => Tenant::STATUS_ACTIVE]);
-                    $this->audit(null, $tenant, 'subscription_automatically_renewed', ['subscription_id' => $locked->id, 'price_syp' => $price]);
+                    if ($voucher) $voucher->increment('redemptions');
+                    $this->audit(null, $tenant, 'subscription_automatically_renewed', ['subscription_id' => $locked->id, 'price_syp' => $price, 'discount_syp' => $discount, 'voucher_code' => $voucher?->code]);
                     return 'renewed';
                 }
                 if ($locked->grace_ends_at === null) {

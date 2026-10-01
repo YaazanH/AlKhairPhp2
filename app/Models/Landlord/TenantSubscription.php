@@ -17,6 +17,7 @@ class TenantSubscription extends LandlordModel
     protected $fillable = [
         'tenant_id',
         'plan_id',
+        'subscription_voucher_id',
         'status',
         'starts_at',
         'ends_at',
@@ -43,6 +44,11 @@ class TenantSubscription extends LandlordModel
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
+    }
+
+    public function voucher(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionVoucher::class, 'subscription_voucher_id');
     }
 
     public function changedBy(): BelongsTo

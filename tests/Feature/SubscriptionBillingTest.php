@@ -6,6 +6,7 @@ use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
+use App\Models\Landlord\SubscriptionVoucher;
 use App\Services\Landlord\SubscriptionBillingService;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,6 +41,17 @@ class SubscriptionBillingTest extends TestCase
         $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'debit_syp' => 50000, 'type' => 'renewal'], 'landlord');
     }
 
+    public function test_voucher_reduces_one_subscription_renewal_and_records_its_snapshot(): void
+    {
+        [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
+        $voucher = SubscriptionVoucher::query()->create(['code' => 'WELCOME20', 'name' => 'Welcome', 'discount_type' => 'percent', 'discount_value' => 20, 'max_redemptions' => 1]);
+        $subscription->update(['subscription_voucher_id' => $voucher->id]);
+        app(SubscriptionBillingService::class)->recordOfflinePayment($tenant, 40000, 'Cash receipt 18', $this->admin(), null);
+        app(SubscriptionBillingService::class)->processDueSubscriptions();
+        $this->assertSame(0, app(SubscriptionBillingService::class)->balance($tenant));
+        $this->assertSame(1, $voucher->fresh()->redemptions);
+        $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'debit_syp' => 40000], 'landlord');
+    }
     public function test_insufficient_balance_starts_seven_day_grace_then_suspends(): void
     {
         [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00'); $billing = app(SubscriptionBillingService::class);
