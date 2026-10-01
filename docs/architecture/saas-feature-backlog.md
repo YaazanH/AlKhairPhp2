@@ -243,7 +243,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | In progress |
+| Status | Implemented |
 | Priority | P2 |
 | Requested outcome | Tenant users can submit improvement ideas to their tenant administrator. A tenant administrator can then forward selected suggestions to the Platform product team with the needed business context. |
 | Recommended user experience | A **Suggest an improvement** action in the same Support area, with a separate form for the desired outcome, current workaround, affected users, and business impact. |
