@@ -50,6 +50,9 @@ class TenantSupportContextTest extends TestCase
                 'type' => TenantSupportRequest::TYPE_SUGGESTION,
                 'subject' => 'Weekly summary',
                 'message' => 'A weekly summary would help.',
+                'desired_outcome' => 'See the weekly summary in one place.',
+                'affected_users' => 'Teachers and administrators.',
+                'business_impact' => TenantSupportRequest::BUSINESS_IMPACT_MEDIUM,
             ])
             ->assertRedirect();
 

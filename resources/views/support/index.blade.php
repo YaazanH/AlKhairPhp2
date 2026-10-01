@@ -29,6 +29,15 @@
                 <input name="subject" required placeholder="Short subject" class="w-full rounded border p-3">
                 <textarea name="message" required rows="5" placeholder="Describe what happened or what would help" class="w-full rounded border p-3"></textarea>
                 <textarea name="expected_result" x-show="type === 'problem'" x-bind:disabled="type !== 'problem'" x-bind:required="type === 'problem'" x-cloak rows="3" placeholder="What did you expect to happen?" class="w-full rounded border p-3"></textarea>
+                <textarea name="desired_outcome" x-show="type === 'suggestion'" x-bind:disabled="type !== 'suggestion'" x-bind:required="type === 'suggestion'" x-cloak rows="3" placeholder="What outcome would make this improvement successful?" class="w-full rounded border p-3"></textarea>
+                <textarea name="current_workaround" x-show="type === 'suggestion'" x-bind:disabled="type !== 'suggestion'" x-cloak rows="3" placeholder="Current workaround (optional)" class="w-full rounded border p-3"></textarea>
+                <input name="affected_users" x-show="type === 'suggestion'" x-bind:disabled="type !== 'suggestion'" x-bind:required="type === 'suggestion'" x-cloak placeholder="Who would benefit or be affected?" class="w-full rounded border p-3">
+                <select name="business_impact" x-show="type === 'suggestion'" x-bind:disabled="type !== 'suggestion'" x-bind:required="type === 'suggestion'" x-cloak class="w-full rounded border p-3">
+                    <option value="">Business impact</option>
+                    @foreach (\App\Models\TenantSupportRequest::businessImpactOptions() as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
                 <button class="rounded bg-emerald-700 px-4 py-3 text-white">Submit</button>
             </form>
         @endif
@@ -48,6 +57,11 @@
                         @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM)
                             @if ($item->expected_result)<p class="mt-2 text-sm"><strong>Expected:</strong> {{ $item->expected_result }}</p>@endif
                             @if ($item->impact)<p class="mt-1 text-sm text-zinc-500">Impact: {{ \App\Models\TenantSupportRequest::impactOptions()[$item->impact] ?? $item->impact }}</p>@endif
+                        @else
+                            @if ($item->desired_outcome)<p class="mt-2 text-sm"><strong>Desired outcome:</strong> {{ $item->desired_outcome }}</p>@endif
+                            @if ($item->current_workaround)<p class="mt-1 text-sm"><strong>Current workaround:</strong> {{ $item->current_workaround }}</p>@endif
+                            @if ($item->affected_users)<p class="mt-1 text-sm text-zinc-500">Affected users: {{ $item->affected_users }}</p>@endif
+                            @if ($item->business_impact)<p class="mt-1 text-sm text-zinc-500">Business impact: {{ \App\Models\TenantSupportRequest::businessImpactOptions()[$item->business_impact] ?? $item->business_impact }}</p>@endif
                         @endif
 
                         <div class="mt-4 space-y-2 border-t pt-3">

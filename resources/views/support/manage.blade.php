@@ -21,6 +21,11 @@
                         @if ($item->priority)<p class="mt-1 text-sm text-zinc-500">Priority: {{ str($item->priority)->title() }}</p>@endif
                         @if ($item->expected_result)<p class="mt-2 text-sm"><strong>Expected:</strong> {{ $item->expected_result }}</p>@endif
                         @if ($item->impact)<p class="mt-1 text-sm text-zinc-500">Impact: {{ \App\Models\TenantSupportRequest::impactOptions()[$item->impact] ?? $item->impact }}</p>@endif
+                    @else
+                        @if ($item->desired_outcome)<p class="mt-2 text-sm"><strong>Desired outcome:</strong> {{ $item->desired_outcome }}</p>@endif
+                        @if ($item->current_workaround)<p class="mt-1 text-sm"><strong>Current workaround:</strong> {{ $item->current_workaround }}</p>@endif
+                        @if ($item->affected_users)<p class="mt-1 text-sm text-zinc-500">Affected users: {{ $item->affected_users }}</p>@endif
+                        @if ($item->business_impact)<p class="mt-1 text-sm text-zinc-500">Business impact: {{ \App\Models\TenantSupportRequest::businessImpactOptions()[$item->business_impact] ?? $item->business_impact }}</p>@endif
                     @endif
                     @if ($platformCase)
                         <div class="mt-3 rounded border border-sky-200 bg-sky-50 p-3 text-sm">

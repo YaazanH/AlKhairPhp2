@@ -37,8 +37,14 @@ class TenantSupportRequest extends Model
 
     public const IMPACT_ALL_USERS = 'all_users';
 
+    public const BUSINESS_IMPACT_LOW = 'low';
+
+    public const BUSINESS_IMPACT_MEDIUM = 'medium';
+
+    public const BUSINESS_IMPACT_HIGH = 'high';
+
     protected $fillable = [
-        'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'expected_result', 'impact', 'reported_url', 'browser_info', 'app_version',
+        'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'expected_result', 'impact', 'desired_outcome', 'current_workaround', 'affected_users', 'business_impact', 'reported_url', 'browser_info', 'app_version',
         'submitted_by_user_id', 'forwarded_by_user_id', 'forwarded_at', 'tenant_admin_note',
     ];
 
@@ -69,6 +75,15 @@ class TenantSupportRequest extends Model
             self::IMPACT_INDIVIDUAL => 'Only me or one person',
             self::IMPACT_SEVERAL_USERS => 'A group or several people',
             self::IMPACT_ALL_USERS => 'Most or all users',
+        ];
+    }
+
+    public static function businessImpactOptions(): array
+    {
+        return [
+            self::BUSINESS_IMPACT_LOW => 'Low',
+            self::BUSINESS_IMPACT_MEDIUM => 'Medium',
+            self::BUSINESS_IMPACT_HIGH => 'High',
         ];
     }
 

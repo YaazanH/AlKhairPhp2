@@ -34,6 +34,10 @@ class TenantSupportRequestController extends Controller
             'expected_result' => ['nullable', 'string', 'max:5000', 'required_if:type,problem'],
             'impact' => ['nullable', Rule::in(array_keys(TenantSupportRequest::impactOptions())), 'required_if:type,problem'],
             'priority' => ['nullable', Rule::in(['normal', 'high', 'critical']), 'required_if:type,problem'],
+            'desired_outcome' => ['nullable', 'string', 'max:5000', 'required_if:type,suggestion'],
+            'current_workaround' => ['nullable', 'string', 'max:5000'],
+            'affected_users' => ['nullable', 'string', 'max:500', 'required_if:type,suggestion'],
+            'business_impact' => ['nullable', Rule::in(array_keys(TenantSupportRequest::businessImpactOptions())), 'required_if:type,suggestion'],
         ]);
 
         $permission = $data['type'] === TenantSupportRequest::TYPE_PROBLEM
@@ -48,6 +52,10 @@ class TenantSupportRequestController extends Controller
                 'browser_info' => mb_substr((string) $request->userAgent(), 0, 1000),
                 'app_version' => mb_substr((string) config('app.version'), 0, 100),
             ];
+            $data['desired_outcome'] = null;
+            $data['current_workaround'] = null;
+            $data['affected_users'] = null;
+            $data['business_impact'] = null;
         } else {
             $data['priority'] = null;
             $data['expected_result'] = null;
