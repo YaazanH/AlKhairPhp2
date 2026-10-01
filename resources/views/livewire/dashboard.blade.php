@@ -17,6 +17,7 @@ use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
 use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\ReportingService;
 use Illuminate\Support\Carbon;
@@ -37,13 +38,50 @@ new class extends Component {
         $user = Auth::user();
         $dashboardRole = $this->resolveDashboardRole();
 
-        return match ($dashboardRole) {
+        $data = match ($dashboardRole) {
             'manager' => $this->managerData($user),
             'teacher' => $this->teacherData($user),
             'parent' => $this->parentData($user),
             'student' => $this->studentData($user),
             default => $this->unassignedData($user),
         };
+
+        $data['subscriptionNotice'] = $this->subscriptionNotice($user);
+
+        return $data;
+    }
+
+    protected function subscriptionNotice($user): ?array
+    {
+        if (! $user?->is_tenant_administrator) {
+            return null;
+        }
+
+        $context = app(TenantContext::class);
+        if (! $context->hasTenant()) {
+            return null;
+        }
+
+        $subscription = $context->tenant()->subscription()->first();
+        if (! $subscription?->ends_at || ! in_array($subscription->status, ['active', 'trial'], true)) {
+            return null;
+        }
+
+        if ($subscription->grace_ends_at?->isFuture()) {
+            return [
+                'state' => 'grace',
+                'date' => $subscription->grace_ends_at->toDateString(),
+            ];
+        }
+
+        if ($subscription->ends_at->isFuture() && $subscription->ends_at->lessThanOrEqualTo(now()->addDays(7))) {
+            return [
+                'state' => 'expiring',
+                'date' => $subscription->ends_at->toDateString(),
+            ];
+        }
+
+        return null;
     }
 
     protected function resolveDashboardRole(): string
@@ -977,6 +1015,13 @@ new class extends Component {
             </aside>
         </div>
     </section>
+
+    @if ($subscriptionNotice)
+        <section class="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-5 text-amber-50 shadow-sm">
+            <p class="text-sm font-semibold text-amber-200">{{ __('subscription.notice.'.$subscriptionNotice['state'].'.title') }}</p>
+            <p class="mt-1 text-sm leading-6 text-amber-50/90">{{ __('subscription.notice.'.$subscriptionNotice['state'].'.message', ['date' => $subscriptionNotice['date']]) }}</p>
+        </section>
+    @endif
 
     @if (! empty($stats))
         <div @class([

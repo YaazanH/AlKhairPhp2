@@ -59,6 +59,28 @@ class TenantOnboardingTest extends TestCase
         $this->assertTrue((bool) AppSetting::groupValues('onboarding')->get('managed'));
     }
 
+    public function test_tenant_administrator_sees_a_subscription_expiry_warning_on_the_dashboard(): void
+    {
+        $this->tenant->subscription()->update(['ends_at' => now()->addDays(6)]);
+        $this->actingAs($this->admin());
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee(__('subscription.notice.expiring.title'))
+            ->assertSee(now()->addDays(6)->toDateString());
+    }
+
+    public function test_regular_tenant_user_does_not_see_subscription_commercial_details(): void
+    {
+        $this->tenant->subscription()->update(['ends_at' => now()->addDays(6)]);
+        $user = User::factory()->create(['is_active' => true, 'is_tenant_administrator' => false]);
+        $this->actingAs($user);
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee(__('subscription.notice.expiring.title'));
+    }
+
     public function test_new_tenant_completes_foundation_and_can_skip_optional_steps(): void
     {
         app(TenantSetupManager::class)->initialiseNewTenant();
