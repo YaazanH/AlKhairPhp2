@@ -74,7 +74,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::delete('access/roles/{role}', [PlatformAccessController::class, 'destroyRole'])->middleware('platform.owner')->name('access.roles.destroy');
         Route::put('access/users/{administrator}/roles', [PlatformAccessController::class, 'syncAdministratorRoles'])->middleware('platform.owner')->name('access.users.roles');
                 Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
-        Route::get('support', PlatformSupportCaseController::class)->middleware('platform.permission:view.dashboard')->name('support.index');
+        Route::get('support', [PlatformSupportCaseController::class, 'index'])->middleware('platform.permission:manage.support')->name('support.index');
+        Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->middleware('platform.permission:manage.support')->name('support.update');
         Route::get('backups', [PlatformTenantBackupController::class, 'index'])->middleware('platform.permission:view.backups')->name('backups.index');
         Route::get('storage', StorageUsageController::class)->middleware('platform.permission:view.storage')->name('storage.index');
         Route::put('backups/settings', [PlatformTenantBackupController::class, 'updateSettings'])->middleware('platform.permission:manage.backups')->name('backups.settings.update');
@@ -318,6 +319,7 @@ require __DIR__.'/auth.php';
 
 // Run the web session and locale middleware for unknown website/dashboard URLs.
 Route::fallback(fn () => abort(404));
+
 
 
 
