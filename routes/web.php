@@ -154,6 +154,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('setup/finish', [TenantSetupController::class, 'finish'])->name('tenant-setup.finish');
     Route::get('support', [TenantSupportRequestController::class, 'index'])->middleware('permission:support.submit')->name('support.index');
     Route::post('support', [TenantSupportRequestController::class, 'store'])->middleware('permission:support.submit')->name('support.store');
+    Route::get('support/manage', [TenantSupportRequestController::class, 'manage'])->middleware('permission:support.manage')->name('support.manage');
+    Route::put('support/manage/{supportRequest}', [TenantSupportRequestController::class, 'update'])->middleware('permission:support.manage')->name('support.update');
 
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
@@ -314,6 +316,7 @@ require __DIR__.'/auth.php';
 
 // Run the web session and locale middleware for unknown website/dashboard URLs.
 Route::fallback(fn () => abort(404));
+
 
 
 
