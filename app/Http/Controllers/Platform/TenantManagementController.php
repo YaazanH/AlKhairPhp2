@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAuditEvent;
+use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\SubscriptionVoucher;
