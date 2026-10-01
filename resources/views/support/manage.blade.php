@@ -13,6 +13,7 @@
                     <div class="flex justify-between gap-4">
                         <strong>{{ $item->subject }}</strong>
                         <span>{{ str($item->type)->title() }}</span>
+                        @if ($item->incident_reference)<span class="text-sm text-zinc-500">{{ $item->incident_reference }}</span>@endif
                     </div>
                     <p class="mt-2">{{ $item->message }}</p>
                     <p class="mt-2 text-sm text-zinc-500">Submitted by {{ $item->submittedBy?->name }}</p>

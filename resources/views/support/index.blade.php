@@ -34,6 +34,7 @@
                     <article class="rounded border p-4">
                         <strong>{{ $item->subject }}</strong>
                         <span class="ms-2 text-sm text-zinc-500">{{ str($item->type)->title() }} - {{ \App\Models\TenantSupportRequest::statusLabel($item->status) }}</span>
+                        @if ($item->incident_reference)<span class="ms-2 text-sm text-zinc-500">{{ $item->incident_reference }}</span>@endif
                         @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM && $item->priority)
                             <span class="ms-2 text-sm text-zinc-500">Priority: {{ str($item->priority)->title() }}</span>
                         @endif

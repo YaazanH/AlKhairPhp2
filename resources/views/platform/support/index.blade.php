@@ -12,6 +12,7 @@
                     <div class="flex justify-between gap-4">
                         <strong>{{ $case->subject }}</strong>
                         <span>{{ str($case->type)->title() }}</span>
+                        @if ($case->incident_reference)<span class="text-sm text-zinc-500">{{ $case->incident_reference }}</span>@endif
                     </div>
                     <p class="mt-2">{{ $case->message }}</p>
                     <p class="mt-2 text-sm text-zinc-500">{{ $case->tenant->name }} - {{ $case->forwarded_at->format('Y-m-d H:i') }}</p>

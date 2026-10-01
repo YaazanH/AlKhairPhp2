@@ -15,6 +15,8 @@ return [
 
     'name' => env('APP_NAME', 'AlKhair'),
 
+    'version' => env('APP_VERSION', 'unknown'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
@@ -87,7 +89,7 @@ return [
     'supported_locales' => [
         'ar' => [
             'name' => 'Arabic',
-            'native' => 'العربية',
+            'native' => 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©',
             'direction' => 'rtl',
         ],
         'en' => [

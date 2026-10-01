@@ -27,7 +27,7 @@ class PlatformSupportCase extends LandlordModel
     public const STATUS_DECLINED = 'declined';
 
     protected $fillable = [
-        'tenant_id', 'tenant_support_request_id', 'type', 'status', 'subject', 'message',
+        'tenant_id', 'tenant_support_request_id', 'type', 'incident_reference', 'status', 'subject', 'message',
         'platform_note', 'platform_replied_at', 'forwarded_at',
     ];
 

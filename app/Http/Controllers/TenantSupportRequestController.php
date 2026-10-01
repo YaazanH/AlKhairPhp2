@@ -32,7 +32,6 @@ class TenantSupportRequestController extends Controller
             'subject' => ['required', 'string', 'max:180'],
             'message' => ['required', 'string', 'max:5000'],
             'priority' => ['nullable', Rule::in(['normal', 'high', 'critical'])],
-            'reported_url' => ['nullable', 'string', 'max:2048'],
         ]);
 
         $permission = $data['type'] === TenantSupportRequest::TYPE_PROBLEM
@@ -40,11 +39,17 @@ class TenantSupportRequestController extends Controller
             : 'support.suggestions.submit';
         abort_unless($request->user()->can($permission), 403);
 
-        if ($data['type'] !== TenantSupportRequest::TYPE_PROBLEM) {
+        if ($data['type'] === TenantSupportRequest::TYPE_PROBLEM) {
+            $data += [
+                'incident_reference' => TenantSupportRequest::newIncidentReference(),
+                'reported_url' => mb_substr($request->url(), 0, 2048),
+                'browser_info' => mb_substr((string) $request->userAgent(), 0, 1000),
+                'app_version' => mb_substr((string) config('app.version'), 0, 100),
+            ];
+        } else {
             $data['priority'] = null;
         }
 
-        $data['browser_info'] = mb_substr((string) $request->userAgent(), 0, 1000);
         TenantSupportRequest::query()->create($data + ['submitted_by_user_id' => $request->user()->id]);
 
         return back()->with('status', 'Your request was submitted.');

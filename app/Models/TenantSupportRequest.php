@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class TenantSupportRequest extends Model
 {
@@ -31,7 +32,7 @@ class TenantSupportRequest extends Model
     public const STATUS_DECLINED = 'declined';
 
     protected $fillable = [
-        'type', 'priority', 'status', 'subject', 'message', 'reported_url', 'browser_info',
+        'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'reported_url', 'browser_info', 'app_version',
         'submitted_by_user_id', 'forwarded_by_user_id', 'forwarded_at', 'tenant_admin_note',
     ];
 
@@ -54,6 +55,15 @@ class TenantSupportRequest extends Model
             ],
             default => [],
         };
+    }
+
+    public static function newIncidentReference(): string
+    {
+        do {
+            $reference = 'INC-'.now()->format('Ymd').'-'.Str::upper(Str::random(6));
+        } while (self::query()->where('incident_reference', $reference)->exists());
+
+        return $reference;
     }
 
     public static function attentionStatuses(): array
