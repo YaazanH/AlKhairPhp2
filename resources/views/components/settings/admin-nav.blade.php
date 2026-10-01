@@ -21,6 +21,11 @@
                 <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
                     <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
                 </a>
+                @if(auth()->user()?->is_tenant_administrator)
+                    <a href="{{ route('settings.theme.edit') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.theme.edit' ? 'is-active' : '' }}">
+                        <span class="settings-tab__title">{{ __('theme.navigation') }}</span>
+                    </a>
+                @endif
                 <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
                     <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
                 </a>

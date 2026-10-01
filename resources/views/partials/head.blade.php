@@ -4,6 +4,9 @@
     $pageUrl = $metaUrl ?? url()->current();
     $pageImage = $metaImage ?? null;
     $faviconImage = $faviconUrl ?? $pageImage ?? app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
+    $tenantTheme = app(\App\Support\TenantTheme::class);
+    $tenantThemeCss = $tenantTheme->isTenantRequest() ? $tenantTheme->cssVariables() : null;
+    $resolvedThemeColor = $themeColor ?? ($tenantTheme->isTenantRequest() ? $tenantTheme->primaryColor() : '#17120e');
     $dubaiFontVersion = '2017-20220205-r2';
     $dubaiFontUrl = fn (string $weight, string $format): string => route('web-fonts.dubai', [
         'weight' => $weight,
@@ -22,7 +25,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="csrf-token" content="{{ csrf_token() }}" />
-<meta name="theme-color" content="{{ $themeColor ?? '#17120e' }}" />
+<meta name="theme-color" content="{{ $resolvedThemeColor }}" />
 <meta name="description" content="{{ $pageDescription }}" />
 
 <meta property="og:type" content="{{ $metaType ?? 'website' }}" />
@@ -62,4 +65,7 @@
 
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
+@if($tenantThemeCss)
+<style data-tenant-theme>{!! $tenantThemeCss !!}</style>
+@endif
 @fluxAppearance

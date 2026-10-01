@@ -1,0 +1,31 @@
+<?php
+
+return [
+    'navigation' => 'Theme',
+    'eyebrow' => 'Tenant branding',
+    'title' => 'Colour theme',
+    'subtitle' => 'Choose one primary colour for your organisation. The application creates the lighter, darker, hover, and readable text colours used across this tenant.',
+    'primary_label' => 'Primary brand colour',
+    'primary_help' => 'Use the picker or enter a six-digit hexadecimal colour, such as #0b8f43.',
+    'picker_label' => 'Choose the primary brand colour',
+    'readability_title' => 'Readability is protected',
+    'readability_message' => 'The application checks light and dark appearance before saving and automatically derives readable text and button colours. If a usable palette cannot be created, the colour will not be saved and you will be asked to choose another colour or reset to the default.',
+    'save' => 'Save tenant theme',
+    'saved' => 'The tenant colour theme was updated and is now active.',
+    'preview_title' => 'Live preview',
+    'preview_help' => 'This preview changes before you save.',
+    'light_mode' => 'Light appearance',
+    'dark_mode' => 'Dark appearance',
+    'preview_heading' => 'A clear workspace for your team',
+    'preview_copy' => 'Buttons, links, highlights, and supporting shades follow your organisation colour.',
+    'preview_action' => 'Example action',
+    'derived_palette' => 'Derived shades',
+    'reset' => 'Reset to default',
+    'reset_help' => 'Remove the custom colour and return this tenant to the AlKhair default.',
+    'reset_confirm' => 'Reset this tenant to the default colour theme?',
+    'reset_done' => 'The tenant colour theme was reset to the default.',
+    'validation' => [
+        'format' => 'Enter a valid six-digit colour such as #0b8f43.',
+        'unreadable' => 'The selected colour cannot produce readable text and buttons in both light and dark appearance. Choose a different colour or reset to the default.',
+    ],
+];

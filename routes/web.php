@@ -46,6 +46,7 @@ use App\Http\Controllers\TenantStorageUsageController;
 use App\Http\Controllers\TenantSupportAttachmentController;
 use App\Http\Controllers\TenantSupportHandoffController;
 use App\Http\Controllers\TenantSupportRequestController;
+use App\Http\Controllers\TenantThemeController;
 use App\Http\Controllers\WebsiteController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -218,6 +219,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/export/student-quran-tests', [ReportExportController::class, 'studentQuranTestSummary'])->middleware('permission:reports.view')->name('reports.exports.student-quran-tests');
     Route::get('reports/export/assessments', [ReportExportController::class, 'assessments'])->middleware('permission:reports.view')->name('reports.exports.assessments');
     Volt::route('settings/general', 'settings.organization')->middleware('permission:settings.manage')->name('settings.organization');
+    Route::get('settings/theme', [TenantThemeController::class, 'edit'])->name('settings.theme.edit');
+    Route::put('settings/theme', [TenantThemeController::class, 'update'])->name('settings.theme.update');
+    Route::delete('settings/theme', [TenantThemeController::class, 'reset'])->name('settings.theme.reset');
     Route::redirect('settings/organization', '/settings/general')->middleware('permission:settings.manage')->name('legacy.settings.organization');
     Volt::route('settings/points', 'settings.tracking')->middleware('permission:settings.manage')->name('settings.points');
     Route::redirect('settings/tracking', '/settings/points')->middleware('permission:settings.manage')->name('settings.tracking');

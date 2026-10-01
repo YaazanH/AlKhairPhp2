@@ -89,7 +89,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | Planned |
+| Status | Implemented |
 | Priority | P2 |
 | Requested outcome | Tenant branding can use colours that match the tenant's identity, including light and dark appearance. |
 | Scope notes | The theme must remain accessible and readable in both light and dark mode. It must not alter other tenants or the Platform dashboard. |
@@ -98,7 +98,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed settings experience | The theme settings page provides a live preview before saving and a **Reset to default** action. Saving updates that tenant application immediately and never affects Platform management or another tenant. |
 | Agreed readability validation | Reject a colour choice only when the application cannot produce readable text and buttons in light or dark appearance. Show a clear message explaining that the selected colour does not meet readability requirements and ask the administrator to choose a different colour or reset to the default. |
 | Candidate user experience | A tenant administrator selects a controlled colour palette or brand colour, previews the result, and can reset to the SaaS default. |
-| Product decisions still needed | Whether the choice is tenant-wide branding, an individual user's personal preference, or both; supported palette controls; dark-mode strategy; contrast requirements; and which screens are themed. |
+| Implemented decisions | A tenant administrator selects one six-digit primary brand colour. The application derives accessible light, dark, hover, foreground, and supporting shades, previews both appearances before saving, applies the result only to the current tenant, and provides a reset-to-default action. Individual user theme colours remain deferred. |
 
 ### SAAS-005 — Guided tenant setup wizard redesign
 
