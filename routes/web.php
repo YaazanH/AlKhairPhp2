@@ -39,6 +39,7 @@ use App\Http\Controllers\Platform\StorageUsageController;
 use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\TenantPublicMediaController;
 use App\Http\Controllers\TenantSetupController;
+use App\Http\Controllers\TenantSupportRequestController;
 use App\Http\Controllers\WebsiteController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -151,6 +152,8 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('setup/foundation', [TenantSetupController::class, 'foundation'])->name('tenant-setup.foundation');
     Route::patch('setup/modules/{module}', [TenantSetupController::class, 'module'])->name('tenant-setup.module');
     Route::post('setup/finish', [TenantSetupController::class, 'finish'])->name('tenant-setup.finish');
+    Route::get('support', [TenantSupportRequestController::class, 'index'])->middleware('permission:support.submit')->name('support.index');
+    Route::post('support', [TenantSupportRequestController::class, 'store'])->middleware('permission:support.submit')->name('support.store');
 
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
@@ -311,5 +314,6 @@ require __DIR__.'/auth.php';
 
 // Run the web session and locale middleware for unknown website/dashboard URLs.
 Route::fallback(fn () => abort(404));
+
 
 
