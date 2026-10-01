@@ -78,6 +78,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
                 Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
         Route::get('support', [PlatformSupportCaseController::class, 'index'])->name('support.index');
         Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->name('support.update');
+        Route::post('support/suggestion-groups', [PlatformSupportCaseController::class, 'storeSuggestionGroup'])->name('support.suggestion-groups.store');
         Route::get('support/{case}/attachments', [PlatformSupportAttachmentController::class, 'index'])->name('support.attachments.index');
         Route::get('support/{case}/attachments/{attachmentId}', [PlatformSupportAttachmentController::class, 'download'])->whereNumber('attachmentId')->name('support.attachments.download');
         Route::get('backups', [PlatformTenantBackupController::class, 'index'])->middleware('platform.permission:view.backups')->name('backups.index');
