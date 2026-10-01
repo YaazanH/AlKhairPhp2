@@ -19,6 +19,7 @@
                 <flux:navlist.item icon="squares-2x2" href="{{ route('platform.dashboard') }}" :current="request()->routeIs('platform.dashboard')">Overview</flux:navlist.item>
                 <flux:navlist.item icon="building-office-2" href="{{ route('platform.plans.index') }}" :current="request()->routeIs('platform.plans.*')">Packages</flux:navlist.item>
                 <flux:navlist.item icon="plus-circle" href="{{ route('platform.tenants.create') }}" :current="request()->routeIs('platform.tenants.create')">New tenant</flux:navlist.item>
+                @if(auth('platform')->user()->hasPlatformPermission('manage.platform-users'))<flux:navlist.item icon="users" href="{{ route('platform.access.index') }}" :current="request()->routeIs('platform.access.*')">Platform users</flux:navlist.item>@endif
             </flux:navlist>
         </div>
         <div class="p-3"><div class="rounded-xl bg-zinc-800 p-3 text-sm text-zinc-300">{{ auth('platform')->user()->name }}<form method="POST" action="{{ route('platform.logout') }}" class="mt-2">@csrf<button class="text-xs text-emerald-400">Sign out</button></form></div></div>

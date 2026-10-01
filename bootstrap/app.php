@@ -12,6 +12,9 @@ use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
 use App\Http\Middleware\RedirectToTenantSetup;
 use App\Http\Middleware\RequireTenantPasswordChange;
+use App\Http\Middleware\RequirePlatformPermission;
+use App\Http\Middleware\RequirePlatformPasswordChange;
+use App\Http\Middleware\RequirePlatformOwner;
 use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
@@ -64,6 +67,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'no-store' => PreventPageCaching::class,
             'platform.auth' => AuthenticatePlatform::class,
+            'platform.permission' => RequirePlatformPermission::class,
+            'platform.password-change' => RequirePlatformPasswordChange::class,
+            'platform.owner' => RequirePlatformOwner::class,
             'tenant.feature' => EnsureTenantFeature::class,
             'no-tenant' => EnsureNoTenantContext::class,
             'role' => RoleMiddleware::class,
