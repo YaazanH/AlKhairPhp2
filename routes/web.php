@@ -18,6 +18,7 @@ use App\Http\Controllers\Platform\PlanManagementController;
 use App\Http\Controllers\Platform\PlatformAccessController;
 use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
+use App\Http\Controllers\Platform\PlatformLandingPageController;
 use App\Http\Controllers\Platform\PlatformRequiredPasswordChangeController;
 use App\Http\Controllers\Platform\PlatformSubscriptionSettingController;
 use App\Http\Controllers\Platform\PlatformSupportAttachmentController;
@@ -31,6 +32,8 @@ use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
 use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\Platform\TenantSupportAccessController;
+use App\Http\Controllers\PlatformLandingController;
+use App\Http\Controllers\PlatformLandingMediaController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
@@ -80,6 +83,10 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::delete('access/roles/{role}', [PlatformAccessController::class, 'destroyRole'])->middleware('platform.owner')->name('access.roles.destroy');
         Route::put('access/users/{administrator}/roles', [PlatformAccessController::class, 'syncAdministratorRoles'])->middleware('platform.owner')->name('access.users.roles');
         Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
+        Route::get('landing-page', [PlatformLandingPageController::class, 'edit'])->middleware('platform.permission:manage.landing-page,publish.landing-page')->name('landing.edit');
+        Route::put('landing-page', [PlatformLandingPageController::class, 'update'])->middleware('platform.permission:manage.landing-page')->name('landing.update');
+        Route::post('landing-page/publish', [PlatformLandingPageController::class, 'publish'])->middleware('platform.permission:publish.landing-page')->name('landing.publish');
+        Route::post('landing-page/revisions/{revision}/restore', [PlatformLandingPageController::class, 'restore'])->middleware('platform.permission:publish.landing-page')->name('landing.restore');
         Route::get('support', [PlatformSupportCaseController::class, 'index'])->name('support.index');
         Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->name('support.update');
         Route::post('support/suggestion-groups', [PlatformSupportCaseController::class, 'storeSuggestionGroup'])->name('support.suggestion-groups.store');
@@ -125,6 +132,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 });
 
 Route::get('/', [WebsiteController::class, 'home'])->name('home');
+Route::post('platform-enquiries', [PlatformLandingController::class, 'enquire'])->middleware(['no-tenant', 'throttle:5,1'])->name('platform-site.enquire');
+Route::get('platform-site/media/{path}', PlatformLandingMediaController::class)->middleware('no-tenant')->where('path', '.*')->name('platform-site.media');
 Route::get('support-access/{token}', TenantSupportHandoffController::class)
     ->middleware('throttle:10,1')
     ->name('tenant-support.consume');

@@ -3974,6 +3974,27 @@ document.addEventListener('DOMContentLoaded', initializePdfUploads);
 document.addEventListener('livewire:navigated', initializePdfUploads);
 document.addEventListener('livewire:commit', initializePdfUploads);
 
+function initializeLandingStories() {
+    document.querySelectorAll('[data-landing-story]').forEach((story) => {
+        if (story.dataset.initialized === 'true') return;
+        story.dataset.initialized = 'true';
+        const steps = Array.from(story.querySelectorAll('[data-landing-story-step]'));
+        const images = Array.from(story.querySelectorAll('[data-landing-story-image]'));
+        const activate = (index) => {
+            steps.forEach((step) => step.classList.toggle('is-active', step.dataset.landingStoryStep === index));
+            images.forEach((image) => image.classList.toggle('is-active', image.dataset.landingStoryImage === index));
+        };
+        const observer = new IntersectionObserver((entries) => {
+            entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+                .slice(0, 1).forEach((entry) => activate(entry.target.dataset.landingStoryStep));
+        }, { rootMargin: '-30% 0px -45% 0px', threshold: [0, .25, .5, .75] });
+        steps.forEach((step) => { observer.observe(step); step.addEventListener('mouseenter', () => activate(step.dataset.landingStoryStep)); });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initializeLandingStories);
+document.addEventListener('livewire:navigated', initializeLandingStories);
+
 let dashboardCurriculumHotbarFrame = null;
 
 function synchronizeDashboardCurriculumHotbarWidths() {

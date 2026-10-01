@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\WebsitePage;
 use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Services\WebsiteService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Schema;
 
 class WebsiteController extends Controller
 {
@@ -15,8 +18,12 @@ class WebsiteController extends Controller
         protected WebsiteService $website,
     ) {}
 
-    public function home(): View|Response|RedirectResponse
+    public function home(Request $request, TenantContext $tenantContext): View|Response|RedirectResponse
     {
+        if (! $tenantContext->hasTenant() && Schema::connection('landlord')->hasTable('platform_landing_pages')) {
+            return app(PlatformLandingController::class)->show($request);
+        }
+
         if (! app(CurrentModuleAccess::class)->enabled('public_website')) {
             return redirect()->route('login');
         }

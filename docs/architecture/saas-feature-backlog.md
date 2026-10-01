@@ -143,7 +143,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | Planned |
+| Status | Implemented |
 | Priority | P2 |
 | Requested outcome | `saas.example.com` has a public marketing website that explains the SaaS product and directs prospective customers to contact, demo, trial, or sign-in actions. |
 | Scope notes | This is a platform-wide site, separate from each tenant's public website and separate from the authenticated Platform dashboard. |
@@ -158,7 +158,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed visual approach | Use polished screenshots of the real Platform and tenant application in device-style frames. Feature copy and the displayed screenshot change together as the visitor scrolls, explaining actual product capabilities rather than showing invented screens. |
 | Agreed contact action | The public contact or demo form asks for name, organisation name, email, optional phone number, and optional message. Do not ask the visitor to choose a preferred language; record the page language automatically. Requests appear in a Platform enquiries list for authorized Platform users to review and follow up manually. |
 | Agreed enquiry scope | Do not add enquiry statuses, sales workflow, or conversion tracking in the first version. Keep contact requests as a simple list for authorized Platform users. |
-| Product decisions still needed | Public brand name, sales funnel, contact method, whether self-service trials are allowed, package pricing visibility, Arabic/English content, supported layout sections, revision/publishing workflow, and exact permissions. |
+| Implemented decisions | The base SaaS domain serves a responsive Arabic/English Platform website with browser-language detection and manual switching. Authorized Platform users edit prepared bilingual sections, visibility, ordering, copy, and product screenshots in a private draft. Publishing validates both languages and creates restorable revisions. Active packages are shown from the landlord catalogue, and demo/contact submissions are recorded in a simple Platform enquiry list without a sales workflow. |
 
 ### SAAS-008 — Subscription lifecycle, plan period, and expiry
 

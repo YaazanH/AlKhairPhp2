@@ -21,6 +21,7 @@
                 @if(auth('platform')->user()->hasPlatformPermission('view.subscriptions') || auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))<flux:navlist.item icon="credit-card" href="{{ route('platform.subscription-settings.edit') }}" :current="request()->routeIs('platform.subscription-settings.*') || request()->routeIs('platform.vouchers.*')">Subscriptions</flux:navlist.item>@endif
                 <flux:navlist.item icon="plus-circle" href="{{ route('platform.tenants.create') }}" :current="request()->routeIs('platform.tenants.create')">New tenant</flux:navlist.item>
                 @if(auth('platform')->user()->hasPlatformPermission('manage.platform-users'))<flux:navlist.item icon="users" href="{{ route('platform.access.index') }}" :current="request()->routeIs('platform.access.*')">Platform users</flux:navlist.item>@endif
+                @if(auth('platform')->user()->hasPlatformPermission('manage.landing-page') || auth('platform')->user()->hasPlatformPermission('publish.landing-page'))<flux:navlist.item icon="globe-alt" href="{{ route('platform.landing.edit') }}" :current="request()->routeIs('platform.landing.*')">Landing page</flux:navlist.item>@endif
             </flux:navlist>
         </div>
         <div class="p-3"><div class="rounded-xl bg-zinc-800 p-3 text-sm text-zinc-300">{{ auth('platform')->user()->name }}<form method="POST" action="{{ route('platform.logout') }}" class="mt-2">@csrf<button class="text-xs text-emerald-400">Sign out</button></form></div></div>
