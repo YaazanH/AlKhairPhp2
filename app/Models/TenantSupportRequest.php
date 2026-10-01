@@ -92,6 +92,11 @@ class TenantSupportRequest extends Model
         return $this->hasMany(TenantSupportMessage::class)->oldest();
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TenantSupportAttachment::class)->oldest();
+    }
+
     public function isClosed(): bool
     {
         return $this->status === self::STATUS_CLOSED;

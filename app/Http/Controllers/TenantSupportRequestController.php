@@ -18,7 +18,7 @@ class TenantSupportRequestController extends Controller
         $user = $request->user();
 
         return view('support.index', [
-            'requests' => TenantSupportRequest::query()->where('submitted_by_user_id', $user->id)->with('messages.sender')->latest()->get(),
+            'requests' => TenantSupportRequest::query()->where('submitted_by_user_id', $user->id)->with(['messages.sender', 'attachments'])->latest()->get(),
             'canSubmitProblem' => $user->can('support.problems.submit'),
             'canSubmitSuggestion' => $user->can('support.suggestions.submit'),
             'canManage' => $user->can('support.manage'),
@@ -53,7 +53,7 @@ class TenantSupportRequestController extends Controller
     public function manage(): View
     {
         $tenant = app(TenantContext::class)->tenant();
-        $requests = TenantSupportRequest::query()->with(['submittedBy', 'messages.sender'])->latest()->get();
+        $requests = TenantSupportRequest::query()->with(['submittedBy', 'messages.sender', 'attachments'])->latest()->get();
         $cases = PlatformSupportCase::query()
             ->where('tenant_id', $tenant->id)
             ->get()

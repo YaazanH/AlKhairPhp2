@@ -51,12 +51,30 @@
                             @endforelse
                         </div>
 
+                        @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM)
+                            <div class="mt-3 space-y-1 text-sm">
+                                @forelse ($item->attachments as $attachment)
+                                    <a href="{{ route('support.attachments.download', $attachment) }}" class="block text-emerald-700 underline">Attachment: {{ $attachment->original_name }}</a>
+                                @empty
+                                    <p class="text-zinc-500">No attachments.</p>
+                                @endforelse
+                            </div>
+                        @endif
+
                         @if (! $item->isClosed())
                             <form method="POST" action="{{ route('support.messages.store', $item) }}" class="mt-3 flex gap-2">
                                 @csrf
                                 <input name="message" required maxlength="5000" placeholder="Add information or reply" class="min-w-0 flex-1 rounded border p-2">
                                 <button class="rounded border px-3">Send</button>
                             </form>
+                            @if ($item->type === \App\Models\TenantSupportRequest::TYPE_PROBLEM)
+                                <form method="POST" action="{{ route('support.attachments.store', $item) }}" enctype="multipart/form-data" class="mt-2 flex gap-2">
+                                    @csrf
+                                    <input type="file" name="attachment" required accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" class="min-w-0 flex-1 rounded border p-2 text-sm">
+                                    <button class="rounded border px-3">Attach file</button>
+                                </form>
+                                <p class="mt-1 text-xs text-zinc-500">Images and common documents up to 10 MB.</p>
+                            @endif
                         @endif
                     </article>
                 @empty

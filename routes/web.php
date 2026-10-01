@@ -41,6 +41,7 @@ use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\TenantPublicMediaController;
 use App\Http\Controllers\TenantSetupController;
 use App\Http\Controllers\TenantSupportRequestController;
+use App\Http\Controllers\TenantSupportAttachmentController;
 use App\Http\Controllers\WebsiteController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -158,6 +159,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('support', [TenantSupportRequestController::class, 'index'])->name('support.index');
     Route::post('support', [TenantSupportRequestController::class, 'store'])->name('support.store');
     Route::post('support/{supportRequest}/messages', [TenantSupportRequestController::class, 'storeMessage'])->name('support.messages.store');
+    Route::post('support/{supportRequest}/attachments', [TenantSupportAttachmentController::class, 'store'])->name('support.attachments.store');
+    Route::get('support/attachments/{attachment}', [TenantSupportAttachmentController::class, 'download'])->name('support.attachments.download');
     Route::get('support/manage', [TenantSupportRequestController::class, 'manage'])->middleware('permission:support.manage')->name('support.manage');
     Route::put('support/manage/{supportRequest}', [TenantSupportRequestController::class, 'update'])->middleware('permission:support.manage')->name('support.update');
 
