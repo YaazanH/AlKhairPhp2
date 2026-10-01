@@ -27,6 +27,7 @@ use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\Platform\SubscriptionVoucherController;
 use App\Http\Controllers\Platform\SubscriptionReceiptController;
 use App\Http\Controllers\Platform\PlatformSupportCaseController;
+use App\Http\Controllers\Platform\PlatformSupportAttachmentController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
@@ -77,6 +78,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
                 Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
         Route::get('support', [PlatformSupportCaseController::class, 'index'])->name('support.index');
         Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->name('support.update');
+        Route::get('support/{case}/attachments', [PlatformSupportAttachmentController::class, 'index'])->name('support.attachments.index');
+        Route::get('support/{case}/attachments/{attachmentId}', [PlatformSupportAttachmentController::class, 'download'])->whereNumber('attachmentId')->name('support.attachments.download');
         Route::get('backups', [PlatformTenantBackupController::class, 'index'])->middleware('platform.permission:view.backups')->name('backups.index');
         Route::get('storage', StorageUsageController::class)->middleware('platform.permission:view.storage')->name('storage.index');
         Route::put('backups/settings', [PlatformTenantBackupController::class, 'updateSettings'])->middleware('platform.permission:manage.backups')->name('backups.settings.update');

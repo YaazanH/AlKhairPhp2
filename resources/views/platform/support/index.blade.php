@@ -15,6 +15,9 @@
                         @if ($case->incident_reference)<span class="text-sm text-zinc-500">{{ $case->incident_reference }}</span>@endif
                     </div>
                     <p class="mt-2">{{ $case->message }}</p>
+                    @if ($case->type === 'problem')
+                        <a href="{{ route('platform.support.attachments.index', $case) }}" class="mt-3 inline-block text-sm text-emerald-700 underline">View tenant attachments</a>
+                    @endif
                     <p class="mt-2 text-sm text-zinc-500">{{ $case->tenant->name }} - {{ $case->forwarded_at->format('Y-m-d H:i') }}</p>
                     <form method="POST" action="{{ route('platform.support.update', $case) }}" class="mt-3 grid gap-2">
                         @csrf
