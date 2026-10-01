@@ -199,13 +199,13 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | In progress |
+| Status | Implemented |
 | Priority | P2 |
 | Requested outcome | The platform can offer controlled discounts during tenant signup or renewal. |
 | Agreed first scope | Platform users create voucher codes with either a fixed-amount or percentage discount, valid-from and valid-until dates, and a redemption limit: one use, a specified total number of uses, one selected tenant, or unlimited uses while the voucher remains active. |
 | Agreed application choices | A voucher can apply to the first payment only, a defined number of renewal periods, or every renewal while the voucher remains active. Each use is recorded against its subscription charge, preserving the original plan price, discount, and final charged amount. |
 | Agreed stacking rule | Allow only one voucher on each subscription charge. Do not combine voucher discounts in the first version. |
-| Product decisions still needed | First-period-only versus recurring discount, stacking rules, whether staff may apply a discount without a code, per-customer limits, free-trial interaction, and voucher reporting. |
+| Implemented decisions | Platform users can create fixed-SYP or percentage vouchers with optional validity dates; one-use, total-use, tenant-only, or unlimited scope; and first-period, limited-period, or recurring application. Only one voucher is assigned to a subscription. Every discounted charge records the original price, discount, final charge, tenant, subscription, and voucher. Arbitrary staff discounts and voucher stacking are not supported. |
 
 ### SAAS-011 — Full tenant-domain preview during creation
 

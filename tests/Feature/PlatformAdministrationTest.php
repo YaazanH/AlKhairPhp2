@@ -7,6 +7,7 @@ use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\SaasPlatformSetting;
+use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
 use App\Services\Landlord\TenantModuleAccess;
@@ -135,11 +136,19 @@ class PlatformAdministrationTest extends TestCase
             'email' => 'platform@example.test',
             'password' => 'secret-password',
         ]);
+        $voucher = SubscriptionVoucher::query()->create([
+            'code' => 'START10',
+            'name' => 'Signup discount',
+            'discount_type' => SubscriptionVoucher::PERCENT,
+            'discount_value' => 10,
+            'application_type' => SubscriptionVoucher::APPLICATION_FIRST_PERIOD,
+        ]);
 
         Artisan::shouldReceive('call')
             ->once()
             ->with('saas:provision-tenant', \Mockery::on(fn (array $arguments) => $arguments['--platform-email'] === $administrator->email
                 && $arguments['--plan'] === 'custom_learning'
+                && $arguments['--voucher'] === 'START10'
                 && $arguments['--timezone'] === 'Asia/Damascus'
                 && $arguments['--locale'] === 'ar'))
             ->andReturn(Command::SUCCESS);
@@ -152,6 +161,7 @@ class PlatformAdministrationTest extends TestCase
                 'owner_email' => 'owner@alnoor.test',
                 'owner_password' => 'temporary-password',
                 'plan' => 'custom_learning',
+                'voucher_id' => $voucher->id,
                 'timezone' => 'Asia/Damascus',
                 'locale' => 'ar',
             ])
@@ -409,6 +419,82 @@ class PlatformAdministrationTest extends TestCase
             ->get(route('platform.subscription-payments.receipt', ['entry' => $payment, 'download' => 1]))
             ->assertOk()
             ->assertHeader('Content-Disposition', 'attachment; filename="subscription-receipt-'.$payment->receipt_number.'.pdf"');
+    }
+
+    public function test_platform_owner_can_create_a_tenant_scoped_limited_period_voucher(): void
+    {
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'voucher-admin@example.test',
+            'password' => 'secret-password',
+        ]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Voucher Centre',
+            'slug' => 'voucher-centre',
+            'status' => Tenant::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.vouchers.store'), [
+                'code' => 'tenant-two',
+                'name' => 'Tenant two-period discount',
+                'discount_type' => SubscriptionVoucher::PERCENT,
+                'discount_value' => 15,
+                'usage_limit' => 'tenant',
+                'tenant_id' => $tenant->id,
+                'application_type' => SubscriptionVoucher::APPLICATION_LIMITED_PERIODS,
+                'max_uses_per_subscription' => 2,
+                'starts_at' => '2026-10-02 09:00:00',
+                'ends_at' => '2026-12-31 23:59:00',
+            ])
+            ->assertSessionHas('status', 'Voucher created.');
+
+        $voucher = SubscriptionVoucher::query()->sole();
+        $this->assertSame('TENANT-TWO', $voucher->code);
+        $this->assertSame($tenant->id, $voucher->tenant_id);
+        $this->assertNull($voucher->max_redemptions);
+        $this->assertSame(SubscriptionVoucher::APPLICATION_LIMITED_PERIODS, $voucher->application_type);
+        $this->assertSame(2, $voucher->max_uses_per_subscription);
+        $this->assertDatabaseHas('platform_audit_events', [
+            'platform_administrator_id' => $administrator->id,
+            'tenant_id' => $tenant->id,
+            'event' => 'subscription_voucher_created',
+        ], 'landlord');
+    }
+
+    public function test_tenant_cannot_be_assigned_a_voucher_scoped_to_another_tenant(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'voucher-scope@example.test',
+            'password' => 'secret-password',
+        ]);
+        $allowedTenant = Tenant::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'Allowed', 'slug' => 'allowed-voucher', 'status' => Tenant::STATUS_ACTIVE]);
+        $otherTenant = Tenant::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'Other', 'slug' => 'other-voucher', 'status' => Tenant::STATUS_ACTIVE]);
+        $voucher = SubscriptionVoucher::query()->create([
+            'code' => 'TENANTONLY',
+            'name' => 'Tenant only',
+            'tenant_id' => $allowedTenant->id,
+            'discount_type' => SubscriptionVoucher::FIXED,
+            'discount_value' => 10000,
+            'application_type' => SubscriptionVoucher::APPLICATION_FIRST_PERIOD,
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->put(route('platform.tenants.subscription.update', $otherTenant), [
+                'plan' => 'core',
+                'voucher_id' => $voucher->id,
+            ])
+            ->assertSessionHasErrors(['voucher_id']);
+
+        $this->assertDatabaseMissing('tenant_subscriptions', [
+            'tenant_id' => $otherTenant->id,
+            'subscription_voucher_id' => $voucher->id,
+        ], 'landlord');
     }
 
     public function test_platform_administrator_can_choose_the_features_in_a_package(): void

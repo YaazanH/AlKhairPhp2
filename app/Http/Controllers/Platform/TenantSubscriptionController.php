@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
+use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
 use App\Services\Landlord\SubscriptionBillingService;
@@ -36,6 +37,10 @@ class TenantSubscriptionController extends Controller
         ]);
         $plan = Plan::query()->where('code', $data['plan'])->where('is_active', true)->firstOrFail();
         $subscription = TenantSubscription::query()->firstOrNew(['tenant_id' => $tenant->id]);
+        $voucher = isset($data['voucher_id']) ? SubscriptionVoucher::query()->findOrFail($data['voucher_id']) : null;
+        if ($voucher && ! $voucher->canBeAssignedTo($tenant) && $subscription->subscription_voucher_id !== $voucher->id) {
+            return back()->withErrors(['voucher_id' => 'This voucher is inactive or belongs to another tenant.'])->withInput();
+        }
         $periodType = $data['period_type'] ?? $subscription->period_type ?? TenantSubscription::PERIOD_MONTHLY;
         $start = isset($data['starts_at']) ? Carbon::parse($data['starts_at']) : ($subscription->starts_at ?? now());
         $scheduleChanged = ! $subscription->exists || $request->hasAny(['period_type', 'starts_at', 'ends_at']);

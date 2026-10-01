@@ -57,13 +57,20 @@ class SubscriptionBillingTest extends TestCase
     public function test_voucher_reduces_one_subscription_renewal_and_records_its_snapshot(): void
     {
         [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
-        $voucher = SubscriptionVoucher::query()->create(['code' => 'WELCOME20', 'name' => 'Welcome', 'discount_type' => 'percent', 'discount_value' => 20, 'max_redemptions' => 1]);
+        $voucher = SubscriptionVoucher::query()->create(['code' => 'WELCOME20', 'name' => 'Welcome', 'discount_type' => 'percent', 'discount_value' => 20, 'max_redemptions' => 1, 'application_type' => SubscriptionVoucher::APPLICATION_RECURRING]);
         $subscription->update(['subscription_voucher_id' => $voucher->id]);
         app(SubscriptionBillingService::class)->recordOfflinePayment($tenant, 40000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'Cash receipt 18', null, $this->admin(), null);
         app(SubscriptionBillingService::class)->processDueSubscriptions();
         $this->assertSame(0, app(SubscriptionBillingService::class)->balance($tenant));
         $this->assertSame(1, $voucher->fresh()->redemptions);
         $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'debit_syp' => 40000], 'landlord');
+        $this->assertDatabaseHas('subscription_voucher_redemptions', ['subscription_voucher_id' => $voucher->id, 'tenant_subscription_id' => $subscription->id, 'original_price_syp' => 50000, 'discount_syp' => 10000, 'final_charge_syp' => 40000], 'landlord');
+
+        Carbon::setTestNow('2026-11-02 12:00:00');
+        app(SubscriptionBillingService::class)->recordOfflinePayment($tenant, 50000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'Cash receipt 20', null, $this->admin('second-admin@example.test'), null);
+        app(SubscriptionBillingService::class)->processDueSubscriptions();
+        $this->assertSame(1, $voucher->fresh()->redemptions);
+        $this->assertSame([40000, 50000], PlatformSubscriptionLedgerEntry::query()->where('type', PlatformSubscriptionLedgerEntry::TYPE_RENEWAL)->orderBy('id')->pluck('debit_syp')->all());
     }
 
     public function test_insufficient_balance_starts_seven_day_grace_then_suspends(): void
@@ -152,6 +159,80 @@ class SubscriptionBillingTest extends TestCase
         $payment->update(['reference' => 'changed']);
     }
 
+    public function test_first_period_voucher_is_recorded_once_and_later_renewals_use_the_full_price(): void
+    {
+        [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
+        $voucher = SubscriptionVoucher::query()->create([
+            'code' => 'FIRST20',
+            'name' => 'First period',
+            'discount_type' => SubscriptionVoucher::PERCENT,
+            'discount_value' => 20,
+            'application_type' => SubscriptionVoucher::APPLICATION_FIRST_PERIOD,
+        ]);
+        $subscription->update(['subscription_voucher_id' => $voucher->id]);
+        $billing = app(SubscriptionBillingService::class);
+        $billing->recordOfflinePayment($tenant, 90000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'CASH-90', null, $this->admin(), null);
+
+        $this->assertSame(1, $billing->processDueSubscriptions()['renewed']);
+        $this->assertSame(50000, $billing->balance($tenant));
+
+        Carbon::setTestNow('2026-11-02 12:00:00');
+        $this->assertSame(1, $billing->processDueSubscriptions()['renewed']);
+        $this->assertSame(0, $billing->balance($tenant));
+        $this->assertSame(1, $voucher->fresh()->redemptions);
+        $this->assertDatabaseCount('subscription_voucher_redemptions', 1, 'landlord');
+        $this->assertSame([40000, 50000], PlatformSubscriptionLedgerEntry::query()->where('type', PlatformSubscriptionLedgerEntry::TYPE_RENEWAL)->orderBy('id')->pluck('debit_syp')->all());
+    }
+
+    public function test_limited_period_voucher_stops_after_its_per_subscription_limit(): void
+    {
+        [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
+        $voucher = SubscriptionVoucher::query()->create([
+            'code' => 'TWO20',
+            'name' => 'Two periods',
+            'discount_type' => SubscriptionVoucher::PERCENT,
+            'discount_value' => 20,
+            'application_type' => SubscriptionVoucher::APPLICATION_LIMITED_PERIODS,
+            'max_uses_per_subscription' => 2,
+        ]);
+        $subscription->update(['subscription_voucher_id' => $voucher->id]);
+        $billing = app(SubscriptionBillingService::class);
+        $billing->recordOfflinePayment($tenant, 130000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_BANK_TRANSFER, now(), 'BANK-130', null, $this->admin(), null);
+
+        $billing->processDueSubscriptions();
+        Carbon::setTestNow('2026-11-02 12:00:00');
+        $billing->processDueSubscriptions();
+        Carbon::setTestNow('2026-12-03 12:00:00');
+        $billing->processDueSubscriptions();
+
+        $this->assertSame(2, $voucher->fresh()->redemptions);
+        $this->assertDatabaseCount('subscription_voucher_redemptions', 2, 'landlord');
+        $this->assertSame([40000, 40000, 50000], PlatformSubscriptionLedgerEntry::query()->where('type', PlatformSubscriptionLedgerEntry::TYPE_RENEWAL)->orderBy('id')->pluck('debit_syp')->all());
+        $this->assertSame(0, $billing->balance($tenant));
+    }
+
+    public function test_tenant_scoped_voucher_cannot_discount_another_tenant(): void
+    {
+        [$tenant, $subscription] = $this->subscription('2026-10-01 11:00:00');
+        $other = Tenant::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'Other Centre', 'slug' => 'other-centre', 'status' => Tenant::STATUS_ACTIVE]);
+        $voucher = SubscriptionVoucher::query()->create([
+            'code' => 'ONLYOTHER',
+            'name' => 'Other tenant only',
+            'tenant_id' => $other->id,
+            'discount_type' => SubscriptionVoucher::FIXED,
+            'discount_value' => 25000,
+            'application_type' => SubscriptionVoucher::APPLICATION_RECURRING,
+        ]);
+        $subscription->update(['subscription_voucher_id' => $voucher->id]);
+        $billing = app(SubscriptionBillingService::class);
+        $billing->recordOfflinePayment($tenant, 50000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'CASH-50', null, $this->admin(), null);
+
+        $this->assertSame(1, $billing->processDueSubscriptions()['renewed']);
+        $this->assertSame(0, $voucher->fresh()->redemptions);
+        $this->assertDatabaseCount('subscription_voucher_redemptions', 0, 'landlord');
+        $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'debit_syp' => 50000], 'landlord');
+    }
+
     private function subscription(string $endsAt): array
     {
         $plan = Plan::query()->create(['code' => 'paid', 'name' => 'Paid', 'price_syp' => 50000, 'billing_period_days' => 30]);
@@ -161,8 +242,8 @@ class SubscriptionBillingTest extends TestCase
         return [$tenant, $subscription];
     }
 
-    private function admin(): PlatformAdministrator
+    private function admin(string $email = 'admin@example.test'): PlatformAdministrator
     {
-        return PlatformAdministrator::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'Admin', 'email' => 'admin@example.test', 'password' => 'secret-password']);
+        return PlatformAdministrator::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'Admin', 'email' => $email, 'password' => 'secret-password']);
     }
 }

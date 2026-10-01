@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\TenantProvisioningAttempt;
@@ -23,7 +24,7 @@ use Illuminate\Support\Str;
 
 class ProvisionTenantCommand extends Command
 {
-    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--plan=core} {--timezone=} {--locale=}';
+    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--plan=core} {--voucher=} {--timezone=} {--locale=}';
 
     protected $description = 'Create a new isolated tenant database, users, seed data, and storage.';
 
@@ -34,6 +35,13 @@ class ProvisionTenantCommand extends Command
     ): int {
         $platform = PlatformAdministrator::query()->where('email', $this->option('platform-email'))->firstOrFail();
         $plan = Plan::query()->where('code', $this->option('plan'))->firstOrFail();
+        $voucher = filled($this->option('voucher'))
+            ? SubscriptionVoucher::query()
+                ->where('code', Str::upper((string) $this->option('voucher')))
+                ->where('is_active', true)
+                ->whereNull('tenant_id')
+                ->firstOrFail()
+            : null;
         $ownerName = $this->option('owner-name') ?: $this->argument('owner-email');
         $ownerPassword = $this->option('owner-password') ?: $this->secret('Tenant owner password');
         $slug = Str::slug($this->argument('slug'));
@@ -96,7 +104,7 @@ class ProvisionTenantCommand extends Command
                 'host' => $slug.'.'.config('tenancy.base_domain'),
                 'is_primary' => true,
             ]);
-            TenantSubscription::query()->create(['tenant_id' => $tenant->id, 'plan_id' => $plan->id, 'status' => TenantSubscription::STATUS_ACTIVE, 'starts_at' => now(), 'changed_by_platform_administrator_id' => $platform->id]);
+            TenantSubscription::query()->create(['tenant_id' => $tenant->id, 'plan_id' => $plan->id, 'subscription_voucher_id' => $voucher?->id, 'status' => TenantSubscription::STATUS_ACTIVE, 'starts_at' => now(), 'changed_by_platform_administrator_id' => $platform->id]);
             $attempt->update(['status' => Tenant::STATUS_ACTIVE, 'finished_at' => now()]);
             $this->info("Tenant {$tenant->slug} is active: {$database}");
 

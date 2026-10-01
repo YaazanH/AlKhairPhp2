@@ -5,6 +5,8 @@
         <p class="mt-2 max-w-2xl text-zinc-600">Control how long suspended tenant data is retained. This setting never deletes data automatically.</p>
     </header>
 
+    <div><a href="{{ route('platform.vouchers.index') }}" class="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-medium text-emerald-800">Manage vouchers and discounts</a></div>
+
     <section class="max-w-2xl rounded-3xl border bg-white p-6 shadow-sm">
         @if(auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))
         <form method="POST" action="{{ route('platform.subscription-settings.update') }}" class="space-y-5">

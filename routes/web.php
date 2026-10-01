@@ -88,10 +88,10 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('backups', [PlatformTenantBackupController::class, 'create'])->middleware('platform.permission:manage.backups')->name('backups.create');
         Route::get('backups/{tenantBackup}/download', [PlatformTenantBackupController::class, 'download'])->middleware('platform.permission:view.backups')->name('backups.download');
         Route::post('backups/{tenantBackup}/restore', [PlatformTenantBackupController::class, 'restore'])->middleware('platform.permission:restore.backups')->name('backups.restore');
-        Route::get('vouchers', [SubscriptionVoucherController::class, 'index'])->middleware('platform.permission:manage.plans')->name('vouchers.index');
-        Route::post('vouchers', [SubscriptionVoucherController::class, 'store'])->middleware('platform.permission:manage.plans')->name('vouchers.store');
-        Route::patch('vouchers/{voucher}/status', [SubscriptionVoucherController::class, 'status'])->middleware('platform.permission:manage.plans')->name('vouchers.status');
-        Route::get('subscription-settings', [PlatformSubscriptionSettingController::class, 'edit'])->middleware('platform.permission:view.subscriptions')->name('subscription-settings.edit');
+        Route::get('vouchers', [SubscriptionVoucherController::class, 'index'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('vouchers.index');
+        Route::post('vouchers', [SubscriptionVoucherController::class, 'store'])->middleware('platform.permission:manage.subscriptions')->name('vouchers.store');
+        Route::patch('vouchers/{voucher}/status', [SubscriptionVoucherController::class, 'status'])->middleware('platform.permission:manage.subscriptions')->name('vouchers.status');
+        Route::get('subscription-settings', [PlatformSubscriptionSettingController::class, 'edit'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('subscription-settings.edit');
         Route::put('subscription-settings', [PlatformSubscriptionSettingController::class, 'update'])->middleware('platform.permission:manage.subscriptions')->name('subscription-settings.update');
         Route::get('packages', [PlanManagementController::class, 'index'])->middleware('platform.permission:manage.plans')->name('plans.index');
         Route::get('packages/create', [PlanManagementController::class, 'create'])->middleware('platform.permission:manage.plans')->name('plans.create');

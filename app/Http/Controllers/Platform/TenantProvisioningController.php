@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Landlord\Plan;
+use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use Illuminate\Console\Command;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +28,12 @@ class TenantProvisioningController extends Controller
                 'required',
                 Rule::in(Plan::query()->where('is_active', true)->pluck('code')->all()),
             ],
+            'voucher_id' => [
+                'nullable',
+                Rule::exists(SubscriptionVoucher::class, 'id')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->whereNull('tenant_id')),
+            ],
         ], [
             'slug.alpha_dash' => 'The subdomain may contain only letters, numbers, dashes, and underscores.',
             'slug.not_in' => 'This subdomain is reserved by the platform. Choose another one.',
@@ -45,6 +52,9 @@ class TenantProvisioningController extends Controller
             'name' => $data['name'], 'slug' => $data['slug'], 'owner-email' => $data['owner_email'],
             '--owner-name' => $data['owner_name'], '--owner-password' => $data['owner_password'], '--plan' => $data['plan'],
             '--platform-email' => $request->user('platform')->email,
+            '--voucher' => isset($data['voucher_id'])
+                ? SubscriptionVoucher::query()->findOrFail($data['voucher_id'])->code
+                : null,
             '--timezone' => $data['timezone'] ?? null, '--locale' => $data['locale'] ?? null,
         ]);
 

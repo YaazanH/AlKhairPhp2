@@ -27,7 +27,7 @@ class TenantManagementController extends Controller
     {
         return view('platform.tenants.create', [
             'plans' => Plan::query()->where('is_active', true)->orderBy('name')->get(),
-            'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->orderBy('code')->get(),
+            'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->whereNull('tenant_id')->orderBy('code')->get(),
             'moduleCatalog' => $planModules->catalog(),
         ]);
     }
@@ -50,7 +50,18 @@ class TenantManagementController extends Controller
                     }
                 })
                 ->orderBy('name')->get(),
-            'vouchers' => SubscriptionVoucher::query()->where('is_active', true)->orderBy('code')->get(),
+            'vouchers' => SubscriptionVoucher::query()
+                ->where(function ($query) use ($tenant): void {
+                    $query->whereNull('tenant_id')->orWhere('tenant_id', $tenant->id);
+                })
+                ->where(function ($query) use ($tenant): void {
+                    $query->where('is_active', true);
+                    if ($tenant->subscription?->subscription_voucher_id) {
+                        $query->orWhere('id', $tenant->subscription->subscription_voucher_id);
+                    }
+                })
+                ->orderBy('code')
+                ->get(),
             'billingEntries' => PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->latest()->limit(20)->get(),
             'billingBalance' => (int) PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->sum(DB::raw('credit_syp - debit_syp')),
             'suspendedDataRetentionMonths' => $platformSettings->suspended_data_retention_months,
