@@ -222,7 +222,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | In progress |
+| Status | Implemented |
 | Priority | P1 |
 | Requested outcome | A tenant user can report an error, outage, or urgent support problem to their tenant administrator. A tenant administrator can then forward it to the Platform team and follow its progress. |
 | Recommended user experience | A **Report a problem** action in a Support area, distinct from feature suggestions. The form asks for a short summary, what happened, expected result, impact, urgency, and optional screenshot. |
