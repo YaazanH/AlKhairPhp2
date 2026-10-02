@@ -9,6 +9,7 @@ use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
+use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -77,6 +78,10 @@ class LearningProgressionService
 
     public function ensureTestEnabled(string $test): void
     {
+        if ($this->configurationRequired()) {
+            throw new LogicException(__('learning_progression.errors.not_configured'));
+        }
+
         $key = match ($test) {
             'partial' => 'partial_test_enabled',
             'final' => 'final_test_enabled',
@@ -93,6 +98,20 @@ class LearningProgressionService
                 'test' => __('learning_progression.tests.'.$test),
             ]));
         }
+    }
+
+    public function ensureConfigured(string $errorKey = 'learning_progression'): void
+    {
+        if ($this->configurationRequired()) {
+            throw ValidationException::withMessages([
+                $errorKey => __('learning_progression.errors.not_configured'),
+            ]);
+        }
+    }
+
+    public function configurationRequired(): bool
+    {
+        return app(TenantContext::class)->hasTenant() && ! $this->settings()['configured'];
     }
 
     public function finalRequiresPartial(): bool

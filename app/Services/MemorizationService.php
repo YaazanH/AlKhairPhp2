@@ -27,6 +27,10 @@ class MemorizationService
         ?MemorizationSession $session = null,
         bool $skipDuplicatePages = false,
     ): MemorizationSession {
+        if ($session === null) {
+            app(LearningProgressionService::class)->ensureConfigured('from_page');
+        }
+
         return DB::transaction(function () use ($enrollment, $validated, $session, $skipDuplicatePages): MemorizationSession {
             $isEditing = $session !== null;
             $previousPages = $session?->pages()->pluck('page_no')->map(fn ($page) => (int) $page)->all() ?? [];

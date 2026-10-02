@@ -16,6 +16,24 @@ return [
     'require_final' => 'Require a passed final test before the Awqaf test',
     'save' => 'Save progression',
     'saved' => 'Learning progression saved.',
+    'summary' => [
+        'eyebrow' => 'Quran journey',
+        'title' => 'Configured progression',
+        'not_configured' => 'Learning progression has not been configured. Quran progress cannot be recorded for this tenant until an authorized user completes the setup.',
+        'configure' => 'Configure progression',
+        'path' => 'Required path',
+        'current_stage' => 'Current next step',
+        'completed_juz' => 'Completed Juz',
+        'active_juz' => 'Juz in progress',
+        'no_progress' => 'No Quran progress recorded yet',
+    ],
+    'stages' => [
+        'memorization' => 'Memorization',
+        'partial' => 'Partial test',
+        'final' => 'Final test',
+        'awqaf' => 'Awqaf test',
+        'complete' => 'Path completed',
+    ],
     'tests' => [
         'partial' => 'Partial test',
         'final' => 'Final test',
@@ -27,5 +45,6 @@ return [
         'final_requirement_invalid' => 'The final prerequisite requires both final and Awqaf tests to be enabled.',
         'one_test_required' => 'Enable at least one Quran test stage.',
         'test_disabled' => ':test is not used in this organisation progression.',
+        'not_configured' => 'Configure the tenant learning progression before recording Quran progress.',
     ],
 ];
