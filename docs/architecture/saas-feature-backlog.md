@@ -297,7 +297,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | Planned |
+| Status | In progress |
 | Priority | P2 |
 | Requested outcome | Each tenant uses one Platform-managed learning-progression profile that tells staff and students what evidence is needed before a student advances. |
 | Initial profile modes | Quran progression, using existing memorization and Quran-test evidence; or lesson/level progression, using lesson-group participation, attendance, and final assessments. |
@@ -307,6 +307,8 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed Quran setup | A tenant user with **manage learning progression** records which Quran tests the tenant uses and their prerequisite rules. Initial options include whether the tenant has partial tests, whether a passed partial test is required before a final test, whether the tenant has final tests, whether a passed final test is required before an Awqaf test, and whether the tenant uses an Awqaf test at all. A tenant without Awqaf completes its Quran path after its final configured test. Invalid combinations are blocked, such as requiring a partial test that the tenant does not use. |
 | Agreed prerequisite enforcement | Keep existing test pages and interactions unchanged. When staff attempts to start a test that is not eligible, show a clear explanation of the missing prerequisite; once it is passed, the normal existing test flow continues. |
 | Agreed Quran-setting lock | A tenant user with **manage learning progression** may correct Quran test settings only before the tenant has any Quran memorisation or test records. Once the first such record exists, the settings lock to protect existing student progress. |
+| Implemented Quran foundation | The tenant now has a permission-controlled Learning Progression settings page for enabling partial, final, and Awqaf tests and choosing the partial-to-final and final-to-Awqaf prerequisites. Invalid combinations are rejected, the settings lock after Quran evidence exists, disabled stages are rejected by the existing recording services, and optional prerequisites affect final/Awqaf eligibility without redesigning the existing test screens. |
+| Remaining implementation | Add the tenant setup gate and progression summary, then implement the lesson-and-level profile, automatic one-level promotion, manual promotion with a required reason and audit history, and the unified student progression view. |
 | Tenant control | A tenant user with the dedicated **manage learning progression** permission configures the tenant's single progression profile. The tenant cannot freely change the progression design after students have started. |
 | Agreed setup gate | Staff may create students and groups before learning progression is configured. Do not allow a student to be assigned into a progression until the tenant's single profile is complete, preventing undefined promotion rules. |
 | Promotion policy | Lesson/level progression promotes a student automatically after mandatory attendance and final-assessment rules pass. A user with a dedicated permission may manually promote one stage with a required reason and audit event. |

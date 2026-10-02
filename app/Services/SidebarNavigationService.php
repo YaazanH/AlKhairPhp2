@@ -78,6 +78,7 @@ class SidebarNavigationService
             'student_billing' => $this->item('ui.nav.student_billing', 'receipt-percent', 'student-billing.index', ['student-billing.*'], 'finance', 70, ['invoices.view']),
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.theme.edit', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
+            'learning_progression_settings' => $this->item('learning_progression.navigation', 'presentation-chart-line', 'settings.learning-progression', ['settings.learning-progression'], 'configuration', 12, ['learning-progression.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'designs', 10, ['website.manage']),
             'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'database', 10, ['data-quality.view']),

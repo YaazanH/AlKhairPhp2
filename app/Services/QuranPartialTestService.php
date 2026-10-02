@@ -20,6 +20,8 @@ class QuranPartialTestService
 {
     public function create(Enrollment $enrollment, QuranJuz $juz, bool $allowAnotherOpenCycle = false): QuranPartialTest
     {
+        app(LearningProgressionService::class)->ensureTestEnabled('partial');
+
         if (! $allowAnotherOpenCycle && $this->inProgressTestsForStudent($enrollment->student)->isNotEmpty()) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.open_cycle_exists'));
         }
@@ -50,6 +52,8 @@ class QuranPartialTestService
 
     public function createForExternalMemorization(Enrollment $enrollment, QuranJuz $juz): QuranPartialTest
     {
+        app(LearningProgressionService::class)->ensureTestEnabled('partial');
+
         if (! $enrollment->student->externalMemorizedJuzs()->whereKey($juz->id)->exists()) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.juz_not_eligible'));
         }

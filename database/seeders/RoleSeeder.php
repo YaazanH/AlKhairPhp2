@@ -164,6 +164,8 @@ class RoleSeeder extends Seeder
             'backups.manage',
             'storage.view',
             'settings.manage',
+            'learning-progression.manage',
+            'learning-progression.manual-promote',
             'website.manage',
             'support.problems.submit',
             'support.suggestions.submit',
