@@ -22,14 +22,20 @@ return new class extends Migration
         });
 
         Schema::create('learning_progression_level_lesson', function (Blueprint $table): void {
-            $table->foreignId('learning_progression_level_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('curriculum_lesson_id')->constrained()->restrictOnDelete();
+            $table->foreignId('learning_progression_level_id');
+            $table->foreignId('curriculum_lesson_id');
+            $table->foreign('learning_progression_level_id', 'progression_lesson_level_fk')
+                ->references('id')->on('learning_progression_levels')->cascadeOnDelete();
+            $table->foreign('curriculum_lesson_id', 'progression_lesson_curriculum_fk')
+                ->references('id')->on('curriculum_lessons')->restrictOnDelete();
             $table->primary(['learning_progression_level_id', 'curriculum_lesson_id'], 'progression_level_lesson_primary');
         });
 
         Schema::create('learning_progression_level_group', function (Blueprint $table): void {
-            $table->foreignId('learning_progression_level_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('learning_progression_level_id');
             $table->foreignId('group_id')->constrained()->restrictOnDelete();
+            $table->foreign('learning_progression_level_id', 'progression_group_level_fk')
+                ->references('id')->on('learning_progression_levels')->cascadeOnDelete();
             $table->primary(['learning_progression_level_id', 'group_id'], 'progression_level_group_primary');
         });
     }

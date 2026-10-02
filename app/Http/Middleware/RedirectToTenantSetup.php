@@ -17,7 +17,7 @@ class RedirectToTenantSetup
         $user = $request->user();
         $eligibleRequest = $request->isMethod('GET')
             && ! $request->expectsJson()
-            && ! $request->routeIs('tenant-setup.*', 'login', 'logout', 'locale.switch')
+            && ! $request->routeIs('tenant-setup.*', 'password.change-required.*', 'login', 'logout', 'locale.switch')
             && ! $request->is('livewire/*');
         $canManage = $context->hasTenant()
             && $user instanceof User

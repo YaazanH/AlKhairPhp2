@@ -25,7 +25,9 @@ return new class extends Migration
 
         Schema::create('student_learning_progression_history', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('student_learning_progression_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('student_learning_progression_id');
+            $table->foreign('student_learning_progression_id', 'student_progression_history_progression_fk')
+                ->references('id')->on('student_learning_progressions')->cascadeOnDelete();
             $table->foreignId('student_id')->constrained()->cascadeOnDelete();
             $table->foreignId('from_level_id')->nullable()->constrained('learning_progression_levels')->restrictOnDelete();
             $table->foreignId('to_level_id')->nullable()->constrained('learning_progression_levels')->restrictOnDelete();
@@ -36,7 +38,7 @@ return new class extends Migration
             $table->timestamp('occurred_at');
             $table->timestamps();
 
-            $table->index(['student_id', 'occurred_at']);
+            $table->index(['student_id', 'occurred_at'], 'student_progression_history_student_time_idx');
         });
     }
 

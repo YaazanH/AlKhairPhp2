@@ -16,7 +16,7 @@ return new class extends Migration
             $table->text('message');
             $table->timestamps();
 
-            $table->index(['tenant_support_request_id', 'created_at']);
+            $table->index(['tenant_support_request_id', 'created_at'], 'tenant_support_message_request_time_idx');
         });
     }
 

@@ -116,6 +116,9 @@ class TenantOnboardingTest extends TestCase
         $this->actingAs($user);
 
         $this->get('/dashboard')->assertRedirect(route('password.change-required.show'));
+        $this->get(route('password.change-required.show'))
+            ->assertOk()
+            ->assertSee(__('password_change.title'));
 
         $this->put(route('password.change-required.update'), [
             'current_password' => 'password',

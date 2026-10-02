@@ -25,7 +25,11 @@ return new class extends Migration
             $table->foreignId('platform_landing_page_id')->constrained()->cascadeOnDelete();
             $table->unsignedInteger('revision_number');
             $table->json('content');
-            $table->foreignId('published_by_platform_administrator_id')->nullable()->constrained('platform_administrators')->nullOnDelete();
+            $table->foreignId('published_by_platform_administrator_id')->nullable();
+            $table->foreign('published_by_platform_administrator_id', 'landing_revision_publisher_fk')
+                ->references('id')
+                ->on('platform_administrators')
+                ->nullOnDelete();
             $table->timestamp('published_at');
             $table->timestamps();
             $table->unique(['platform_landing_page_id', 'revision_number'], 'platform_landing_revision_number_unique');

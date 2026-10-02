@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('size_bytes');
             $table->timestamps();
 
-            $table->index(['tenant_support_request_id', 'created_at']);
+            $table->index(['tenant_support_request_id', 'created_at'], 'tenant_support_attachment_request_time_idx');
         });
     }
 
