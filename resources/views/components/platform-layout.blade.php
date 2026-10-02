@@ -13,20 +13,11 @@
 <div class="app-shell flex min-h-screen">
     <flux:sidebar sticky stashable class="app-sidebar-shell border-r">
         <flux:sidebar.toggle class="lg:hidden" icon="x-mark"/>
-        <div class="app-sidebar-scroll-region">
-            <div class="px-3 pt-4"><a href="{{ route('platform.dashboard') }}" class="text-lg font-bold text-white">AlKhair <span class="text-emerald-400">Platform</span></a><p class="mt-1 text-xs text-zinc-400">SaaS administration</p></div>
-            <flux:navlist variant="outline" class="mt-6">
-                <flux:navlist.item icon="squares-2x2" href="{{ route('platform.dashboard') }}" :current="request()->routeIs('platform.dashboard')">Overview</flux:navlist.item>
-                <flux:navlist.item icon="building-office-2" href="{{ route('platform.plans.index') }}" :current="request()->routeIs('platform.plans.*')">Packages</flux:navlist.item>
-                @if(auth('platform')->user()->hasPlatformPermission('view.subscriptions') || auth('platform')->user()->hasPlatformPermission('manage.subscriptions'))<flux:navlist.item icon="credit-card" href="{{ route('platform.subscription-settings.edit') }}" :current="request()->routeIs('platform.subscription-settings.*') || request()->routeIs('platform.vouchers.*')">Subscriptions</flux:navlist.item>@endif
-                <flux:navlist.item icon="plus-circle" href="{{ route('platform.tenants.create') }}" :current="request()->routeIs('platform.tenants.create')">New tenant</flux:navlist.item>
-                @if(auth('platform')->user()->hasPlatformPermission('manage.platform-users'))<flux:navlist.item icon="users" href="{{ route('platform.access.index') }}" :current="request()->routeIs('platform.access.*')">Platform users</flux:navlist.item>@endif
-                @if(auth('platform')->user()->hasPlatformPermission('manage.landing-page') || auth('platform')->user()->hasPlatformPermission('publish.landing-page'))<flux:navlist.item icon="globe-alt" href="{{ route('platform.landing.edit') }}" :current="request()->routeIs('platform.landing.*')">Landing page</flux:navlist.item>@endif
-            </flux:navlist>
-        </div>
-        <div class="p-3"><div class="rounded-xl bg-zinc-800 p-3 text-sm text-zinc-300">{{ auth('platform')->user()->name }}<form method="POST" action="{{ route('platform.logout') }}" class="mt-2">@csrf<button class="text-xs text-emerald-400">Sign out</button></form></div></div>
+        <x-platform-navigation />
     </flux:sidebar>
-    <main class="app-main flex-1"><div class="app-main-inner space-y-6">
+    <main class="app-main flex-1">
+        <div class="px-4 pt-4 lg:hidden"><flux:sidebar.toggle icon="bars-2" class="rounded-xl border bg-white shadow-sm"/></div>
+        <div class="app-main-inner space-y-6">
         @if ($errors->any())<div class="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900" role="alert"><p class="font-semibold">Please correct the following:</p><ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
         @if (session('status'))<div class="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900" role="status">{{ session('status') }}</div>@endif
         {{ $slot }}
