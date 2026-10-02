@@ -30,6 +30,8 @@ use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
+use App\Models\StudentLearningProgression;
+use App\Models\StudentLearningProgressionHistory;
 use App\Models\StudentNote;
 use App\Models\SystemBackup;
 use App\Models\Teacher;
@@ -118,6 +120,8 @@ class AppServiceProvider extends ServiceProvider
             StudentAttendanceDay::class,
             StudentAttendanceRecord::class,
             StudentNote::class,
+            StudentLearningProgression::class,
+            StudentLearningProgressionHistory::class,
             SystemBackup::class,
             Teacher::class,
             TeacherAttendanceDay::class,

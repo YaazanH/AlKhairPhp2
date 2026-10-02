@@ -65,6 +65,10 @@ new class extends Component
 
     public string $awqafNotes = '';
 
+    public bool $showManualPromotionModal = false;
+
+    public string $manualPromotionReason = '';
+
     public function mount(?Student $student = null): void
     {
         $this->authorizePermission('students.view');
@@ -285,6 +289,44 @@ new class extends Component
         $this->authorizeScopedStudentAccess($student);
         app(LessonLevelProgressionService::class)->assign($student, auth()->user());
         session()->flash('status', __('learning_progression.lesson_summary.assigned'));
+    }
+
+    public function openManualPromotion(): void
+    {
+        $this->authorizePermission('learning-progression.manual-promote');
+        abort_unless($this->currentStudent, 404);
+        $this->manualPromotionReason = '';
+        $this->showManualPromotionModal = true;
+        $this->resetValidation('manualPromotionReason');
+    }
+
+    public function closeManualPromotion(): void
+    {
+        $this->showManualPromotionModal = false;
+        $this->manualPromotionReason = '';
+        $this->resetValidation('manualPromotionReason');
+    }
+
+    public function manuallyPromoteLessonLevel(): void
+    {
+        $this->authorizePermission('learning-progression.manual-promote');
+        abort_unless($this->currentStudent, 404);
+        $validated = $this->validate([
+            'manualPromotionReason' => ['required', 'string', 'min:10', 'max:2000'],
+        ], attributes: [
+            'manualPromotionReason' => __('learning_progression.manual_promotion.reason'),
+        ]);
+
+        $student = Student::query()->findOrFail($this->currentStudent->id);
+        $this->authorizeScopedStudentAccess($student);
+        app(LessonLevelProgressionService::class)->manuallyPromote(
+            $student,
+            auth()->user(),
+            $validated['manualPromotionReason'],
+        );
+
+        $this->closeManualPromotion();
+        session()->flash('status', __('learning_progression.manual_promotion.saved'));
     }
 
     public function with(): array
@@ -768,9 +810,13 @@ new class extends Component
                             <h2 class="font-display text-2xl font-semibold text-white">{{ __('learning_progression.lesson_summary.title') }}</h2>
                             <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('learning_progression.lesson_summary.copy') }}</p>
                         </div>
-                        @if (! $lessonState && auth()->user()->can('learning-progression.manage'))
-                            <button type="button" wire:click="assignLessonProgression" class="pill-link pill-link--accent">{{ __('learning_progression.lesson_summary.assign') }}</button>
-                        @endif
+                        <div class="flex flex-wrap gap-2">
+                            @if (! $lessonState && auth()->user()->can('learning-progression.manage'))
+                                <button type="button" wire:click="assignLessonProgression" class="pill-link pill-link--accent">{{ __('learning_progression.lesson_summary.assign') }}</button>
+                            @elseif ($lessonState?->status === 'active' && auth()->user()->can('learning-progression.manual-promote'))
+                                <button type="button" wire:click="openManualPromotion" class="pill-link">{{ __('learning_progression.manual_promotion.action') }}</button>
+                            @endif
+                        </div>
                     </div>
                     @error('progression')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
                 </div>
@@ -975,6 +1021,18 @@ new class extends Component
                 </div>
                 @error('awqafEnrollmentId')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                 <div class="flex justify-end gap-3"><x-admin.save-button :label="__('workflow.common.actions.save_quran_test')" data-student-progress-awqaf-save-action /></div>
+            </form>
+        </x-admin.modal>
+
+        <x-admin.modal :show="$showManualPromotionModal" :title="__('learning_progression.manual_promotion.title')" :description="__('learning_progression.manual_promotion.copy')" close-method="closeManualPromotion" max-width="xl">
+            <form wire:submit="manuallyPromoteLessonLevel" class="space-y-4">
+                <div class="rounded-xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100">{{ __('learning_progression.manual_promotion.warning') }}</div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">{{ __('learning_progression.manual_promotion.reason') }}</label>
+                    <textarea wire:model="manualPromotionReason" rows="4" maxlength="2000" class="w-full rounded-xl" placeholder="{{ __('learning_progression.manual_promotion.reason_placeholder') }}"></textarea>
+                    @error('manualPromotionReason')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
+                <div class="flex justify-end"><x-admin.save-button :label="__('learning_progression.manual_promotion.confirm')" /></div>
             </form>
         </x-admin.modal>
 

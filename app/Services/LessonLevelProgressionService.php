@@ -10,6 +10,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\StudentLearningProgression;
 use App\Models\StudentLearningProgressionHistory;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -131,6 +132,71 @@ class LessonLevelProgressionService
             ->whereHas('currentLevel.groups', fn ($query) => $query->whereKey($groupId))
             ->pluck('student_id')
             ->each(fn (int $studentId) => $this->evaluateStudent($studentId));
+    }
+
+    public function manuallyPromote(Student $student, User $actor, string $reason): StudentLearningProgression
+    {
+        if (! $actor->can('learning-progression.manual-promote')) {
+            throw new AuthorizationException;
+        }
+
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 10) {
+            throw ValidationException::withMessages([
+                'manualPromotionReason' => __('learning_progression.errors.manual_reason_required'),
+            ]);
+        }
+
+        return DB::transaction(function () use ($student, $actor, $reason): StudentLearningProgression {
+            Student::query()->whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $progression = StudentLearningProgression::query()
+                ->with('currentLevel')
+                ->where('student_id', $student->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $progression || $progression->status !== 'active' || ! $progression->currentLevel) {
+                throw ValidationException::withMessages([
+                    'manualPromotionReason' => __('learning_progression.errors.no_active_level'),
+                ]);
+            }
+
+            $fromLevel = $progression->currentLevel;
+            $nextLevel = LearningProgressionLevel::query()
+                ->where('sort_order', '>', $fromLevel->sort_order)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->first();
+            $evidence = $this->evidence($progression);
+
+            if ($nextLevel) {
+                $progression->update([
+                    'current_level_id' => $nextLevel->id,
+                    'level_started_at' => now(),
+                    'last_evaluated_at' => now(),
+                ]);
+            } else {
+                $progression->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'last_evaluated_at' => now(),
+                ]);
+            }
+
+            StudentLearningProgressionHistory::query()->create([
+                'student_learning_progression_id' => $progression->id,
+                'student_id' => $student->id,
+                'from_level_id' => $fromLevel->id,
+                'to_level_id' => $nextLevel?->id,
+                'event' => 'manually_promoted',
+                'performed_by' => $actor->id,
+                'reason' => $reason,
+                'evidence' => $evidence,
+                'occurred_at' => now(),
+            ]);
+
+            return $progression->refresh()->load('currentLevel');
+        });
     }
 
     public function summary(Student $student): array

@@ -83,6 +83,16 @@ return [
         'required_score' => 'Required score: :score',
         'no_score' => 'No score yet',
     ],
+    'manual_promotion' => [
+        'action' => 'Promote manually',
+        'title' => 'Manual level promotion',
+        'copy' => 'Move this student forward by one level when an authorized exception is necessary.',
+        'warning' => 'This bypasses any incomplete lesson, attendance, or assessment requirement. The reason and current evidence will be permanently recorded.',
+        'reason' => 'Reason for manual promotion',
+        'reason_placeholder' => 'Explain why this exception is necessary…',
+        'confirm' => 'Promote one level',
+        'saved' => 'The student was promoted by one level and the reason was recorded.',
+    ],
     'summary' => [
         'eyebrow' => 'Quran journey',
         'title' => 'Configured progression',
@@ -122,5 +132,7 @@ return [
         'passing_score_too_high' => 'The passing score cannot be greater than the assessment total of :total.',
         'lesson_profile_required' => 'Configure and select the lesson-and-level progression before assigning students.',
         'no_levels' => 'Create at least one learning level before assigning students.',
+        'manual_reason_required' => 'Enter a clear reason of at least 10 characters for the manual promotion.',
+        'no_active_level' => 'This student does not have an active learning level to promote.',
     ],
 ];
