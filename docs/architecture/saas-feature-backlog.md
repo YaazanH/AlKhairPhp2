@@ -333,7 +333,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | Planned |
+| Status | In progress |
 | Priority | P3 |
 | Requested outcome | Tenant administrators can design, save, share, export, and pin meaningful tenant reports and dashboard widgets without writing SQL. |
 | Data model | The application provides a tenant-scoped reporting catalog of safe business data sources, fields, aggregates, and registered relationships. Tenants select from the catalog; the application builds and executes the query. |
@@ -348,6 +348,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed template library | Provide a curated **Report & Widget Library**. Platform users create, version, and publish reusable report and widget templates. Tenant users with the installation permission open the library, browse compatible published templates, and choose which reports or widgets to add to their tenant's Report & Widget Designer. |
 | Agreed library permissions | **Manage report library** creates and edits library drafts. **Publish report library** makes reviewed templates available to tenants. A tenant role needs **install report library items** to open the library and install a compatible template; tenant administrators receive it by default. |
 | Agreed existing-report migration | Existing reports and dashboard widgets become system predefined templates in the library when their related module is enabled. A tenant may add an installed template through its Report & Widget Designer when creating or editing a report or dashboard widget. The original system template remains protected; **Make a copy** creates an editable tenant report or widget. |
+| Implemented foundation | Added permission-controlled tenant report drafts, the first approved **Students** data source, safe field/filter/sort selection, and a 25-row preview that applies the current user's normal student access scope. Raw SQL and arbitrary table or relationship access are not exposed. |
 | Data-isolation boundary | A library item contains only a report or widget definition, labels, presentation settings, required modules, and version information. It never contains source-tenant data, files, users, or database access. |
 | Security boundary | Do not expose SQL, database credentials, sensitive technical tables, password hashes, tokens, sessions, audit internals, or backup metadata. Every result remains scoped to the current tenant, enabled modules, and viewing user's permissions and record scope. |
 | User guidance | Guided templates, friendly relationship labels, field descriptions, a plain-language report summary, limited preview data, result count, warnings for likely mistakes, visible filters/date range, and role-based preview or test mode. |

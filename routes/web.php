@@ -187,6 +187,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('support/manage/{supportRequest}', [TenantSupportRequestController::class, 'update'])->middleware('permission:support.manage')->name('support.update');
 
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
+    Volt::route('reports/designer', 'reports.designer')->middleware('permission:report-designer.view')->name('reports.designer');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
     Route::redirect('reports/student-quran-tests', '/reports/student-activity-summary')
         ->middleware('permission:reports.view')
