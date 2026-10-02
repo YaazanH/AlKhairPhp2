@@ -21,6 +21,7 @@ use App\Services\AccessScopeService;
 use App\Services\CourseCompletionRuleService;
 use App\Services\CourseEndService;
 use App\Services\LearningProgressionService;
+use App\Services\LessonLevelProgressionService;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
 use Illuminate\Database\Eloquent\Builder;
@@ -275,6 +276,17 @@ new class extends Component
         session()->flash('status', __('workflow.quran_tests.messages.saved'));
     }
 
+    public function assignLessonProgression(): void
+    {
+        $this->authorizePermission('learning-progression.manage');
+        abort_unless($this->currentStudent, 404);
+
+        $student = Student::query()->findOrFail($this->currentStudent->id);
+        $this->authorizeScopedStudentAccess($student);
+        app(LessonLevelProgressionService::class)->assign($student, auth()->user());
+        session()->flash('status', __('learning_progression.lesson_summary.assigned'));
+    }
+
     public function with(): array
     {
         $this->authorizePermission('students.view');
@@ -467,6 +479,9 @@ new class extends Component
         $pageSet = $generalPages->flip();
         $externalJuzIds = $studentRecord->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $learningProgression = app(LearningProgressionService::class)->settings();
+        $lessonLevelSummary = $learningProgression['profile'] === LearningProgressionService::PROFILE_LESSON_LEVEL
+            ? app(LessonLevelProgressionService::class)->summary($studentRecord)
+            : null;
         $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
             ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz, $externalJuzIds, $learningProgression) {
                 $memorizedExternally = in_array((int) $juz->id, $externalJuzIds, true);
@@ -596,6 +611,7 @@ new class extends Component
             'quranJuzProgress' => $quranJuzProgress,
             'quranProgressionSettings' => $learningProgression,
             'quranProgressionSummary' => $quranProgressionSummary,
+            'lessonLevelSummary' => $lessonLevelSummary,
             'progressStats' => $progressStats,
             'selectedMissingJuz' => $selectedMissingJuz,
             'paginatedDetails' => $paginatedDetails,
@@ -741,6 +757,46 @@ new class extends Component
             @endforeach
         </section>
 
+        @if ($quranProgressionSettings['profile'] === \App\Services\LearningProgressionService::PROFILE_LESSON_LEVEL)
+            @php($lessonState = $lessonLevelSummary['progression'])
+            @php($lessonEvidence = $lessonLevelSummary['evidence'])
+            <section class="surface-panel overflow-hidden" data-lesson-level-progression-summary>
+                <div class="border-b border-white/8 p-5 lg:p-6">
+                    <div class="eyebrow">{{ __('learning_progression.lesson_summary.eyebrow') }}</div>
+                    <div class="mt-2 flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h2 class="font-display text-2xl font-semibold text-white">{{ __('learning_progression.lesson_summary.title') }}</h2>
+                            <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('learning_progression.lesson_summary.copy') }}</p>
+                        </div>
+                        @if (! $lessonState && auth()->user()->can('learning-progression.manage'))
+                            <button type="button" wire:click="assignLessonProgression" class="pill-link pill-link--accent">{{ __('learning_progression.lesson_summary.assign') }}</button>
+                        @endif
+                    </div>
+                    @error('progression')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
+                </div>
+
+                @if (! $lessonState)
+                    <div class="m-5 rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-4 text-sm leading-7 text-sky-100 lg:m-6">{{ __('learning_progression.lesson_summary.not_assigned') }}</div>
+                @elseif ($lessonState->status === 'completed')
+                    <div class="m-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-sm leading-7 text-emerald-100 lg:m-6">
+                        <strong>{{ __('learning_progression.lesson_summary.completed') }}</strong>
+                        <div>{{ __('learning_progression.lesson_summary.completed_copy', ['level' => $lessonState->currentLevel->name]) }}</div>
+                    </div>
+                @else
+                    <div class="grid gap-px bg-white/8 md:grid-cols-3">
+                        <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.lesson_summary.current_level') }}</div><div class="mt-2 text-lg font-semibold text-white">{{ $lessonState->currentLevel->name }}</div><div class="mt-1 text-xs text-neutral-500">{{ __('learning_progression.lesson_summary.since', ['date' => \App\Support\DateDisplay::text($lessonState->level_started_at->format('d-m-Y'))]) }}</div></div>
+                        <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.lesson_summary.lessons') }}</div><div class="metric-value mt-2"><bdi dir="ltr">{{ number_format($lessonEvidence['delivered_lessons']) }}/{{ number_format($lessonEvidence['required_lessons']) }}</bdi></div><div class="mt-1 text-xs {{ $lessonEvidence['lessons_complete'] ? 'text-emerald-300' : 'text-amber-300' }}">{{ __('learning_progression.lesson_summary.'.($lessonEvidence['lessons_complete'] ? 'requirement_met' : 'requirement_pending')) }}</div></div>
+                        <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.lesson_summary.attendance') }}</div><div class="metric-value mt-2">{{ number_format($lessonEvidence['attendance_percentage'], 1) }}%</div><div class="mt-1 text-xs {{ $lessonEvidence['attendance_passed'] ? 'text-emerald-300' : 'text-amber-300' }}">{{ __('learning_progression.lesson_summary.required_percentage', ['percentage' => number_format($lessonEvidence['attendance_required'], 1)]) }}</div></div>
+                    </div>
+                    <div class="border-t border-white/8 p-5 lg:p-6">
+                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 p-4">
+                            <div><div class="text-sm font-semibold text-white">{{ __('learning_progression.lesson_summary.final_assessment') }}</div><div class="mt-1 text-sm text-neutral-400">{{ $lessonState->currentLevel->finalAssessment?->title }} · {{ __('learning_progression.lesson_summary.required_score', ['score' => number_format($lessonEvidence['assessment_required'], 2)]) }}</div></div>
+                            <span class="status-chip {{ $lessonEvidence['assessment_passed'] ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : 'border-amber-300/25 bg-amber-300/10 text-amber-200' }}">{{ $lessonEvidence['assessment_score'] !== null ? number_format($lessonEvidence['assessment_score'], 2) : __('learning_progression.lesson_summary.no_score') }}</span>
+                        </div>
+                    </div>
+                @endif
+            </section>
+        @else
         <section class="surface-panel overflow-hidden" data-learning-progression-summary>
             <div class="border-b border-white/8 p-5 lg:p-6">
                 <div class="eyebrow">{{ __('learning_progression.summary.eyebrow') }}</div>
@@ -821,6 +877,7 @@ new class extends Component
                 </tbody></table></div>
             @endif
         </section>
+        @endif
 
         <section class="grid gap-6 xl:grid-cols-2">
             @if($this->canViewProgressSection('memorization.view'))

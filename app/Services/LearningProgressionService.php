@@ -12,6 +12,7 @@ use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
+use App\Models\StudentLearningProgression;
 use App\Models\StudentPageAchievement;
 use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
@@ -110,6 +111,13 @@ class LearningProgressionService
         $lessons = CurriculumLesson::query()->with('subject')->whereKey($lessonIds)->get();
         $assessment = Assessment::query()->with('groups')->findOrFail($data['final_assessment_id']);
 
+        if (LearningProgressionLevel::query()
+            ->where('final_assessment_id', $assessment->id)
+            ->when($level, fn ($query) => $query->whereKeyNot($level->id))
+            ->exists()) {
+            throw ValidationException::withMessages(['final_assessment_id' => __('learning_progression.errors.assessment_already_used')]);
+        }
+
         if ($groups->count() !== $groupIds->count() || $groupIds->isEmpty()) {
             throw ValidationException::withMessages(['group_ids' => __('learning_progression.errors.groups_required')]);
         }
@@ -202,7 +210,8 @@ class LearningProgressionService
 
     public function isLocked(): bool
     {
-        return StudentPageAchievement::query()->exists()
+        return StudentLearningProgression::query()->exists()
+            || StudentPageAchievement::query()->exists()
             || QuranPartialTest::query()->exists()
             || QuranFinalTest::query()->exists()
             || QuranTest::query()->exists();

@@ -215,4 +215,9 @@ class Student extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function learningProgression(): HasOne
+    {
+        return $this->hasOne(StudentLearningProgression::class);
+    }
 }

@@ -159,11 +159,15 @@ new class extends Component {
 
     public function with(): array
     {
+        $usedAssessmentIds = LearningProgressionLevel::query()
+            ->when($this->editingLevelId, fn ($query) => $query->whereKeyNot($this->editingLevelId))
+            ->pluck('final_assessment_id');
+
         return [
             'levels' => LearningProgressionLevel::query()->with(['groups.course', 'lessons.subject.definition', 'finalAssessment'])->orderBy('sort_order')->orderBy('id')->get(),
             'groups' => Group::query()->with(['course', 'curriculum'])->where('is_active', true)->whereNotNull('curriculum_id')->orderBy('name')->get(),
             'lessons' => CurriculumLesson::query()->with(['subject.curriculum', 'subject.definition'])->orderBy('name')->get(),
-            'assessments' => Assessment::query()->with('groups:id,name')->where('is_active', true)->orderBy('title')->get(),
+            'assessments' => Assessment::query()->with('groups:id,name')->where('is_active', true)->whereNotIn('id', $usedAssessmentIds)->orderBy('title')->get(),
         ];
     }
 

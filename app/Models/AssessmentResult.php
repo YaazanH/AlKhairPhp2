@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\LessonLevelProgressionService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AssessmentResult extends Model
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        $evaluate = fn (self $result) => app(LessonLevelProgressionService::class)->evaluateStudent((int) $result->student_id);
+        static::saved($evaluate);
+        static::deleted($evaluate);
+    }
 
     protected $fillable = [
         'assessment_id',

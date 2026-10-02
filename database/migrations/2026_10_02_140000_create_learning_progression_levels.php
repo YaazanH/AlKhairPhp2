@@ -14,7 +14,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->unsignedInteger('sort_order');
             $table->decimal('attendance_threshold', 5, 2);
-            $table->foreignId('final_assessment_id')->constrained('assessments')->restrictOnDelete();
+            $table->foreignId('final_assessment_id')->unique()->constrained('assessments')->restrictOnDelete();
             $table->decimal('passing_score', 8, 2);
             $table->timestamps();
 

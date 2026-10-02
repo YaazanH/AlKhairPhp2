@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\LessonLevelProgressionService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class StudentAttendanceRecord extends Model
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        $evaluate = function (self $record): void {
+            $studentId = $record->student_id ?: $record->enrollment()->value('student_id');
+            if ($studentId) {
+                app(LessonLevelProgressionService::class)->evaluateStudent((int) $studentId);
+            }
+        };
+
+        static::saved($evaluate);
+        static::deleted($evaluate);
+    }
 
     protected $fillable = [
         'group_attendance_day_id',
