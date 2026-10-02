@@ -55,6 +55,8 @@ class LessonLevelProgressionTest extends TestCase
             ->assertOk()
             ->assertSee(__('learning_progression.lesson_summary.title'))
             ->assertSee($records['first_level']->name)
+            ->assertSee(__('learning_progression.history.title'))
+            ->assertSee(__('learning_progression.history.events.assigned'))
             ->assertSee(__('learning_progression.manual_promotion.action'));
 
         $this->expectException(LogicException::class);
@@ -159,6 +161,42 @@ class LessonLevelProgressionTest extends TestCase
         );
         $this->assertSame('completed', $completed->status);
         $this->assertSame(2, StudentLearningProgressionHistory::query()->where('event', 'manually_promoted')->count());
+    }
+
+    public function test_assessment_updates_keep_immutable_attempt_snapshots(): void
+    {
+        $records = $this->progressionRecords();
+        $records['user']->assignRole('admin');
+        $this->actingAs($records['user']);
+        app(LessonLevelProgressionService::class)->assign($records['student'], $records['user']);
+
+        $result = AssessmentResult::query()->create([
+            'assessment_id' => $records['assessment']->id,
+            'enrollment_id' => $records['enrollment']->id,
+            'student_id' => $records['student']->id,
+            'score' => 45,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
+        $result->update(['score' => 90, 'status' => 'passed', 'attempt_no' => 2]);
+
+        $attempts = StudentLearningProgressionHistory::query()
+            ->where('event', 'assessment_attempted')
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(2, $attempts);
+        $this->assertEquals(45.0, $attempts[0]->evidence['assessment_score']);
+        $this->assertSame('failed', $attempts[0]->evidence['assessment_status']);
+        $this->assertEquals(90.0, $attempts[1]->evidence['assessment_score']);
+        $this->assertSame(2, $attempts[1]->evidence['attempt_number']);
+        $this->assertSame($records['user']->id, $attempts[1]->performed_by);
+
+        $this->get(route('students.progress', $records['student'], absolute: false))
+            ->assertOk()
+            ->assertSee(__('learning_progression.history.events.assessment_attempted'))
+            ->assertSee('45.00')
+            ->assertSee('90.00');
     }
 
     public function test_manual_promotion_requires_the_dedicated_permission(): void

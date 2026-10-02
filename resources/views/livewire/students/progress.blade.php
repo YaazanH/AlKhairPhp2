@@ -841,6 +841,50 @@ new class extends Component
                         </div>
                     </div>
                 @endif
+
+                @if ($lessonState)
+                    <div class="border-t border-white/8 p-5 lg:p-6" data-learning-progression-history>
+                        <h3 class="text-base font-semibold text-white">{{ __('learning_progression.history.title') }}</h3>
+                        <p class="mt-1 text-sm text-neutral-400">{{ __('learning_progression.history.copy') }}</p>
+                        <div class="mt-4 space-y-3">
+                            @foreach ($lessonState->history as $entry)
+                                @php($snapshot = $entry->evidence ?? [])
+                                <article class="rounded-2xl border border-white/8 bg-white/4 p-4" wire:key="learning-progression-history-{{ $entry->id }}">
+                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div class="font-semibold text-white">{{ __('learning_progression.history.events.'.$entry->event) }}</div>
+                                            <div class="mt-1 text-sm text-neutral-400">
+                                                @if ($entry->event === 'assigned')
+                                                    {{ __('learning_progression.history.started_level', ['level' => $entry->toLevel?->name]) }}
+                                                @elseif ($entry->event === 'assessment_attempted')
+                                                    {{ __('learning_progression.history.assessment_for_level', ['level' => $entry->fromLevel?->name]) }}
+                                                @else
+                                                    {{ __('learning_progression.history.transition', ['from' => $entry->fromLevel?->name, 'to' => $entry->toLevel?->name ?? __('learning_progression.history.path_complete')]) }}
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="text-end text-xs text-neutral-500">
+                                            <div>{{ \App\Support\DateDisplay::html($entry->occurred_at?->format('d-m-Y H:i')) }}</div>
+                                            <div class="mt-1">{{ $entry->performer?->username ?: __('learning_progression.history.system') }}</div>
+                                        </div>
+                                    </div>
+
+                                    @if ($snapshot !== [])
+                                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                                            @if (array_key_exists('delivered_lessons', $snapshot))<span class="status-chip">{{ __('learning_progression.history.lesson_evidence', ['delivered' => number_format($snapshot['delivered_lessons']), 'required' => number_format($snapshot['required_lessons'] ?? 0)]) }}</span>@endif
+                                            @if (array_key_exists('attendance_percentage', $snapshot))<span class="status-chip">{{ __('learning_progression.history.attendance_evidence', ['actual' => number_format((float) $snapshot['attendance_percentage'], 1), 'required' => number_format((float) ($snapshot['attendance_required'] ?? 0), 1)]) }}</span>@endif
+                                            @if (array_key_exists('assessment_score', $snapshot))<span class="status-chip">{{ __('learning_progression.history.assessment_evidence', ['score' => $snapshot['assessment_score'] !== null ? number_format((float) $snapshot['assessment_score'], 2) : __('learning_progression.lesson_summary.no_score'), 'required' => number_format((float) ($snapshot['assessment_required'] ?? 0), 2)]) }}</span>@endif
+                                        </div>
+                                    @endif
+
+                                    @if ($entry->reason)
+                                        <div class="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/10 px-3 py-2 text-sm leading-6 text-amber-100"><strong>{{ __('learning_progression.history.reason') }}</strong> {{ $entry->reason }}</div>
+                                    @endif
+                                </article>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </section>
         @else
         <section class="surface-panel overflow-hidden" data-learning-progression-summary>

@@ -13,9 +13,8 @@ class AssessmentResult extends Model
 
     protected static function booted(): void
     {
-        $evaluate = fn (self $result) => app(LessonLevelProgressionService::class)->evaluateStudent((int) $result->student_id);
-        static::saved($evaluate);
-        static::deleted($evaluate);
+        static::saved(fn (self $result) => app(LessonLevelProgressionService::class)->assessmentResultSaved($result));
+        static::deleted(fn (self $result) => app(LessonLevelProgressionService::class)->evaluateStudent((int) $result->student_id));
     }
 
     protected $fillable = [

@@ -125,6 +125,45 @@ class LessonLevelProgressionService
         });
     }
 
+    public function assessmentResultSaved(AssessmentResult $result): void
+    {
+        if (app(LearningProgressionService::class)->settings()['profile'] !== LearningProgressionService::PROFILE_LESSON_LEVEL) {
+            return;
+        }
+
+        DB::transaction(function () use ($result): void {
+            $progression = StudentLearningProgression::query()
+                ->with('currentLevel')
+                ->where('student_id', $result->student_id)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $progression || ! $progression->currentLevel || (int) $progression->currentLevel->final_assessment_id !== (int) $result->assessment_id) {
+                return;
+            }
+
+            $evidence = $this->evidence($progression);
+            StudentLearningProgressionHistory::query()->create([
+                'student_learning_progression_id' => $progression->id,
+                'student_id' => $progression->student_id,
+                'from_level_id' => $progression->current_level_id,
+                'event' => 'assessment_attempted',
+                'performed_by' => auth()->id(),
+                'evidence' => [
+                    ...$evidence,
+                    'assessment_result_id' => $result->id,
+                    'assessment_score' => $result->score !== null ? (float) $result->score : null,
+                    'assessment_status' => $result->status,
+                    'attempt_number' => (int) $result->attempt_no,
+                ],
+                'occurred_at' => now(),
+            ]);
+        });
+
+        $this->evaluateStudent((int) $result->student_id);
+    }
+
     public function evaluateGroup(int $groupId): void
     {
         StudentLearningProgression::query()
@@ -202,7 +241,7 @@ class LessonLevelProgressionService
     public function summary(Student $student): array
     {
         $progression = StudentLearningProgression::query()
-            ->with(['currentLevel.finalAssessment', 'history.fromLevel', 'history.toLevel'])
+            ->with(['currentLevel.finalAssessment', 'history.fromLevel', 'history.toLevel', 'history.performer'])
             ->where('student_id', $student->id)
             ->first();
 

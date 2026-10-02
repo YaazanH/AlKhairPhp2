@@ -297,7 +297,7 @@ for safe tenant onboarding. They are not a sprint plan.
 
 | Field | Value |
 | --- | --- |
-| Status | In progress |
+| Status | Done |
 | Priority | P2 |
 | Requested outcome | Each tenant uses one Platform-managed learning-progression profile that tells staff and students what evidence is needed before a student advances. |
 | Initial profile modes | Quran progression, using existing memorization and Quran-test evidence; or lesson/level progression, using lesson-group participation, attendance, and final assessments. |
@@ -312,7 +312,8 @@ for safe tenant onboarding. They are not a sprint plan.
 | Implemented lesson-and-level foundation | An authorized tenant user can select the lesson-and-level profile and create, edit, delete, and reorder levels. Every level references existing required curriculum lessons, one or more delivery groups, an attendance threshold, an existing final assessment, and a passing score. Cross-curriculum lessons, unrelated assessments, and scores above the assessment total are rejected. The profile becomes configured after its first valid level. |
 | Implemented assignment and automatic promotion | An authorized tenant user can assign a student only to the first configured level. The student's state belongs globally to the student, locks profile configuration, and remains independent of group changes. Required lessons count as delivered from existing curriculum progress; attendance is matched to those lesson dates and delivery groups; and the configured assessment score is evaluated from existing results. Passing all three rules promotes exactly one level, final-level completion is recorded, consumed evidence cannot be reused by another level, and every assignment or automatic transition creates history. The unified student progress page shows the current level and live lesson, attendance, and assessment evidence. |
 | Implemented manual promotion | A tenant user needs the dedicated **Manually promote learning progression** permission. The student progress page warns that the action bypasses incomplete requirements, requires a meaningful written reason, advances exactly one configured level or completes the final level, captures the current evidence snapshot and actor, and records both progression history and the tenant data audit. |
-| Remaining implementation | Show the complete level, evidence, assessment-attempt, and transition history in the unified student progression view. |
+| Implemented unified history | The student progress page shows the complete ordered progression history: initial assignment, immutable assessment-attempt snapshots, automatic promotions, manual promotions and reasons, final completion, responsible user or system, and the lesson, attendance, and score evidence captured at each decision. |
+| Remaining implementation | None for the agreed initial learning-progression scope. Progression versioning and standalone-import mapping remain future compatibility work and belong with their respective migration projects. |
 | Tenant control | A tenant user with the dedicated **manage learning progression** permission configures the tenant's single progression profile. The tenant cannot freely change the progression design after students have started. |
 | Agreed setup gate | Staff may create students and groups before learning progression is configured. Do not allow a student to be assigned into a progression until the tenant's single profile is complete, preventing undefined promotion rules. |
 | Promotion policy | Lesson/level progression promotes a student automatically after mandatory attendance and final-assessment rules pass. A user with a dedicated permission may manually promote one stage with a required reason and audit event. |
@@ -326,7 +327,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed repeat behaviour | If a student does not meet the attendance requirement or fails the final assessment, they remain in the same level. Staff may record further attendance and a new assessment attempt; automatic promotion occurs when both rules later pass. |
 | Agreed progression view | Show the student’s current level or Quran stage, completed requirements, remaining attendance or assessment requirement, previous levels and test attempts, and any manual-promotion reason. Do not redesign the existing Quran test screens. |
 | Restored data policy | When standalone Quran data is imported into a new SaaS tenant, the Quran profile infers the student's current stage from restored records without deleting, recalculating, or requiring repetition of historical tests. |
-| Product decisions still needed | Exact attendance threshold and calculation window, final-assessment selection and passing rules, repeat-history display, progression versioning, the exact mapping of restored Quran records, profile selection during tenant creation, and whether a tenant can change profile before any student begins. |
+| Deferred follow-ups | Versioning an already active progression design and mapping restored standalone Quran records are deferred to future compatibility and import work. |
 
 ### SAAS-016 — Tenant report designer and dashboard widgets
 
