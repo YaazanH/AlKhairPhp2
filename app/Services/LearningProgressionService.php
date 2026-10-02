@@ -3,6 +3,10 @@
 namespace App\Services;
 
 use App\Models\AppSetting;
+use App\Models\Assessment;
+use App\Models\CurriculumLesson;
+use App\Models\Group;
+use App\Models\LearningProgressionLevel;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
@@ -12,6 +16,7 @@ use App\Models\StudentPageAchievement;
 use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 
@@ -19,12 +24,16 @@ class LearningProgressionService
 {
     public const GROUP = 'learning_progression';
 
+    public const PROFILE_QURAN = 'quran';
+
+    public const PROFILE_LESSON_LEVEL = 'lesson_level';
+
     public function settings(): array
     {
         $settings = AppSetting::groupValues(self::GROUP);
 
         return [
-            'profile' => $settings->get('profile') ?? 'quran',
+            'profile' => $settings->get('profile') ?? self::PROFILE_QURAN,
             'configured' => (bool) ($settings->get('configured') ?? false),
             'partial_test_enabled' => (bool) ($settings->get('partial_test_enabled') ?? true),
             'partial_test_required_for_final' => (bool) ($settings->get('partial_test_required_for_final') ?? true),
@@ -32,6 +41,27 @@ class LearningProgressionService
             'final_test_required_for_awqaf' => (bool) ($settings->get('final_test_required_for_awqaf') ?? true),
             'awqaf_test_enabled' => (bool) ($settings->get('awqaf_test_enabled') ?? true),
         ];
+    }
+
+    public function selectProfile(string $profile): void
+    {
+        if ($this->isLocked()) {
+            throw new LogicException(__('learning_progression.errors.locked'));
+        }
+
+        if (! in_array($profile, [self::PROFILE_QURAN, self::PROFILE_LESSON_LEVEL], true)) {
+            throw ValidationException::withMessages([
+                'profile' => __('learning_progression.errors.profile_invalid'),
+            ]);
+        }
+
+        AppSetting::storeValue(self::GROUP, 'profile', $profile);
+        AppSetting::storeValue(
+            self::GROUP,
+            'configured',
+            $profile === self::PROFILE_LESSON_LEVEL && LearningProgressionLevel::query()->exists(),
+            'boolean',
+        );
     }
 
     public function storeQuranSettings(array $settings): void
@@ -60,12 +90,114 @@ class LearningProgressionService
             ]);
         }
 
-        AppSetting::storeValue(self::GROUP, 'profile', 'quran');
+        AppSetting::storeValue(self::GROUP, 'profile', self::PROFILE_QURAN);
         AppSetting::storeValue(self::GROUP, 'configured', true, 'boolean');
 
         foreach ($settings as $key => $value) {
             AppSetting::storeValue(self::GROUP, $key, $value, 'boolean');
         }
+    }
+
+    public function storeLevel(array $data, ?LearningProgressionLevel $level = null): LearningProgressionLevel
+    {
+        if ($this->isLocked()) {
+            throw new LogicException(__('learning_progression.errors.locked'));
+        }
+
+        $groupIds = collect($data['group_ids'])->map(fn (mixed $id): int => (int) $id)->unique()->values();
+        $lessonIds = collect($data['lesson_ids'])->map(fn (mixed $id): int => (int) $id)->unique()->values();
+        $groups = Group::query()->whereKey($groupIds)->get();
+        $lessons = CurriculumLesson::query()->with('subject')->whereKey($lessonIds)->get();
+        $assessment = Assessment::query()->with('groups')->findOrFail($data['final_assessment_id']);
+
+        if ($groups->count() !== $groupIds->count() || $groupIds->isEmpty()) {
+            throw ValidationException::withMessages(['group_ids' => __('learning_progression.errors.groups_required')]);
+        }
+
+        if ($lessons->count() !== $lessonIds->count() || $lessonIds->isEmpty()) {
+            throw ValidationException::withMessages(['lesson_ids' => __('learning_progression.errors.lessons_required')]);
+        }
+
+        $curriculumIds = $groups->pluck('curriculum_id')->filter()->map(fn (mixed $id): int => (int) $id)->unique();
+        if ($curriculumIds->isEmpty() || $lessons->contains(fn (CurriculumLesson $lesson): bool => ! $curriculumIds->contains((int) $lesson->subject->curriculum_id))) {
+            throw ValidationException::withMessages(['lesson_ids' => __('learning_progression.errors.lesson_group_mismatch')]);
+        }
+
+        $assessmentGroupIds = $assessment->groups->pluck('id')->push($assessment->group_id)->filter()->map(fn (mixed $id): int => (int) $id)->unique();
+        if ($assessmentGroupIds->intersect($groupIds)->isEmpty()) {
+            throw ValidationException::withMessages(['final_assessment_id' => __('learning_progression.errors.assessment_group_mismatch')]);
+        }
+
+        if ($assessment->total_mark !== null && (float) $data['passing_score'] > (float) $assessment->total_mark) {
+            throw ValidationException::withMessages(['passing_score' => __('learning_progression.errors.passing_score_too_high', ['total' => $assessment->total_mark])]);
+        }
+
+        return DB::transaction(function () use ($data, $groupIds, $lessonIds, $level): LearningProgressionLevel {
+            $level ??= new LearningProgressionLevel;
+            $level->fill([
+                'name' => $data['name'],
+                'description' => $data['description'] ?? null,
+                'attendance_threshold' => $data['attendance_threshold'],
+                'final_assessment_id' => $data['final_assessment_id'],
+                'passing_score' => $data['passing_score'],
+            ]);
+
+            if (! $level->exists) {
+                $level->sort_order = (int) LearningProgressionLevel::query()->max('sort_order') + 1;
+            }
+
+            $level->save();
+            $level->groups()->sync($groupIds);
+            $level->lessons()->sync($lessonIds);
+
+            AppSetting::storeValue(self::GROUP, 'profile', self::PROFILE_LESSON_LEVEL);
+            AppSetting::storeValue(self::GROUP, 'configured', true, 'boolean');
+
+            return $level->refresh();
+        });
+    }
+
+    public function deleteLevel(LearningProgressionLevel $level): void
+    {
+        if ($this->isLocked()) {
+            throw new LogicException(__('learning_progression.errors.locked'));
+        }
+
+        DB::transaction(function () use ($level): void {
+            $level->delete();
+            $this->normalizeLevelOrder();
+            AppSetting::storeValue(self::GROUP, 'configured', LearningProgressionLevel::query()->exists(), 'boolean');
+        });
+    }
+
+    public function moveLevel(LearningProgressionLevel $level, string $direction): void
+    {
+        if ($this->isLocked()) {
+            throw new LogicException(__('learning_progression.errors.locked'));
+        }
+
+        $operator = $direction === 'up' ? '<' : '>';
+        $order = $direction === 'up' ? 'desc' : 'asc';
+        $neighbor = LearningProgressionLevel::query()
+            ->where('sort_order', $operator, $level->sort_order)
+            ->orderBy('sort_order', $order)
+            ->first();
+
+        if (! $neighbor) {
+            return;
+        }
+
+        DB::transaction(function () use ($level, $neighbor): void {
+            [$levelOrder, $neighborOrder] = [$level->sort_order, $neighbor->sort_order];
+            $level->update(['sort_order' => $neighborOrder]);
+            $neighbor->update(['sort_order' => $levelOrder]);
+        });
+    }
+
+    private function normalizeLevelOrder(): void
+    {
+        LearningProgressionLevel::query()->orderBy('sort_order')->orderBy('id')->get()
+            ->each(fn (LearningProgressionLevel $level, int $index) => $level->update(['sort_order' => $index + 1]));
     }
 
     public function isLocked(): bool

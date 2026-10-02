@@ -4,10 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\AppSetting;
+use App\Models\Assessment;
+use App\Models\AssessmentType;
 use App\Models\Course;
+use App\Models\Curriculum;
+use App\Models\CurriculumLesson;
+use App\Models\CurriculumSubject;
+use App\Models\CurriculumSubjectDefinition;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Landlord\Tenant;
+use App\Models\LearningProgressionLevel;
 use App\Models\ParentProfile;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
@@ -63,6 +70,52 @@ class LearningProgressionTest extends TestCase
             ->assertOk()
             ->assertSee(__('learning_progression.title'))
             ->assertDontSee(__('settings.navigation.organization.title'));
+    }
+
+    public function test_authorized_tenant_user_can_build_an_ordered_lesson_level_progression(): void
+    {
+        $this->signInAsAdministrator();
+        [$group, $lesson, $assessment] = $this->lessonLevelRecords('Foundation');
+
+        Volt::test('settings.learning-progression')
+            ->set('profile', LearningProgressionService::PROFILE_LESSON_LEVEL)
+            ->call('createLevel')
+            ->set('levelName', 'Foundation')
+            ->set('levelDescription', 'The first learning stage')
+            ->set('attendanceThreshold', '85')
+            ->set('finalAssessmentId', $assessment->id)
+            ->set('passingScore', '60')
+            ->set('groupIds', [(string) $group->id])
+            ->set('lessonIds', [(string) $lesson->id])
+            ->call('saveLevel')
+            ->assertHasNoErrors()
+            ->assertSet('configured', true)
+            ->assertSet('profile', LearningProgressionService::PROFILE_LESSON_LEVEL);
+
+        $level = LearningProgressionLevel::query()->firstOrFail();
+        $this->assertSame('Foundation', $level->name);
+        $this->assertSame(1, $level->sort_order);
+        $this->assertTrue($level->groups()->whereKey($group->id)->exists());
+        $this->assertTrue($level->lessons()->whereKey($lesson->id)->exists());
+    }
+
+    public function test_lesson_level_rejects_lessons_from_an_unselected_group_curriculum(): void
+    {
+        $this->seed();
+        [$group, , $assessment] = $this->lessonLevelRecords('Selected');
+        [, $otherLesson] = $this->lessonLevelRecords('Other');
+
+        $this->expectException(ValidationException::class);
+
+        app(LearningProgressionService::class)->storeLevel([
+            'name' => 'Invalid level',
+            'description' => null,
+            'attendance_threshold' => 80,
+            'final_assessment_id' => $assessment->id,
+            'passing_score' => 60,
+            'group_ids' => [$group->id],
+            'lesson_ids' => [$otherLesson->id],
+        ]);
     }
 
     public function test_invalid_prerequisite_combinations_are_rejected(): void
@@ -263,5 +316,43 @@ class LearningProgressionTest extends TestCase
         ]);
 
         return [$student, $enrollment];
+    }
+
+    private function lessonLevelRecords(string $suffix): array
+    {
+        $course = Course::query()->create(['name' => "Lesson Course {$suffix}", 'is_active' => true]);
+        $curriculum = Curriculum::query()->create(['course_id' => $course->id, 'name' => "Curriculum {$suffix}", 'is_active' => true]);
+        $definition = CurriculumSubjectDefinition::query()->create(['name' => "Subject {$suffix}", 'is_active' => true]);
+        $subject = CurriculumSubject::query()->create([
+            'curriculum_id' => $curriculum->id,
+            'subject_definition_id' => $definition->id,
+            'sort_order' => 1,
+        ]);
+        $lesson = CurriculumLesson::query()->create([
+            'curriculum_subject_id' => $subject->id,
+            'name' => "Lesson {$suffix}",
+            'page_count' => 1,
+            'importance' => 1,
+            'sort_order' => 1,
+        ]);
+        $group = Group::query()->create([
+            'course_id' => $course->id,
+            'academic_year_id' => AcademicYear::query()->where('is_current', true)->value('id'),
+            'curriculum_id' => $curriculum->id,
+            'name' => "Level Group {$suffix}",
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $assessment = Assessment::query()->create([
+            'group_id' => $group->id,
+            'assessment_type_id' => AssessmentType::query()->value('id'),
+            'title' => "Final Assessment {$suffix}",
+            'total_mark' => 100,
+            'pass_mark' => 60,
+            'is_active' => true,
+        ]);
+        $assessment->groups()->sync([$group->id]);
+
+        return [$group, $lesson, $assessment];
     }
 }
