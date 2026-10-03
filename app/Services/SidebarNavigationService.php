@@ -277,6 +277,7 @@ class SidebarNavigationService
                 }
 
                 $isTeacherCurriculum = $itemKey === 'curricula' && ! $user->can('curricula.manage');
+                $isAssignedReports = $itemKey === 'reports' && ! $user->can('reports.view');
                 $teacherGroup = $itemKey === 'groups' ? $activeTeacherGroup : null;
                 $configuredGroupKey = $isTeacherCurriculum
                     ? 'platform'
@@ -290,9 +291,13 @@ class SidebarNavigationService
                     'key' => $itemKey,
                     'label' => $isTeacherCurriculum
                         ? __('ui.nav.my_curriculum')
-                        : ($teacherGroup ? __('ui.nav.my_group') : __($itemDefinition['label_key'])),
+                        : ($teacherGroup
+                            ? __('ui.nav.my_group')
+                            : ($isAssignedReports ? __('ui.nav.custom_reports') : __($itemDefinition['label_key']))),
                     'icon' => $itemDefinition['icon'],
-                    'href' => $teacherGroup ? route('groups.show', $teacherGroup) : route($itemDefinition['route_name']),
+                    'href' => $teacherGroup
+                        ? route('groups.show', $teacherGroup)
+                        : route($isAssignedReports ? 'reports.custom' : $itemDefinition['route_name']),
                     'current' => request()->routeIs(...$itemDefinition['current_patterns']),
                     'sort_order' => $isTeacherCurriculum
                         ? 40
@@ -347,6 +352,10 @@ class SidebarNavigationService
 
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
+        if (($itemDefinition['route_name'] ?? null) === 'reports.index') {
+            return app(ReportDashboardService::class)->landingRouteNameFor($user) !== null;
+        }
+
         if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
             return app(CurriculumAccessService::class)->canView($user);
         }

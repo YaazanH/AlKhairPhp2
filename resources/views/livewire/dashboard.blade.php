@@ -360,7 +360,7 @@ new class extends Component {
                     'title' => __('dashboard.manager.cards.tracking.title'),
                     'body' => __('dashboard.manager.cards.tracking.body'),
                     'links' => collect([
-                        ['label' => __('ui.nav.reports'), 'route' => auth()->user()->can('reports.view') ? route('reports.index') : null],
+                        ['label' => __('ui.nav.reports'), 'route' => ($reportsRoute = app(ReportDashboardService::class)->landingRouteNameFor(auth()->user())) ? route($reportsRoute) : null],
                         ['label' => __('ui.nav.assessments'), 'route' => auth()->user()->can('assessments.view') ? route('assessments.index') : null],
                         ['label' => __('ui.nav.student_billing'), 'route' => auth()->user()->can('invoices.view') ? route('student-billing.index') : null],
                     ])->filter(fn (array $link) => $link['route']),

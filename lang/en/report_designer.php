@@ -195,6 +195,7 @@ return [
         'remove_from_layout' => 'Remove from this role dashboard',
         'cancel' => 'Cancel',
         'back_dashboard' => 'Back to dashboard',
+        'back_to_reports' => 'Back to reports',
     ],
     'placement' => [
         'title' => 'Dashboard placement',
@@ -212,6 +213,13 @@ return [
         'help' => 'Choose a staff role, then arrange its shared widgets and set each widget size. Every user with that role receives this layout.',
         'empty' => 'This role has no custom report widgets yet. Add reports from their Dashboard placement action first.',
         'remove_help' => 'Removing a widget here removes it only from the selected role. If no roles remain, the report returns to draft and ordinary users lose access.',
+    ],
+    'custom_page' => [
+        'eyebrow' => 'Assigned to your role',
+        'title' => 'Custom reports',
+        'copy' => 'Open the reports assigned to your staff role. Every result remains limited by your own data access.',
+        'empty' => 'No custom reports are assigned to your role yet.',
+        'open' => 'Open report',
     ],
     'exports' => [
         'details' => 'Report details',

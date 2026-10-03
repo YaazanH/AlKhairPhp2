@@ -34,6 +34,7 @@ use App\Services\AccessScopeService;
 use App\Services\ReportDashboardService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
+use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -193,7 +194,6 @@ class ReportDesignerTest extends TestCase
         $administrator = User::factory()->create(['username' => 'report-layout-admin']);
         $administrator->assignRole('admin');
         $viewerRole = Role::findOrCreate('programme-reviewer', 'web');
-        $viewerRole->givePermissionTo('reports.view');
         $viewer = User::factory()->create(['username' => 'placed-report-viewer']);
         $viewer->assignRole($viewerRole);
         $student = Student::query()->create([
@@ -252,9 +252,16 @@ class ReportDesignerTest extends TestCase
             ->assertOk()
             ->assertSee('Role performance report')
             ->assertSee('Scoped Learner');
-        $this->get(route('reports.index', absolute: false))
+        $this->get(route('reports.index', absolute: false))->assertForbidden();
+        $this->get(route('reports.custom', absolute: false))
             ->assertOk()
-            ->assertSee('Role performance report');
+            ->assertSee('Role performance report')
+            ->assertDontSee(__('reports.navigation.student_activity_title'));
+        $reportsNavigation = collect(app(SidebarNavigationService::class)->sidebarFor($viewer))
+            ->flatMap(fn (array $group) => $group['items'])
+            ->firstWhere('key', 'reports');
+        $this->assertSame(__('ui.nav.custom_reports'), $reportsNavigation['label']);
+        $this->assertSame(route('reports.custom'), $reportsNavigation['href']);
 
         $this->actingAs($administrator);
         Volt::test('reports.designer')
@@ -269,6 +276,10 @@ class ReportDesignerTest extends TestCase
             ->get(route('reports.designer.show', $definition, absolute: false))
             ->assertNotFound();
         $this->get('/dashboard')->assertDontSee('Role performance report');
+        $this->get(route('reports.custom', absolute: false))->assertForbidden();
+        $this->assertNull(collect(app(SidebarNavigationService::class)->sidebarFor($viewer->fresh()))
+            ->flatMap(fn (array $group) => $group['items'])
+            ->firstWhere('key', 'reports'));
     }
 
     public function test_role_dashboard_layout_can_reorder_remove_and_size_widgets_per_role(): void

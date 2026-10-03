@@ -189,6 +189,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('support/manage/{supportRequest}', [TenantSupportRequestController::class, 'update'])->middleware('permission:support.manage')->name('support.update');
 
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
+    Volt::route('reports/custom', 'reports.custom')->name('reports.custom');
     Volt::route('reports/designer', 'reports.designer')->middleware('permission:report-designer.view|report-dashboard-layout.manage')->name('reports.designer');
     Route::get('reports/designer/{reportDefinition}', ReportDefinitionViewController::class)->name('reports.designer.show');
     Route::get('reports/designer/{reportDefinition}/export.xlsx', [ReportDesignerExportController::class, 'xlsx'])->name('reports.designer.export.xlsx');

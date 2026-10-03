@@ -36,6 +36,7 @@ return [
         'platform' => 'Platform',
         'dashboard' => 'Dashboard',
         'reports' => 'Reports',
+        'custom_reports' => 'Custom reports',
         'people' => 'People',
         'users' => 'Users',
         'parents' => 'Parents',

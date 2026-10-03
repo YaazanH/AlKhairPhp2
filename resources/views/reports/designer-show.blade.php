@@ -1,4 +1,9 @@
 <x-layouts.app>
+    @php
+        $reportsLanding = app(\App\Services\ReportDashboardService::class)->landingRouteNameFor(auth()->user());
+        $backRoute = $reportsLanding
+            ?? (auth()->user()?->canAny(['report-designer.view', 'report-dashboard-layout.manage']) ? 'reports.designer' : 'dashboard');
+    @endphp
     <div class="page-stack" data-shared-report>
         <section class="page-hero p-6 lg:p-8">
             <div class="flex flex-wrap items-end justify-between gap-5">
@@ -10,7 +15,7 @@
                 <div class="flex flex-wrap gap-2">
                     <a href="{{ route('reports.designer.export.xlsx', $definition) }}" class="pill-link">{{ __('report_designer.actions.export_xlsx') }}</a>
                     <a href="{{ route('reports.designer.export.pdf', $definition) }}" target="_blank" rel="noopener" class="pill-link">{{ __('report_designer.actions.export_pdf') }}</a>
-                    <a href="{{ route('dashboard') }}" class="pill-link">{{ __('report_designer.actions.back_dashboard') }}</a>
+                    <a href="{{ route($backRoute) }}" class="pill-link">{{ $backRoute === 'dashboard' ? __('report_designer.actions.back_dashboard') : __('report_designer.actions.back_to_reports') }}</a>
                 </div>
             </div>
         </section>

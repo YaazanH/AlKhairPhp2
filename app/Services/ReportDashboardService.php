@@ -14,6 +14,19 @@ class ReportDashboardService
         protected ReportDesignerCatalog $catalog,
     ) {}
 
+    public function landingRouteNameFor(?User $user): ?string
+    {
+        if (! $user) {
+            return null;
+        }
+
+        if ($user->can('reports.view')) {
+            return 'reports.index';
+        }
+
+        return $this->reportsFor($user)->isNotEmpty() ? 'reports.custom' : null;
+    }
+
     public function reportsFor(?User $user): Collection
     {
         if (! $user) {
