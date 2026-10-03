@@ -181,6 +181,7 @@ class ReportDesignerQueryService
         $query->when($joinedTo !== '', fn (Builder $builder) => $builder->whereDate('joined_at', '<=', $joinedTo));
 
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::STUDENTS, $query, $this->studentValue(...));
         $this->applyStudentSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Student $student) use ($fields): array {
@@ -224,6 +225,7 @@ class ReportDesignerQueryService
 
         $this->applyCommonFilters($query, $filters, ['name'], 'starts_on');
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::COURSES, $query, $this->courseValue(...));
         $this->applyCourseSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Course $course) use ($fields): array {
@@ -252,6 +254,7 @@ class ReportDesignerQueryService
                     ->orWhere('last_name', 'like', '%'.$search.'%'));
         });
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::GROUPS, $query, $this->groupValue(...));
         $this->applyGroupSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Group $group) use ($fields): array {
@@ -306,6 +309,7 @@ class ReportDesignerQueryService
         }
 
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::STUDENT_ATTENDANCE, $query, $this->studentAttendanceValue(...));
         $query->orderByDesc('id');
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (StudentAttendanceRecord $record) use ($fields): array {
@@ -342,6 +346,7 @@ class ReportDesignerQueryService
         );
 
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::MEMORIZATION_SESSIONS, $query, $this->memorizationValue(...));
         $this->applyMemorizationSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (MemorizationSession $session) use ($fields): array {
@@ -380,6 +385,7 @@ class ReportDesignerQueryService
         );
 
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_TESTS, $query, $this->quranTestValue(...));
         $this->applyQuranTestSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranTest $test) use ($fields): array {
@@ -405,6 +411,7 @@ class ReportDesignerQueryService
 
         $this->applyQuranWorkflowFilters($query, $filters, 'parts.attempts');
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_PARTIAL_TESTS, $query, $this->quranPartialTestValue(...));
         $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranPartialTest $test) use ($fields): array {
@@ -430,6 +437,7 @@ class ReportDesignerQueryService
 
         $this->applyQuranWorkflowFilters($query, $filters, 'attempts');
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_FINAL_TESTS, $query, $this->quranFinalTestValue(...));
         $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranFinalTest $test) use ($fields): array {
@@ -484,6 +492,7 @@ class ReportDesignerQueryService
                 ->orWhereHas('groups', fn (Builder $relation) => $relation->where('name', 'like', '%'.$search.'%'));
         });
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::ASSESSMENTS, $query, $this->assessmentValue(...));
         $this->applyAssessmentSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Assessment $assessment) use ($fields): array {
@@ -528,6 +537,7 @@ class ReportDesignerQueryService
         }
 
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::ASSESSMENT_RESULTS, $query, $this->assessmentResultValue(...));
         $this->applyAssessmentResultSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (AssessmentResult $result) use ($fields): array {
@@ -579,6 +589,7 @@ class ReportDesignerQueryService
         $this->applyDateBounds($query, 'hired_at', $dateFrom, $dateTo);
 
         $total = (clone $query)->count();
+        $this->prepareOperationalSummaries(ReportDesignerCatalog::TEACHERS, $query, $this->teacherValue(...));
         $this->applyTeacherSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Teacher $teacher) use ($fields): array {
@@ -1083,6 +1094,129 @@ class ReportDesignerQueryService
                 return [$this->calculationKey($operation, $field) => $value === null ? null : round((float) $value, 2)];
             })
             ->all();
+    }
+
+    protected function prepareOperationalSummaries(string $source, Builder $query, callable $valueResolver): void
+    {
+        $calculations = collect($this->activeCalculations)
+            ->reject(fn (array $calculation) => $calculation['operation'] === 'count')
+            ->values()
+            ->all();
+
+        if ($calculations === [] && $this->activeGroupBy === null) {
+            return;
+        }
+
+        $calculationStates = [];
+        $groupStates = [];
+
+        (clone $query)->reorder()->chunkById(250, function ($records) use (&$calculationStates, &$groupStates, $calculations, $valueResolver): void {
+            foreach ($records as $record) {
+                foreach ($calculations as $calculation) {
+                    $key = $this->calculationKey($calculation['operation'], $calculation['field']);
+                    $this->accumulateCalculation($calculationStates[$key], $calculation['operation'], $valueResolver($record, $calculation['field']));
+                }
+
+                if ($this->activeGroupBy === null) {
+                    continue;
+                }
+
+                $label = $valueResolver($record, $this->activeGroupBy);
+                $label = filled($label) ? (string) $label : __('report_designer.grouping.unknown');
+                $groupStates[$label] ??= ['record_count' => 0, 'calculations' => []];
+                $groupStates[$label]['record_count']++;
+
+                foreach ($calculations as $calculation) {
+                    $key = $this->calculationKey($calculation['operation'], $calculation['field']);
+                    $this->accumulateCalculation(
+                        $groupStates[$label]['calculations'][$key],
+                        $calculation['operation'],
+                        $valueResolver($record, $calculation['field']),
+                    );
+                }
+            }
+        });
+
+        $this->calculationValues = collect($calculationStates)
+            ->map(fn (array $state) => $this->finalizeCalculation($state))
+            ->all();
+
+        if ($this->activeGroupBy !== null) {
+            $this->groupingResult = $this->operationalGroupingResult($source, $groupStates, $calculations);
+        }
+    }
+
+    protected function accumulateCalculation(?array &$state, string $operation, mixed $value): void
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return;
+        }
+
+        $number = (float) $value;
+        $state ??= ['operation' => $operation, 'count' => 0, 'sum' => 0.0, 'min' => null, 'max' => null];
+        $state['count']++;
+        $state['sum'] += $number;
+        $state['min'] = $state['min'] === null ? $number : min($state['min'], $number);
+        $state['max'] = $state['max'] === null ? $number : max($state['max'], $number);
+    }
+
+    protected function finalizeCalculation(?array $state): ?float
+    {
+        if ($state === null || $state['count'] === 0) {
+            return null;
+        }
+
+        $value = match ($state['operation']) {
+            'sum' => $state['sum'],
+            'avg' => $state['sum'] / $state['count'],
+            'min' => $state['min'],
+            'max' => $state['max'],
+        };
+
+        return round((float) $value, 2);
+    }
+
+    protected function operationalGroupingResult(string $source, array $groupStates, array $calculations): array
+    {
+        $calculationLabels = [];
+        foreach ($this->activeCalculations as $index => $calculation) {
+            if ($calculation['operation'] === 'count') {
+                continue;
+            }
+
+            $calculationLabels['report_calculation_'.$index] = $this->catalog->calculationLabel(
+                $source,
+                $calculation['operation'],
+                $calculation['field'],
+            );
+        }
+
+        $rows = collect($groupStates)
+            ->map(function (array $state, string $label) use ($calculations): array {
+                $row = ['group' => $label, 'record_count' => $state['record_count']];
+
+                foreach ($calculations as $calculation) {
+                    $activeIndex = collect($this->activeCalculations)->search(fn (array $active) => $active === $calculation);
+                    $key = $this->calculationKey($calculation['operation'], $calculation['field']);
+                    $row['report_calculation_'.$activeIndex] = $this->finalizeCalculation($state['calculations'][$key] ?? null);
+                }
+
+                return $row;
+            })
+            ->sort(fn (array $left, array $right) => $right['record_count'] <=> $left['record_count'] ?: strcmp($left['group'], $right['group']))
+            ->take(self::GROUP_PREVIEW_LIMIT)
+            ->values()
+            ->all();
+
+        return [
+            'label' => $this->catalog->groupableFields($source)[$this->activeGroupBy]['label'],
+            'columns' => array_merge([
+                'group' => __('report_designer.grouping.group'),
+                'record_count' => __('report_designer.calculations.record_count'),
+            ], $calculationLabels),
+            'rows' => $rows,
+            'limit' => self::GROUP_PREVIEW_LIMIT,
+        ];
     }
 
     protected function calculationKey(string $operation, ?string $field): string

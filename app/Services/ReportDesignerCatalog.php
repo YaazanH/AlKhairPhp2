@@ -388,6 +388,15 @@ class ReportDesignerCatalog
     public function calculableFields(string $source): array
     {
         $fieldKeys = match ($source) {
+            self::COURSES => ['groups_count', 'active_groups_count', 'active_enrollments_count'],
+            self::GROUPS => ['capacity', 'active_enrollments_count', 'available_places'],
+            self::MEMORIZATION_SESSIONS => ['from_page', 'to_page', 'pages_count'],
+            self::QURAN_TESTS => ['score', 'attempt_number'],
+            self::QURAN_PARTIAL_TESTS => ['passed_parts_count', 'parts_count', 'latest_mistake_count', 'attempts_count', 'latest_score'],
+            self::QURAN_FINAL_TESTS => ['attempts_count', 'latest_score'],
+            self::ASSESSMENTS => ['total_mark', 'pass_mark', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score'],
+            self::ASSESSMENT_RESULTS => ['score', 'attempt_number'],
+            self::TEACHERS => ['assigned_groups_count', 'assisted_groups_count', 'active_groups_count', 'active_enrollments_count'],
             self::FINANCE_TRANSACTIONS => ['amount', 'signed_amount', 'local_amount'],
             default => [],
         };
@@ -398,6 +407,16 @@ class ReportDesignerCatalog
     public function groupableFields(string $source): array
     {
         $fieldKeys = match ($source) {
+            self::STUDENTS => ['status', 'grade_level', 'current_group'],
+            self::COURSES => ['academic_year', 'status'],
+            self::GROUPS => ['course_name', 'academic_year', 'teacher_name', 'assistant_teacher_name', 'grade_level', 'status'],
+            self::STUDENT_ATTENDANCE => ['attendance_status', 'presence_result', 'attendance_scope', 'course_name', 'group_name'],
+            self::MEMORIZATION_SESSIONS => ['entry_type', 'teacher_name', 'course_name', 'group_name'],
+            self::QURAN_TESTS => ['test_type', 'juz_number', 'test_status', 'teacher_name', 'course_name', 'group_name'],
+            self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['juz_number', 'test_status', 'latest_attempt_status', 'teacher_name', 'course_name', 'group_name'],
+            self::ASSESSMENTS => ['assessment_type', 'assessment_groups', 'status'],
+            self::ASSESSMENT_RESULTS => ['assessment_type', 'result_status', 'teacher_name', 'course_name', 'group_name'],
+            self::TEACHERS => ['teacher_status', 'job_title', 'is_helping', 'assigned_courses'],
             self::FINANCE_TRANSACTIONS => ['transaction_type', 'transaction_direction', 'finance_category', 'cash_box', 'currency'],
             default => [],
         };

@@ -166,12 +166,22 @@ class ReportDesignerTest extends TestCase
         $courses = $service->preview([
             'data_source' => 'courses',
             'selected_fields' => ['course_name', 'groups_count', 'active_enrollments_count'],
+            'calculations' => [
+                ['operation' => 'count', 'field' => null],
+                ['operation' => 'sum', 'field' => 'active_enrollments_count'],
+            ],
+            'group_by' => 'academic_year',
             'filters' => ['status' => 'active'],
             'sort_direction' => 'asc',
         ], $administrator);
         $groups = $service->preview([
             'data_source' => 'groups',
             'selected_fields' => ['group_name', 'teacher_name', 'active_enrollments_count', 'available_places'],
+            'calculations' => [
+                ['operation' => 'avg', 'field' => 'capacity'],
+                ['operation' => 'sum', 'field' => 'available_places'],
+            ],
+            'group_by' => 'teacher_name',
             'filters' => ['status' => 'active'],
             'sort_direction' => 'asc',
         ], $administrator);
@@ -181,12 +191,20 @@ class ReportDesignerTest extends TestCase
             'groups_count' => 1,
             'active_enrollments_count' => 1,
         ], $courses['rows'][0]);
+        $this->assertSame([1, 1.0], array_column($courses['calculations'], 'value'));
+        $this->assertSame('2026/2027', $courses['grouping']['rows'][0]['group']);
+        $this->assertSame(1, $courses['grouping']['rows'][0]['record_count']);
+        $this->assertSame(1.0, $courses['grouping']['rows'][0]['report_calculation_1']);
         $this->assertSame([
             'group_name' => 'Morning Group',
             'teacher_name' => 'Amina Saleh',
             'active_enrollments_count' => 1,
             'available_places' => 11,
         ], $groups['rows'][0]);
+        $this->assertSame([12.0, 11.0], array_column($groups['calculations'], 'value'));
+        $this->assertSame('Amina Saleh', $groups['grouping']['rows'][0]['group']);
+        $this->assertSame(12.0, $groups['grouping']['rows'][0]['report_calculation_0']);
+        $this->assertSame(11.0, $groups['grouping']['rows'][0]['report_calculation_1']);
     }
 
     public function test_group_and_course_previews_respect_the_users_group_scope(): void
