@@ -59,6 +59,7 @@ new class extends Component
             'sources' => $catalog->sources(),
             'availableFields' => $catalog->fields($this->dataSource),
             'sortableFields' => $catalog->sortableFields($this->dataSource),
+            'statusFilters' => $catalog->statusFilters($this->dataSource),
         ];
     }
 
@@ -185,6 +186,9 @@ new class extends Component
     {
         $catalog = app(ReportDesignerCatalog::class);
         $sourceKeys = array_keys($catalog->sources());
+        $statusKeys = array_keys($catalog->statusFilters(
+            in_array($this->dataSource, $sourceKeys, true) ? $this->dataSource : $this->defaultSource(),
+        ));
 
         $validated = $this->validate([
             'name' => [$requireName ? 'required' : 'nullable', 'string', 'max:255'],
@@ -192,7 +196,7 @@ new class extends Component
             'dataSource' => ['required', Rule::in($sourceKeys)],
             'selectedFields' => ['required', 'array', 'min:1'],
             'selectedFields.*' => ['string'],
-            'statusFilter' => ['required', Rule::in(['all', 'active', 'inactive'])],
+            'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
             'dateTo' => ['nullable', 'date', 'after_or_equal:dateFrom'],
@@ -369,9 +373,9 @@ new class extends Component
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.status') }}</span>
                             <select wire:model="statusFilter" class="rounded-xl px-4 py-3" @disabled($readOnly)>
-                                <option value="all">{{ __('report_designer.filter_statuses.all') }}</option>
-                                <option value="active">{{ __('report_designer.filter_statuses.active') }}</option>
-                                <option value="inactive">{{ __('report_designer.filter_statuses.inactive') }}</option>
+                                @foreach ($statusFilters as $filterKey => $filterLabel)
+                                    <option value="{{ $filterKey }}">{{ $filterLabel }}</option>
+                                @endforeach
                             </select>
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">

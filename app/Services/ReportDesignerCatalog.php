@@ -13,6 +13,8 @@ class ReportDesignerCatalog
 
     public const GROUPS = 'groups';
 
+    public const STUDENT_ATTENDANCE = 'student_attendance';
+
     public function __construct(protected CurrentModuleAccess $modules) {}
 
     public function sources(): array
@@ -34,6 +36,13 @@ class ReportDesignerCatalog
             $sources[self::GROUPS] = [
                 'label' => __('report_designer.sources.groups.label'),
                 'description' => __('report_designer.sources.groups.description'),
+            ];
+        }
+
+        if ($this->modules->enabled('student_attendance')) {
+            $sources[self::STUDENT_ATTENDANCE] = [
+                'label' => __('report_designer.sources.student_attendance.label'),
+                'description' => __('report_designer.sources.student_attendance.description'),
             ];
         }
 
@@ -76,6 +85,17 @@ class ReportDesignerCatalog
                 'starts_on' => $this->field('starts_on', 'date'),
                 'ends_on' => $this->field('ends_on', 'date'),
             ],
+            self::STUDENT_ATTENDANCE => [
+                'attendance_date' => $this->field('attendance_date', 'date'),
+                'student_number' => $this->field('student_number', 'text'),
+                'full_name' => $this->field('full_name', 'text'),
+                'attendance_status' => $this->field('attendance_status', 'status'),
+                'presence_result' => $this->field('presence_result', 'status'),
+                'attendance_scope' => $this->field('attendance_scope', 'status'),
+                'course_name' => $this->field('course_name', 'text'),
+                'group_name' => $this->field('group_name', 'text'),
+                'notes' => $this->field('notes', 'text'),
+            ],
             default => abort(404),
         };
     }
@@ -88,6 +108,7 @@ class ReportDesignerCatalog
             self::STUDENTS => ['student_number', 'full_name', 'status', 'current_group'],
             self::COURSES => ['course_name', 'academic_year', 'status', 'groups_count', 'active_enrollments_count'],
             self::GROUPS => ['group_name', 'course_name', 'teacher_name', 'capacity', 'active_enrollments_count', 'available_places', 'status'],
+            self::STUDENT_ATTENDANCE => ['attendance_date', 'student_number', 'full_name', 'attendance_status', 'presence_result', 'group_name'],
         };
     }
 
@@ -97,9 +118,27 @@ class ReportDesignerCatalog
             self::STUDENTS => ['student_number', 'full_name', 'status', 'joined_at', 'birth_date'],
             self::COURSES => ['course_name', 'status', 'starts_on', 'ends_on', 'groups_count', 'active_groups_count', 'active_enrollments_count'],
             self::GROUPS => ['group_name', 'status', 'starts_on', 'ends_on', 'capacity', 'active_enrollments_count'],
+            self::STUDENT_ATTENDANCE => [],
         };
 
         return collect($this->fields($source))->only($sortable)->all();
+    }
+
+    public function statusFilters(string $source): array
+    {
+        $this->fields($source);
+
+        return $source === self::STUDENT_ATTENDANCE
+            ? [
+                'all' => __('report_designer.attendance_filters.all'),
+                'present' => __('report_designer.attendance_filters.present'),
+                'not_present' => __('report_designer.attendance_filters.not_present'),
+            ]
+            : [
+                'all' => __('report_designer.filter_statuses.all'),
+                'active' => __('report_designer.filter_statuses.active'),
+                'inactive' => __('report_designer.filter_statuses.inactive'),
+            ];
     }
 
     public function validateFields(string $source, array $fields): array

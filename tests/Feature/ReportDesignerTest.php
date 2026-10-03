@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
 use App\Models\ReportDefinition;
 use App\Models\Student;
+use App\Models\StudentAttendanceDay;
+use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
@@ -192,6 +196,101 @@ class ReportDesignerTest extends TestCase
 
         $this->assertSame([['course_name' => 'Visible Course', 'groups_count' => 1]], $courses['rows']);
         $this->assertSame([['group_name' => 'Visible Group', 'course_name' => 'Visible Course']], $groups['rows']);
+    }
+
+    public function test_student_attendance_source_supports_center_attendance_and_presence_filters(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'attendance-report-admin']);
+        $administrator->assignRole('admin');
+        $student = Student::query()->create([
+            'first_name' => 'Layla',
+            'last_name' => 'Hassan',
+            'student_number' => 'S-401',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $present = AttendanceStatus::query()->create([
+            'name' => 'Present',
+            'code' => 'designer-present',
+            'scope' => 'student',
+            'is_present' => true,
+            'is_active' => true,
+        ]);
+        $day = StudentAttendanceDay::query()->create([
+            'attendance_date' => '2026-10-01',
+            'scope' => 'center',
+            'status' => 'closed',
+            'created_by' => $administrator->id,
+        ]);
+        StudentAttendanceRecord::query()->create([
+            'student_attendance_day_id' => $day->id,
+            'student_id' => $student->id,
+            'attendance_status_id' => $present->id,
+            'notes' => 'Arrived on time',
+        ]);
+
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'student_attendance',
+            'selected_fields' => ['attendance_date', 'student_number', 'full_name', 'attendance_status', 'presence_result', 'attendance_scope', 'notes'],
+            'filters' => ['status' => 'present', 'date_from' => '2026-10-01', 'date_to' => '2026-10-01'],
+            'sort_direction' => 'asc',
+        ], $administrator);
+
+        $this->assertSame([[
+            'attendance_date' => '2026-10-01',
+            'student_number' => $student->fresh()->student_number,
+            'full_name' => 'Layla Hassan',
+            'attendance_status' => 'Present',
+            'presence_result' => __('report_designer.presence_results.present'),
+            'attendance_scope' => __('report_designer.attendance_scopes.center'),
+            'notes' => 'Arrived on time',
+        ]], $preview['rows']);
+    }
+
+    public function test_student_attendance_preview_respects_group_scope(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['username' => 'scoped-attendance-report-user']);
+        $user->givePermissionTo('report-designer.view');
+        $year = AcademicYear::query()->create([
+            'name' => 'Attendance year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Attendance',
+            'last_name' => 'Teacher',
+            'phone' => '0900000003',
+            'status' => 'active',
+        ]);
+        $course = Course::query()->create(['academic_year_id' => $year->id, 'name' => 'Attendance Course', 'is_active' => true]);
+        $groupAttributes = ['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'capacity' => 10, 'is_active' => true];
+        $visibleGroup = Group::query()->create($groupAttributes + ['name' => 'Visible Attendance Group']);
+        $hiddenGroup = Group::query()->create($groupAttributes + ['name' => 'Hidden Attendance Group']);
+        $visibleStudent = Student::query()->create(['first_name' => 'Visible', 'last_name' => 'Attendee', 'student_number' => 'S-501', 'birth_date' => '2014-01-01', 'status' => 'active']);
+        $hiddenStudent = Student::query()->create(['first_name' => 'Hidden', 'last_name' => 'Attendee', 'student_number' => 'S-502', 'birth_date' => '2014-01-02', 'status' => 'active']);
+        $visibleEnrollment = Enrollment::query()->create(['student_id' => $visibleStudent->id, 'group_id' => $visibleGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        $hiddenEnrollment = Enrollment::query()->create(['student_id' => $hiddenStudent->id, 'group_id' => $hiddenGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        $status = AttendanceStatus::query()->create(['name' => 'Present', 'code' => 'scope-present', 'scope' => 'student', 'is_present' => true, 'is_active' => true]);
+        $day = StudentAttendanceDay::query()->create(['attendance_date' => '2026-10-02', 'course_id' => $course->id, 'scope' => 'groups', 'status' => 'closed']);
+        $visibleDay = GroupAttendanceDay::query()->create(['group_id' => $visibleGroup->id, 'student_attendance_day_id' => $day->id, 'attendance_date' => '2026-10-02', 'status' => 'closed']);
+        $hiddenDay = GroupAttendanceDay::query()->create(['group_id' => $hiddenGroup->id, 'student_attendance_day_id' => $day->id, 'attendance_date' => '2026-10-02', 'status' => 'closed']);
+        StudentAttendanceRecord::query()->create(['group_attendance_day_id' => $visibleDay->id, 'enrollment_id' => $visibleEnrollment->id, 'attendance_status_id' => $status->id]);
+        StudentAttendanceRecord::query()->create(['group_attendance_day_id' => $hiddenDay->id, 'enrollment_id' => $hiddenEnrollment->id, 'attendance_status_id' => $status->id]);
+        app(AccessScopeService::class)->syncUserOverrides($user, ['group' => [$visibleGroup->id]]);
+
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'student_attendance',
+            'selected_fields' => ['full_name', 'group_name'],
+            'filters' => ['status' => 'all'],
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame([['full_name' => 'Visible Attendee', 'group_name' => 'Visible Attendance Group']], $preview['rows']);
     }
 
     public function test_preview_respects_the_users_existing_student_scope(): void

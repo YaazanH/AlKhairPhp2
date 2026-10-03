@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Course;
 use App\Models\Group;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
 
 class ReportDesignerQueryService
@@ -15,6 +17,7 @@ class ReportDesignerQueryService
     public function __construct(
         protected AccessScopeService $accessScopes,
         protected ReportDesignerCatalog $catalog,
+        protected CurrentModuleAccess $modules,
     ) {}
 
     public function preview(array $definition, ?User $user): array
@@ -44,6 +47,13 @@ class ReportDesignerQueryService
                 $user,
             ),
             ReportDesignerCatalog::GROUPS => $this->groupPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::STUDENT_ATTENDANCE => $this->studentAttendancePreview(
                 $fields,
                 (array) ($definition['filters'] ?? []),
                 $sortField,
@@ -175,6 +185,76 @@ class ReportDesignerQueryService
         return $this->result(ReportDesignerCatalog::GROUPS, $fields, $rows, $total);
     }
 
+    protected function studentAttendancePreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $query = $this->accessScopes->scopeStudentAttendanceRecords(
+            StudentAttendanceRecord::query()->with([
+                'status:id,name,is_present',
+                'student:id,student_number,first_name,last_name',
+                'studentAttendanceDay.course',
+                'attendanceDay.group.course',
+                'enrollment.student:id,student_number,first_name,last_name',
+                'enrollment.group.course',
+            ]),
+            $user,
+        );
+
+        if (! $this->modules->enabled('classes')) {
+            $query->whereNotNull('student_attendance_day_id');
+        }
+
+        $status = (string) ($filters['status'] ?? 'all');
+        if (in_array($status, ['present', 'not_present'], true)) {
+            $query->whereHas('status', fn (Builder $builder) => $builder->where('is_present', $status === 'present'));
+        }
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder
+                    ->whereHas('student', fn (Builder $student) => $this->applyStudentSearch($student, $search))
+                    ->orWhereHas('enrollment.student', fn (Builder $student) => $this->applyStudentSearch($student, $search));
+            });
+        }
+
+        $dateFrom = (string) ($filters['date_from'] ?? '');
+        $dateTo = (string) ($filters['date_to'] ?? '');
+        if ($dateFrom !== '' || $dateTo !== '') {
+            $query->where(function (Builder $builder) use ($dateFrom, $dateTo): void {
+                $builder
+                    ->whereHas('studentAttendanceDay', fn (Builder $day) => $this->applyDateBounds($day, 'attendance_date', $dateFrom, $dateTo))
+                    ->orWhereHas('attendanceDay', fn (Builder $day) => $this->applyDateBounds($day, 'attendance_date', $dateFrom, $dateTo));
+            });
+        }
+
+        $total = (clone $query)->count();
+        $query->orderByDesc('id');
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (StudentAttendanceRecord $record) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->studentAttendanceValue($record, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::STUDENT_ATTENDANCE, $fields, $rows, $total);
+    }
+
+    protected function applyStudentSearch(Builder $query, string $search): void
+    {
+        $query->where(function (Builder $builder) use ($search): void {
+            $builder
+                ->where('student_number', 'like', '%'.$search.'%')
+                ->orWhere('first_name', 'like', '%'.$search.'%')
+                ->orWhere('last_name', 'like', '%'.$search.'%');
+        });
+    }
+
+    protected function applyDateBounds(Builder $query, string $column, string $dateFrom, string $dateTo): void
+    {
+        $query->when($dateFrom !== '', fn (Builder $builder) => $builder->whereDate($column, '>=', $dateFrom));
+        $query->when($dateTo !== '', fn (Builder $builder) => $builder->whereDate($column, '<=', $dateTo));
+    }
+
     protected function applyCommonFilters(Builder $query, array $filters, array $searchColumns, string $dateColumn, ?callable $extendSearch = null): void
     {
         $status = (string) ($filters['status'] ?? 'all');
@@ -251,6 +331,27 @@ class ReportDesignerQueryService
         };
     }
 
+    protected function studentAttendanceValue(StudentAttendanceRecord $record, string $field): mixed
+    {
+        $student = $record->student ?? $record->enrollment?->student;
+        $group = $record->attendanceDay?->group ?? $record->enrollment?->group;
+        $course = $record->studentAttendanceDay?->course ?? $group?->course;
+
+        return match ($field) {
+            'attendance_date' => ($record->studentAttendanceDay?->attendance_date ?? $record->attendanceDay?->attendance_date)?->format('Y-m-d'),
+            'student_number' => $student?->student_number,
+            'full_name' => $this->personName($student),
+            'attendance_status' => $record->status?->name,
+            'presence_result' => $record->status
+                ? __('report_designer.presence_results.'.($record->status->is_present ? 'present' : 'not_present'))
+                : __('report_designer.presence_results.unknown'),
+            'attendance_scope' => __('report_designer.attendance_scopes.'.($record->student_attendance_day_id ? 'center' : 'groups')),
+            'course_name' => $course?->name,
+            'group_name' => $group?->name,
+            'notes' => $record->notes,
+        };
+    }
+
     protected function personName(mixed $person): ?string
     {
         return $person ? trim($person->first_name.' '.$person->last_name) : null;
@@ -280,7 +381,7 @@ class ReportDesignerQueryService
         return match ($field) {
             'student_number' => $student->student_number,
             'full_name' => trim($student->first_name.' '.$student->last_name),
-            'status' => __('report_designer.student_statuses.'.$student->status),
+            'status' => __('report_designer.record_statuses.'.$student->status),
             'joined_at' => $student->joined_at?->format('Y-m-d'),
             'birth_date' => $student->birth_date?->format('Y-m-d'),
             'grade_level' => $student->gradeLevel?->name,
