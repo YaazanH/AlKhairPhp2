@@ -123,6 +123,12 @@ return [
         'record_count' => 'Matching records',
         'field' => ':operation of :field',
     ],
+    'grouping' => [
+        'group' => 'Group',
+        'unknown' => 'Unspecified',
+        'title' => 'Grouped by :field',
+        'help' => 'Showing up to :count groups, ordered by the largest matching record count.',
+    ],
     'statuses' => ['draft' => 'Draft'],
     'saved' => [
         'eyebrow' => 'Saved work',
@@ -153,6 +159,9 @@ return [
         'calculation_field' => 'Numeric field',
         'all_records' => 'All matching records',
         'choose_calculation_field' => 'Choose a numeric field',
+        'grouping' => 'Group results',
+        'grouping_help' => 'Create a controlled summary by one approved field. Every group includes its matching-record count and the calculations selected above.',
+        'no_grouping' => 'Do not group this report',
         'status' => 'Record status',
         'search' => 'Search records',
         'search_placeholder' => 'Optional search',
@@ -187,6 +196,7 @@ return [
         'invalid_calculation' => 'Choose an approved calculation and numeric field.',
         'duplicate_calculation' => 'Each calculation can be added only once.',
         'too_many_calculations' => 'A report can contain up to :count calculations.',
+        'invalid_grouping' => 'Choose an approved grouping field for this data source.',
     ],
     'messages' => ['saved' => 'Report draft saved.', 'deleted' => 'Report draft deleted.'],
 ];

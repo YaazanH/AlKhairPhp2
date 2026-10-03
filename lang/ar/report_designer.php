@@ -123,6 +123,12 @@ return [
         'record_count' => 'عدد السجلات المطابقة',
         'field' => ':operation لـ :field',
     ],
+    'grouping' => [
+        'group' => 'المجموعة',
+        'unknown' => 'غير محدد',
+        'title' => 'تجميع حسب :field',
+        'help' => 'يتم عرض حتى :count مجموعات مرتبة حسب أكبر عدد من السجلات المطابقة.',
+    ],
     'statuses' => ['draft' => 'مسودة'],
     'saved' => [
         'eyebrow' => 'العمل المحفوظ',
@@ -153,6 +159,9 @@ return [
         'calculation_field' => 'الحقل الرقمي',
         'all_records' => 'كل السجلات المطابقة',
         'choose_calculation_field' => 'اختر حقلاً رقمياً',
+        'grouping' => 'تجميع النتائج',
+        'grouping_help' => 'أنشئ ملخصاً مضبوطاً حسب حقل معتمد واحد. تتضمن كل مجموعة عدد سجلاتها المطابقة والحسابات المحددة أعلاه.',
+        'no_grouping' => 'عدم تجميع هذا التقرير',
         'status' => 'حالة السجل',
         'search' => 'البحث في السجلات',
         'search_placeholder' => 'بحث اختياري',
@@ -187,6 +196,7 @@ return [
         'invalid_calculation' => 'اختر حساباً وحقلاً رقمياً معتمدين.',
         'duplicate_calculation' => 'يمكن إضافة كل حساب مرة واحدة فقط.',
         'too_many_calculations' => 'يمكن أن يحتوي التقرير على :count حسابات كحد أقصى.',
+        'invalid_grouping' => 'اختر حقل تجميع معتمداً لمصدر البيانات هذا.',
     ],
     'messages' => ['saved' => 'تم حفظ مسودة التقرير.', 'deleted' => 'تم حذف مسودة التقرير.'],
 ];

@@ -18,6 +18,7 @@ class ReportDefinition extends Model
         'data_source',
         'selected_fields',
         'calculations',
+        'group_by',
         'filters',
         'sort_field',
         'sort_direction',

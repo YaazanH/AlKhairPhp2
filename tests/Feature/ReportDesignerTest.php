@@ -35,6 +35,7 @@ use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -102,6 +103,16 @@ class ReportDesignerTest extends TestCase
             ->set('selectedFields', ['full_name', 'password'])
             ->call('preview')
             ->assertHasErrors('selectedFields');
+    }
+
+    public function test_grouping_rejects_fields_outside_the_approved_dimensions(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        app(ReportDesignerCatalog::class)->validateGrouping(
+            ReportDesignerCatalog::FINANCE_TRANSACTIONS,
+            'description',
+        );
     }
 
     public function test_courses_and_groups_are_approved_sources_with_operational_counts(): void
@@ -817,6 +828,7 @@ class ReportDesignerTest extends TestCase
                 ['operation' => 'avg', 'field' => 'local_amount'],
                 ['operation' => 'max', 'field' => 'signed_amount'],
             ],
+            'group_by' => 'finance_category',
             'filters' => [
                 'status' => 'income',
                 'search' => 'donation',
@@ -856,6 +868,33 @@ class ReportDesignerTest extends TestCase
                 'field' => __('report_designer.fields.signed_amount'),
             ]), 'value' => 500.0],
         ], $preview['calculations']);
+        $this->assertSame([
+            'label' => __('report_designer.fields.finance_category'),
+            'columns' => [
+                'group' => __('report_designer.grouping.group'),
+                'record_count' => __('report_designer.calculations.record_count'),
+                'report_calculation_1' => __('report_designer.calculations.field', [
+                    'operation' => __('report_designer.calculation_operations.sum'),
+                    'field' => __('report_designer.fields.amount'),
+                ]),
+                'report_calculation_2' => __('report_designer.calculations.field', [
+                    'operation' => __('report_designer.calculation_operations.avg'),
+                    'field' => __('report_designer.fields.local_amount'),
+                ]),
+                'report_calculation_3' => __('report_designer.calculations.field', [
+                    'operation' => __('report_designer.calculation_operations.max'),
+                    'field' => __('report_designer.fields.signed_amount'),
+                ]),
+            ],
+            'rows' => [[
+                'group' => 'General donations',
+                'record_count' => 1,
+                'report_calculation_1' => 500.0,
+                'report_calculation_2' => 500.0,
+                'report_calculation_3' => 500.0,
+            ]],
+            'limit' => ReportDesignerQueryService::GROUP_PREVIEW_LIMIT,
+        ], $preview['grouping']);
     }
 
     public function test_calculations_use_every_filtered_record_beyond_the_preview_limit(): void
@@ -892,6 +931,7 @@ class ReportDesignerTest extends TestCase
                 ['operation' => 'count', 'field' => null],
                 ['operation' => 'sum', 'field' => 'amount'],
             ],
+            'group_by' => 'transaction_type',
             'filters' => ['status' => 'income', 'search' => 'bulk-calc'],
             'sort_direction' => 'asc',
         ], $user);
@@ -900,6 +940,11 @@ class ReportDesignerTest extends TestCase
         $this->assertSame(30, $preview['total']);
         $this->assertSame(30, $preview['calculations'][0]['value']);
         $this->assertSame(465.0, $preview['calculations'][1]['value']);
+        $this->assertSame([[
+            'group' => __('finance.transaction_types.income'),
+            'record_count' => 30,
+            'report_calculation_1' => 465.0,
+        ]], $preview['grouping']['rows']);
     }
 
     public function test_teacher_without_designer_permission_cannot_open_the_designer(): void

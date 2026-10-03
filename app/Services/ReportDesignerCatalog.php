@@ -395,6 +395,29 @@ class ReportDesignerCatalog
         return collect($this->fields($source))->only($fieldKeys)->all();
     }
 
+    public function groupableFields(string $source): array
+    {
+        $fieldKeys = match ($source) {
+            self::FINANCE_TRANSACTIONS => ['transaction_type', 'transaction_direction', 'finance_category', 'cash_box', 'currency'],
+            default => [],
+        };
+
+        return collect($this->fields($source))->only($fieldKeys)->all();
+    }
+
+    public function validateGrouping(string $source, ?string $field): ?string
+    {
+        $field = filled($field) ? (string) $field : null;
+
+        if ($field !== null && ! array_key_exists($field, $this->groupableFields($source))) {
+            throw ValidationException::withMessages([
+                'groupBy' => __('report_designer.validation.invalid_grouping'),
+            ]);
+        }
+
+        return $field;
+    }
+
     public function validateCalculations(string $source, array $calculations): array
     {
         if (count($calculations) > self::CALCULATION_LIMIT) {

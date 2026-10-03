@@ -27,6 +27,8 @@ new class extends Component
 
     public array $calculations = [];
 
+    public string $groupBy = '';
+
     public string $statusFilter = 'all';
 
     public string $searchFilter = '';
@@ -66,6 +68,7 @@ new class extends Component
             'statusFilters' => $catalog->statusFilters($this->dataSource),
             'calculationOperations' => $catalog->calculationOperations(),
             'calculableFields' => $catalog->calculableFields($this->dataSource),
+            'groupableFields' => $catalog->groupableFields($this->dataSource),
             'canAddCalculation' => $this->nextCalculation() !== null,
         ];
     }
@@ -77,6 +80,7 @@ new class extends Component
 
         $this->selectedFields = $catalog->defaultFields($this->dataSource);
         $this->calculations = [];
+        $this->groupBy = '';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -121,6 +125,7 @@ new class extends Component
         $this->dataSource = $definition->data_source;
         $this->selectedFields = $definition->selected_fields;
         $this->calculations = $definition->calculations ?? [];
+        $this->groupBy = $definition->group_by ?? '';
         $this->statusFilter = (string) ($filters['status'] ?? 'all');
         $this->searchFilter = (string) ($filters['search'] ?? '');
         $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
@@ -163,6 +168,7 @@ new class extends Component
                 'data_source' => $saved->data_source,
                 'selected_fields' => $saved->selected_fields,
                 'calculations' => $saved->calculations ?? [],
+                'group_by' => $saved->group_by,
                 'filters' => $saved->filters ?? [],
                 'sort_field' => $saved->sort_field,
                 'sort_direction' => $saved->sort_direction,
@@ -175,6 +181,7 @@ new class extends Component
             'data_source' => $definition['data_source'],
             'selected_fields' => $definition['selected_fields'],
             'calculations' => $definition['calculations'],
+            'group_by' => $definition['group_by'],
             'filters' => $definition['filters'],
             'sort_field' => $definition['sort_field'],
             'sort_direction' => $definition['sort_direction'],
@@ -213,6 +220,7 @@ new class extends Component
             'calculations' => ['array', 'max:'.ReportDesignerCatalog::CALCULATION_LIMIT],
             'calculations.*.operation' => ['required', 'string'],
             'calculations.*.field' => ['nullable', 'string'],
+            'groupBy' => ['nullable', 'string'],
             'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
@@ -223,6 +231,7 @@ new class extends Component
 
         $fields = $catalog->validateFields($validated['dataSource'], $validated['selectedFields']);
         $calculations = $catalog->validateCalculations($validated['dataSource'], $validated['calculations']);
+        $groupBy = $catalog->validateGrouping($validated['dataSource'], $validated['groupBy']);
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
             $validated['sortField'],
@@ -235,6 +244,7 @@ new class extends Component
             'data_source' => $validated['dataSource'],
             'selected_fields' => $fields,
             'calculations' => $calculations,
+            'group_by' => $groupBy,
             'filters' => [
                 'status' => $validated['statusFilter'],
                 'search' => trim($validated['searchFilter'] ?? ''),
@@ -256,6 +266,7 @@ new class extends Component
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
         $this->calculations = [];
+        $this->groupBy = '';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -305,6 +316,12 @@ new class extends Component
         }
 
         $this->previewResult = [];
+    }
+
+    public function updatedGroupBy(): void
+    {
+        $this->previewResult = [];
+        $this->resetValidation('groupBy');
     }
 
     protected function nextCalculation(): ?array
@@ -492,6 +509,20 @@ new class extends Component
                         @error('calculations') <span class="mt-2 block text-xs text-red-300">{{ $message }}</span> @enderror
                     </div>
 
+                    @if ($groupableFields !== [])
+                        <label class="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm text-neutral-200" data-report-grouping>
+                            <span class="font-semibold text-white">{{ __('report_designer.form.grouping') }}</span>
+                            <span class="text-xs leading-5 text-neutral-400">{{ __('report_designer.form.grouping_help') }}</span>
+                            <select wire:model.live="groupBy" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                                <option value="">{{ __('report_designer.form.no_grouping') }}</option>
+                                @foreach ($groupableFields as $fieldKey => $field)
+                                    <option value="{{ $fieldKey }}">{{ $field['label'] }}</option>
+                                @endforeach
+                            </select>
+                            @error('groupBy') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
+                        </label>
+                    @endif
+
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.status') }}</span>
@@ -559,6 +590,32 @@ new class extends Component
                                     <div class="mt-2 text-2xl font-semibold text-white">{{ $calculation['value'] === null ? '—' : number_format((float) $calculation['value'], is_float($calculation['value']) ? 2 : 0) }}</div>
                                 </div>
                             @endforeach
+                        </div>
+                    @endif
+                    @if (($previewResult['grouping'] ?? null) !== null)
+                        <div class="border-t border-white/5 p-4" data-report-grouping-results>
+                            <div class="mb-3">
+                                <div class="text-sm font-semibold text-white">{{ __('report_designer.grouping.title', ['field' => $previewResult['grouping']['label']]) }}</div>
+                                <div class="mt-1 text-xs text-neutral-400">{{ __('report_designer.grouping.help', ['count' => $previewResult['grouping']['limit']]) }}</div>
+                            </div>
+                            <div class="overflow-x-auto rounded-xl border border-white/10">
+                                <table class="min-w-full text-sm">
+                                    <thead><tr>
+                                        @foreach ($previewResult['grouping']['columns'] as $column)
+                                            <th class="px-4 py-3 text-start">{{ $column }}</th>
+                                        @endforeach
+                                    </tr></thead>
+                                    <tbody>
+                                        @foreach ($previewResult['grouping']['rows'] as $row)
+                                            <tr class="border-t border-white/5">
+                                                @foreach (array_keys($previewResult['grouping']['columns']) as $columnKey)
+                                                    <td class="px-4 py-3 text-neutral-200">{{ is_float($row[$columnKey]) ? number_format($row[$columnKey], 2) : $row[$columnKey] }}</td>
+                                                @endforeach
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     @endif
                     @if ($previewResult['rows'] === [])

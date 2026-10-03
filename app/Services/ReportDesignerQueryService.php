@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\Course;
+use App\Models\FinanceCashBox;
+use App\Models\FinanceCategory;
+use App\Models\FinanceCurrency;
 use App\Models\FinanceTransaction;
 use App\Models\Group;
 use App\Models\MemorizationSession;
@@ -17,14 +20,21 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class ReportDesignerQueryService
 {
     public const PREVIEW_LIMIT = 25;
 
+    public const GROUP_PREVIEW_LIMIT = 25;
+
     protected array $activeCalculations = [];
 
     protected array $calculationValues = [];
+
+    protected ?string $activeGroupBy = null;
+
+    protected ?array $groupingResult = null;
 
     public function __construct(
         protected AccessScopeService $accessScopes,
@@ -39,7 +49,9 @@ class ReportDesignerQueryService
         abort_unless(array_key_exists($source, $this->catalog->sources($user)), 403);
         $fields = $this->catalog->validateFields($source, (array) ($definition['selected_fields'] ?? []));
         $this->activeCalculations = $this->catalog->validateCalculations($source, (array) ($definition['calculations'] ?? []));
+        $this->activeGroupBy = $this->catalog->validateGrouping($source, $definition['group_by'] ?? null);
         $this->calculationValues = [];
+        $this->groupingResult = null;
         [$sortField, $sortDirection] = $this->catalog->validateSort(
             $source,
             $definition['sort_field'] ?? null,
@@ -624,6 +636,7 @@ class ReportDesignerQueryService
 
         $total = (clone $query)->count();
         $this->calculationValues = $this->financeCalculationValues($query);
+        $this->groupingResult = $this->financeGroupingResult($query);
         $this->applyFinanceTransactionSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (FinanceTransaction $transaction) use ($fields): array {
@@ -1048,6 +1061,7 @@ class ReportDesignerQueryService
                     'value' => $calculation['operation'] === 'count' ? $total : ($this->calculationValues[$key] ?? null),
                 ];
             })->all(),
+            'grouping' => $this->groupingResult,
         ];
     }
 
@@ -1074,6 +1088,91 @@ class ReportDesignerQueryService
     protected function calculationKey(string $operation, ?string $field): string
     {
         return $operation.':'.($field ?? 'records');
+    }
+
+    protected function financeGroupingResult(Builder $query): ?array
+    {
+        if ($this->activeGroupBy === null) {
+            return null;
+        }
+
+        $baseQuery = (clone $query)->withoutEagerLoads()->reorder()->toBase();
+        $groupQuery = DB::query()->fromSub($baseQuery, 'report_rows');
+        $groupExpression = match ($this->activeGroupBy) {
+            'transaction_type' => 'report_rows.type',
+            'transaction_direction' => 'report_rows.direction',
+            'finance_category' => 'COALESCE(report_rows.finance_category_id, finance_requests.finance_category_id, finance_requests.finance_pull_request_kind_id)',
+            'cash_box' => 'report_rows.cash_box_id',
+            'currency' => 'report_rows.currency_id',
+        };
+
+        if ($this->activeGroupBy === 'finance_category') {
+            $groupQuery->leftJoin('finance_requests', 'finance_requests.id', '=', 'report_rows.finance_request_id');
+        }
+
+        $groupQuery->selectRaw($groupExpression.' as report_group_key, COUNT(*) as report_group_count');
+        $calculationColumns = [
+            'amount' => 'report_rows.amount',
+            'signed_amount' => 'report_rows.signed_amount',
+            'local_amount' => 'report_rows.local_amount',
+        ];
+        $calculationLabels = [];
+
+        foreach ($this->activeCalculations as $index => $calculation) {
+            if ($calculation['operation'] === 'count') {
+                continue;
+            }
+
+            $alias = 'report_calculation_'.$index;
+            $groupQuery->selectRaw(strtoupper($calculation['operation']).'('.$calculationColumns[$calculation['field']].') as '.$alias);
+            $calculationLabels[$alias] = $this->catalog->calculationLabel(
+                ReportDesignerCatalog::FINANCE_TRANSACTIONS,
+                $calculation['operation'],
+                $calculation['field'],
+            );
+        }
+
+        $groupRows = $groupQuery
+            ->groupByRaw($groupExpression)
+            ->orderByDesc('report_group_count')
+            ->orderBy('report_group_key')
+            ->limit(self::GROUP_PREVIEW_LIMIT)
+            ->get();
+        $groupLabels = $this->financeGroupLabels($this->activeGroupBy, $groupRows->pluck('report_group_key')->all());
+
+        return [
+            'label' => $this->catalog->groupableFields(ReportDesignerCatalog::FINANCE_TRANSACTIONS)[$this->activeGroupBy]['label'],
+            'columns' => array_merge([
+                'group' => __('report_designer.grouping.group'),
+                'record_count' => __('report_designer.calculations.record_count'),
+            ], $calculationLabels),
+            'rows' => $groupRows->map(function ($row) use ($calculationLabels, $groupLabels): array {
+                $values = [
+                    'group' => $groupLabels[(string) $row->report_group_key] ?? __('report_designer.grouping.unknown'),
+                    'record_count' => (int) $row->report_group_count,
+                ];
+
+                foreach (array_keys($calculationLabels) as $alias) {
+                    $values[$alias] = $row->{$alias} === null ? null : round((float) $row->{$alias}, 2);
+                }
+
+                return $values;
+            })->all(),
+            'limit' => self::GROUP_PREVIEW_LIMIT,
+        ];
+    }
+
+    protected function financeGroupLabels(string $field, array $keys): array
+    {
+        $keys = collect($keys)->filter(fn ($key) => $key !== null)->unique()->values();
+
+        return match ($field) {
+            'transaction_type' => $keys->mapWithKeys(fn ($key) => [(string) $key => $this->finance->transactionTypeLabel((string) $key)])->all(),
+            'transaction_direction' => $keys->mapWithKeys(fn ($key) => [(string) $key => __('report_designer.finance_directions.'.$key)])->all(),
+            'finance_category' => FinanceCategory::query()->whereIn('id', $keys)->pluck('name', 'id')->mapWithKeys(fn ($name, $id) => [(string) $id => $name])->all(),
+            'cash_box' => FinanceCashBox::query()->whereIn('id', $keys)->pluck('name', 'id')->mapWithKeys(fn ($name, $id) => [(string) $id => $name])->all(),
+            'currency' => FinanceCurrency::query()->whereIn('id', $keys)->pluck('code', 'id')->mapWithKeys(fn ($code, $id) => [(string) $id => $code])->all(),
+        };
     }
 
     protected function applyStudentSort(Builder $query, ?string $field, string $direction): void
