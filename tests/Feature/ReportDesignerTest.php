@@ -8,6 +8,10 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
+use App\Models\MemorizationSession;
+use App\Models\QuranJuz;
+use App\Models\QuranTest;
+use App\Models\QuranTestType;
 use App\Models\ReportDefinition;
 use App\Models\Student;
 use App\Models\StudentAttendanceDay;
@@ -291,6 +295,93 @@ class ReportDesignerTest extends TestCase
         ], $user);
 
         $this->assertSame([['full_name' => 'Visible Attendee', 'group_name' => 'Visible Attendance Group']], $preview['rows']);
+    }
+
+    public function test_memorization_and_quran_test_sources_respect_group_scope(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['username' => 'scoped-quran-report-user']);
+        $user->givePermissionTo('report-designer.view');
+        $year = AcademicYear::query()->create([
+            'name' => 'Quran report year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Quran',
+            'last_name' => 'Teacher',
+            'phone' => '0900000004',
+            'status' => 'active',
+        ]);
+        $course = Course::query()->create(['academic_year_id' => $year->id, 'name' => 'Quran Course', 'is_active' => true]);
+        $groupAttributes = ['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'capacity' => 10, 'is_active' => true];
+        $visibleGroup = Group::query()->create($groupAttributes + ['name' => 'Visible Quran Group']);
+        $hiddenGroup = Group::query()->create($groupAttributes + ['name' => 'Hidden Quran Group']);
+        $visibleStudent = Student::query()->create(['first_name' => 'Visible', 'last_name' => 'Learner', 'student_number' => 'S-601', 'birth_date' => '2014-01-01', 'status' => 'active']);
+        $hiddenStudent = Student::query()->create(['first_name' => 'Hidden', 'last_name' => 'Learner', 'student_number' => 'S-602', 'birth_date' => '2014-01-02', 'status' => 'active']);
+        $visibleEnrollment = Enrollment::query()->create(['student_id' => $visibleStudent->id, 'group_id' => $visibleGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        $hiddenEnrollment = Enrollment::query()->create(['student_id' => $hiddenStudent->id, 'group_id' => $hiddenGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        foreach ([$visibleEnrollment, $hiddenEnrollment] as $enrollment) {
+            MemorizationSession::query()->create([
+                'enrollment_id' => $enrollment->id,
+                'student_id' => $enrollment->student_id,
+                'teacher_id' => $teacher->id,
+                'recorded_on' => '2026-10-03',
+                'entry_type' => 'new',
+                'from_page' => 1,
+                'to_page' => 3,
+                'pages_count' => 3,
+            ]);
+        }
+        $juz = QuranJuz::query()->create(['juz_number' => 1, 'from_page' => 1, 'to_page' => 21]);
+        $testType = QuranTestType::query()->create(['name' => 'Awqaf', 'code' => 'designer-awqaf', 'sort_order' => 1, 'is_active' => true]);
+        foreach ([$visibleEnrollment, $hiddenEnrollment] as $enrollment) {
+            QuranTest::query()->create([
+                'enrollment_id' => $enrollment->id,
+                'student_id' => $enrollment->student_id,
+                'teacher_id' => $teacher->id,
+                'juz_id' => $juz->id,
+                'quran_test_type_id' => $testType->id,
+                'tested_on' => '2026-10-04',
+                'score' => 92,
+                'status' => 'passed',
+                'attempt_no' => 1,
+            ]);
+        }
+        app(AccessScopeService::class)->syncUserOverrides($user, ['group' => [$visibleGroup->id]]);
+
+        $service = app(ReportDesignerQueryService::class);
+        $memorization = $service->preview([
+            'data_source' => 'memorization_sessions',
+            'selected_fields' => ['recorded_on', 'full_name', 'entry_type', 'pages_count', 'group_name'],
+            'filters' => ['status' => 'new', 'date_from' => '2026-10-03', 'date_to' => '2026-10-03'],
+            'sort_direction' => 'asc',
+        ], $user);
+        $tests = $service->preview([
+            'data_source' => 'quran_tests',
+            'selected_fields' => ['tested_on', 'full_name', 'test_type', 'juz_number', 'test_status', 'score', 'group_name'],
+            'filters' => ['status' => 'passed', 'date_from' => '2026-10-04', 'date_to' => '2026-10-04'],
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame([[
+            'recorded_on' => '2026-10-03',
+            'full_name' => 'Visible Learner',
+            'entry_type' => __('report_designer.entry_types.new'),
+            'pages_count' => 3,
+            'group_name' => 'Visible Quran Group',
+        ]], $memorization['rows']);
+        $this->assertSame([[
+            'tested_on' => '2026-10-04',
+            'full_name' => 'Visible Learner',
+            'test_type' => 'Awqaf',
+            'juz_number' => 1,
+            'test_status' => __('report_designer.test_statuses.passed'),
+            'score' => 92.0,
+            'group_name' => 'Visible Quran Group',
+        ]], $tests['rows']);
     }
 
     public function test_preview_respects_the_users_existing_student_scope(): void

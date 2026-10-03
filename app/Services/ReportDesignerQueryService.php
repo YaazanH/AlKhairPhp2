@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Course;
 use App\Models\Group;
+use App\Models\MemorizationSession;
+use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Models\User;
@@ -54,6 +56,20 @@ class ReportDesignerQueryService
                 $user,
             ),
             ReportDesignerCatalog::STUDENT_ATTENDANCE => $this->studentAttendancePreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::MEMORIZATION_SESSIONS => $this->memorizationPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::QURAN_TESTS => $this->quranTestPreview(
                 $fields,
                 (array) ($definition['filters'] ?? []),
                 $sortField,
@@ -239,6 +255,88 @@ class ReportDesignerQueryService
         return $this->result(ReportDesignerCatalog::STUDENT_ATTENDANCE, $fields, $rows, $total);
     }
 
+    protected function memorizationPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $query = $this->accessScopes->scopeMemorizationSessions(
+            MemorizationSession::query()->with([
+                'student:id,student_number,first_name,last_name',
+                'teacher:id,first_name,last_name',
+                'enrollment.group.course',
+            ]),
+            $user,
+        );
+
+        $entryType = (string) ($filters['status'] ?? 'all');
+        if (in_array($entryType, ['new', 'review', 'correction'], true)) {
+            $query->where('entry_type', $entryType);
+        }
+
+        $this->applyRelatedStudentSearch($query, $filters);
+        $this->applyDateBounds(
+            $query,
+            'recorded_on',
+            (string) ($filters['date_from'] ?? ''),
+            (string) ($filters['date_to'] ?? ''),
+        );
+
+        $total = (clone $query)->count();
+        $this->applyMemorizationSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (MemorizationSession $session) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->memorizationValue($session, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::MEMORIZATION_SESSIONS, $fields, $rows, $total);
+    }
+
+    protected function quranTestPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $query = $this->accessScopes->scopeQuranTests(
+            QuranTest::query()->with([
+                'student:id,student_number,first_name,last_name',
+                'teacher:id,first_name,last_name',
+                'type:id,name,code',
+                'juz:id,juz_number',
+                'enrollment.group.course',
+            ]),
+            $user,
+        );
+
+        $status = (string) ($filters['status'] ?? 'all');
+        if (in_array($status, ['passed', 'failed', 'cancelled'], true)) {
+            $query->where('status', $status);
+        }
+
+        $this->applyRelatedStudentSearch($query, $filters);
+        $this->applyDateBounds(
+            $query,
+            'tested_on',
+            (string) ($filters['date_from'] ?? ''),
+            (string) ($filters['date_to'] ?? ''),
+        );
+
+        $total = (clone $query)->count();
+        $this->applyQuranTestSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranTest $test) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->quranTestValue($test, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::QURAN_TESTS, $fields, $rows, $total);
+    }
+
+    protected function applyRelatedStudentSearch(Builder $query, array $filters): void
+    {
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $query->whereHas('student', fn (Builder $student) => $this->applyStudentSearch($student, $search));
+        }
+    }
+
     protected function applyStudentSearch(Builder $query, string $search): void
     {
         $query->where(function (Builder $builder) use ($search): void {
@@ -299,6 +397,25 @@ class ReportDesignerQueryService
         };
     }
 
+    protected function applyMemorizationSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'recorded_on', 'entry_type', 'from_page', 'to_page', 'pages_count' => $query->orderBy($field, $direction),
+            default => $query->orderByDesc('recorded_on')->orderByDesc('id'),
+        };
+    }
+
+    protected function applyQuranTestSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'tested_on' => $query->orderBy('tested_on', $direction),
+            'test_status' => $query->orderBy('status', $direction),
+            'score' => $query->orderBy('score', $direction),
+            'attempt_number' => $query->orderBy('attempt_no', $direction),
+            default => $query->orderByDesc('tested_on')->orderByDesc('id'),
+        };
+    }
+
     protected function courseValue(Course $course, string $field): mixed
     {
         return match ($field) {
@@ -349,6 +466,41 @@ class ReportDesignerQueryService
             'course_name' => $course?->name,
             'group_name' => $group?->name,
             'notes' => $record->notes,
+        };
+    }
+
+    protected function memorizationValue(MemorizationSession $session, string $field): mixed
+    {
+        return match ($field) {
+            'recorded_on' => $session->recorded_on?->format('Y-m-d'),
+            'student_number' => $session->student?->student_number,
+            'full_name' => $this->personName($session->student),
+            'entry_type' => __('report_designer.entry_types.'.$session->entry_type),
+            'from_page' => $session->from_page,
+            'to_page' => $session->to_page,
+            'pages_count' => $session->pages_count,
+            'teacher_name' => $this->personName($session->teacher),
+            'course_name' => $session->enrollment?->group?->course?->name,
+            'group_name' => $session->enrollment?->group?->name,
+            'notes' => $session->notes,
+        };
+    }
+
+    protected function quranTestValue(QuranTest $test, string $field): mixed
+    {
+        return match ($field) {
+            'tested_on' => $test->tested_on?->format('Y-m-d'),
+            'student_number' => $test->student?->student_number,
+            'full_name' => $this->personName($test->student),
+            'test_type' => $test->type?->name,
+            'juz_number' => $test->juz?->juz_number,
+            'test_status' => __('report_designer.test_statuses.'.$test->status),
+            'score' => $test->score !== null ? (float) $test->score : null,
+            'attempt_number' => $test->attempt_no,
+            'teacher_name' => $this->personName($test->teacher),
+            'course_name' => $test->enrollment?->group?->course?->name,
+            'group_name' => $test->enrollment?->group?->name,
+            'notes' => $test->notes,
         };
     }
 

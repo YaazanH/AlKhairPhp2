@@ -15,6 +15,10 @@ class ReportDesignerCatalog
 
     public const STUDENT_ATTENDANCE = 'student_attendance';
 
+    public const MEMORIZATION_SESSIONS = 'memorization_sessions';
+
+    public const QURAN_TESTS = 'quran_tests';
+
     public function __construct(protected CurrentModuleAccess $modules) {}
 
     public function sources(): array
@@ -43,6 +47,20 @@ class ReportDesignerCatalog
             $sources[self::STUDENT_ATTENDANCE] = [
                 'label' => __('report_designer.sources.student_attendance.label'),
                 'description' => __('report_designer.sources.student_attendance.description'),
+            ];
+        }
+
+        if ($this->modules->enabled('memorization')) {
+            $sources[self::MEMORIZATION_SESSIONS] = [
+                'label' => __('report_designer.sources.memorization_sessions.label'),
+                'description' => __('report_designer.sources.memorization_sessions.description'),
+            ];
+        }
+
+        if ($this->modules->enabled('quran_tests')) {
+            $sources[self::QURAN_TESTS] = [
+                'label' => __('report_designer.sources.quran_tests.label'),
+                'description' => __('report_designer.sources.quran_tests.description'),
             ];
         }
 
@@ -96,6 +114,31 @@ class ReportDesignerCatalog
                 'group_name' => $this->field('group_name', 'text'),
                 'notes' => $this->field('notes', 'text'),
             ],
+            self::MEMORIZATION_SESSIONS => array_merge([
+                'recorded_on' => $this->field('recorded_on', 'date'),
+                'student_number' => $this->field('student_number', 'text'),
+                'full_name' => $this->field('full_name', 'text'),
+                'entry_type' => $this->field('entry_type', 'status'),
+                'from_page' => $this->field('from_page', 'number'),
+                'to_page' => $this->field('to_page', 'number'),
+                'pages_count' => $this->field('pages_count', 'number'),
+                'teacher_name' => $this->field('teacher_name', 'text'),
+            ], $this->classContextFields(), [
+                'notes' => $this->field('notes', 'text'),
+            ]),
+            self::QURAN_TESTS => array_merge([
+                'tested_on' => $this->field('tested_on', 'date'),
+                'student_number' => $this->field('student_number', 'text'),
+                'full_name' => $this->field('full_name', 'text'),
+                'test_type' => $this->field('test_type', 'text'),
+                'juz_number' => $this->field('juz_number', 'number'),
+                'test_status' => $this->field('test_status', 'status'),
+                'score' => $this->field('score', 'number'),
+                'attempt_number' => $this->field('attempt_number', 'number'),
+                'teacher_name' => $this->field('teacher_name', 'text'),
+            ], $this->classContextFields(), [
+                'notes' => $this->field('notes', 'text'),
+            ]),
             default => abort(404),
         };
     }
@@ -104,12 +147,16 @@ class ReportDesignerCatalog
     {
         $this->fields($source);
 
-        return match ($source) {
+        $defaults = match ($source) {
             self::STUDENTS => ['student_number', 'full_name', 'status', 'current_group'],
             self::COURSES => ['course_name', 'academic_year', 'status', 'groups_count', 'active_enrollments_count'],
             self::GROUPS => ['group_name', 'course_name', 'teacher_name', 'capacity', 'active_enrollments_count', 'available_places', 'status'],
             self::STUDENT_ATTENDANCE => ['attendance_date', 'student_number', 'full_name', 'attendance_status', 'presence_result', 'group_name'],
+            self::MEMORIZATION_SESSIONS => ['recorded_on', 'student_number', 'full_name', 'entry_type', 'pages_count', 'teacher_name', 'group_name'],
+            self::QURAN_TESTS => ['tested_on', 'student_number', 'full_name', 'test_type', 'juz_number', 'test_status', 'score', 'attempt_number'],
         };
+
+        return array_values(array_intersect($defaults, array_keys($this->fields($source))));
     }
 
     public function sortableFields(string $source): array
@@ -119,6 +166,8 @@ class ReportDesignerCatalog
             self::COURSES => ['course_name', 'status', 'starts_on', 'ends_on', 'groups_count', 'active_groups_count', 'active_enrollments_count'],
             self::GROUPS => ['group_name', 'status', 'starts_on', 'ends_on', 'capacity', 'active_enrollments_count'],
             self::STUDENT_ATTENDANCE => [],
+            self::MEMORIZATION_SESSIONS => ['recorded_on', 'entry_type', 'from_page', 'to_page', 'pages_count'],
+            self::QURAN_TESTS => ['tested_on', 'test_status', 'score', 'attempt_number'],
         };
 
         return collect($this->fields($source))->only($sortable)->all();
@@ -128,17 +177,30 @@ class ReportDesignerCatalog
     {
         $this->fields($source);
 
-        return $source === self::STUDENT_ATTENDANCE
-            ? [
+        return match ($source) {
+            self::STUDENT_ATTENDANCE => [
                 'all' => __('report_designer.attendance_filters.all'),
                 'present' => __('report_designer.attendance_filters.present'),
                 'not_present' => __('report_designer.attendance_filters.not_present'),
-            ]
-            : [
+            ],
+            self::MEMORIZATION_SESSIONS => [
+                'all' => __('report_designer.entry_filters.all'),
+                'new' => __('report_designer.entry_types.new'),
+                'review' => __('report_designer.entry_types.review'),
+                'correction' => __('report_designer.entry_types.correction'),
+            ],
+            self::QURAN_TESTS => [
+                'all' => __('report_designer.test_filters.all'),
+                'passed' => __('report_designer.test_statuses.passed'),
+                'failed' => __('report_designer.test_statuses.failed'),
+                'cancelled' => __('report_designer.test_statuses.cancelled'),
+            ],
+            default => [
                 'all' => __('report_designer.filter_statuses.all'),
                 'active' => __('report_designer.filter_statuses.active'),
                 'inactive' => __('report_designer.filter_statuses.inactive'),
-            ];
+            ],
+        };
     }
 
     public function validateFields(string $source, array $fields): array
@@ -176,5 +238,15 @@ class ReportDesignerCatalog
             'label' => __('report_designer.fields.'.$key),
             'type' => $type,
         ];
+    }
+
+    private function classContextFields(): array
+    {
+        return $this->modules->enabled('classes')
+            ? [
+                'course_name' => $this->field('course_name', 'text'),
+                'group_name' => $this->field('group_name', 'text'),
+            ]
+            : [];
     }
 }
