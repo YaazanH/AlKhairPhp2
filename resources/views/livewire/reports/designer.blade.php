@@ -49,14 +49,16 @@ new class extends Component
     public function with(): array
     {
         $catalog = app(ReportDesignerCatalog::class);
+        $sourceKeys = array_keys($catalog->sources(auth()->user()));
 
         return [
             'definitions' => ReportDefinition::query()
                 ->with('creator:id,name,username')
+                ->whereIn('data_source', $sourceKeys)
                 ->when(! auth()->user()?->can('report-designer.update'), fn ($query) => $query->where('created_by', auth()->id()))
                 ->latest('updated_at')
                 ->get(),
-            'sources' => $catalog->sources(),
+            'sources' => $catalog->sources(auth()->user()),
             'availableFields' => $catalog->fields($this->dataSource),
             'sortableFields' => $catalog->sortableFields($this->dataSource),
             'statusFilters' => $catalog->statusFilters($this->dataSource),
@@ -66,7 +68,7 @@ new class extends Component
     public function updatedDataSource(): void
     {
         $catalog = app(ReportDesignerCatalog::class);
-        abort_unless(array_key_exists($this->dataSource, $catalog->sources()), 403);
+        abort_unless(array_key_exists($this->dataSource, $catalog->sources(auth()->user())), 403);
 
         $this->selectedFields = $catalog->defaultFields($this->dataSource);
         $this->statusFilter = 'all';
@@ -100,9 +102,9 @@ new class extends Component
     protected function loadDefinition(int $definitionId, bool $readOnly): void
     {
         $definition = ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
             ->when(! auth()->user()?->can('report-designer.update'), fn ($query) => $query->where('created_by', auth()->id()))
             ->findOrFail($definitionId);
-        abort_unless(array_key_exists($definition->data_source, app(ReportDesignerCatalog::class)->sources()), 403);
         $filters = $definition->filters ?? [];
 
         $this->editorOpen = true;
@@ -129,7 +131,7 @@ new class extends Component
         $userId = auth()->id();
 
         $definition = $this->editingId
-            ? ReportDefinition::query()->findOrFail($this->editingId)
+            ? ReportDefinition::query()->whereIn('data_source', $this->availableSourceKeys())->findOrFail($this->editingId)
             : new ReportDefinition(['created_by' => $userId]);
 
         $definition->fill($validated + [
@@ -173,7 +175,10 @@ new class extends Component
     public function delete(int $definitionId): void
     {
         $this->authorizePermission('report-designer.delete');
-        ReportDefinition::query()->findOrFail($definitionId)->delete();
+        ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
+            ->findOrFail($definitionId)
+            ->delete();
 
         if ($this->editingId === $definitionId) {
             $this->resetEditor();
@@ -185,7 +190,7 @@ new class extends Component
     protected function validatedDefinition(bool $requireName): array
     {
         $catalog = app(ReportDesignerCatalog::class);
-        $sourceKeys = array_keys($catalog->sources());
+        $sourceKeys = array_keys($catalog->sources(auth()->user()));
         $statusKeys = array_keys($catalog->statusFilters(
             in_array($this->dataSource, $sourceKeys, true) ? $this->dataSource : $this->defaultSource(),
         ));
@@ -248,11 +253,16 @@ new class extends Component
 
     protected function defaultSource(): string
     {
-        $sources = app(ReportDesignerCatalog::class)->sources();
+        $sources = app(ReportDesignerCatalog::class)->sources(auth()->user());
 
         abort_if($sources === [], 403, 'No reporting data source is enabled.');
 
         return (string) array_key_first($sources);
+    }
+
+    protected function availableSourceKeys(): array
+    {
+        return array_keys(app(ReportDesignerCatalog::class)->sources(auth()->user()));
     }
 }; ?>
 

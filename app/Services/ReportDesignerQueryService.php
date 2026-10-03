@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\Course;
+use App\Models\FinanceTransaction;
 use App\Models\Group;
 use App\Models\MemorizationSession;
 use App\Models\QuranFinalTest;
@@ -24,13 +25,14 @@ class ReportDesignerQueryService
     public function __construct(
         protected AccessScopeService $accessScopes,
         protected ReportDesignerCatalog $catalog,
+        protected FinanceService $finance,
         protected CurrentModuleAccess $modules,
     ) {}
 
     public function preview(array $definition, ?User $user): array
     {
         $source = (string) ($definition['data_source'] ?? '');
-        abort_unless(array_key_exists($source, $this->catalog->sources()), 403);
+        abort_unless(array_key_exists($source, $this->catalog->sources($user)), 403);
         $fields = $this->catalog->validateFields($source, (array) ($definition['selected_fields'] ?? []));
         [$sortField, $sortDirection] = $this->catalog->validateSort(
             $source,
@@ -110,6 +112,13 @@ class ReportDesignerQueryService
                 $user,
             ),
             ReportDesignerCatalog::TEACHERS => $this->teacherPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::FINANCE_TRANSACTIONS => $this->financeTransactionPreview(
                 $fields,
                 (array) ($definition['filters'] ?? []),
                 $sortField,
@@ -568,6 +577,62 @@ class ReportDesignerQueryService
         return $this->result(ReportDesignerCatalog::TEACHERS, $fields, $rows, $total);
     }
 
+    protected function financeTransactionPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        abort_unless($user?->can('finance.reports.view'), 403);
+
+        $cashBoxIds = $this->finance->accessibleCashBoxes($user, activeOnly: false)
+            ->select('finance_cash_boxes.id');
+        $query = FinanceTransaction::query()
+            ->with([
+                'cashBox:id,name',
+                'category:id,name',
+                'currency:id,code,name',
+                'enteredBy:id,name,username',
+                'financeRequest.category:id,name',
+                'financeRequest.pullRequestKind:id,name',
+            ])
+            ->whereIn('cash_box_id', $cashBoxIds);
+
+        $type = (string) ($filters['status'] ?? 'all');
+        if (in_array($type, ['income', 'expense', 'return', 'exchange', 'transfer'], true)) {
+            $query->where('type', $type);
+        }
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder
+                    ->where('transaction_no', 'like', '%'.$search.'%')
+                    ->orWhere('special_transaction_no', 'like', '%'.$search.'%')
+                    ->orWhere('description', 'like', '%'.$search.'%')
+                    ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', '%'.$search.'%'))
+                    ->orWhereHas('cashBox', fn (Builder $cashBox) => $cashBox->where('name', 'like', '%'.$search.'%'))
+                    ->orWhereHas('currency', fn (Builder $currency) => $currency
+                        ->where('code', 'like', '%'.$search.'%')
+                        ->orWhere('name', 'like', '%'.$search.'%'));
+            });
+        }
+
+        $this->applyDateBounds(
+            $query,
+            'transaction_date',
+            (string) ($filters['date_from'] ?? ''),
+            (string) ($filters['date_to'] ?? ''),
+        );
+
+        $total = (clone $query)->count();
+        $this->applyFinanceTransactionSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (FinanceTransaction $transaction) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->financeTransactionValue($transaction, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::FINANCE_TRANSACTIONS, $fields, $rows, $total);
+    }
+
     protected function applyQuranWorkflowFilters(Builder $query, array $filters, string $attemptRelation): void
     {
         $status = (string) ($filters['status'] ?? 'all');
@@ -711,6 +776,16 @@ class ReportDesignerQueryService
             'teacher_status' => $query->orderBy('status', $direction),
             'hired_at' => $query->orderBy('hired_at', $direction),
             default => $query->orderByDesc('id'),
+        };
+    }
+
+    protected function applyFinanceTransactionSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'transaction_number' => $query->orderBy('transaction_no', $direction),
+            'transaction_type' => $query->orderBy('type', $direction),
+            'transaction_date', 'amount', 'signed_amount', 'local_amount' => $query->orderBy($field, $direction),
+            default => $query->orderByDesc('transaction_date')->orderByDesc('id'),
         };
     }
 
@@ -921,6 +996,24 @@ class ReportDesignerQueryService
             ->concat($teacher->assistedGroups)
             ->unique('id')
             ->values();
+    }
+
+    protected function financeTransactionValue(FinanceTransaction $transaction, string $field): mixed
+    {
+        return match ($field) {
+            'transaction_date' => $transaction->transaction_date?->format('Y-m-d'),
+            'transaction_number' => $transaction->transaction_no,
+            'transaction_type' => $this->finance->transactionTypeLabel($transaction->type, $transaction),
+            'transaction_direction' => __('report_designer.finance_directions.'.$transaction->direction),
+            'finance_category' => $this->finance->transactionCategoryLabel($transaction),
+            'cash_box' => $transaction->cashBox?->name,
+            'currency' => $transaction->currency?->code,
+            'amount' => (float) $transaction->amount,
+            'signed_amount' => (float) $transaction->signed_amount,
+            'local_amount' => (float) $transaction->local_amount,
+            'entered_by' => $transaction->enteredBy?->name ?: $transaction->enteredBy?->username,
+            'description' => $transaction->description,
+        };
     }
 
     protected function latestAttempt($attempts): mixed

@@ -9,6 +9,10 @@ use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\FinanceCashBox;
+use App\Models\FinanceCategory;
+use App\Models\FinanceCurrency;
+use App\Models\FinanceTransaction;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
@@ -27,6 +31,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -713,6 +718,116 @@ class ReportDesignerTest extends TestCase
             'active_enrollments_count' => 2,
             'assigned_groups' => 'Primary Group, Assisted Group',
             'assigned_courses' => 'Teacher Workload Course',
+        ]], $preview['rows']);
+    }
+
+    public function test_finance_transaction_source_requires_finance_permission_and_reads_the_ledger(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['name' => 'Finance Reporter', 'username' => 'finance-report-user']);
+        $user->givePermissionTo('report-designer.view');
+        $catalog = app(ReportDesignerCatalog::class);
+        $this->assertArrayNotHasKey('finance_transactions', $catalog->sources($user));
+        ReportDefinition::query()->create([
+            'name' => 'Sensitive finance draft',
+            'data_source' => 'finance_transactions',
+            'selected_fields' => ['transaction_number', 'amount'],
+            'filters' => ['status' => 'all'],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+        ]);
+        $this->actingAs($user)
+            ->get(route('reports.designer', absolute: false))
+            ->assertOk()
+            ->assertDontSee('Sensitive finance draft');
+
+        $user->givePermissionTo('finance.reports.view');
+        $this->assertArrayHasKey('finance_transactions', $catalog->sources($user));
+        $this->get(route('reports.designer', absolute: false))
+            ->assertOk()
+            ->assertSee('Sensitive finance draft');
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+        $category = FinanceCategory::query()->firstOrCreate(
+            ['code' => 'designer-donation'],
+            ['name' => 'General donations', 'type' => 'income', 'mode' => 'donation', 'is_donation' => true, 'is_active' => true],
+        );
+        FinanceTransaction::query()->create([
+            'transaction_no' => 'TX-DESIGNER-001',
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $category->id,
+            'type' => 'income',
+            'direction' => 'in',
+            'amount' => 500,
+            'signed_amount' => 500,
+            'rate_to_base' => 1,
+            'base_amount' => 500,
+            'local_amount' => 500,
+            'transaction_date' => '2026-10-02',
+            'description' => 'Friday donation',
+            'entered_by' => $user->id,
+        ]);
+        FinanceTransaction::query()->create([
+            'transaction_no' => 'TX-DESIGNER-002',
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $category->id,
+            'type' => 'expense',
+            'direction' => 'out',
+            'amount' => 100,
+            'signed_amount' => -100,
+            'rate_to_base' => 1,
+            'base_amount' => -100,
+            'local_amount' => -100,
+            'transaction_date' => '2026-10-03',
+            'description' => 'Hidden by income filter',
+            'entered_by' => $user->id,
+        ]);
+
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'finance_transactions',
+            'selected_fields' => [
+                'transaction_date',
+                'transaction_number',
+                'transaction_type',
+                'transaction_direction',
+                'finance_category',
+                'cash_box',
+                'currency',
+                'amount',
+                'signed_amount',
+                'local_amount',
+                'entered_by',
+                'description',
+            ],
+            'filters' => [
+                'status' => 'income',
+                'search' => 'donation',
+                'date_from' => '2026-10-02',
+                'date_to' => '2026-10-02',
+            ],
+            'sort_field' => 'transaction_date',
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame([[
+            'transaction_date' => '2026-10-02',
+            'transaction_number' => 'TX-DESIGNER-001',
+            'transaction_type' => __('finance.transaction_types.income'),
+            'transaction_direction' => __('report_designer.finance_directions.in'),
+            'finance_category' => 'General donations',
+            'cash_box' => $cashBox->name,
+            'currency' => $currency->code,
+            'amount' => 500.0,
+            'signed_amount' => 500.0,
+            'local_amount' => 500.0,
+            'entered_by' => 'Finance Reporter',
+            'description' => 'Friday donation',
         ]], $preview['rows']);
     }
 

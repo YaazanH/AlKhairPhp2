@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Validation\ValidationException;
 
@@ -29,9 +30,11 @@ class ReportDesignerCatalog
 
     public const TEACHERS = 'teachers';
 
+    public const FINANCE_TRANSACTIONS = 'finance_transactions';
+
     public function __construct(protected CurrentModuleAccess $modules) {}
 
-    public function sources(): array
+    public function sources(?User $user = null): array
     {
         $sources = [];
 
@@ -97,6 +100,13 @@ class ReportDesignerCatalog
             $sources[self::TEACHERS] = [
                 'label' => __('report_designer.sources.teachers.label'),
                 'description' => __('report_designer.sources.teachers.description'),
+            ];
+        }
+
+        if ($this->modules->enabled('finance') && ($user === null || $user->can('finance.reports.view'))) {
+            $sources[self::FINANCE_TRANSACTIONS] = [
+                'label' => __('report_designer.sources.finance_transactions.label'),
+                'description' => __('report_designer.sources.finance_transactions.description'),
             ];
         }
 
@@ -216,6 +226,20 @@ class ReportDesignerCatalog
                 'hired_at' => $this->field('hired_at', 'date'),
                 'is_helping' => $this->field('is_helping', 'status'),
             ], $this->teacherWorkloadFields()),
+            self::FINANCE_TRANSACTIONS => [
+                'transaction_date' => $this->field('transaction_date', 'date'),
+                'transaction_number' => $this->field('transaction_number', 'text'),
+                'transaction_type' => $this->field('transaction_type', 'status'),
+                'transaction_direction' => $this->field('transaction_direction', 'status'),
+                'finance_category' => $this->field('finance_category', 'text'),
+                'cash_box' => $this->field('cash_box', 'text'),
+                'currency' => $this->field('currency', 'text'),
+                'amount' => $this->field('amount', 'number'),
+                'signed_amount' => $this->field('signed_amount', 'number'),
+                'local_amount' => $this->field('local_amount', 'number'),
+                'entered_by' => $this->field('entered_by', 'text'),
+                'description' => $this->field('description', 'text'),
+            ],
             default => abort(404),
         };
     }
@@ -236,6 +260,7 @@ class ReportDesignerCatalog
             self::ASSESSMENTS => ['assessment_title', 'assessment_type', 'assessment_groups', 'due_at', 'total_mark', 'pass_mark', 'status', 'results_count', 'average_score'],
             self::ASSESSMENT_RESULTS => ['due_at', 'assessment_title', 'full_name', 'score', 'result_status', 'attempt_number', 'group_name'],
             self::TEACHERS => ['full_name', 'teacher_status', 'job_title', 'assigned_groups_count', 'assisted_groups_count', 'active_groups_count', 'active_enrollments_count'],
+            self::FINANCE_TRANSACTIONS => ['transaction_date', 'transaction_number', 'transaction_type', 'finance_category', 'cash_box', 'currency', 'amount', 'local_amount'],
         };
 
         return array_values(array_intersect($defaults, array_keys($this->fields($source))));
@@ -254,6 +279,7 @@ class ReportDesignerCatalog
             self::ASSESSMENTS => ['assessment_title', 'scheduled_at', 'due_at', 'total_mark', 'pass_mark', 'status', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score'],
             self::ASSESSMENT_RESULTS => ['score', 'result_status', 'attempt_number'],
             self::TEACHERS => ['full_name', 'teacher_status', 'hired_at'],
+            self::FINANCE_TRANSACTIONS => ['transaction_date', 'transaction_number', 'transaction_type', 'amount', 'signed_amount', 'local_amount'],
         };
 
         return collect($this->fields($source))->only($sortable)->all();
@@ -300,6 +326,14 @@ class ReportDesignerCatalog
                 'pending' => __('report_designer.teacher_statuses.pending'),
                 'blocked' => __('report_designer.teacher_statuses.blocked'),
                 'declined' => __('report_designer.teacher_statuses.declined'),
+            ],
+            self::FINANCE_TRANSACTIONS => [
+                'all' => __('report_designer.finance_filters.all'),
+                'income' => __('report_designer.finance_transaction_types.income'),
+                'expense' => __('report_designer.finance_transaction_types.expense'),
+                'return' => __('report_designer.finance_transaction_types.return'),
+                'exchange' => __('report_designer.finance_transaction_types.exchange'),
+                'transfer' => __('report_designer.finance_transaction_types.transfer'),
             ],
             default => [
                 'all' => __('report_designer.filter_statuses.all'),
