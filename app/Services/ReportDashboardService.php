@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ReportDefinition;
 use App\Models\User;
+use App\Support\RoleRegistry;
 use Illuminate\Support\Collection;
 
 class ReportDashboardService
@@ -26,11 +27,18 @@ class ReportDashboardService
             $user,
         )
             ->with(['dashboardRoles' => fn ($query) => $query
-                ->whereIn('roles.id', $user->roles()->pluck('roles.id'))
-                ->orderBy('report_dashboard_placements.position')])
+                ->whereIn('roles.id', $user->roles()->pluck('roles.id'))])
             ->get()
+            ->map(function (ReportDefinition $report): ReportDefinition {
+                $placementRole = RoleRegistry::sortCollection($report->dashboardRoles)->first();
+
+                $report->setAttribute('dashboard_position', (int) ($placementRole?->pivot->position ?? PHP_INT_MAX));
+                $report->setAttribute('dashboard_size', (string) ($placementRole?->pivot->size ?: 'medium'));
+
+                return $report;
+            })
             ->sortBy(fn (ReportDefinition $report) => [
-                (int) ($report->dashboardRoles->min('pivot.position') ?? PHP_INT_MAX),
+                $report->dashboard_position,
                 mb_strtolower($report->name),
             ])
             ->values();
@@ -51,7 +59,7 @@ class ReportDashboardService
 
             return [
                 'report' => $report,
-                'size' => $report->dashboardRoles->pluck('pivot.size')->first() ?: 'medium',
+                'size' => $report->dashboard_size,
                 'preview' => $preview,
             ];
         });

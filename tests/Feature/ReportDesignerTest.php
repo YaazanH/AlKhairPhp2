@@ -31,6 +31,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\ReportDashboardService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
 use Database\Seeders\RoleSeeder;
@@ -225,7 +226,7 @@ class ReportDesignerTest extends TestCase
         Volt::test('reports.designer')
             ->call('managePlacement', $definition->id)
             ->set('placementRoleIds', [$viewerRole->id])
-            ->set('placementSize', 'wide')
+            ->set('placementSizes.'.$viewerRole->id, 'wide')
             ->call('savePlacement')
             ->assertHasNoErrors();
 
@@ -268,6 +269,101 @@ class ReportDesignerTest extends TestCase
             ->get(route('reports.designer.show', $definition, absolute: false))
             ->assertNotFound();
         $this->get('/dashboard')->assertDontSee('Role performance report');
+    }
+
+    public function test_role_dashboard_layout_can_reorder_remove_and_size_widgets_per_role(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'role-layout-admin']);
+        $administrator->assignRole('admin');
+        $firstRole = Role::findOrCreate('first-review-team', 'web');
+        $secondRole = Role::findOrCreate('second-review-team', 'web');
+        $firstRole->givePermissionTo('reports.view');
+        $secondRole->givePermissionTo('reports.view');
+        $firstViewer = User::factory()->create(['username' => 'first-layout-viewer']);
+        $firstViewer->assignRole($firstRole);
+        $secondViewer = User::factory()->create(['username' => 'second-layout-viewer']);
+        $secondViewer->assignRole($secondRole);
+
+        $firstReport = ReportDefinition::query()->create([
+            'name' => 'First role widget',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $administrator->id,
+            'updated_by' => $administrator->id,
+        ]);
+        $secondReport = $firstReport->replicate()->fill(['name' => 'Second role widget']);
+        $secondReport->save();
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('managePlacement', $firstReport->id)
+            ->set('placementRoleIds', [$firstRole->id, $secondRole->id])
+            ->set('placementSizes.'.$firstRole->id, 'small')
+            ->set('placementSizes.'.$secondRole->id, 'wide')
+            ->call('savePlacement')
+            ->assertHasNoErrors();
+        Volt::test('reports.designer')
+            ->call('managePlacement', $secondReport->id)
+            ->set('placementRoleIds', [$firstRole->id])
+            ->set('placementSizes.'.$firstRole->id, 'medium')
+            ->call('savePlacement')
+            ->assertHasNoErrors();
+
+        Volt::test('reports.designer')
+            ->call('openRoleLayouts')
+            ->call('selectLayoutRole', $firstRole->id)
+            ->call('moveLayoutItem', 1, 'up')
+            ->set('layoutItems.0.size', 'wide')
+            ->call('saveRoleLayout')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('report_dashboard_placements', [
+            'report_definition_id' => $secondReport->id,
+            'role_id' => $firstRole->id,
+            'position' => 1,
+            'size' => 'wide',
+        ]);
+        $this->assertDatabaseHas('report_dashboard_placements', [
+            'report_definition_id' => $firstReport->id,
+            'role_id' => $firstRole->id,
+            'position' => 2,
+            'size' => 'small',
+        ]);
+
+        $firstWidgets = app(ReportDashboardService::class)->widgetsFor($firstViewer);
+        $this->assertSame([$secondReport->id, $firstReport->id], $firstWidgets->pluck('report.id')->all());
+        $this->assertSame(['wide', 'small'], $firstWidgets->pluck('size')->all());
+        $secondWidgets = app(ReportDashboardService::class)->widgetsFor($secondViewer);
+        $this->assertSame([$firstReport->id], $secondWidgets->pluck('report.id')->all());
+        $this->assertSame(['wide'], $secondWidgets->pluck('size')->all());
+
+        $this->actingAs($firstViewer)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSeeInOrder(['Second role widget', 'First role widget'])
+            ->assertSee('data-report-widget="'.$secondReport->id.'" data-report-widget-size="wide"', false)
+            ->assertSee('data-report-widget="'.$firstReport->id.'" data-report-widget-size="small"', false);
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('openRoleLayouts')
+            ->call('selectLayoutRole', $firstRole->id)
+            ->call('removeLayoutItem', 1)
+            ->call('saveRoleLayout')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('report_dashboard_placements', [
+            'report_definition_id' => $firstReport->id,
+            'role_id' => $firstRole->id,
+        ]);
+        $this->assertSame(ReportDefinition::STATUS_PUBLISHED, $firstReport->fresh()->status);
+        $this->assertSame([$firstReport->id], app(ReportDashboardService::class)->reportsFor($secondViewer)->pluck('id')->all());
     }
 
     public function test_courses_and_groups_are_approved_sources_with_operational_counts(): void

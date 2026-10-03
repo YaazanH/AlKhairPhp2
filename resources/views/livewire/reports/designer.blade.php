@@ -51,7 +51,13 @@ new class extends Component
 
     public array $placementRoleIds = [];
 
-    public string $placementSize = 'medium';
+    public array $placementSizes = [];
+
+    public bool $layoutEditorOpen = false;
+
+    public ?int $layoutRoleId = null;
+
+    public array $layoutItems = [];
 
     public function mount(): void
     {
@@ -223,16 +229,21 @@ new class extends Component
 
         $this->placementDefinitionId = $definition->id;
         $this->placementRoleIds = $definition->dashboardRoles->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $this->placementSize = (string) ($definition->dashboardRoles->pluck('pivot.size')->first() ?: 'medium');
-        $this->resetValidation(['placementRoleIds', 'placementSize']);
+        $existingSizes = $definition->dashboardRoles->mapWithKeys(
+            fn ($role): array => [(int) $role->id => (string) $role->pivot->size],
+        );
+        $this->placementSizes = $this->availableDashboardRoles()
+            ->mapWithKeys(fn ($role): array => [(int) $role->id => $existingSizes->get((int) $role->id, 'medium')])
+            ->all();
+        $this->resetValidation(['placementRoleIds', 'placementSizes']);
     }
 
     public function closePlacement(): void
     {
         $this->placementDefinitionId = null;
         $this->placementRoleIds = [];
-        $this->placementSize = 'medium';
-        $this->resetValidation(['placementRoleIds', 'placementSize']);
+        $this->placementSizes = [];
+        $this->resetValidation(['placementRoleIds', 'placementSizes']);
     }
 
     public function savePlacement(): void
@@ -241,7 +252,8 @@ new class extends Component
         $validated = $this->validate([
             'placementRoleIds' => ['array'],
             'placementRoleIds.*' => ['integer', 'distinct'],
-            'placementSize' => ['required', Rule::in(['small', 'medium', 'wide'])],
+            'placementSizes' => ['array'],
+            'placementSizes.*' => ['required', Rule::in(['small', 'medium', 'wide'])],
         ]);
         $allowedRoleIds = $this->availableDashboardRoles()->pluck('id')->map(fn ($id) => (int) $id);
         $roleIds = collect($validated['placementRoleIds'])
@@ -266,7 +278,7 @@ new class extends Component
 
                 $placements[$roleId] = [
                     'position' => $position,
-                    'size' => $validated['placementSize'],
+                    'size' => $validated['placementSizes'][$roleId] ?? 'medium',
                 ];
             }
 
@@ -279,6 +291,128 @@ new class extends Component
 
         $this->closePlacement();
         session()->flash('status', __('report_designer.messages.placement_saved'));
+    }
+
+    public function openRoleLayouts(): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        $firstRole = $this->availableDashboardRoles()->first();
+
+        abort_unless($firstRole, 404);
+
+        $this->layoutEditorOpen = true;
+        $this->selectLayoutRole((int) $firstRole->id);
+    }
+
+    public function selectLayoutRole(int $roleId): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        abort_unless($this->availableDashboardRoles()->contains('id', $roleId), 404);
+
+        $this->layoutRoleId = $roleId;
+        $this->layoutItems = DB::table('report_dashboard_placements')
+            ->join('report_definitions', 'report_definitions.id', '=', 'report_dashboard_placements.report_definition_id')
+            ->where('report_dashboard_placements.role_id', $roleId)
+            ->orderBy('report_dashboard_placements.position')
+            ->orderBy('report_definitions.name')
+            ->get([
+                'report_definitions.id as report_id',
+                'report_definitions.name',
+                'report_dashboard_placements.size',
+            ])
+            ->map(fn ($item): array => [
+                'report_id' => (int) $item->report_id,
+                'name' => (string) $item->name,
+                'size' => (string) $item->size,
+            ])
+            ->all();
+        $this->resetValidation('layoutItems');
+    }
+
+    public function moveLayoutItem(int $index, string $direction): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        abort_unless(in_array($direction, ['up', 'down'], true), 422);
+
+        $target = $direction === 'up' ? $index - 1 : $index + 1;
+        if (! isset($this->layoutItems[$index], $this->layoutItems[$target])) {
+            return;
+        }
+
+        [$this->layoutItems[$index], $this->layoutItems[$target]] = [$this->layoutItems[$target], $this->layoutItems[$index]];
+        $this->layoutItems = array_values($this->layoutItems);
+    }
+
+    public function removeLayoutItem(int $index): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        abort_unless(isset($this->layoutItems[$index]), 404);
+
+        unset($this->layoutItems[$index]);
+        $this->layoutItems = array_values($this->layoutItems);
+    }
+
+    public function saveRoleLayout(): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        abort_unless($this->layoutRoleId && $this->availableDashboardRoles()->contains('id', $this->layoutRoleId), 404);
+
+        $validated = $this->validate([
+            'layoutItems' => ['array'],
+            'layoutItems.*.report_id' => ['required', 'integer', 'distinct'],
+            'layoutItems.*.name' => ['required', 'string'],
+            'layoutItems.*.size' => ['required', Rule::in(['small', 'medium', 'wide'])],
+        ]);
+
+        DB::transaction(function () use ($validated): void {
+            $currentIds = DB::table('report_dashboard_placements')
+                ->where('role_id', $this->layoutRoleId)
+                ->lockForUpdate()
+                ->pluck('report_definition_id')
+                ->map(fn ($id) => (int) $id);
+            $submittedIds = collect($validated['layoutItems'])->pluck('report_id')->map(fn ($id) => (int) $id);
+
+            abort_if($submittedIds->diff($currentIds)->isNotEmpty(), 422);
+
+            foreach ($validated['layoutItems'] as $index => $item) {
+                DB::table('report_dashboard_placements')
+                    ->where('role_id', $this->layoutRoleId)
+                    ->where('report_definition_id', $item['report_id'])
+                    ->update([
+                        'position' => $index + 1,
+                        'size' => $item['size'],
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            $removedIds = $currentIds->diff($submittedIds)->values();
+            if ($removedIds->isNotEmpty()) {
+                DB::table('report_dashboard_placements')
+                    ->where('role_id', $this->layoutRoleId)
+                    ->whereIn('report_definition_id', $removedIds)
+                    ->delete();
+            }
+
+            ReportDefinition::query()->whereIn('id', $currentIds)->get()->each(function (ReportDefinition $definition): void {
+                $definition->forceFill([
+                    'status' => $definition->dashboardRoles()->exists()
+                        ? ReportDefinition::STATUS_PUBLISHED
+                        : ReportDefinition::STATUS_DRAFT,
+                    'updated_by' => auth()->id(),
+                ])->save();
+            });
+        });
+
+        $this->closeRoleLayouts();
+        session()->flash('status', __('report_designer.messages.layout_saved'));
+    }
+
+    public function closeRoleLayouts(): void
+    {
+        $this->layoutEditorOpen = false;
+        $this->layoutRoleId = null;
+        $this->layoutItems = [];
+        $this->resetValidation('layoutItems');
     }
 
     protected function validatedDefinition(bool $requireName): array
@@ -470,9 +604,14 @@ new class extends Component
                     <div class="eyebrow">{{ __('report_designer.saved.eyebrow') }}</div>
                     <h2 class="font-display mt-2 text-2xl text-white">{{ __('report_designer.saved.title') }}</h2>
                 </div>
-                @can('report-designer.create')
-                    <x-add-action-button wire:click="create" :label="__('report_designer.actions.new')" />
-                @endcan
+                <div class="flex flex-wrap justify-end gap-2">
+                    @can('report-dashboard-layout.manage')
+                        <button type="button" wire:click="openRoleLayouts" class="pill-link">{{ __('report_designer.actions.manage_role_layouts') }}</button>
+                    @endcan
+                    @can('report-designer.create')
+                        <x-add-action-button wire:click="create" :label="__('report_designer.actions.new')" />
+                    @endcan
+                </div>
             </div>
 
             <div class="mt-5 grid gap-3">
@@ -753,24 +892,23 @@ new class extends Component
         <form wire:submit="savePlacement" class="grid gap-5">
             <p class="text-sm leading-6 text-neutral-300">{{ __('report_designer.placement.help') }}</p>
 
-            <div class="grid gap-2 sm:grid-cols-2">
+            <div class="grid gap-3">
                 @foreach($dashboardRoles as $role)
-                    <label class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-200">
-                        <input wire:model="placementRoleIds" type="checkbox" value="{{ $role->id }}" class="rounded border-white/20 bg-transparent">
-                        <x-admin.role-label :name="$role->name" />
-                    </label>
+                    <div class="grid gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+                        <label class="flex items-center gap-3 text-sm text-neutral-200">
+                            <input wire:model.live="placementRoleIds" type="checkbox" value="{{ $role->id }}" class="rounded border-white/20 bg-transparent">
+                            <x-admin.role-label :name="$role->name" />
+                        </label>
+                        <select wire:model="placementSizes.{{ $role->id }}" class="rounded-xl px-4 py-2 text-sm" @disabled(! in_array($role->id, array_map('intval', $placementRoleIds), true)) aria-label="{{ __('report_designer.placement.size_for', ['role' => $role->name]) }}">
+                            <option value="small">{{ __('report_designer.placement.sizes.small') }}</option>
+                            <option value="medium">{{ __('report_designer.placement.sizes.medium') }}</option>
+                            <option value="wide">{{ __('report_designer.placement.sizes.wide') }}</option>
+                        </select>
+                    </div>
                 @endforeach
             </div>
             @error('placementRoleIds') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
-
-            <label class="grid gap-2 text-sm text-neutral-200">
-                <span>{{ __('report_designer.placement.size') }}</span>
-                <select wire:model="placementSize" class="rounded-xl px-4 py-3">
-                    <option value="small">{{ __('report_designer.placement.sizes.small') }}</option>
-                    <option value="medium">{{ __('report_designer.placement.sizes.medium') }}</option>
-                    <option value="wide">{{ __('report_designer.placement.sizes.wide') }}</option>
-                </select>
-            </label>
+            @error('placementSizes.*') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
 
             <div class="rounded-xl border border-amber-300/20 bg-amber-300/8 px-4 py-3 text-xs leading-5 text-amber-100">
                 {{ __('report_designer.placement.visibility_help') }}
@@ -778,7 +916,53 @@ new class extends Component
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePlacement" class="pill-link">{{ __('report_designer.actions.cancel') }}</button>
-                <button type="submit" class="btn-primary">{{ __('report_designer.actions.apply_placement') }}</button>
+                <button type="submit" class="button-primary">{{ __('report_designer.actions.apply_placement') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
+
+    <x-admin.modal :show="$layoutEditorOpen" :title="__('report_designer.layout.title')" close-method="closeRoleLayouts" max-width="3xl">
+        <form wire:submit="saveRoleLayout" class="grid gap-5">
+            <div>
+                <p class="text-sm leading-6 text-neutral-300">{{ __('report_designer.layout.help') }}</p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    @foreach($dashboardRoles as $role)
+                        <button type="button" wire:click="selectLayoutRole({{ $role->id }})" @class(['pill-link', 'border-emerald-300/40 bg-emerald-300/10 text-emerald-100' => $layoutRoleId === $role->id])>
+                            <x-admin.role-label :name="$role->name" />
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="grid gap-3">
+                @forelse($layoutItems as $index => $item)
+                    <div class="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-[auto_minmax(0,1fr)_11rem_auto] md:items-center" wire:key="role-layout-{{ $layoutRoleId }}-{{ $item['report_id'] }}">
+                        <div class="text-xs font-semibold text-neutral-500">{{ $index + 1 }}</div>
+                        <div class="min-w-0 truncate font-semibold text-white">{{ $item['name'] }}</div>
+                        <select wire:model="layoutItems.{{ $index }}.size" class="rounded-xl px-3 py-2 text-sm" aria-label="{{ __('report_designer.placement.size_for_widget', ['widget' => $item['name']]) }}">
+                            <option value="small">{{ __('report_designer.placement.sizes.small') }}</option>
+                            <option value="medium">{{ __('report_designer.placement.sizes.medium') }}</option>
+                            <option value="wide">{{ __('report_designer.placement.sizes.wide') }}</option>
+                        </select>
+                        <div class="flex items-center justify-end gap-2">
+                            <button type="button" wire:click="moveLayoutItem({{ $index }}, 'up')" class="admin-icon-button" title="{{ __('report_designer.actions.move_up') }}" @disabled($index === 0)>↑</button>
+                            <button type="button" wire:click="moveLayoutItem({{ $index }}, 'down')" class="admin-icon-button" title="{{ __('report_designer.actions.move_down') }}" @disabled($index === count($layoutItems) - 1)>↓</button>
+                            <button type="button" wire:click="removeLayoutItem({{ $index }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('report_designer.actions.remove_from_layout') }}"><x-admin-action-icon name="delete" /></button>
+                        </div>
+                    </div>
+                @empty
+                    <div class="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm leading-6 text-neutral-400">{{ __('report_designer.layout.empty') }}</div>
+                @endforelse
+            </div>
+            @error('layoutItems.*') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
+
+            <div class="rounded-xl border border-amber-300/20 bg-amber-300/8 px-4 py-3 text-xs leading-5 text-amber-100">
+                {{ __('report_designer.layout.remove_help') }}
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closeRoleLayouts" class="pill-link">{{ __('report_designer.actions.cancel') }}</button>
+                <button type="submit" class="button-primary">{{ __('report_designer.actions.save_layout') }}</button>
             </div>
         </form>
     </x-admin.modal>

@@ -1562,7 +1562,7 @@ new class extends Component {
                             $span = match($widget['size']) { 'small' => 'lg:col-span-4', 'wide' => 'lg:col-span-12', default => 'lg:col-span-6' };
                             $preview = $widget['preview'];
                         @endphp
-                        <article class="surface-panel min-w-0 p-5 {{ $span }}" data-report-widget="{{ $widget['report']->id }}">
+                        <article class="surface-panel min-w-0 p-5 {{ $span }}" data-report-widget="{{ $widget['report']->id }}" data-report-widget-size="{{ $widget['size'] }}">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
                                     <h3 class="truncate text-lg font-semibold text-white">{{ $widget['report']->name }}</h3>
