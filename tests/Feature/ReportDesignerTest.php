@@ -9,7 +9,12 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
 use App\Models\MemorizationSession;
+use App\Models\QuranFinalTest;
+use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
+use App\Models\QuranPartialTest;
+use App\Models\QuranPartialTestAttempt;
+use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\ReportDefinition;
@@ -349,6 +354,49 @@ class ReportDesignerTest extends TestCase
                 'status' => 'passed',
                 'attempt_no' => 1,
             ]);
+
+            $partial = QuranPartialTest::query()->create([
+                'enrollment_id' => $enrollment->id,
+                'student_id' => $enrollment->student_id,
+                'juz_id' => $juz->id,
+                'status' => 'passed',
+                'passed_on' => '2026-10-05',
+                'created_by' => $user->id,
+            ]);
+            $part = QuranPartialTestPart::query()->create([
+                'quran_partial_test_id' => $partial->id,
+                'part_number' => 1,
+                'status' => 'passed',
+                'passed_on' => '2026-10-05',
+            ]);
+            QuranPartialTestAttempt::query()->create([
+                'quran_partial_test_part_id' => $part->id,
+                'teacher_id' => $teacher->id,
+                'tested_on' => '2026-10-05',
+                'mistake_count' => 2,
+                'score' => 88,
+                'status' => 'passed',
+                'attempt_no' => 1,
+                'notes' => 'Partial attempt note',
+            ]);
+
+            $final = QuranFinalTest::query()->create([
+                'enrollment_id' => $enrollment->id,
+                'student_id' => $enrollment->student_id,
+                'juz_id' => $juz->id,
+                'status' => 'passed',
+                'passed_on' => '2026-10-06',
+                'created_by' => $user->id,
+            ]);
+            QuranFinalTestAttempt::query()->create([
+                'quran_final_test_id' => $final->id,
+                'teacher_id' => $teacher->id,
+                'tested_on' => '2026-10-06',
+                'score' => 91,
+                'status' => 'passed',
+                'attempt_no' => 1,
+                'notes' => 'Final attempt note',
+            ]);
         }
         app(AccessScopeService::class)->syncUserOverrides($user, ['group' => [$visibleGroup->id]]);
 
@@ -363,6 +411,18 @@ class ReportDesignerTest extends TestCase
             'data_source' => 'quran_tests',
             'selected_fields' => ['tested_on', 'full_name', 'test_type', 'juz_number', 'test_status', 'score', 'group_name'],
             'filters' => ['status' => 'passed', 'date_from' => '2026-10-04', 'date_to' => '2026-10-04'],
+            'sort_direction' => 'asc',
+        ], $user);
+        $partialTests = $service->preview([
+            'data_source' => 'quran_partial_tests',
+            'selected_fields' => ['full_name', 'juz_number', 'test_status', 'passed_parts_count', 'parts_count', 'attempts_count', 'latest_score', 'latest_mistake_count', 'latest_tested_on', 'group_name'],
+            'filters' => ['status' => 'passed', 'date_from' => '2026-10-05', 'date_to' => '2026-10-05'],
+            'sort_direction' => 'asc',
+        ], $user);
+        $finalTests = $service->preview([
+            'data_source' => 'quran_final_tests',
+            'selected_fields' => ['full_name', 'juz_number', 'test_status', 'attempts_count', 'latest_score', 'latest_tested_on', 'passed_on', 'group_name'],
+            'filters' => ['status' => 'passed', 'date_from' => '2026-10-06', 'date_to' => '2026-10-06'],
             'sort_direction' => 'asc',
         ], $user);
 
@@ -382,6 +442,28 @@ class ReportDesignerTest extends TestCase
             'score' => 92.0,
             'group_name' => 'Visible Quran Group',
         ]], $tests['rows']);
+        $this->assertSame([[
+            'full_name' => 'Visible Learner',
+            'juz_number' => 1,
+            'test_status' => __('report_designer.test_statuses.passed'),
+            'attempts_count' => 1,
+            'latest_tested_on' => '2026-10-05',
+            'latest_score' => 88.0,
+            'group_name' => 'Visible Quran Group',
+            'passed_parts_count' => 1,
+            'parts_count' => 1,
+            'latest_mistake_count' => 2,
+        ]], $partialTests['rows']);
+        $this->assertSame([[
+            'full_name' => 'Visible Learner',
+            'juz_number' => 1,
+            'test_status' => __('report_designer.test_statuses.passed'),
+            'attempts_count' => 1,
+            'latest_tested_on' => '2026-10-06',
+            'latest_score' => 91.0,
+            'passed_on' => '2026-10-06',
+            'group_name' => 'Visible Quran Group',
+        ]], $finalTests['rows']);
     }
 
     public function test_preview_respects_the_users_existing_student_scope(): void

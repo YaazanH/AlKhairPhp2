@@ -19,6 +19,10 @@ class ReportDesignerCatalog
 
     public const QURAN_TESTS = 'quran_tests';
 
+    public const QURAN_PARTIAL_TESTS = 'quran_partial_tests';
+
+    public const QURAN_FINAL_TESTS = 'quran_final_tests';
+
     public function __construct(protected CurrentModuleAccess $modules) {}
 
     public function sources(): array
@@ -61,6 +65,14 @@ class ReportDesignerCatalog
             $sources[self::QURAN_TESTS] = [
                 'label' => __('report_designer.sources.quran_tests.label'),
                 'description' => __('report_designer.sources.quran_tests.description'),
+            ];
+            $sources[self::QURAN_PARTIAL_TESTS] = [
+                'label' => __('report_designer.sources.quran_partial_tests.label'),
+                'description' => __('report_designer.sources.quran_partial_tests.description'),
+            ];
+            $sources[self::QURAN_FINAL_TESTS] = [
+                'label' => __('report_designer.sources.quran_final_tests.label'),
+                'description' => __('report_designer.sources.quran_final_tests.description'),
             ];
         }
 
@@ -139,6 +151,12 @@ class ReportDesignerCatalog
             ], $this->classContextFields(), [
                 'notes' => $this->field('notes', 'text'),
             ]),
+            self::QURAN_PARTIAL_TESTS => array_merge($this->quranWorkflowFields(), [
+                'passed_parts_count' => $this->field('passed_parts_count', 'number'),
+                'parts_count' => $this->field('parts_count', 'number'),
+                'latest_mistake_count' => $this->field('latest_mistake_count', 'number'),
+            ]),
+            self::QURAN_FINAL_TESTS => $this->quranWorkflowFields(),
             default => abort(404),
         };
     }
@@ -154,6 +172,8 @@ class ReportDesignerCatalog
             self::STUDENT_ATTENDANCE => ['attendance_date', 'student_number', 'full_name', 'attendance_status', 'presence_result', 'group_name'],
             self::MEMORIZATION_SESSIONS => ['recorded_on', 'student_number', 'full_name', 'entry_type', 'pages_count', 'teacher_name', 'group_name'],
             self::QURAN_TESTS => ['tested_on', 'student_number', 'full_name', 'test_type', 'juz_number', 'test_status', 'score', 'attempt_number'],
+            self::QURAN_PARTIAL_TESTS => ['full_name', 'juz_number', 'test_status', 'passed_parts_count', 'parts_count', 'attempts_count', 'latest_score', 'latest_tested_on'],
+            self::QURAN_FINAL_TESTS => ['full_name', 'juz_number', 'test_status', 'attempts_count', 'latest_score', 'latest_tested_on', 'passed_on'],
         };
 
         return array_values(array_intersect($defaults, array_keys($this->fields($source))));
@@ -168,6 +188,7 @@ class ReportDesignerCatalog
             self::STUDENT_ATTENDANCE => [],
             self::MEMORIZATION_SESSIONS => ['recorded_on', 'entry_type', 'from_page', 'to_page', 'pages_count'],
             self::QURAN_TESTS => ['tested_on', 'test_status', 'score', 'attempt_number'],
+            self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['test_status', 'passed_on'],
         };
 
         return collect($this->fields($source))->only($sortable)->all();
@@ -194,6 +215,11 @@ class ReportDesignerCatalog
                 'passed' => __('report_designer.test_statuses.passed'),
                 'failed' => __('report_designer.test_statuses.failed'),
                 'cancelled' => __('report_designer.test_statuses.cancelled'),
+            ],
+            self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => [
+                'all' => __('report_designer.test_filters.all'),
+                'passed' => __('report_designer.test_statuses.passed'),
+                'in_progress' => __('report_designer.test_statuses.in_progress'),
             ],
             default => [
                 'all' => __('report_designer.filter_statuses.all'),
@@ -248,5 +274,23 @@ class ReportDesignerCatalog
                 'group_name' => $this->field('group_name', 'text'),
             ]
             : [];
+    }
+
+    private function quranWorkflowFields(): array
+    {
+        return array_merge([
+            'student_number' => $this->field('student_number', 'text'),
+            'full_name' => $this->field('full_name', 'text'),
+            'juz_number' => $this->field('juz_number', 'number'),
+            'test_status' => $this->field('test_status', 'status'),
+            'attempts_count' => $this->field('attempts_count', 'number'),
+            'latest_tested_on' => $this->field('latest_tested_on', 'date'),
+            'latest_score' => $this->field('latest_score', 'number'),
+            'latest_attempt_status' => $this->field('latest_attempt_status', 'status'),
+            'teacher_name' => $this->field('teacher_name', 'text'),
+            'passed_on' => $this->field('passed_on', 'date'),
+        ], $this->classContextFields(), [
+            'latest_notes' => $this->field('latest_notes', 'text'),
+        ]);
     }
 }

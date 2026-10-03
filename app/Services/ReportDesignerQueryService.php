@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Course;
 use App\Models\Group;
 use App\Models\MemorizationSession;
+use App\Models\QuranFinalTest;
+use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
@@ -70,6 +72,20 @@ class ReportDesignerQueryService
                 $user,
             ),
             ReportDesignerCatalog::QURAN_TESTS => $this->quranTestPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::QURAN_PARTIAL_TESTS => $this->quranPartialTestPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::QURAN_FINAL_TESTS => $this->quranFinalTestPreview(
                 $fields,
                 (array) ($definition['filters'] ?? []),
                 $sortField,
@@ -329,6 +345,76 @@ class ReportDesignerQueryService
         return $this->result(ReportDesignerCatalog::QURAN_TESTS, $fields, $rows, $total);
     }
 
+    protected function quranPartialTestPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $query = $this->accessScopes->scopeQuranPartialTests(
+            QuranPartialTest::query()->with([
+                'student:id,student_number,first_name,last_name',
+                'juz:id,juz_number',
+                'enrollment.group.course',
+                'parts.attempts.teacher:id,first_name,last_name',
+            ]),
+            $user,
+        );
+
+        $this->applyQuranWorkflowFilters($query, $filters, 'parts.attempts');
+        $total = (clone $query)->count();
+        $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranPartialTest $test) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->quranPartialTestValue($test, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::QURAN_PARTIAL_TESTS, $fields, $rows, $total);
+    }
+
+    protected function quranFinalTestPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $query = $this->accessScopes->scopeQuranFinalTests(
+            QuranFinalTest::query()->with([
+                'student:id,student_number,first_name,last_name',
+                'juz:id,juz_number',
+                'enrollment.group.course',
+                'attempts.teacher:id,first_name,last_name',
+            ]),
+            $user,
+        );
+
+        $this->applyQuranWorkflowFilters($query, $filters, 'attempts');
+        $total = (clone $query)->count();
+        $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranFinalTest $test) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->quranFinalTestValue($test, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::QURAN_FINAL_TESTS, $fields, $rows, $total);
+    }
+
+    protected function applyQuranWorkflowFilters(Builder $query, array $filters, string $attemptRelation): void
+    {
+        $status = (string) ($filters['status'] ?? 'all');
+        if (in_array($status, ['passed', 'in_progress'], true)) {
+            $query->where('status', $status);
+        }
+
+        $this->applyRelatedStudentSearch($query, $filters);
+
+        $dateFrom = (string) ($filters['date_from'] ?? '');
+        $dateTo = (string) ($filters['date_to'] ?? '');
+        if ($dateFrom !== '' || $dateTo !== '') {
+            $query->where(function (Builder $builder) use ($attemptRelation, $dateFrom, $dateTo): void {
+                $builder
+                    ->where(fn (Builder $passed) => $this->applyDateBounds($passed, 'passed_on', $dateFrom, $dateTo))
+                    ->orWhereHas($attemptRelation, fn (Builder $attempt) => $this->applyDateBounds($attempt, 'tested_on', $dateFrom, $dateTo));
+            });
+        }
+    }
+
     protected function applyRelatedStudentSearch(Builder $query, array $filters): void
     {
         $search = trim((string) ($filters['search'] ?? ''));
@@ -413,6 +499,15 @@ class ReportDesignerQueryService
             'score' => $query->orderBy('score', $direction),
             'attempt_number' => $query->orderBy('attempt_no', $direction),
             default => $query->orderByDesc('tested_on')->orderByDesc('id'),
+        };
+    }
+
+    protected function applyQuranWorkflowSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'test_status' => $query->orderBy('status', $direction),
+            'passed_on' => $query->orderBy('passed_on', $direction),
+            default => $query->orderByDesc('id'),
         };
     }
 
@@ -502,6 +597,62 @@ class ReportDesignerQueryService
             'group_name' => $test->enrollment?->group?->name,
             'notes' => $test->notes,
         };
+    }
+
+    protected function quranPartialTestValue(QuranPartialTest $test, string $field): mixed
+    {
+        $attempts = $test->parts->flatMap(fn ($part) => $part->attempts);
+        $latestAttempt = $this->latestAttempt($attempts);
+
+        return match ($field) {
+            'student_number' => $test->student?->student_number,
+            'full_name' => $this->personName($test->student),
+            'juz_number' => $test->juz?->juz_number,
+            'test_status' => __('report_designer.test_statuses.'.$test->status),
+            'attempts_count' => $attempts->count(),
+            'latest_tested_on' => $latestAttempt?->tested_on?->format('Y-m-d'),
+            'latest_score' => $latestAttempt?->score !== null ? (float) $latestAttempt->score : null,
+            'latest_attempt_status' => $latestAttempt ? __('report_designer.test_statuses.'.$latestAttempt->status) : null,
+            'teacher_name' => $this->personName($latestAttempt?->teacher),
+            'passed_on' => $test->passed_on?->format('Y-m-d'),
+            'course_name' => $test->enrollment?->group?->course?->name,
+            'group_name' => $test->enrollment?->group?->name,
+            'latest_notes' => $latestAttempt?->notes,
+            'passed_parts_count' => $test->parts->where('status', 'passed')->count(),
+            'parts_count' => $test->parts->count(),
+            'latest_mistake_count' => $latestAttempt?->mistake_count,
+        };
+    }
+
+    protected function quranFinalTestValue(QuranFinalTest $test, string $field): mixed
+    {
+        $latestAttempt = $this->latestAttempt($test->attempts);
+
+        return match ($field) {
+            'student_number' => $test->student?->student_number,
+            'full_name' => $this->personName($test->student),
+            'juz_number' => $test->juz?->juz_number,
+            'test_status' => __('report_designer.test_statuses.'.$test->status),
+            'attempts_count' => $test->attempts->count(),
+            'latest_tested_on' => $latestAttempt?->tested_on?->format('Y-m-d'),
+            'latest_score' => $latestAttempt?->score !== null ? (float) $latestAttempt->score : null,
+            'latest_attempt_status' => $latestAttempt ? __('report_designer.test_statuses.'.$latestAttempt->status) : null,
+            'teacher_name' => $this->personName($latestAttempt?->teacher),
+            'passed_on' => $test->passed_on?->format('Y-m-d'),
+            'course_name' => $test->enrollment?->group?->course?->name,
+            'group_name' => $test->enrollment?->group?->name,
+            'latest_notes' => $latestAttempt?->notes,
+        };
+    }
+
+    protected function latestAttempt($attempts): mixed
+    {
+        return $attempts
+            ->sortBy([
+                ['tested_on', 'desc'],
+                ['id', 'desc'],
+            ])
+            ->first();
     }
 
     protected function personName(mixed $person): ?string
