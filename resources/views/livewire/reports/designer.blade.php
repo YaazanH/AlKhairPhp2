@@ -21,7 +21,7 @@ new class extends Component
 
     public string $description = '';
 
-    public string $dataSource = ReportDesignerCatalog::STUDENTS;
+    public string $dataSource = '';
 
     public array $selectedFields = [];
 
@@ -29,9 +29,9 @@ new class extends Component
 
     public string $searchFilter = '';
 
-    public string $joinedFrom = '';
+    public string $dateFrom = '';
 
-    public string $joinedTo = '';
+    public string $dateTo = '';
 
     public string $sortField = '';
 
@@ -42,6 +42,7 @@ new class extends Component
     public function mount(): void
     {
         $this->authorizePermission('report-designer.view');
+        $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
     }
 
@@ -63,7 +64,14 @@ new class extends Component
 
     public function updatedDataSource(): void
     {
-        $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
+        $catalog = app(ReportDesignerCatalog::class);
+        abort_unless(array_key_exists($this->dataSource, $catalog->sources()), 403);
+
+        $this->selectedFields = $catalog->defaultFields($this->dataSource);
+        $this->statusFilter = 'all';
+        $this->searchFilter = '';
+        $this->dateFrom = '';
+        $this->dateTo = '';
         $this->sortField = '';
         $this->previewResult = [];
         $this->resetValidation();
@@ -93,6 +101,7 @@ new class extends Component
         $definition = ReportDefinition::query()
             ->when(! auth()->user()?->can('report-designer.update'), fn ($query) => $query->where('created_by', auth()->id()))
             ->findOrFail($definitionId);
+        abort_unless(array_key_exists($definition->data_source, app(ReportDesignerCatalog::class)->sources()), 403);
         $filters = $definition->filters ?? [];
 
         $this->editorOpen = true;
@@ -104,8 +113,8 @@ new class extends Component
         $this->selectedFields = $definition->selected_fields;
         $this->statusFilter = (string) ($filters['status'] ?? 'all');
         $this->searchFilter = (string) ($filters['search'] ?? '');
-        $this->joinedFrom = (string) ($filters['joined_from'] ?? '');
-        $this->joinedTo = (string) ($filters['joined_to'] ?? '');
+        $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
+        $this->dateTo = (string) ($filters['date_to'] ?? $filters['joined_to'] ?? '');
         $this->sortField = $definition->sort_field ?? '';
         $this->sortDirection = $definition->sort_direction;
         $this->previewResult = [];
@@ -185,8 +194,8 @@ new class extends Component
             'selectedFields.*' => ['string'],
             'statusFilter' => ['required', Rule::in(['all', 'active', 'inactive'])],
             'searchFilter' => ['nullable', 'string', 'max:100'],
-            'joinedFrom' => ['nullable', 'date'],
-            'joinedTo' => ['nullable', 'date', 'after_or_equal:joinedFrom'],
+            'dateFrom' => ['nullable', 'date'],
+            'dateTo' => ['nullable', 'date', 'after_or_equal:dateFrom'],
             'sortField' => ['nullable', 'string'],
             'sortDirection' => ['required', Rule::in(['asc', 'desc'])],
         ]);
@@ -206,8 +215,8 @@ new class extends Component
             'filters' => [
                 'status' => $validated['statusFilter'],
                 'search' => trim($validated['searchFilter'] ?? ''),
-                'joined_from' => $validated['joinedFrom'] ?? '',
-                'joined_to' => $validated['joinedTo'] ?? '',
+                'date_from' => $validated['dateFrom'] ?? '',
+                'date_to' => $validated['dateTo'] ?? '',
             ],
             'sort_field' => $sortField,
             'sort_direction' => $sortDirection,
@@ -221,16 +230,25 @@ new class extends Component
         $this->readOnly = false;
         $this->name = '';
         $this->description = '';
-        $this->dataSource = ReportDesignerCatalog::STUDENTS;
+        $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
         $this->statusFilter = 'all';
         $this->searchFilter = '';
-        $this->joinedFrom = '';
-        $this->joinedTo = '';
+        $this->dateFrom = '';
+        $this->dateTo = '';
         $this->sortField = '';
         $this->sortDirection = 'asc';
         $this->previewResult = [];
         $this->resetValidation();
+    }
+
+    protected function defaultSource(): string
+    {
+        $sources = app(ReportDesignerCatalog::class)->sources();
+
+        abort_if($sources === [], 403, 'No reporting data source is enabled.');
+
+        return (string) array_key_first($sources);
     }
 }; ?>
 
@@ -324,6 +342,7 @@ new class extends Component
                                     <option value="{{ $sourceKey }}">{{ $source['label'] }}</option>
                                 @endforeach
                             </select>
+                            <span class="text-xs leading-5 text-neutral-400">{{ $sources[$dataSource]['description'] ?? '' }}</span>
                         </label>
                     </div>
 
@@ -350,9 +369,9 @@ new class extends Component
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.status') }}</span>
                             <select wire:model="statusFilter" class="rounded-xl px-4 py-3" @disabled($readOnly)>
-                                <option value="all">{{ __('report_designer.student_statuses.all') }}</option>
-                                <option value="active">{{ __('report_designer.student_statuses.active') }}</option>
-                                <option value="inactive">{{ __('report_designer.student_statuses.inactive') }}</option>
+                                <option value="all">{{ __('report_designer.filter_statuses.all') }}</option>
+                                <option value="active">{{ __('report_designer.filter_statuses.active') }}</option>
+                                <option value="inactive">{{ __('report_designer.filter_statuses.inactive') }}</option>
                             </select>
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
@@ -360,12 +379,12 @@ new class extends Component
                             <input wire:model="searchFilter" type="search" class="rounded-xl px-4 py-3" placeholder="{{ __('report_designer.form.search_placeholder') }}" @disabled($readOnly)>
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
-                            <span>{{ __('report_designer.form.joined_from') }}</span>
-                            <input wire:model="joinedFrom" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <span>{{ __('report_designer.form.date_from') }}</span>
+                            <input wire:model="dateFrom" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
-                            <span>{{ __('report_designer.form.joined_to') }}</span>
-                            <input wire:model="joinedTo" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <span>{{ __('report_designer.form.date_to') }}</span>
+                            <input wire:model="dateTo" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                         </label>
                     </div>
 
