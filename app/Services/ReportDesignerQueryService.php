@@ -22,6 +22,10 @@ class ReportDesignerQueryService
 {
     public const PREVIEW_LIMIT = 25;
 
+    protected array $activeCalculations = [];
+
+    protected array $calculationValues = [];
+
     public function __construct(
         protected AccessScopeService $accessScopes,
         protected ReportDesignerCatalog $catalog,
@@ -34,6 +38,8 @@ class ReportDesignerQueryService
         $source = (string) ($definition['data_source'] ?? '');
         abort_unless(array_key_exists($source, $this->catalog->sources($user)), 403);
         $fields = $this->catalog->validateFields($source, (array) ($definition['selected_fields'] ?? []));
+        $this->activeCalculations = $this->catalog->validateCalculations($source, (array) ($definition['calculations'] ?? []));
+        $this->calculationValues = [];
         [$sortField, $sortDirection] = $this->catalog->validateSort(
             $source,
             $definition['sort_field'] ?? null,
@@ -171,12 +177,7 @@ class ReportDesignerQueryService
             ])->all();
         })->all();
 
-        return [
-            'columns' => collect($this->catalog->fields(ReportDesignerCatalog::STUDENTS))->only($fields)->all(),
-            'rows' => $rows,
-            'total' => $total,
-            'limit' => self::PREVIEW_LIMIT,
-        ];
+        return $this->result(ReportDesignerCatalog::STUDENTS, $fields, $rows, $total);
     }
 
     protected function coursePreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
@@ -622,6 +623,7 @@ class ReportDesignerQueryService
         );
 
         $total = (clone $query)->count();
+        $this->calculationValues = $this->financeCalculationValues($query);
         $this->applyFinanceTransactionSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (FinanceTransaction $transaction) use ($fields): array {
@@ -1038,7 +1040,40 @@ class ReportDesignerQueryService
             'rows' => $rows,
             'total' => $total,
             'limit' => self::PREVIEW_LIMIT,
+            'calculations' => collect($this->activeCalculations)->map(function (array $calculation) use ($source, $total): array {
+                $key = $this->calculationKey($calculation['operation'], $calculation['field']);
+
+                return [
+                    'label' => $this->catalog->calculationLabel($source, $calculation['operation'], $calculation['field']),
+                    'value' => $calculation['operation'] === 'count' ? $total : ($this->calculationValues[$key] ?? null),
+                ];
+            })->all(),
         ];
+    }
+
+    protected function financeCalculationValues(Builder $query): array
+    {
+        $columns = [
+            'amount' => 'amount',
+            'signed_amount' => 'signed_amount',
+            'local_amount' => 'local_amount',
+        ];
+
+        return collect($this->activeCalculations)
+            ->reject(fn (array $calculation) => $calculation['operation'] === 'count')
+            ->mapWithKeys(function (array $calculation) use ($columns, $query): array {
+                $operation = $calculation['operation'];
+                $field = $calculation['field'];
+                $value = (clone $query)->{$operation}($columns[$field]);
+
+                return [$this->calculationKey($operation, $field) => $value === null ? null : round((float) $value, 2)];
+            })
+            ->all();
+    }
+
+    protected function calculationKey(string $operation, ?string $field): string
+    {
+        return $operation.':'.($field ?? 'records');
     }
 
     protected function applyStudentSort(Builder $query, ?string $field, string $direction): void

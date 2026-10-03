@@ -118,6 +118,11 @@ return [
     'finance_filters' => ['all' => 'All transaction types'],
     'finance_transaction_types' => ['income' => 'Income', 'expense' => 'Expense', 'return' => 'Return', 'exchange' => 'Currency exchange', 'transfer' => 'Fund transfer'],
     'finance_directions' => ['in' => 'In', 'out' => 'Out'],
+    'calculation_operations' => ['count' => 'Count', 'sum' => 'Total', 'avg' => 'Average', 'min' => 'Minimum', 'max' => 'Maximum'],
+    'calculations' => [
+        'record_count' => 'Matching records',
+        'field' => ':operation of :field',
+    ],
     'statuses' => ['draft' => 'Draft'],
     'saved' => [
         'eyebrow' => 'Saved work',
@@ -141,6 +146,13 @@ return [
         'source' => 'Data source',
         'fields' => 'Columns to show',
         'fields_help' => 'These are approved business fields. Their order in the preview follows the order shown here.',
+        'calculations' => 'Calculations',
+        'calculations_help' => 'Add up to :count safe calculations. Values use every matching record, including records beyond the 25-row preview.',
+        'no_calculations' => 'No calculations added. The report can still show its detailed rows.',
+        'calculation_operation' => 'Calculation',
+        'calculation_field' => 'Numeric field',
+        'all_records' => 'All matching records',
+        'choose_calculation_field' => 'Choose a numeric field',
         'status' => 'Record status',
         'search' => 'Search records',
         'search_placeholder' => 'Optional search',
@@ -161,6 +173,8 @@ return [
         'delete_confirm' => 'Delete this report draft?',
         'preview' => 'Preview result',
         'save_draft' => 'Save draft',
+        'add_calculation' => 'Add calculation',
+        'remove_calculation' => 'Remove calculation',
     ],
     'preview' => [
         'title' => 'Safe preview',
@@ -170,6 +184,9 @@ return [
     'validation' => [
         'invalid_fields' => 'Select at least one approved report field.',
         'invalid_sort' => 'Choose an approved sorting field and direction.',
+        'invalid_calculation' => 'Choose an approved calculation and numeric field.',
+        'duplicate_calculation' => 'Each calculation can be added only once.',
+        'too_many_calculations' => 'A report can contain up to :count calculations.',
     ],
     'messages' => ['saved' => 'Report draft saved.', 'deleted' => 'Report draft deleted.'],
 ];

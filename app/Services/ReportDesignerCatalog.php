@@ -8,6 +8,8 @@ use Illuminate\Validation\ValidationException;
 
 class ReportDesignerCatalog
 {
+    public const CALCULATION_LIMIT = 5;
+
     public const STUDENTS = 'students';
 
     public const COURSES = 'courses';
@@ -370,6 +372,73 @@ class ReportDesignerCatalog
         }
 
         return [$field, $direction];
+    }
+
+    public function calculationOperations(): array
+    {
+        return [
+            'count' => __('report_designer.calculation_operations.count'),
+            'sum' => __('report_designer.calculation_operations.sum'),
+            'avg' => __('report_designer.calculation_operations.avg'),
+            'min' => __('report_designer.calculation_operations.min'),
+            'max' => __('report_designer.calculation_operations.max'),
+        ];
+    }
+
+    public function calculableFields(string $source): array
+    {
+        $fieldKeys = match ($source) {
+            self::FINANCE_TRANSACTIONS => ['amount', 'signed_amount', 'local_amount'],
+            default => [],
+        };
+
+        return collect($this->fields($source))->only($fieldKeys)->all();
+    }
+
+    public function validateCalculations(string $source, array $calculations): array
+    {
+        if (count($calculations) > self::CALCULATION_LIMIT) {
+            throw ValidationException::withMessages([
+                'calculations' => __('report_designer.validation.too_many_calculations', ['count' => self::CALCULATION_LIMIT]),
+            ]);
+        }
+
+        $operations = array_keys($this->calculationOperations());
+        $fields = array_keys($this->calculableFields($source));
+        $normalized = collect($calculations)->map(function ($calculation, int $index) use ($fields, $operations): array {
+            $operation = (string) data_get($calculation, 'operation', '');
+            $field = filled(data_get($calculation, 'field')) ? (string) data_get($calculation, 'field') : null;
+
+            if (! in_array($operation, $operations, true)
+                || ($operation === 'count' && $field !== null)
+                || ($operation !== 'count' && ! in_array($field, $fields, true))) {
+                throw ValidationException::withMessages([
+                    "calculations.$index" => __('report_designer.validation.invalid_calculation'),
+                ]);
+            }
+
+            return ['operation' => $operation, 'field' => $field];
+        })->unique(fn (array $calculation) => $calculation['operation'].':'.($calculation['field'] ?? 'records'))->values();
+
+        if ($normalized->count() !== count($calculations)) {
+            throw ValidationException::withMessages([
+                'calculations' => __('report_designer.validation.duplicate_calculation'),
+            ]);
+        }
+
+        return $normalized->all();
+    }
+
+    public function calculationLabel(string $source, string $operation, ?string $field): string
+    {
+        if ($operation === 'count') {
+            return __('report_designer.calculations.record_count');
+        }
+
+        return __('report_designer.calculations.field', [
+            'operation' => $this->calculationOperations()[$operation],
+            'field' => $this->calculableFields($source)[$field]['label'],
+        ]);
     }
 
     private function field(string $key, string $type): array

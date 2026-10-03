@@ -69,9 +69,11 @@ class ReportDesignerTest extends TestCase
             ->set('selectedFields', ['student_number', 'full_name', 'status'])
             ->set('statusFilter', 'active')
             ->set('sortField', 'full_name')
+            ->call('addCalculation')
             ->call('preview')
             ->assertHasNoErrors()
             ->assertSee('Mariam Ahmad')
+            ->assertSee(__('report_designer.calculations.record_count'))
             ->call('save')
             ->assertHasNoErrors();
 
@@ -81,6 +83,10 @@ class ReportDesignerTest extends TestCase
             'status' => ReportDefinition::STATUS_DRAFT,
             'created_by' => $administrator->id,
         ]);
+        $this->assertSame(
+            [['operation' => 'count', 'field' => null]],
+            ReportDefinition::query()->where('name', 'Active students')->sole()->calculations,
+        );
     }
 
     public function test_report_preview_rejects_fields_outside_the_approved_catalog(): void
@@ -805,6 +811,12 @@ class ReportDesignerTest extends TestCase
                 'entered_by',
                 'description',
             ],
+            'calculations' => [
+                ['operation' => 'count', 'field' => null],
+                ['operation' => 'sum', 'field' => 'amount'],
+                ['operation' => 'avg', 'field' => 'local_amount'],
+                ['operation' => 'max', 'field' => 'signed_amount'],
+            ],
             'filters' => [
                 'status' => 'income',
                 'search' => 'donation',
@@ -829,6 +841,65 @@ class ReportDesignerTest extends TestCase
             'entered_by' => 'Finance Reporter',
             'description' => 'Friday donation',
         ]], $preview['rows']);
+        $this->assertSame([
+            ['label' => __('report_designer.calculations.record_count'), 'value' => 1],
+            ['label' => __('report_designer.calculations.field', [
+                'operation' => __('report_designer.calculation_operations.sum'),
+                'field' => __('report_designer.fields.amount'),
+            ]), 'value' => 500.0],
+            ['label' => __('report_designer.calculations.field', [
+                'operation' => __('report_designer.calculation_operations.avg'),
+                'field' => __('report_designer.fields.local_amount'),
+            ]), 'value' => 500.0],
+            ['label' => __('report_designer.calculations.field', [
+                'operation' => __('report_designer.calculation_operations.max'),
+                'field' => __('report_designer.fields.signed_amount'),
+            ]), 'value' => 500.0],
+        ], $preview['calculations']);
+    }
+
+    public function test_calculations_use_every_filtered_record_beyond_the_preview_limit(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['username' => 'full-calculation-report-user']);
+        $user->givePermissionTo(['report-designer.view', 'finance.reports.view']);
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+
+        foreach (range(1, 30) as $number) {
+            FinanceTransaction::query()->create([
+                'transaction_no' => sprintf('TX-BULK-%03d', $number),
+                'cash_box_id' => $cashBox->id,
+                'currency_id' => $currency->id,
+                'type' => 'income',
+                'direction' => 'in',
+                'amount' => $number,
+                'signed_amount' => $number,
+                'rate_to_base' => 1,
+                'base_amount' => $number,
+                'local_amount' => $number,
+                'transaction_date' => '2026-10-03',
+                'description' => 'bulk-calc',
+                'entered_by' => $user->id,
+            ]);
+        }
+
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'finance_transactions',
+            'selected_fields' => ['transaction_number', 'amount'],
+            'calculations' => [
+                ['operation' => 'count', 'field' => null],
+                ['operation' => 'sum', 'field' => 'amount'],
+            ],
+            'filters' => ['status' => 'income', 'search' => 'bulk-calc'],
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertCount(ReportDesignerQueryService::PREVIEW_LIMIT, $preview['rows']);
+        $this->assertSame(30, $preview['total']);
+        $this->assertSame(30, $preview['calculations'][0]['value']);
+        $this->assertSame(465.0, $preview['calculations'][1]['value']);
     }
 
     public function test_teacher_without_designer_permission_cannot_open_the_designer(): void

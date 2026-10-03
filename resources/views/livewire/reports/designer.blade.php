@@ -25,6 +25,8 @@ new class extends Component
 
     public array $selectedFields = [];
 
+    public array $calculations = [];
+
     public string $statusFilter = 'all';
 
     public string $searchFilter = '';
@@ -62,6 +64,9 @@ new class extends Component
             'availableFields' => $catalog->fields($this->dataSource),
             'sortableFields' => $catalog->sortableFields($this->dataSource),
             'statusFilters' => $catalog->statusFilters($this->dataSource),
+            'calculationOperations' => $catalog->calculationOperations(),
+            'calculableFields' => $catalog->calculableFields($this->dataSource),
+            'canAddCalculation' => $this->nextCalculation() !== null,
         ];
     }
 
@@ -71,6 +76,7 @@ new class extends Component
         abort_unless(array_key_exists($this->dataSource, $catalog->sources(auth()->user())), 403);
 
         $this->selectedFields = $catalog->defaultFields($this->dataSource);
+        $this->calculations = [];
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -114,6 +120,7 @@ new class extends Component
         $this->description = $definition->description ?? '';
         $this->dataSource = $definition->data_source;
         $this->selectedFields = $definition->selected_fields;
+        $this->calculations = $definition->calculations ?? [];
         $this->statusFilter = (string) ($filters['status'] ?? 'all');
         $this->searchFilter = (string) ($filters['search'] ?? '');
         $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
@@ -155,6 +162,7 @@ new class extends Component
             $definition = [
                 'data_source' => $saved->data_source,
                 'selected_fields' => $saved->selected_fields,
+                'calculations' => $saved->calculations ?? [],
                 'filters' => $saved->filters ?? [],
                 'sort_field' => $saved->sort_field,
                 'sort_direction' => $saved->sort_direction,
@@ -166,6 +174,7 @@ new class extends Component
         $this->previewResult = app(ReportDesignerQueryService::class)->preview([
             'data_source' => $definition['data_source'],
             'selected_fields' => $definition['selected_fields'],
+            'calculations' => $definition['calculations'],
             'filters' => $definition['filters'],
             'sort_field' => $definition['sort_field'],
             'sort_direction' => $definition['sort_direction'],
@@ -201,6 +210,9 @@ new class extends Component
             'dataSource' => ['required', Rule::in($sourceKeys)],
             'selectedFields' => ['required', 'array', 'min:1'],
             'selectedFields.*' => ['string'],
+            'calculations' => ['array', 'max:'.ReportDesignerCatalog::CALCULATION_LIMIT],
+            'calculations.*.operation' => ['required', 'string'],
+            'calculations.*.field' => ['nullable', 'string'],
             'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
@@ -210,6 +222,7 @@ new class extends Component
         ]);
 
         $fields = $catalog->validateFields($validated['dataSource'], $validated['selectedFields']);
+        $calculations = $catalog->validateCalculations($validated['dataSource'], $validated['calculations']);
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
             $validated['sortField'],
@@ -221,6 +234,7 @@ new class extends Component
             'description' => filled($validated['description']) ? trim($validated['description']) : null,
             'data_source' => $validated['dataSource'],
             'selected_fields' => $fields,
+            'calculations' => $calculations,
             'filters' => [
                 'status' => $validated['statusFilter'],
                 'search' => trim($validated['searchFilter'] ?? ''),
@@ -241,6 +255,7 @@ new class extends Component
         $this->description = '';
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
+        $this->calculations = [];
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -263,6 +278,53 @@ new class extends Component
     protected function availableSourceKeys(): array
     {
         return array_keys(app(ReportDesignerCatalog::class)->sources(auth()->user()));
+    }
+
+    public function addCalculation(): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        if ($calculation = $this->nextCalculation()) {
+            $this->calculations[] = $calculation;
+        }
+    }
+
+    public function removeCalculation(int $index): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+        unset($this->calculations[$index]);
+        $this->calculations = array_values($this->calculations);
+        $this->resetValidation('calculations');
+    }
+
+    public function updatedCalculations(mixed $value, string $key): void
+    {
+        if (str_ends_with($key, '.operation') && $value === 'count') {
+            $index = (int) str($key)->before('.')->toString();
+            $this->calculations[$index]['field'] = '';
+        }
+
+        $this->previewResult = [];
+    }
+
+    protected function nextCalculation(): ?array
+    {
+        if (count($this->calculations) >= ReportDesignerCatalog::CALCULATION_LIMIT) {
+            return null;
+        }
+
+        $candidates = collect([['operation' => 'count', 'field' => '']]);
+        foreach (array_keys(app(ReportDesignerCatalog::class)->calculableFields($this->dataSource)) as $field) {
+            foreach (['sum', 'avg', 'min', 'max'] as $operation) {
+                $candidates->push(['operation' => $operation, 'field' => $field]);
+            }
+        }
+
+        $existing = collect($this->calculations)
+            ->map(fn (array $calculation) => ($calculation['operation'] ?? '').':'.($calculation['field'] ?? ''))
+            ->all();
+
+        return $candidates->first(fn (array $calculation) => ! in_array($calculation['operation'].':'.$calculation['field'], $existing, true));
     }
 }; ?>
 
@@ -379,6 +441,57 @@ new class extends Component
                         @error('selectedFields') <span class="mt-2 block text-xs text-red-300">{{ $message }}</span> @enderror
                     </div>
 
+                    <div class="rounded-2xl border border-white/10 bg-white/[0.025] p-4" data-report-calculations>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-white">{{ __('report_designer.form.calculations') }}</div>
+                                <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('report_designer.form.calculations_help', ['count' => \App\Services\ReportDesignerCatalog::CALCULATION_LIMIT]) }}</p>
+                            </div>
+                            @if (! $readOnly && $canAddCalculation)
+                                <button type="button" wire:click="addCalculation" class="pill-link">{{ __('report_designer.actions.add_calculation') }}</button>
+                            @endif
+                        </div>
+
+                        @if ($calculations === [])
+                            <div class="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-neutral-400">{{ __('report_designer.form.no_calculations') }}</div>
+                        @else
+                            <div class="mt-4 grid gap-3">
+                                @foreach ($calculations as $calculationIndex => $calculation)
+                                    <div class="grid gap-3 rounded-xl border border-white/10 bg-black/10 p-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto]" wire:key="report-calculation-{{ $calculationIndex }}">
+                                        <label class="grid gap-2 text-sm text-neutral-200">
+                                            <span>{{ __('report_designer.form.calculation_operation') }}</span>
+                                            <select wire:model.live="calculations.{{ $calculationIndex }}.operation" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                                                @foreach ($calculationOperations as $operationKey => $operationLabel)
+                                                    @if ($operationKey === 'count' || $calculableFields !== [])
+                                                        <option value="{{ $operationKey }}">{{ $operationLabel }}</option>
+                                                    @endif
+                                                @endforeach
+                                            </select>
+                                        </label>
+                                        <label class="grid gap-2 text-sm text-neutral-200">
+                                            <span>{{ __('report_designer.form.calculation_field') }}</span>
+                                            @if (($calculation['operation'] ?? 'count') === 'count')
+                                                <input value="{{ __('report_designer.form.all_records') }}" class="rounded-xl px-4 py-3" disabled>
+                                            @else
+                                                <select wire:model="calculations.{{ $calculationIndex }}.field" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                                                    <option value="">{{ __('report_designer.form.choose_calculation_field') }}</option>
+                                                    @foreach ($calculableFields as $fieldKey => $field)
+                                                        <option value="{{ $fieldKey }}">{{ $field['label'] }}</option>
+                                                    @endforeach
+                                                </select>
+                                            @endif
+                                        </label>
+                                        @if (! $readOnly)
+                                            <button type="button" wire:click="removeCalculation({{ $calculationIndex }})" class="admin-icon-button admin-icon-button--danger self-end" title="{{ __('report_designer.actions.remove_calculation') }}" aria-label="{{ __('report_designer.actions.remove_calculation') }}"><x-admin-action-icon name="delete" /></button>
+                                        @endif
+                                        @error("calculations.$calculationIndex") <span class="text-xs text-red-300 md:col-span-3">{{ $message }}</span> @enderror
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                        @error('calculations') <span class="mt-2 block text-xs text-red-300">{{ $message }}</span> @enderror
+                    </div>
+
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.status') }}</span>
@@ -438,6 +551,16 @@ new class extends Component
                             <div class="mt-1 text-xs text-neutral-400">{{ __('report_designer.preview.summary', ['shown' => count($previewResult['rows']), 'total' => $previewResult['total']]) }}</div>
                         </div>
                     </div>
+                    @if (($previewResult['calculations'] ?? []) !== [])
+                        <div class="grid gap-3 border-t border-white/5 bg-white/[0.02] p-4 sm:grid-cols-2 xl:grid-cols-3" data-report-calculation-results>
+                            @foreach ($previewResult['calculations'] as $calculation)
+                                <div class="rounded-xl border border-white/10 bg-black/10 p-4">
+                                    <div class="text-xs leading-5 text-neutral-400">{{ $calculation['label'] }}</div>
+                                    <div class="mt-2 text-2xl font-semibold text-white">{{ $calculation['value'] === null ? '—' : number_format((float) $calculation['value'], is_float($calculation['value']) ? 2 : 0) }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                     @if ($previewResult['rows'] === [])
                         <div class="px-6 py-14 text-center text-sm text-neutral-400">{{ __('report_designer.preview.empty') }}</div>
                     @else

@@ -118,6 +118,11 @@ return [
     'finance_filters' => ['all' => 'كل أنواع الحركات'],
     'finance_transaction_types' => ['income' => 'إيراد', 'expense' => 'مصروف', 'return' => 'مرتجع', 'exchange' => 'صرف عملة', 'transfer' => 'تحويل بين الصناديق'],
     'finance_directions' => ['in' => 'داخل', 'out' => 'خارج'],
+    'calculation_operations' => ['count' => 'العدد', 'sum' => 'الإجمالي', 'avg' => 'المتوسط', 'min' => 'الحد الأدنى', 'max' => 'الحد الأعلى'],
+    'calculations' => [
+        'record_count' => 'عدد السجلات المطابقة',
+        'field' => ':operation لـ :field',
+    ],
     'statuses' => ['draft' => 'مسودة'],
     'saved' => [
         'eyebrow' => 'العمل المحفوظ',
@@ -141,6 +146,13 @@ return [
         'source' => 'مصدر البيانات',
         'fields' => 'الأعمدة المعروضة',
         'fields_help' => 'هذه حقول عمل معتمدة، ويظهر ترتيبها في المعاينة كما هو معروض هنا.',
+        'calculations' => 'الحسابات',
+        'calculations_help' => 'أضف حتى :count حسابات آمنة. تستخدم النتائج كل السجلات المطابقة، بما فيها السجلات التي تتجاوز معاينة 25 صفاً.',
+        'no_calculations' => 'لم تتم إضافة حسابات. يبقى بإمكان التقرير عرض الصفوف التفصيلية.',
+        'calculation_operation' => 'الحساب',
+        'calculation_field' => 'الحقل الرقمي',
+        'all_records' => 'كل السجلات المطابقة',
+        'choose_calculation_field' => 'اختر حقلاً رقمياً',
         'status' => 'حالة السجل',
         'search' => 'البحث في السجلات',
         'search_placeholder' => 'بحث اختياري',
@@ -161,6 +173,8 @@ return [
         'delete_confirm' => 'هل تريد حذف مسودة التقرير؟',
         'preview' => 'معاينة النتيجة',
         'save_draft' => 'حفظ المسودة',
+        'add_calculation' => 'إضافة حساب',
+        'remove_calculation' => 'إزالة الحساب',
     ],
     'preview' => [
         'title' => 'معاينة آمنة',
@@ -170,6 +184,9 @@ return [
     'validation' => [
         'invalid_fields' => 'اختر حقلاً معتمداً واحداً على الأقل.',
         'invalid_sort' => 'اختر حقل ترتيب واتجاهاً معتمدين.',
+        'invalid_calculation' => 'اختر حساباً وحقلاً رقمياً معتمدين.',
+        'duplicate_calculation' => 'يمكن إضافة كل حساب مرة واحدة فقط.',
+        'too_many_calculations' => 'يمكن أن يحتوي التقرير على :count حسابات كحد أقصى.',
     ],
     'messages' => ['saved' => 'تم حفظ مسودة التقرير.', 'deleted' => 'تم حذف مسودة التقرير.'],
 ];

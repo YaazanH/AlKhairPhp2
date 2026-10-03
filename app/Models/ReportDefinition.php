@@ -17,6 +17,7 @@ class ReportDefinition extends Model
         'description',
         'data_source',
         'selected_fields',
+        'calculations',
         'filters',
         'sort_field',
         'sort_direction',
@@ -29,6 +30,7 @@ class ReportDefinition extends Model
     {
         return [
             'selected_fields' => 'array',
+            'calculations' => 'array',
             'filters' => 'array',
         ];
     }
