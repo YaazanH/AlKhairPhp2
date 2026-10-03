@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\ReportDefinition;
 use App\Services\PdfBrandingService;
+use App\Services\ReportDefinitionAccess;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
 use App\Services\XlsxExportService;
@@ -75,9 +76,7 @@ class ReportDesignerExportController extends Controller
     protected function exportResult(Request $request, ReportDefinition $definition): array
     {
         $user = $request->user();
-        abort_unless($user?->can('report-designer.view'), 403);
-        abort_unless(array_key_exists($definition->data_source, app(ReportDesignerCatalog::class)->sources($user)), 404);
-        abort_if(! $user->can('report-designer.update') && $definition->created_by !== $user->id, 404);
+        abort_unless(app(ReportDefinitionAccess::class)->canView($user, $definition), 404);
 
         $result = app(ReportDesignerQueryService::class)->export([
             'data_source' => $definition->data_source,

@@ -6,6 +6,7 @@ use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Group;
 use App\Services\ReportingService;
+use App\Services\ReportDashboardService;
 use App\Services\Landlord\CurrentModuleAccess;
 use Livewire\Volt\Component;
 
@@ -72,6 +73,7 @@ new class extends Component {
                     ->orderBy('name')
             )->get() : collect(),
             'report' => app(ReportingService::class)->overview($this->filters()),
+            'sharedReports' => app(ReportDashboardService::class)->reportsFor(auth()->user()),
         ];
     }
 
@@ -294,6 +296,21 @@ new class extends Component {
             @endif
         </section>
     </div>
+
+    @if($sharedReports->isNotEmpty())
+        <section class="surface-panel report-panel min-w-0 p-5 lg:p-6" data-shared-reports>
+            <div class="eyebrow">{{ __('report_designer.placement.available_eyebrow') }}</div>
+            <h2 class="font-display mt-2 text-2xl text-white">{{ __('report_designer.placement.available_title') }}</h2>
+            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                @foreach($sharedReports as $sharedReport)
+                    <a href="{{ route('reports.designer.show', $sharedReport) }}" class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/20 hover:bg-white/[0.06]">
+                        <div class="font-semibold text-white">{{ $sharedReport->name }}</div>
+                        @if(filled($sharedReport->description))<div class="mt-2 line-clamp-2 text-xs leading-5 text-neutral-400">{{ $sharedReport->description }}</div>@endif
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     <div class="grid gap-3 lg:grid-cols-2">
         @can('report-designer.view')

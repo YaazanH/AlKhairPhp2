@@ -129,7 +129,7 @@ return [
         'title' => 'Grouped by :field',
         'help' => 'Showing up to :count groups, ordered by the largest matching record count.',
     ],
-    'statuses' => ['draft' => 'Draft'],
+    'statuses' => ['draft' => 'Draft', 'published' => 'On dashboards'],
     'saved' => [
         'eyebrow' => 'Saved work',
         'title' => 'Report drafts',
@@ -186,6 +186,19 @@ return [
         'remove_calculation' => 'Remove calculation',
         'export_xlsx' => 'Download Excel',
         'export_pdf' => 'Open PDF',
+        'manage_placement' => 'Dashboard placement',
+        'apply_placement' => 'Apply placement',
+        'cancel' => 'Cancel',
+        'back_dashboard' => 'Back to dashboard',
+    ],
+    'placement' => [
+        'title' => 'Dashboard placement',
+        'help' => 'Choose the staff roles that should receive this report on their dashboard. The same report will also become available to those roles as a full report.',
+        'size' => 'Widget size',
+        'sizes' => ['small' => 'Small', 'medium' => 'Medium', 'wide' => 'Wide'],
+        'visibility_help' => 'Removing every role returns the report to draft and immediately removes it from ordinary users. Each viewer still sees only records allowed by their own scope.',
+        'available_eyebrow' => 'Available to your role',
+        'available_title' => 'Custom reports',
     ],
     'exports' => [
         'details' => 'Report details',
@@ -206,5 +219,5 @@ return [
         'too_many_calculations' => 'A report can contain up to :count calculations.',
         'invalid_grouping' => 'Choose an approved grouping field for this data source.',
     ],
-    'messages' => ['saved' => 'Report draft saved.', 'deleted' => 'Report draft deleted.'],
+    'messages' => ['saved' => 'Report draft saved.', 'deleted' => 'Report draft deleted.', 'placement_saved' => 'Dashboard placement updated.'],
 ];

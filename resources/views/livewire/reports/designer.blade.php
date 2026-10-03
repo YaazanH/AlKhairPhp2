@@ -2,10 +2,14 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\ReportDefinition;
+use App\Services\ReportDefinitionAccess;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
+use App\Support\RoleRegistry;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use Spatie\Permission\Models\Role;
 
 new class extends Component
 {
@@ -43,9 +47,15 @@ new class extends Component
 
     public array $previewResult = [];
 
+    public ?int $placementDefinitionId = null;
+
+    public array $placementRoleIds = [];
+
+    public string $placementSize = 'medium';
+
     public function mount(): void
     {
-        $this->authorizePermission('report-designer.view');
+        $this->authorizeDesignerViewer();
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
     }
@@ -56,10 +66,9 @@ new class extends Component
         $sourceKeys = array_keys($catalog->sources(auth()->user()));
 
         return [
-            'definitions' => ReportDefinition::query()
+            'definitions' => app(ReportDefinitionAccess::class)->scopeManageable(ReportDefinition::query(), auth()->user())
                 ->with('creator:id,name,username')
                 ->whereIn('data_source', $sourceKeys)
-                ->when(! auth()->user()?->can('report-designer.update'), fn ($query) => $query->where('created_by', auth()->id()))
                 ->latest('updated_at')
                 ->get(),
             'sources' => $catalog->sources(auth()->user()),
@@ -70,6 +79,7 @@ new class extends Component
             'calculableFields' => $catalog->calculableFields($this->dataSource),
             'groupableFields' => $catalog->groupableFields($this->dataSource),
             'canAddCalculation' => $this->nextCalculation() !== null,
+            'dashboardRoles' => auth()->user()?->can('report-dashboard-layout.manage') ? $this->availableDashboardRoles() : collect(),
         ];
     }
 
@@ -105,7 +115,7 @@ new class extends Component
 
     public function viewDefinition(int $definitionId): void
     {
-        $this->authorizePermission('report-designer.view');
+        $this->authorizeDesignerViewer();
         $this->loadDefinition($definitionId, true);
     }
 
@@ -113,7 +123,7 @@ new class extends Component
     {
         $definition = ReportDefinition::query()
             ->whereIn('data_source', $this->availableSourceKeys())
-            ->when(! auth()->user()?->can('report-designer.update'), fn ($query) => $query->where('created_by', auth()->id()))
+            ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
             ->findOrFail($definitionId);
         $filters = $definition->filters ?? [];
 
@@ -147,7 +157,7 @@ new class extends Component
             : new ReportDefinition(['created_by' => $userId]);
 
         $definition->fill($validated + [
-            'status' => ReportDefinition::STATUS_DRAFT,
+            'status' => $definition->exists ? $definition->status : ReportDefinition::STATUS_DRAFT,
             'updated_by' => $userId,
         ])->save();
 
@@ -157,12 +167,12 @@ new class extends Component
 
     public function preview(): void
     {
-        $this->authorizePermission('report-designer.view');
+        $this->authorizeDesignerViewer();
         abort_unless($this->editorOpen, 404);
 
         if ($this->readOnly) {
             $saved = ReportDefinition::query()
-                ->when(! auth()->user()?->can('report-designer.update'), fn ($query) => $query->where('created_by', auth()->id()))
+                ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
                 ->findOrFail($this->editingId);
             $definition = [
                 'data_source' => $saved->data_source,
@@ -201,6 +211,74 @@ new class extends Component
         }
 
         session()->flash('status', __('report_designer.messages.deleted'));
+    }
+
+    public function managePlacement(int $definitionId): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        $definition = ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
+            ->with('dashboardRoles')
+            ->findOrFail($definitionId);
+
+        $this->placementDefinitionId = $definition->id;
+        $this->placementRoleIds = $definition->dashboardRoles->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->placementSize = (string) ($definition->dashboardRoles->pluck('pivot.size')->first() ?: 'medium');
+        $this->resetValidation(['placementRoleIds', 'placementSize']);
+    }
+
+    public function closePlacement(): void
+    {
+        $this->placementDefinitionId = null;
+        $this->placementRoleIds = [];
+        $this->placementSize = 'medium';
+        $this->resetValidation(['placementRoleIds', 'placementSize']);
+    }
+
+    public function savePlacement(): void
+    {
+        $this->authorizePermission('report-dashboard-layout.manage');
+        $validated = $this->validate([
+            'placementRoleIds' => ['array'],
+            'placementRoleIds.*' => ['integer', 'distinct'],
+            'placementSize' => ['required', Rule::in(['small', 'medium', 'wide'])],
+        ]);
+        $allowedRoleIds = $this->availableDashboardRoles()->pluck('id')->map(fn ($id) => (int) $id);
+        $roleIds = collect($validated['placementRoleIds'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        abort_if($roleIds->diff($allowedRoleIds)->isNotEmpty(), 422);
+
+        $definition = ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
+            ->findOrFail($this->placementDefinitionId);
+
+        DB::transaction(function () use ($definition, $roleIds, $validated): void {
+            $existingPositions = $definition->dashboardRoles()->pluck('report_dashboard_placements.position', 'roles.id');
+            $placements = [];
+
+            foreach ($roleIds as $roleId) {
+                $position = $existingPositions->get($roleId);
+                if ($position === null) {
+                    $position = ((int) DB::table('report_dashboard_placements')->where('role_id', $roleId)->max('position')) + 1;
+                }
+
+                $placements[$roleId] = [
+                    'position' => $position,
+                    'size' => $validated['placementSize'],
+                ];
+            }
+
+            $definition->dashboardRoles()->sync($placements);
+            $definition->forceFill([
+                'status' => $roleIds->isEmpty() ? ReportDefinition::STATUS_DRAFT : ReportDefinition::STATUS_PUBLISHED,
+                'updated_by' => auth()->id(),
+            ])->save();
+        });
+
+        $this->closePlacement();
+        session()->flash('status', __('report_designer.messages.placement_saved'));
     }
 
     protected function validatedDefinition(bool $requireName): array
@@ -289,6 +367,24 @@ new class extends Component
     protected function availableSourceKeys(): array
     {
         return array_keys(app(ReportDesignerCatalog::class)->sources(auth()->user()));
+    }
+
+    protected function authorizeDesignerViewer(): void
+    {
+        abort_unless(
+            auth()->user()?->can('report-designer.view') || auth()->user()?->can('report-dashboard-layout.manage'),
+            403,
+        );
+    }
+
+    protected function availableDashboardRoles()
+    {
+        return RoleRegistry::sortCollection(
+            Role::query()
+                ->where('guard_name', 'web')
+                ->whereNotIn('name', [RoleRegistry::PARENT, RoleRegistry::STUDENT])
+                ->get(),
+        );
     }
 
     public function addCalculation(): void
@@ -385,7 +481,7 @@ new class extends Component
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="truncate font-semibold text-white">{{ $definition->name }}</div>
-                                <div class="mt-1 text-xs text-neutral-400">{{ $sources[$definition->data_source]['label'] ?? $definition->data_source }} · {{ __('report_designer.statuses.draft') }}</div>
+                                <div class="mt-1 text-xs text-neutral-400">{{ $sources[$definition->data_source]['label'] ?? $definition->data_source }} · {{ __('report_designer.statuses.'.$definition->status) }}</div>
                                 <div class="mt-2 text-xs text-neutral-500">{{ __('report_designer.saved.updated', ['date' => $definition->updated_at->diffForHumans()]) }}</div>
                             </div>
                             <div class="flex shrink-0 gap-2">
@@ -396,6 +492,9 @@ new class extends Component
                                 @endcan
                                 @can('report-designer.delete')
                                     <button type="button" wire:click="delete({{ $definition->id }})" wire:confirm="{{ __('report_designer.actions.delete_confirm') }}" class="admin-icon-button" title="{{ __('report_designer.actions.delete') }}"><x-admin-action-icon name="delete" /></button>
+                                @endcan
+                                @can('report-dashboard-layout.manage')
+                                    <button type="button" wire:click="managePlacement({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.manage_placement') }}"><x-admin-action-icon name="chart" /></button>
                                 @endcan
                             </div>
                         </div>
@@ -649,4 +748,38 @@ new class extends Component
             @endif
         </div>
     </div>
+
+    <x-admin.modal :show="$placementDefinitionId !== null" :title="__('report_designer.placement.title')" close-method="closePlacement" max-width="2xl">
+        <form wire:submit="savePlacement" class="grid gap-5">
+            <p class="text-sm leading-6 text-neutral-300">{{ __('report_designer.placement.help') }}</p>
+
+            <div class="grid gap-2 sm:grid-cols-2">
+                @foreach($dashboardRoles as $role)
+                    <label class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-200">
+                        <input wire:model="placementRoleIds" type="checkbox" value="{{ $role->id }}" class="rounded border-white/20 bg-transparent">
+                        <x-admin.role-label :name="$role->name" />
+                    </label>
+                @endforeach
+            </div>
+            @error('placementRoleIds') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
+
+            <label class="grid gap-2 text-sm text-neutral-200">
+                <span>{{ __('report_designer.placement.size') }}</span>
+                <select wire:model="placementSize" class="rounded-xl px-4 py-3">
+                    <option value="small">{{ __('report_designer.placement.sizes.small') }}</option>
+                    <option value="medium">{{ __('report_designer.placement.sizes.medium') }}</option>
+                    <option value="wide">{{ __('report_designer.placement.sizes.wide') }}</option>
+                </select>
+            </label>
+
+            <div class="rounded-xl border border-amber-300/20 bg-amber-300/8 px-4 py-3 text-xs leading-5 text-amber-100">
+                {{ __('report_designer.placement.visibility_help') }}
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button type="button" wire:click="closePlacement" class="pill-link">{{ __('report_designer.actions.cancel') }}</button>
+                <button type="submit" class="btn-primary">{{ __('report_designer.actions.apply_placement') }}</button>
+            </div>
+        </form>
+    </x-admin.modal>
 </div>

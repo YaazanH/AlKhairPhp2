@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'custom_reports' => [
+        'eyebrow' => 'Role dashboard',
+        'title' => 'Custom reports',
+        'open' => 'Open full report',
+    ],
     'roles' => [
         'manager' => 'Management',
         'teacher' => 'Teacher',

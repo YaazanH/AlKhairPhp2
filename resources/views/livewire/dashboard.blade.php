@@ -20,6 +20,7 @@ use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\Landlord\TenantContext;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\ReportingService;
+use App\Services\ReportDashboardService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -47,6 +48,7 @@ new class extends Component {
         };
 
         $data['subscriptionNotice'] = $this->subscriptionNotice($user);
+        $data['dashboardReports'] = app(ReportDashboardService::class)->widgetsFor($user);
 
         return $data;
     }
@@ -1544,6 +1546,58 @@ new class extends Component {
                     @if ($teacherLatestMemorizations->hasPages())<div>{{ $teacherLatestMemorizations->links() }}</div>@endif
                 </div>
             </x-admin.modal>
+        @endif
+
+        @if ($dashboardReports->isNotEmpty())
+            <section class="mb-6" data-custom-report-widgets>
+                <div class="mb-4 flex items-end justify-between gap-4">
+                    <div>
+                        <div class="eyebrow">{{ __('dashboard.custom_reports.eyebrow') }}</div>
+                        <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.custom_reports.title') }}</h2>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                    @foreach($dashboardReports as $widget)
+                        @php
+                            $span = match($widget['size']) { 'small' => 'lg:col-span-4', 'wide' => 'lg:col-span-12', default => 'lg:col-span-6' };
+                            $preview = $widget['preview'];
+                        @endphp
+                        <article class="surface-panel min-w-0 p-5 {{ $span }}" data-report-widget="{{ $widget['report']->id }}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h3 class="truncate text-lg font-semibold text-white">{{ $widget['report']->name }}</h3>
+                                    @if(filled($widget['report']->description))<p class="mt-1 line-clamp-2 text-xs leading-5 text-neutral-400">{{ $widget['report']->description }}</p>@endif
+                                </div>
+                                <a href="{{ route('reports.designer.show', $widget['report']) }}" class="admin-icon-button shrink-0" title="{{ __('dashboard.custom_reports.open') }}"><x-admin-action-icon name="open" /></a>
+                            </div>
+
+                            @if($preview['calculations'] !== [])
+                                <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                                    @foreach($preview['calculations'] as $calculation)
+                                        <div class="rounded-xl border border-white/8 bg-white/4 p-3">
+                                            <div class="kpi-label">{{ $calculation['label'] }}</div>
+                                            <div class="mt-2 text-xl font-semibold text-white">{{ is_numeric($calculation['value']) ? number_format((float) $calculation['value'], 2) : '—' }}</div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if($preview['rows'] !== [])
+                                <div class="mt-4 overflow-x-auto rounded-xl border border-white/8">
+                                    <table class="min-w-full text-xs">
+                                        <thead><tr>@foreach($preview['columns'] as $column)<th class="px-3 py-2 text-start">{{ $column['label'] }}</th>@endforeach</tr></thead>
+                                        <tbody class="divide-y divide-white/6">
+                                        @foreach(array_slice($preview['rows'], 0, 3) as $row)
+                                            <tr>@foreach(array_keys($preview['columns']) as $key)<td class="whitespace-nowrap px-3 py-2 text-neutral-200">{{ filled($row[$key] ?? null) ? $row[$key] : '—' }}</td>@endforeach</tr>
+                                        @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+                        </article>
+                    @endforeach
+                </div>
+            </section>
         @endif
 
         @if ($dashboardRole === 'student')

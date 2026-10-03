@@ -37,6 +37,7 @@ use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ReportDesignerTest extends TestCase
@@ -182,6 +183,91 @@ class ReportDesignerTest extends TestCase
             ReportDesignerCatalog::FINANCE_TRANSACTIONS,
             'description',
         );
+    }
+
+    public function test_dashboard_placement_controls_role_visibility_and_returns_to_draft_when_removed(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'report-layout-admin']);
+        $administrator->assignRole('admin');
+        $viewerRole = Role::findOrCreate('programme-reviewer', 'web');
+        $viewerRole->givePermissionTo('reports.view');
+        $viewer = User::factory()->create(['username' => 'placed-report-viewer']);
+        $viewer->assignRole($viewerRole);
+        $student = Student::query()->create([
+            'first_name' => 'Scoped',
+            'last_name' => 'Learner',
+            'student_number' => 'PLACED-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        app(AccessScopeService::class)->syncUserOverrides($viewer, ['student' => [$student->id]]);
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Role performance report',
+            'description' => 'Visible only while placed for this role.',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name', 'status'],
+            'calculations' => [['operation' => 'count', 'field' => null]],
+            'filters' => ['status' => 'active', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $administrator->id,
+            'updated_by' => $administrator->id,
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('reports.designer.show', $definition, absolute: false))
+            ->assertNotFound();
+        $this->get(route('reports.designer.export.xlsx', $definition, absolute: false))->assertNotFound();
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('managePlacement', $definition->id)
+            ->set('placementRoleIds', [$viewerRole->id])
+            ->set('placementSize', 'wide')
+            ->call('savePlacement')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('report_dashboard_placements', [
+            'report_definition_id' => $definition->id,
+            'role_id' => $viewerRole->id,
+            'size' => 'wide',
+        ]);
+        $this->assertSame(ReportDefinition::STATUS_PUBLISHED, $definition->fresh()->status);
+        Volt::test('reports.designer')
+            ->call('edit', $definition->id)
+            ->call('save')
+            ->assertHasNoErrors();
+        $this->assertSame(ReportDefinition::STATUS_PUBLISHED, $definition->fresh()->status);
+
+        $this->actingAs($viewer)
+            ->get(route('reports.designer.show', $definition, absolute: false))
+            ->assertOk()
+            ->assertSee('Role performance report')
+            ->assertSee('Scoped Learner');
+        $this->get(route('reports.designer.export.xlsx', $definition, absolute: false))->assertOk();
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Role performance report')
+            ->assertSee('Scoped Learner');
+        $this->get(route('reports.index', absolute: false))
+            ->assertOk()
+            ->assertSee('Role performance report');
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('managePlacement', $definition->id)
+            ->set('placementRoleIds', [])
+            ->call('savePlacement')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('report_dashboard_placements', ['report_definition_id' => $definition->id]);
+        $this->assertSame(ReportDefinition::STATUS_DRAFT, $definition->fresh()->status);
+        $this->actingAs($viewer)
+            ->get(route('reports.designer.show', $definition, absolute: false))
+            ->assertNotFound();
+        $this->get('/dashboard')->assertDontSee('Role performance report');
     }
 
     public function test_courses_and_groups_are_approved_sources_with_operational_counts(): void
