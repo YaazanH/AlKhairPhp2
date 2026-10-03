@@ -26,6 +26,8 @@ class ReportDesignerQueryService
 {
     public const PREVIEW_LIMIT = 25;
 
+    public const EXPORT_LIMIT = 5000;
+
     public const GROUP_PREVIEW_LIMIT = 25;
 
     protected array $activeCalculations = [];
@@ -36,6 +38,10 @@ class ReportDesignerQueryService
 
     protected ?array $groupingResult = null;
 
+    protected int $rowLimit = self::PREVIEW_LIMIT;
+
+    protected int $groupLimit = self::GROUP_PREVIEW_LIMIT;
+
     public function __construct(
         protected AccessScopeService $accessScopes,
         protected ReportDesignerCatalog $catalog,
@@ -44,6 +50,22 @@ class ReportDesignerQueryService
     ) {}
 
     public function preview(array $definition, ?User $user): array
+    {
+        $this->rowLimit = self::PREVIEW_LIMIT;
+        $this->groupLimit = self::GROUP_PREVIEW_LIMIT;
+
+        return $this->run($definition, $user);
+    }
+
+    public function export(array $definition, ?User $user): array
+    {
+        $this->rowLimit = self::EXPORT_LIMIT;
+        $this->groupLimit = self::EXPORT_LIMIT;
+
+        return $this->run($definition, $user);
+    }
+
+    protected function run(array $definition, ?User $user): array
     {
         $source = (string) ($definition['data_source'] ?? '');
         abort_unless(array_key_exists($source, $this->catalog->sources($user)), 403);
@@ -184,7 +206,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::STUDENTS, $query, $this->studentValue(...));
         $this->applyStudentSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Student $student) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (Student $student) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->studentValue($student, $field),
             ])->all();
@@ -228,7 +250,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::COURSES, $query, $this->courseValue(...));
         $this->applyCourseSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Course $course) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (Course $course) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->courseValue($course, $field),
             ])->all();
@@ -257,7 +279,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::GROUPS, $query, $this->groupValue(...));
         $this->applyGroupSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Group $group) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (Group $group) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->groupValue($group, $field),
             ])->all();
@@ -312,7 +334,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::STUDENT_ATTENDANCE, $query, $this->studentAttendanceValue(...));
         $query->orderByDesc('id');
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (StudentAttendanceRecord $record) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (StudentAttendanceRecord $record) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->studentAttendanceValue($record, $field),
             ])->all();
@@ -349,7 +371,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::MEMORIZATION_SESSIONS, $query, $this->memorizationValue(...));
         $this->applyMemorizationSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (MemorizationSession $session) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (MemorizationSession $session) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->memorizationValue($session, $field),
             ])->all();
@@ -388,7 +410,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_TESTS, $query, $this->quranTestValue(...));
         $this->applyQuranTestSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranTest $test) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (QuranTest $test) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->quranTestValue($test, $field),
             ])->all();
@@ -414,7 +436,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_PARTIAL_TESTS, $query, $this->quranPartialTestValue(...));
         $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranPartialTest $test) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (QuranPartialTest $test) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->quranPartialTestValue($test, $field),
             ])->all();
@@ -440,7 +462,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_FINAL_TESTS, $query, $this->quranFinalTestValue(...));
         $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (QuranFinalTest $test) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (QuranFinalTest $test) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->quranFinalTestValue($test, $field),
             ])->all();
@@ -495,7 +517,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::ASSESSMENTS, $query, $this->assessmentValue(...));
         $this->applyAssessmentSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Assessment $assessment) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (Assessment $assessment) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->assessmentValue($assessment, $field),
             ])->all();
@@ -540,7 +562,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::ASSESSMENT_RESULTS, $query, $this->assessmentResultValue(...));
         $this->applyAssessmentResultSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (AssessmentResult $result) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (AssessmentResult $result) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->assessmentResultValue($result, $field),
             ])->all();
@@ -592,7 +614,7 @@ class ReportDesignerQueryService
         $this->prepareOperationalSummaries(ReportDesignerCatalog::TEACHERS, $query, $this->teacherValue(...));
         $this->applyTeacherSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Teacher $teacher) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (Teacher $teacher) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->teacherValue($teacher, $field),
             ])->all();
@@ -650,7 +672,7 @@ class ReportDesignerQueryService
         $this->groupingResult = $this->financeGroupingResult($query);
         $this->applyFinanceTransactionSort($query, $sortField, $sortDirection);
 
-        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (FinanceTransaction $transaction) use ($fields): array {
+        $rows = $query->limit($this->rowLimit)->get()->map(function (FinanceTransaction $transaction) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
                 $field => $this->financeTransactionValue($transaction, $field),
             ])->all();
@@ -1063,7 +1085,7 @@ class ReportDesignerQueryService
             'columns' => collect($this->catalog->fields($source))->only($fields)->all(),
             'rows' => $rows,
             'total' => $total,
-            'limit' => self::PREVIEW_LIMIT,
+            'limit' => $this->rowLimit,
             'calculations' => collect($this->activeCalculations)->map(function (array $calculation) use ($source, $total): array {
                 $key = $this->calculationKey($calculation['operation'], $calculation['field']);
 
@@ -1204,7 +1226,7 @@ class ReportDesignerQueryService
                 return $row;
             })
             ->sort(fn (array $left, array $right) => $right['record_count'] <=> $left['record_count'] ?: strcmp($left['group'], $right['group']))
-            ->take(self::GROUP_PREVIEW_LIMIT)
+            ->take($this->groupLimit)
             ->values()
             ->all();
 
@@ -1215,7 +1237,7 @@ class ReportDesignerQueryService
                 'record_count' => __('report_designer.calculations.record_count'),
             ], $calculationLabels),
             'rows' => $rows,
-            'limit' => self::GROUP_PREVIEW_LIMIT,
+            'limit' => $this->groupLimit,
         ];
     }
 
@@ -1270,7 +1292,7 @@ class ReportDesignerQueryService
             ->groupByRaw($groupExpression)
             ->orderByDesc('report_group_count')
             ->orderBy('report_group_key')
-            ->limit(self::GROUP_PREVIEW_LIMIT)
+            ->limit($this->groupLimit)
             ->get();
         $groupLabels = $this->financeGroupLabels($this->activeGroupBy, $groupRows->pluck('report_group_key')->all());
 
@@ -1292,7 +1314,7 @@ class ReportDesignerQueryService
 
                 return $values;
             })->all(),
-            'limit' => self::GROUP_PREVIEW_LIMIT,
+            'limit' => $this->groupLimit,
         ];
     }
 

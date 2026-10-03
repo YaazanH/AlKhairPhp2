@@ -37,6 +37,7 @@ use App\Http\Controllers\PlatformLandingMediaController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
+use App\Http\Controllers\ReportDesignerExportController;
 use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\RequiredPasswordChangeController;
 use App\Http\Controllers\StudentAttendanceExportController;
@@ -188,6 +189,8 @@ Route::middleware(['auth'])->group(function () {
 
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/designer', 'reports.designer')->middleware('permission:report-designer.view')->name('reports.designer');
+    Route::get('reports/designer/{reportDefinition}/export.xlsx', [ReportDesignerExportController::class, 'xlsx'])->middleware('permission:report-designer.view')->name('reports.designer.export.xlsx');
+    Route::get('reports/designer/{reportDefinition}/export.pdf', [ReportDesignerExportController::class, 'pdf'])->middleware('permission:report-designer.view')->name('reports.designer.export.pdf');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
     Route::redirect('reports/student-quran-tests', '/reports/student-activity-summary')
         ->middleware('permission:reports.view')

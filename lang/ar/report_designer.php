@@ -184,6 +184,14 @@ return [
         'save_draft' => 'حفظ المسودة',
         'add_calculation' => 'إضافة حساب',
         'remove_calculation' => 'إزالة الحساب',
+        'export_xlsx' => 'تنزيل Excel',
+        'export_pdf' => 'فتح PDF',
+    ],
+    'exports' => [
+        'details' => 'تفاصيل التقرير',
+        'matching_rows' => ':count سجلاً مطابقاً',
+        'generated_at' => 'تم الإنشاء في :date',
+        'too_many_rows' => 'يحتوي هذا التقرير على أكثر من :count سجل. ضيّق عوامل التصفية قبل تصديره.',
     ],
     'preview' => [
         'title' => 'معاينة آمنة',

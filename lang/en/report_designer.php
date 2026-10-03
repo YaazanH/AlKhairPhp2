@@ -184,6 +184,14 @@ return [
         'save_draft' => 'Save draft',
         'add_calculation' => 'Add calculation',
         'remove_calculation' => 'Remove calculation',
+        'export_xlsx' => 'Download Excel',
+        'export_pdf' => 'Open PDF',
+    ],
+    'exports' => [
+        'details' => 'Report details',
+        'matching_rows' => ':count matching records',
+        'generated_at' => 'Generated :date',
+        'too_many_rows' => 'This report contains more than :count records. Narrow the filters before exporting it.',
     ],
     'preview' => [
         'title' => 'Safe preview',

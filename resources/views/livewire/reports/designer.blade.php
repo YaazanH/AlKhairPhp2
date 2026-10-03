@@ -399,6 +399,10 @@ new class extends Component
                                 @endcan
                             </div>
                         </div>
+                        <div class="mt-4 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                            <a href="{{ route('reports.designer.export.xlsx', $definition) }}" class="pill-link text-xs" data-report-export-xlsx>{{ __('report_designer.actions.export_xlsx') }}</a>
+                            <a href="{{ route('reports.designer.export.pdf', $definition) }}" target="_blank" rel="noopener" class="pill-link text-xs" data-report-export-pdf>{{ __('report_designer.actions.export_pdf') }}</a>
+                        </div>
                     </article>
                 @empty
                     <div class="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm leading-6 text-neutral-400">{{ __('report_designer.saved.empty') }}</div>

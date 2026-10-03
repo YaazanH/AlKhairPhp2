@@ -105,6 +105,75 @@ class ReportDesignerTest extends TestCase
             ->assertHasErrors('selectedFields');
     }
 
+    public function test_saved_report_exports_reuse_approved_fields_filters_and_access_rules(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $owner = User::factory()->create(['username' => 'report-export-owner']);
+        $owner->givePermissionTo('report-designer.view');
+        $otherUser = User::factory()->create(['username' => 'report-export-other']);
+        $otherUser->givePermissionTo('report-designer.view');
+        $included = Student::query()->create([
+            'first_name' => 'Included',
+            'last_name' => 'Student',
+            'student_number' => 'EXPORT-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $visibleStudentIds = [$included->id];
+        foreach (range(2, 30) as $number) {
+            $visibleStudentIds[] = Student::query()->create([
+                'first_name' => 'Included '.$number,
+                'last_name' => 'Student',
+                'student_number' => 'EXPORT-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT),
+                'birth_date' => '2014-01-01',
+                'status' => 'active',
+            ])->id;
+        }
+        $excluded = Student::query()->create([
+            'first_name' => 'Excluded',
+            'last_name' => 'Student',
+            'student_number' => 'EXPORT-002',
+            'birth_date' => '2014-01-02',
+            'status' => 'inactive',
+        ]);
+        app(AccessScopeService::class)->syncUserOverrides($owner, ['student' => [...$visibleStudentIds, $excluded->id]]);
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Active student export',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['student_number', 'full_name', 'status'],
+            'calculations' => [['operation' => 'count', 'field' => null]],
+            'group_by' => 'status',
+            'filters' => ['status' => 'active', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_field' => 'student_number',
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $owner->id,
+            'updated_by' => $owner->id,
+        ]);
+
+        $xlsx = $this->actingAs($owner)->get(route('reports.designer.export.xlsx', $definition, absolute: false));
+        $xlsx->assertOk()->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $path = tempnam(sys_get_temp_dir(), 'report-export-test-');
+        file_put_contents($path, $xlsx->streamedContent());
+        $zip = new \ZipArchive;
+        $this->assertTrue($zip->open($path));
+        $worksheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        @unlink($path);
+        $this->assertStringContainsString('Included Student', $worksheet);
+        $this->assertStringContainsString('Included 30 Student', $worksheet);
+        $this->assertStringNotContainsString('Excluded Student', $worksheet);
+
+        $pdf = $this->get(route('reports.designer.export.pdf', $definition, absolute: false));
+        $pdf->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
+
+        $this->actingAs($otherUser)
+            ->get(route('reports.designer.export.xlsx', $definition, absolute: false))
+            ->assertNotFound();
+    }
+
     public function test_grouping_rejects_fields_outside_the_approved_dimensions(): void
     {
         $this->expectException(ValidationException::class);
