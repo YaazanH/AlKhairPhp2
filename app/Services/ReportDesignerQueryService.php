@@ -12,6 +12,7 @@ use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
@@ -102,6 +103,13 @@ class ReportDesignerQueryService
                 $user,
             ),
             ReportDesignerCatalog::ASSESSMENT_RESULTS => $this->assessmentResultPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::TEACHERS => $this->teacherPreview(
                 $fields,
                 (array) ($definition['filters'] ?? []),
                 $sortField,
@@ -509,6 +517,57 @@ class ReportDesignerQueryService
         return $this->result(ReportDesignerCatalog::ASSESSMENT_RESULTS, $fields, $rows, $total);
     }
 
+    protected function teacherPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $relations = ['jobTitle:id,name'];
+
+        if ($this->modules->enabled('classes')) {
+            $withWorkload = static fn ($query) => $query
+                ->with('course:id,name')
+                ->withCount([
+                    'enrollments as active_enrollments_count' => fn (Builder $enrollments) => $enrollments->where('status', 'active'),
+                ]);
+            $relations['assignedGroups'] = $withWorkload;
+            $relations['assistedGroups'] = $withWorkload;
+        }
+
+        $query = $this->accessScopes->scopeTeachers(
+            Teacher::query()->with($relations),
+            $user,
+        );
+
+        $status = (string) ($filters['status'] ?? 'all');
+        if (in_array($status, ['active', 'inactive', 'pending', 'blocked', 'declined'], true)) {
+            $query->where('status', $status);
+        }
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder
+                    ->where('first_name', 'like', '%'.$search.'%')
+                    ->orWhere('last_name', 'like', '%'.$search.'%')
+                    ->orWhere('job_title', 'like', '%'.$search.'%')
+                    ->orWhereHas('jobTitle', fn (Builder $jobTitle) => $jobTitle->where('name', 'like', '%'.$search.'%'));
+            });
+        }
+
+        $dateFrom = (string) ($filters['date_from'] ?? '');
+        $dateTo = (string) ($filters['date_to'] ?? '');
+        $this->applyDateBounds($query, 'hired_at', $dateFrom, $dateTo);
+
+        $total = (clone $query)->count();
+        $this->applyTeacherSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Teacher $teacher) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->teacherValue($teacher, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::TEACHERS, $fields, $rows, $total);
+    }
+
     protected function applyQuranWorkflowFilters(Builder $query, array $filters, string $attemptRelation): void
     {
         $status = (string) ($filters['status'] ?? 'all');
@@ -641,6 +700,16 @@ class ReportDesignerQueryService
             'score' => $query->orderBy('score', $direction),
             'result_status' => $query->orderBy('status', $direction),
             'attempt_number' => $query->orderBy('attempt_no', $direction),
+            default => $query->orderByDesc('id'),
+        };
+    }
+
+    protected function applyTeacherSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'full_name' => $query->orderBy('first_name', $direction)->orderBy('last_name', $direction),
+            'teacher_status' => $query->orderBy('status', $direction),
+            'hired_at' => $query->orderBy('hired_at', $direction),
             default => $query->orderByDesc('id'),
         };
     }
@@ -820,6 +889,38 @@ class ReportDesignerQueryService
             'group_name' => $result->enrollment?->group?->name,
             'notes' => $result->notes,
         };
+    }
+
+    protected function teacherValue(Teacher $teacher, string $field): mixed
+    {
+        $groups = $this->teacherGroups($teacher);
+        $activeGroups = $groups->where('is_active', true);
+
+        return match ($field) {
+            'full_name' => $this->personName($teacher),
+            'teacher_status' => __('report_designer.teacher_statuses.'.$teacher->status),
+            'job_title' => $teacher->jobTitle?->name ?? $teacher->job_title,
+            'hired_at' => $teacher->hired_at?->format('Y-m-d'),
+            'is_helping' => __('report_designer.helping_statuses.'.($teacher->is_helping ? 'yes' : 'no')),
+            'assigned_groups_count' => $teacher->assignedGroups->count(),
+            'assisted_groups_count' => $teacher->assistedGroups->count(),
+            'active_groups_count' => $activeGroups->count(),
+            'active_enrollments_count' => $activeGroups->sum('active_enrollments_count'),
+            'assigned_groups' => $groups->pluck('name')->filter()->implode(', '),
+            'assigned_courses' => $groups->pluck('course.name')->filter()->unique()->implode(', '),
+        };
+    }
+
+    protected function teacherGroups(Teacher $teacher)
+    {
+        if (! $this->modules->enabled('classes')) {
+            return collect();
+        }
+
+        return $teacher->assignedGroups
+            ->concat($teacher->assistedGroups)
+            ->unique('id')
+            ->values();
     }
 
     protected function latestAttempt($attempts): mixed

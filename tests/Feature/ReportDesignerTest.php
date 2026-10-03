@@ -604,6 +604,118 @@ class ReportDesignerTest extends TestCase
             ->assertDontSee('Hidden Student');
     }
 
+    public function test_teacher_workload_preview_respects_teacher_scope_and_combines_primary_and_assisted_groups(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['username' => 'scoped-teacher-report-user']);
+        $user->givePermissionTo('report-designer.view');
+        $year = AcademicYear::query()->create([
+            'name' => 'Teacher workload year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_active' => true,
+        ]);
+        $course = Course::query()->create([
+            'academic_year_id' => $year->id,
+            'name' => 'Teacher Workload Course',
+            'is_active' => true,
+        ]);
+        $visibleTeacher = Teacher::query()->create([
+            'first_name' => 'Visible',
+            'last_name' => 'Teacher',
+            'phone' => '0900000006',
+            'job_title' => 'Quran Instructor',
+            'status' => 'active',
+            'is_helping' => true,
+            'hired_at' => '2026-09-15',
+        ]);
+        $hiddenTeacher = Teacher::query()->create([
+            'first_name' => 'Hidden',
+            'last_name' => 'Teacher',
+            'phone' => '0900000007',
+            'status' => 'active',
+        ]);
+        $primaryGroup = Group::query()->create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $visibleTeacher->id,
+            'name' => 'Primary Group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+        $assistedGroup = Group::query()->create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $hiddenTeacher->id,
+            'assistant_teacher_id' => $visibleTeacher->id,
+            'name' => 'Assisted Group',
+            'capacity' => 10,
+            'is_active' => true,
+        ]);
+        $primaryStudent = Student::query()->create([
+            'first_name' => 'Primary',
+            'last_name' => 'Student',
+            'student_number' => 'S-801',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $assistedStudent = Student::query()->create([
+            'first_name' => 'Assisted',
+            'last_name' => 'Student',
+            'student_number' => 'S-802',
+            'birth_date' => '2014-01-02',
+            'status' => 'active',
+        ]);
+        Enrollment::query()->create([
+            'student_id' => $primaryStudent->id,
+            'group_id' => $primaryGroup->id,
+            'enrolled_at' => '2026-09-20',
+            'status' => 'active',
+        ]);
+        Enrollment::query()->create([
+            'student_id' => $assistedStudent->id,
+            'group_id' => $assistedGroup->id,
+            'enrolled_at' => '2026-09-20',
+            'status' => 'active',
+        ]);
+        app(AccessScopeService::class)->syncUserOverrides($user, ['teacher' => [$visibleTeacher->id]]);
+
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'teachers',
+            'selected_fields' => [
+                'full_name',
+                'teacher_status',
+                'job_title',
+                'hired_at',
+                'is_helping',
+                'assigned_groups_count',
+                'assisted_groups_count',
+                'active_groups_count',
+                'active_enrollments_count',
+                'assigned_groups',
+                'assigned_courses',
+            ],
+            'filters' => ['status' => 'active', 'date_from' => '2026-09-15', 'date_to' => '2026-09-15'],
+            'sort_field' => 'full_name',
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame([[
+            'full_name' => 'Visible Teacher',
+            'teacher_status' => __('report_designer.teacher_statuses.active'),
+            'job_title' => 'Quran Instructor',
+            'hired_at' => '2026-09-15',
+            'is_helping' => __('report_designer.helping_statuses.yes'),
+            'assigned_groups_count' => 1,
+            'assisted_groups_count' => 1,
+            'active_groups_count' => 2,
+            'active_enrollments_count' => 2,
+            'assigned_groups' => 'Primary Group, Assisted Group',
+            'assigned_courses' => 'Teacher Workload Course',
+        ]], $preview['rows']);
+    }
+
     public function test_teacher_without_designer_permission_cannot_open_the_designer(): void
     {
         $this->seed(RoleSeeder::class);

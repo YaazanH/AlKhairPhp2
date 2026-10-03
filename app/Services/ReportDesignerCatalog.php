@@ -27,6 +27,8 @@ class ReportDesignerCatalog
 
     public const ASSESSMENT_RESULTS = 'assessment_results';
 
+    public const TEACHERS = 'teachers';
+
     public function __construct(protected CurrentModuleAccess $modules) {}
 
     public function sources(): array
@@ -88,6 +90,13 @@ class ReportDesignerCatalog
             $sources[self::ASSESSMENT_RESULTS] = [
                 'label' => __('report_designer.sources.assessment_results.label'),
                 'description' => __('report_designer.sources.assessment_results.description'),
+            ];
+        }
+
+        if ($this->modules->enabled('teachers')) {
+            $sources[self::TEACHERS] = [
+                'label' => __('report_designer.sources.teachers.label'),
+                'description' => __('report_designer.sources.teachers.description'),
             ];
         }
 
@@ -200,6 +209,13 @@ class ReportDesignerCatalog
             ], $this->classContextFields(), [
                 'notes' => $this->field('notes', 'text'),
             ]),
+            self::TEACHERS => array_merge([
+                'full_name' => $this->field('full_name', 'text'),
+                'teacher_status' => $this->field('teacher_status', 'status'),
+                'job_title' => $this->field('job_title', 'text'),
+                'hired_at' => $this->field('hired_at', 'date'),
+                'is_helping' => $this->field('is_helping', 'status'),
+            ], $this->teacherWorkloadFields()),
             default => abort(404),
         };
     }
@@ -219,6 +235,7 @@ class ReportDesignerCatalog
             self::QURAN_FINAL_TESTS => ['full_name', 'juz_number', 'test_status', 'attempts_count', 'latest_score', 'latest_tested_on', 'passed_on'],
             self::ASSESSMENTS => ['assessment_title', 'assessment_type', 'assessment_groups', 'due_at', 'total_mark', 'pass_mark', 'status', 'results_count', 'average_score'],
             self::ASSESSMENT_RESULTS => ['due_at', 'assessment_title', 'full_name', 'score', 'result_status', 'attempt_number', 'group_name'],
+            self::TEACHERS => ['full_name', 'teacher_status', 'job_title', 'assigned_groups_count', 'assisted_groups_count', 'active_groups_count', 'active_enrollments_count'],
         };
 
         return array_values(array_intersect($defaults, array_keys($this->fields($source))));
@@ -236,6 +253,7 @@ class ReportDesignerCatalog
             self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['test_status', 'passed_on'],
             self::ASSESSMENTS => ['assessment_title', 'scheduled_at', 'due_at', 'total_mark', 'pass_mark', 'status', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score'],
             self::ASSESSMENT_RESULTS => ['score', 'result_status', 'attempt_number'],
+            self::TEACHERS => ['full_name', 'teacher_status', 'hired_at'],
         };
 
         return collect($this->fields($source))->only($sortable)->all();
@@ -274,6 +292,14 @@ class ReportDesignerCatalog
                 'failed' => __('report_designer.assessment_statuses.failed'),
                 'absent' => __('report_designer.assessment_statuses.absent'),
                 'pending' => __('report_designer.assessment_statuses.pending'),
+            ],
+            self::TEACHERS => [
+                'all' => __('report_designer.teacher_filters.all'),
+                'active' => __('report_designer.teacher_statuses.active'),
+                'inactive' => __('report_designer.teacher_statuses.inactive'),
+                'pending' => __('report_designer.teacher_statuses.pending'),
+                'blocked' => __('report_designer.teacher_statuses.blocked'),
+                'declined' => __('report_designer.teacher_statuses.declined'),
             ],
             default => [
                 'all' => __('report_designer.filter_statuses.all'),
@@ -346,5 +372,19 @@ class ReportDesignerCatalog
         ], $this->classContextFields(), [
             'latest_notes' => $this->field('latest_notes', 'text'),
         ]);
+    }
+
+    private function teacherWorkloadFields(): array
+    {
+        return $this->modules->enabled('classes')
+            ? [
+                'assigned_groups_count' => $this->field('assigned_groups_count', 'number'),
+                'assisted_groups_count' => $this->field('assisted_groups_count', 'number'),
+                'active_groups_count' => $this->field('active_groups_count', 'number'),
+                'active_enrollments_count' => $this->field('active_enrollments_count', 'number'),
+                'assigned_groups' => $this->field('assigned_groups', 'text'),
+                'assigned_courses' => $this->field('assigned_courses', 'text'),
+            ]
+            : [];
     }
 }
