@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\Assessment;
+use App\Models\AssessmentResult;
+use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -464,6 +467,97 @@ class ReportDesignerTest extends TestCase
             'passed_on' => '2026-10-06',
             'group_name' => 'Visible Quran Group',
         ]], $finalTests['rows']);
+    }
+
+    public function test_assessment_sources_scope_shared_groups_results_and_aggregates(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->create(['username' => 'scoped-assessment-report-user']);
+        $user->givePermissionTo('report-designer.view');
+        $year = AcademicYear::query()->create([
+            'name' => 'Assessment report year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Assessment',
+            'last_name' => 'Teacher',
+            'phone' => '0900000005',
+            'status' => 'active',
+        ]);
+        $course = Course::query()->create(['academic_year_id' => $year->id, 'name' => 'Assessment Course', 'is_active' => true]);
+        $groupAttributes = ['course_id' => $course->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'capacity' => 10, 'is_active' => true];
+        $visibleGroup = Group::query()->create($groupAttributes + ['name' => 'Visible Assessment Group']);
+        $hiddenGroup = Group::query()->create($groupAttributes + ['name' => 'Hidden Assessment Group']);
+        $visibleStudent = Student::query()->create(['first_name' => 'Visible', 'last_name' => 'Candidate', 'student_number' => 'S-701', 'birth_date' => '2014-01-01', 'status' => 'active']);
+        $hiddenStudent = Student::query()->create(['first_name' => 'Hidden', 'last_name' => 'Candidate', 'student_number' => 'S-702', 'birth_date' => '2014-01-02', 'status' => 'active']);
+        $visibleEnrollment = Enrollment::query()->create(['student_id' => $visibleStudent->id, 'group_id' => $visibleGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        $hiddenEnrollment = Enrollment::query()->create(['student_id' => $hiddenStudent->id, 'group_id' => $hiddenGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        $type = AssessmentType::query()->create(['name' => 'Quiz', 'code' => 'designer-quiz', 'is_scored' => true, 'is_active' => true]);
+        $assessment = Assessment::query()->create([
+            'group_id' => $visibleGroup->id,
+            'group_scope' => 'multiple',
+            'assessment_type_id' => $type->id,
+            'title' => 'Shared Monthly Quiz',
+            'due_at' => '2026-10-07 10:00:00',
+            'total_mark' => 100,
+            'pass_mark' => 60,
+            'is_active' => true,
+            'created_by' => $user->id,
+        ]);
+        $assessment->groups()->sync([$visibleGroup->id, $hiddenGroup->id]);
+        AssessmentResult::query()->create([
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $visibleEnrollment->id,
+            'student_id' => $visibleStudent->id,
+            'teacher_id' => $teacher->id,
+            'score' => 85,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+        AssessmentResult::query()->create([
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $hiddenEnrollment->id,
+            'student_id' => $hiddenStudent->id,
+            'teacher_id' => $teacher->id,
+            'score' => 40,
+            'status' => 'failed',
+            'attempt_no' => 1,
+        ]);
+        app(AccessScopeService::class)->syncUserOverrides($user, ['group' => [$visibleGroup->id]]);
+
+        $service = app(ReportDesignerQueryService::class);
+        $assessments = $service->preview([
+            'data_source' => 'assessments',
+            'selected_fields' => ['assessment_title', 'assessment_groups', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score'],
+            'filters' => ['status' => 'active', 'date_from' => '2026-10-07', 'date_to' => '2026-10-07'],
+            'sort_direction' => 'asc',
+        ], $user);
+        $results = $service->preview([
+            'data_source' => 'assessment_results',
+            'selected_fields' => ['due_at', 'assessment_title', 'full_name', 'score', 'result_status', 'group_name'],
+            'filters' => ['status' => 'passed', 'date_from' => '2026-10-07', 'date_to' => '2026-10-07'],
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame([[
+            'assessment_title' => 'Shared Monthly Quiz',
+            'assessment_groups' => 'Visible Assessment Group',
+            'results_count' => 1,
+            'passed_results_count' => 1,
+            'failed_results_count' => 0,
+            'average_score' => 85.0,
+        ]], $assessments['rows']);
+        $this->assertSame([[
+            'due_at' => '2026-10-07 10:00',
+            'assessment_title' => 'Shared Monthly Quiz',
+            'full_name' => 'Visible Candidate',
+            'score' => 85.0,
+            'result_status' => __('report_designer.assessment_statuses.passed'),
+            'group_name' => 'Visible Assessment Group',
+        ]], $results['rows']);
     }
 
     public function test_preview_respects_the_users_existing_student_scope(): void

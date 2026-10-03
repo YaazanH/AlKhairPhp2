@@ -23,6 +23,10 @@ class ReportDesignerCatalog
 
     public const QURAN_FINAL_TESTS = 'quran_final_tests';
 
+    public const ASSESSMENTS = 'assessments';
+
+    public const ASSESSMENT_RESULTS = 'assessment_results';
+
     public function __construct(protected CurrentModuleAccess $modules) {}
 
     public function sources(): array
@@ -73,6 +77,17 @@ class ReportDesignerCatalog
             $sources[self::QURAN_FINAL_TESTS] = [
                 'label' => __('report_designer.sources.quran_final_tests.label'),
                 'description' => __('report_designer.sources.quran_final_tests.description'),
+            ];
+        }
+
+        if ($this->modules->enabled('assessments')) {
+            $sources[self::ASSESSMENTS] = [
+                'label' => __('report_designer.sources.assessments.label'),
+                'description' => __('report_designer.sources.assessments.description'),
+            ];
+            $sources[self::ASSESSMENT_RESULTS] = [
+                'label' => __('report_designer.sources.assessment_results.label'),
+                'description' => __('report_designer.sources.assessment_results.description'),
             ];
         }
 
@@ -157,6 +172,34 @@ class ReportDesignerCatalog
                 'latest_mistake_count' => $this->field('latest_mistake_count', 'number'),
             ]),
             self::QURAN_FINAL_TESTS => $this->quranWorkflowFields(),
+            self::ASSESSMENTS => [
+                'assessment_title' => $this->field('assessment_title', 'text'),
+                'assessment_type' => $this->field('assessment_type', 'text'),
+                'assessment_groups' => $this->field('assessment_groups', 'text'),
+                'scheduled_at' => $this->field('scheduled_at', 'date'),
+                'due_at' => $this->field('due_at', 'date'),
+                'total_mark' => $this->field('total_mark', 'number'),
+                'pass_mark' => $this->field('pass_mark', 'number'),
+                'status' => $this->field('status', 'status'),
+                'results_count' => $this->field('results_count', 'number'),
+                'passed_results_count' => $this->field('passed_results_count', 'number'),
+                'failed_results_count' => $this->field('failed_results_count', 'number'),
+                'average_score' => $this->field('average_score', 'number'),
+                'description' => $this->field('description', 'text'),
+            ],
+            self::ASSESSMENT_RESULTS => array_merge([
+                'due_at' => $this->field('due_at', 'date'),
+                'assessment_title' => $this->field('assessment_title', 'text'),
+                'assessment_type' => $this->field('assessment_type', 'text'),
+                'student_number' => $this->field('student_number', 'text'),
+                'full_name' => $this->field('full_name', 'text'),
+                'score' => $this->field('score', 'number'),
+                'result_status' => $this->field('result_status', 'status'),
+                'attempt_number' => $this->field('attempt_number', 'number'),
+                'teacher_name' => $this->field('teacher_name', 'text'),
+            ], $this->classContextFields(), [
+                'notes' => $this->field('notes', 'text'),
+            ]),
             default => abort(404),
         };
     }
@@ -174,6 +217,8 @@ class ReportDesignerCatalog
             self::QURAN_TESTS => ['tested_on', 'student_number', 'full_name', 'test_type', 'juz_number', 'test_status', 'score', 'attempt_number'],
             self::QURAN_PARTIAL_TESTS => ['full_name', 'juz_number', 'test_status', 'passed_parts_count', 'parts_count', 'attempts_count', 'latest_score', 'latest_tested_on'],
             self::QURAN_FINAL_TESTS => ['full_name', 'juz_number', 'test_status', 'attempts_count', 'latest_score', 'latest_tested_on', 'passed_on'],
+            self::ASSESSMENTS => ['assessment_title', 'assessment_type', 'assessment_groups', 'due_at', 'total_mark', 'pass_mark', 'status', 'results_count', 'average_score'],
+            self::ASSESSMENT_RESULTS => ['due_at', 'assessment_title', 'full_name', 'score', 'result_status', 'attempt_number', 'group_name'],
         };
 
         return array_values(array_intersect($defaults, array_keys($this->fields($source))));
@@ -189,6 +234,8 @@ class ReportDesignerCatalog
             self::MEMORIZATION_SESSIONS => ['recorded_on', 'entry_type', 'from_page', 'to_page', 'pages_count'],
             self::QURAN_TESTS => ['tested_on', 'test_status', 'score', 'attempt_number'],
             self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['test_status', 'passed_on'],
+            self::ASSESSMENTS => ['assessment_title', 'scheduled_at', 'due_at', 'total_mark', 'pass_mark', 'status', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score'],
+            self::ASSESSMENT_RESULTS => ['score', 'result_status', 'attempt_number'],
         };
 
         return collect($this->fields($source))->only($sortable)->all();
@@ -220,6 +267,13 @@ class ReportDesignerCatalog
                 'all' => __('report_designer.test_filters.all'),
                 'passed' => __('report_designer.test_statuses.passed'),
                 'in_progress' => __('report_designer.test_statuses.in_progress'),
+            ],
+            self::ASSESSMENT_RESULTS => [
+                'all' => __('report_designer.assessment_filters.all'),
+                'passed' => __('report_designer.assessment_statuses.passed'),
+                'failed' => __('report_designer.assessment_statuses.failed'),
+                'absent' => __('report_designer.assessment_statuses.absent'),
+                'pending' => __('report_designer.assessment_statuses.pending'),
             ],
             default => [
                 'all' => __('report_designer.filter_statuses.all'),

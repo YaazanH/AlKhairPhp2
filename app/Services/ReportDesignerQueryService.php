@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Assessment;
+use App\Models\AssessmentResult;
 use App\Models\Course;
 use App\Models\Group;
 use App\Models\MemorizationSession;
@@ -86,6 +88,20 @@ class ReportDesignerQueryService
                 $user,
             ),
             ReportDesignerCatalog::QURAN_FINAL_TESTS => $this->quranFinalTestPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::ASSESSMENTS => $this->assessmentPreview(
+                $fields,
+                (array) ($definition['filters'] ?? []),
+                $sortField,
+                $sortDirection,
+                $user,
+            ),
+            ReportDesignerCatalog::ASSESSMENT_RESULTS => $this->assessmentResultPreview(
                 $fields,
                 (array) ($definition['filters'] ?? []),
                 $sortField,
@@ -395,6 +411,104 @@ class ReportDesignerQueryService
         return $this->result(ReportDesignerCatalog::QURAN_FINAL_TESTS, $fields, $rows, $total);
     }
 
+    protected function assessmentPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $groupIds = $this->accessScopes->isUnrestricted($user)
+            ? null
+            : $this->accessScopes->accessibleGroupIds($user);
+        $enrollmentIds = $this->accessScopes->isUnrestricted($user)
+            ? null
+            : $this->accessScopes->accessibleEnrollmentIds($user);
+        $scopeResults = static function (Builder $builder) use ($enrollmentIds): void {
+            $builder->when($enrollmentIds !== null, fn (Builder $query) => $query->whereIn('assessment_results.enrollment_id', $enrollmentIds));
+        };
+        $scopeGroups = static function ($builder) use ($groupIds): void {
+            $builder->when($groupIds !== null, fn ($query) => $query->whereIn('groups.id', $groupIds));
+        };
+
+        $query = $this->accessScopes->scopeAssessments(
+            Assessment::query()
+                ->with([
+                    'type:id,name',
+                    'group' => $scopeGroups,
+                    'groups' => $scopeGroups,
+                ])
+                ->withCount([
+                    'results' => $scopeResults,
+                    'results as passed_results_count' => function (Builder $builder) use ($scopeResults): void {
+                        $scopeResults($builder);
+                        $builder->where('status', 'passed');
+                    },
+                    'results as failed_results_count' => function (Builder $builder) use ($scopeResults): void {
+                        $scopeResults($builder);
+                        $builder->where('status', 'failed');
+                    },
+                ])
+                ->withAvg(['results as average_score' => $scopeResults], 'score'),
+            $user,
+        );
+
+        $this->applyCommonFilters($query, $filters, ['title', 'description'], 'due_at', function (Builder $builder, string $search): void {
+            $builder
+                ->orWhereHas('type', fn (Builder $relation) => $relation->where('name', 'like', '%'.$search.'%'))
+                ->orWhereHas('groups', fn (Builder $relation) => $relation->where('name', 'like', '%'.$search.'%'));
+        });
+        $total = (clone $query)->count();
+        $this->applyAssessmentSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (Assessment $assessment) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->assessmentValue($assessment, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::ASSESSMENTS, $fields, $rows, $total);
+    }
+
+    protected function assessmentResultPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
+    {
+        $query = $this->accessScopes->scopeAssessmentResults(
+            AssessmentResult::query()->with([
+                'assessment.type:id,name',
+                'student:id,student_number,first_name,last_name',
+                'teacher:id,first_name,last_name',
+                'enrollment.group.course',
+            ]),
+            $user,
+        );
+
+        $status = (string) ($filters['status'] ?? 'all');
+        if (in_array($status, ['passed', 'failed', 'absent', 'pending'], true)) {
+            $query->where('status', $status);
+        }
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder
+                    ->whereHas('student', fn (Builder $student) => $this->applyStudentSearch($student, $search))
+                    ->orWhereHas('assessment', fn (Builder $assessment) => $assessment->where('title', 'like', '%'.$search.'%'));
+            });
+        }
+
+        $dateFrom = (string) ($filters['date_from'] ?? '');
+        $dateTo = (string) ($filters['date_to'] ?? '');
+        if ($dateFrom !== '' || $dateTo !== '') {
+            $query->whereHas('assessment', fn (Builder $assessment) => $this->applyDateBounds($assessment, 'due_at', $dateFrom, $dateTo));
+        }
+
+        $total = (clone $query)->count();
+        $this->applyAssessmentResultSort($query, $sortField, $sortDirection);
+
+        $rows = $query->limit(self::PREVIEW_LIMIT)->get()->map(function (AssessmentResult $result) use ($fields): array {
+            return collect($fields)->mapWithKeys(fn (string $field) => [
+                $field => $this->assessmentResultValue($result, $field),
+            ])->all();
+        })->all();
+
+        return $this->result(ReportDesignerCatalog::ASSESSMENT_RESULTS, $fields, $rows, $total);
+    }
+
     protected function applyQuranWorkflowFilters(Builder $query, array $filters, string $attemptRelation): void
     {
         $status = (string) ($filters['status'] ?? 'all');
@@ -507,6 +621,26 @@ class ReportDesignerQueryService
         match ($field) {
             'test_status' => $query->orderBy('status', $direction),
             'passed_on' => $query->orderBy('passed_on', $direction),
+            default => $query->orderByDesc('id'),
+        };
+    }
+
+    protected function applyAssessmentSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'assessment_title' => $query->orderBy('title', $direction),
+            'status' => $query->orderBy('is_active', $direction),
+            'scheduled_at', 'due_at', 'total_mark', 'pass_mark', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score' => $query->orderBy($field, $direction),
+            default => $query->orderByDesc('due_at')->orderByDesc('id'),
+        };
+    }
+
+    protected function applyAssessmentResultSort(Builder $query, ?string $field, string $direction): void
+    {
+        match ($field) {
+            'score' => $query->orderBy('score', $direction),
+            'result_status' => $query->orderBy('status', $direction),
+            'attempt_number' => $query->orderBy('attempt_no', $direction),
             default => $query->orderByDesc('id'),
         };
     }
@@ -642,6 +776,49 @@ class ReportDesignerQueryService
             'course_name' => $test->enrollment?->group?->course?->name,
             'group_name' => $test->enrollment?->group?->name,
             'latest_notes' => $latestAttempt?->notes,
+        };
+    }
+
+    protected function assessmentValue(Assessment $assessment, string $field): mixed
+    {
+        $groups = $assessment->groups
+            ->when($assessment->group, fn ($items) => $items->prepend($assessment->group))
+            ->unique('id')
+            ->pluck('name')
+            ->implode(', ');
+
+        return match ($field) {
+            'assessment_title' => $assessment->title,
+            'assessment_type' => $assessment->type?->name,
+            'assessment_groups' => $groups,
+            'scheduled_at' => $assessment->scheduled_at?->format('Y-m-d H:i'),
+            'due_at' => $assessment->due_at?->format('Y-m-d H:i'),
+            'total_mark' => $assessment->total_mark !== null ? (float) $assessment->total_mark : null,
+            'pass_mark' => $assessment->pass_mark !== null ? (float) $assessment->pass_mark : null,
+            'status' => __('report_designer.record_statuses.'.($assessment->is_active ? 'active' : 'inactive')),
+            'results_count' => $assessment->results_count,
+            'passed_results_count' => $assessment->passed_results_count,
+            'failed_results_count' => $assessment->failed_results_count,
+            'average_score' => $assessment->average_score !== null ? round((float) $assessment->average_score, 2) : null,
+            'description' => $assessment->description,
+        };
+    }
+
+    protected function assessmentResultValue(AssessmentResult $result, string $field): mixed
+    {
+        return match ($field) {
+            'due_at' => $result->assessment?->due_at?->format('Y-m-d H:i'),
+            'assessment_title' => $result->assessment?->title,
+            'assessment_type' => $result->assessment?->type?->name,
+            'student_number' => $result->student?->student_number,
+            'full_name' => $this->personName($result->student),
+            'score' => $result->score !== null ? (float) $result->score : null,
+            'result_status' => __('report_designer.assessment_statuses.'.$result->status),
+            'attempt_number' => $result->attempt_no,
+            'teacher_name' => $this->personName($result->teacher),
+            'course_name' => $result->enrollment?->group?->course?->name,
+            'group_name' => $result->enrollment?->group?->name,
+            'notes' => $result->notes,
         };
     }
 
