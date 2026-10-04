@@ -121,6 +121,43 @@ class ReportDesignerCatalog
         return $sources;
     }
 
+    public function librarySources(): array
+    {
+        return collect([
+            self::STUDENTS,
+            self::COURSES,
+            self::GROUPS,
+            self::STUDENT_ATTENDANCE,
+            self::MEMORIZATION_SESSIONS,
+            self::QURAN_TESTS,
+            self::QURAN_PARTIAL_TESTS,
+            self::QURAN_FINAL_TESTS,
+            self::ASSESSMENTS,
+            self::ASSESSMENT_RESULTS,
+            self::TEACHERS,
+            self::FINANCE_TRANSACTIONS,
+        ])->mapWithKeys(fn (string $source): array => [$source => [
+            'label' => __('report_designer.sources.'.$source.'.label'),
+            'description' => __('report_designer.sources.'.$source.'.description'),
+            'required_modules' => $this->requiredModules($source),
+        ]])->all();
+    }
+
+    public function requiredModules(string $source): array
+    {
+        return match ($source) {
+            self::STUDENTS => ['students'],
+            self::COURSES, self::GROUPS => ['classes'],
+            self::STUDENT_ATTENDANCE => ['student_attendance'],
+            self::MEMORIZATION_SESSIONS => ['memorization'],
+            self::QURAN_TESTS, self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['quran_tests'],
+            self::ASSESSMENTS, self::ASSESSMENT_RESULTS => ['assessments'],
+            self::TEACHERS => ['teachers'],
+            self::FINANCE_TRANSACTIONS => ['finance'],
+            default => abort(404),
+        };
+    }
+
     public function fields(string $source): array
     {
         return match ($source) {

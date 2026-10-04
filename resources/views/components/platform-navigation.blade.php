@@ -32,6 +32,9 @@
         @if($platformUser->hasPlatformPermission('manage.landing-page') || $platformUser->hasPlatformPermission('publish.landing-page'))
             <flux:navlist.item icon="globe-alt" href="{{ route('platform.landing.edit') }}" :current="request()->routeIs('platform.landing.*')">Landing page</flux:navlist.item>
         @endif
+        @if($platformUser->hasPlatformPermission('manage.report-library') || $platformUser->hasPlatformPermission('publish.report-library'))
+            <flux:navlist.item icon="chart-bar-square" href="{{ route('platform.report-library.index') }}" :current="request()->routeIs('platform.report-library.*')">Report library</flux:navlist.item>
+        @endif
         @if($platformUser->hasPlatformPermission('manage.platform-users'))
             <flux:navlist.item icon="users" href="{{ route('platform.access.index') }}" :current="request()->routeIs('platform.access.*')">Platform users</flux:navlist.item>
         @endif

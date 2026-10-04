@@ -32,7 +32,7 @@ class PlatformNavigationTest extends TestCase
     public function test_owner_sees_the_same_complete_navigation_on_platform_pages(): void
     {
         $owner = $this->administrator('owner@example.test');
-        $expected = ['Tenants overview', 'New tenant', 'Packages', 'Subscriptions', 'Backups', 'Storage', 'Tenant requests', 'Landing page', 'Platform users'];
+        $expected = ['Tenants overview', 'New tenant', 'Packages', 'Subscriptions', 'Backups', 'Storage', 'Tenant requests', 'Landing page', 'Report library', 'Platform users'];
 
         foreach ([
             route('platform.dashboard'),
