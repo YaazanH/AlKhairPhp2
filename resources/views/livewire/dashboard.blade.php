@@ -1582,16 +1582,13 @@ new class extends Component {
                                 </div>
                             @endif
 
-                            @if($preview['rows'] !== [])
-                                <div class="mt-4 overflow-x-auto rounded-xl border border-white/8">
-                                    <table class="min-w-full text-xs">
-                                        <thead><tr>@foreach($preview['columns'] as $column)<th class="px-3 py-2 text-start">{{ $column['label'] }}</th>@endforeach</tr></thead>
-                                        <tbody class="divide-y divide-white/6">
-                                        @foreach(array_slice($preview['rows'], 0, 3) as $row)
-                                            <tr>@foreach(array_keys($preview['columns']) as $key)<td class="whitespace-nowrap px-3 py-2 text-neutral-200">{{ filled($row[$key] ?? null) ? $row[$key] : '—' }}</td>@endforeach</tr>
-                                        @endforeach
-                                        </tbody>
-                                    </table>
+                            @if($preview['grouping'])
+                                <div class="mt-4 rounded-xl border border-white/8 p-3">
+                                    <x-reports.group-presentation :grouping="$preview['grouping']" :presentation="$widget['report']->presentation ?? []" compact />
+                                </div>
+                            @elseif($preview['rows'] !== [])
+                                <div class="mt-4 overflow-hidden rounded-xl border border-white/8">
+                                    <x-reports.detail-table :result="$preview" :presentation="$widget['report']->presentation ?? []" compact />
                                 </div>
                             @endif
                         </article>

@@ -8,6 +8,12 @@ use Illuminate\Validation\ValidationException;
 
 class ReportDesignerCatalog
 {
+    public const PRESENTATION_TABLE = 'table';
+
+    public const PRESENTATION_BAR = 'bar';
+
+    public const PRESENTATION_DONUT = 'donut';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -266,6 +272,49 @@ class ReportDesignerCatalog
         };
 
         return array_values(array_intersect($defaults, array_keys($this->fields($source))));
+    }
+
+    public function presentationTypes(): array
+    {
+        return [
+            self::PRESENTATION_TABLE => __('report_designer.presentation.types.table'),
+            self::PRESENTATION_BAR => __('report_designer.presentation.types.bar'),
+            self::PRESENTATION_DONUT => __('report_designer.presentation.types.donut'),
+        ];
+    }
+
+    public function tableDensities(): array
+    {
+        return [
+            'comfortable' => __('report_designer.presentation.densities.comfortable'),
+            'compact' => __('report_designer.presentation.densities.compact'),
+        ];
+    }
+
+    public function validatePresentation(array $presentation, ?string $groupBy): array
+    {
+        $type = (string) ($presentation['type'] ?? self::PRESENTATION_TABLE);
+        $density = (string) ($presentation['density'] ?? 'comfortable');
+
+        if (! array_key_exists($type, $this->presentationTypes())) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.invalid_presentation'),
+            ]);
+        }
+
+        if ($type !== self::PRESENTATION_TABLE && blank($groupBy)) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.chart_requires_grouping'),
+            ]);
+        }
+
+        if (! array_key_exists($density, $this->tableDensities())) {
+            throw ValidationException::withMessages([
+                'tableDensity' => __('report_designer.validation.invalid_table_density'),
+            ]);
+        }
+
+        return ['type' => $type, 'density' => $density];
     }
 
     public function sortableFields(string $source): array

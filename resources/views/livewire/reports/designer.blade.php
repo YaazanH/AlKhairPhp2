@@ -33,6 +33,10 @@ new class extends Component
 
     public string $groupBy = '';
 
+    public string $presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
+
+    public string $tableDensity = 'comfortable';
+
     public string $statusFilter = 'all';
 
     public string $searchFilter = '';
@@ -84,6 +88,8 @@ new class extends Component
             'calculationOperations' => $catalog->calculationOperations(),
             'calculableFields' => $catalog->calculableFields($this->dataSource),
             'groupableFields' => $catalog->groupableFields($this->dataSource),
+            'presentationTypes' => $catalog->presentationTypes(),
+            'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
             'dashboardRoles' => auth()->user()?->can('report-dashboard-layout.manage') ? $this->availableDashboardRoles() : collect(),
         ];
@@ -97,6 +103,8 @@ new class extends Component
         $this->selectedFields = $catalog->defaultFields($this->dataSource);
         $this->calculations = [];
         $this->groupBy = '';
+        $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
+        $this->tableDensity = 'comfortable';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -142,6 +150,8 @@ new class extends Component
         $this->selectedFields = $definition->selected_fields;
         $this->calculations = $definition->calculations ?? [];
         $this->groupBy = $definition->group_by ?? '';
+        $this->presentationType = (string) data_get($definition->presentation, 'type', ReportDesignerCatalog::PRESENTATION_TABLE);
+        $this->tableDensity = (string) data_get($definition->presentation, 'density', 'comfortable');
         $this->statusFilter = (string) ($filters['status'] ?? 'all');
         $this->searchFilter = (string) ($filters['search'] ?? '');
         $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
@@ -433,6 +443,8 @@ new class extends Component
             'calculations.*.operation' => ['required', 'string'],
             'calculations.*.field' => ['nullable', 'string'],
             'groupBy' => ['nullable', 'string'],
+            'presentationType' => ['required', Rule::in(array_keys($catalog->presentationTypes()))],
+            'tableDensity' => ['required', Rule::in(array_keys($catalog->tableDensities()))],
             'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
@@ -444,6 +456,10 @@ new class extends Component
         $fields = $catalog->validateFields($validated['dataSource'], $validated['selectedFields']);
         $calculations = $catalog->validateCalculations($validated['dataSource'], $validated['calculations']);
         $groupBy = $catalog->validateGrouping($validated['dataSource'], $validated['groupBy']);
+        $presentation = $catalog->validatePresentation([
+            'type' => $validated['presentationType'],
+            'density' => $validated['tableDensity'],
+        ], $groupBy);
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
             $validated['sortField'],
@@ -457,6 +473,7 @@ new class extends Component
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,
+            'presentation' => $presentation,
             'filters' => [
                 'status' => $validated['statusFilter'],
                 'search' => trim($validated['searchFilter'] ?? ''),
@@ -479,6 +496,8 @@ new class extends Component
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
         $this->calculations = [];
         $this->groupBy = '';
+        $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
+        $this->tableDensity = 'comfortable';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -550,6 +569,10 @@ new class extends Component
 
     public function updatedGroupBy(): void
     {
+        if (blank($this->groupBy)) {
+            $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
+        }
+
         $this->previewResult = [];
         $this->resetValidation('groupBy');
     }
@@ -765,6 +788,33 @@ new class extends Component
                         </label>
                     @endif
 
+                    <div class="rounded-2xl border border-white/10 bg-white/[0.025] p-4" data-report-presentation-controls>
+                        <div class="text-sm font-semibold text-white">{{ __('report_designer.presentation.title') }}</div>
+                        <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('report_designer.presentation.help') }}</p>
+                        <div class="mt-4 grid gap-4 md:grid-cols-2">
+                            <label class="grid gap-2 text-sm text-neutral-200">
+                                <span>{{ __('report_designer.presentation.type') }}</span>
+                                <select wire:model.live="presentationType" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                                    @foreach($presentationTypes as $presentationKey => $presentationLabel)
+                                        <option value="{{ $presentationKey }}" @disabled($presentationKey !== \App\Services\ReportDesignerCatalog::PRESENTATION_TABLE && blank($groupBy))>{{ $presentationLabel }}</option>
+                                    @endforeach
+                                </select>
+                                @if(blank($groupBy))<span class="text-xs leading-5 text-amber-200">{{ __('report_designer.presentation.grouping_required_help') }}</span>@endif
+                                @error('presentationType') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
+                            </label>
+                            <label class="grid gap-2 text-sm text-neutral-200">
+                                <span>{{ __('report_designer.presentation.table_density') }}</span>
+                                <select wire:model.live="tableDensity" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                                    @foreach($tableDensities as $densityKey => $densityLabel)
+                                        <option value="{{ $densityKey }}">{{ $densityLabel }}</option>
+                                    @endforeach
+                                </select>
+                                <span class="text-xs leading-5 text-neutral-400">{{ __('report_designer.presentation.table_density_help') }}</span>
+                                @error('tableDensity') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.status') }}</span>
@@ -840,48 +890,10 @@ new class extends Component
                                 <div class="text-sm font-semibold text-white">{{ __('report_designer.grouping.title', ['field' => $previewResult['grouping']['label']]) }}</div>
                                 <div class="mt-1 text-xs text-neutral-400">{{ __('report_designer.grouping.help', ['count' => $previewResult['grouping']['limit']]) }}</div>
                             </div>
-                            <div class="overflow-x-auto rounded-xl border border-white/10">
-                                <table class="min-w-full text-sm">
-                                    <thead><tr>
-                                        @foreach ($previewResult['grouping']['columns'] as $column)
-                                            <th class="px-4 py-3 text-start">{{ $column }}</th>
-                                        @endforeach
-                                    </tr></thead>
-                                    <tbody>
-                                        @foreach ($previewResult['grouping']['rows'] as $row)
-                                            <tr class="border-t border-white/5">
-                                                @foreach (array_keys($previewResult['grouping']['columns']) as $columnKey)
-                                                    <td class="px-4 py-3 text-neutral-200">{{ is_float($row[$columnKey]) ? number_format($row[$columnKey], 2) : $row[$columnKey] }}</td>
-                                                @endforeach
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
+                            <x-reports.group-presentation :grouping="$previewResult['grouping']" :presentation="['type' => $presentationType, 'density' => $tableDensity]" />
                         </div>
                     @endif
-                    @if ($previewResult['rows'] === [])
-                        <div class="px-6 py-14 text-center text-sm text-neutral-400">{{ __('report_designer.preview.empty') }}</div>
-                    @else
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full text-sm">
-                                <thead><tr>
-                                    @foreach ($previewResult['columns'] as $column)
-                                        <th class="px-5 py-4 text-start">{{ $column['label'] }}</th>
-                                    @endforeach
-                                </tr></thead>
-                                <tbody>
-                                    @foreach ($previewResult['rows'] as $row)
-                                        <tr class="border-t border-white/5">
-                                            @foreach (array_keys($previewResult['columns']) as $fieldKey)
-                                                <td class="px-5 py-4 text-neutral-200">{{ filled($row[$fieldKey] ?? null) ? $row[$fieldKey] : '—' }}</td>
-                                            @endforeach
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
+                    <x-reports.detail-table :result="$previewResult" :presentation="['type' => $presentationType, 'density' => $tableDensity]" />
                 </section>
             @endif
             @endif

@@ -23,6 +23,7 @@ class ReportDefinition extends Model
         'selected_fields',
         'calculations',
         'group_by',
+        'presentation',
         'filters',
         'sort_field',
         'sort_direction',
@@ -36,6 +37,7 @@ class ReportDefinition extends Model
         return [
             'selected_fields' => 'array',
             'calculations' => 'array',
+            'presentation' => 'array',
             'filters' => 'array',
         ];
     }

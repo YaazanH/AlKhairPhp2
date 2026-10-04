@@ -36,15 +36,8 @@
                 <div class="soft-keyline border-b px-5 py-5 lg:px-6">
                     <h2 class="font-display text-2xl text-white">{{ __('report_designer.grouping.title', ['field' => $result['grouping']['label']]) }}</h2>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="table-content text-sm">
-                        <thead><tr>@foreach($result['grouping']['columns'] as $column)<th class="px-5 py-4 text-start">{{ $column }}</th>@endforeach</tr></thead>
-                        <tbody class="divide-y divide-white/6">
-                        @foreach($result['grouping']['rows'] as $row)
-                            <tr>@foreach(array_keys($result['grouping']['columns']) as $key)<td class="px-5 py-4">{{ filled($row[$key] ?? null) ? $row[$key] : '—' }}</td>@endforeach</tr>
-                        @endforeach
-                        </tbody>
-                    </table>
+                <div class="p-5 lg:p-6">
+                    <x-reports.group-presentation :grouping="$result['grouping']" :presentation="$definition->presentation ?? []" />
                 </div>
             </section>
         @endif
@@ -54,20 +47,7 @@
                 <h2 class="font-display text-2xl text-white">{{ __('report_designer.exports.details') }}</h2>
                 <p class="mt-2 text-sm text-neutral-400">{{ __('report_designer.preview.summary', ['shown' => count($result['rows']), 'total' => $result['total']]) }}</p>
             </div>
-            @if($result['rows'] === [])
-                <div class="px-6 py-14 text-center text-sm text-neutral-400">{{ __('report_designer.preview.empty') }}</div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="table-content text-sm">
-                        <thead><tr>@foreach($result['columns'] as $column)<th class="px-5 py-4 text-start">{{ $column['label'] }}</th>@endforeach</tr></thead>
-                        <tbody class="divide-y divide-white/6">
-                        @foreach($result['rows'] as $row)
-                            <tr>@foreach(array_keys($result['columns']) as $key)<td class="px-5 py-4">{{ filled($row[$key] ?? null) ? $row[$key] : '—' }}</td>@endforeach</tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
+            <x-reports.detail-table :result="$result" :presentation="$definition->presentation ?? []" />
         </section>
     </div>
 </x-layouts.app>

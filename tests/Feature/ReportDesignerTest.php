@@ -187,6 +187,69 @@ class ReportDesignerTest extends TestCase
         );
     }
 
+    public function test_grouped_report_presentation_is_saved_and_reused_in_preview_full_report_and_dashboard(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'presentation-admin']);
+        $administrator->assignRole('admin');
+        Student::query()->create([
+            'first_name' => 'Active',
+            'last_name' => 'Student',
+            'student_number' => 'PRESENT-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        Student::query()->create([
+            'first_name' => 'Inactive',
+            'last_name' => 'Student',
+            'student_number' => 'PRESENT-002',
+            'birth_date' => '2014-01-01',
+            'status' => 'inactive',
+        ]);
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('name', 'Students by status chart')
+            ->set('groupBy', 'status')
+            ->set('presentationType', ReportDesignerCatalog::PRESENTATION_BAR)
+            ->set('tableDensity', 'compact')
+            ->call('preview')
+            ->assertHasNoErrors()
+            ->assertSeeHtml('data-report-presentation="bar"')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $definition = ReportDefinition::query()->where('name', 'Students by status chart')->firstOrFail();
+        $this->assertSame([
+            'type' => ReportDesignerCatalog::PRESENTATION_BAR,
+            'density' => 'compact',
+        ], $definition->presentation);
+
+        $this->get(route('reports.designer.show', $definition, absolute: false))
+            ->assertOk()
+            ->assertSee('data-report-presentation="bar"', false);
+
+        Volt::test('reports.designer')
+            ->call('managePlacement', $definition->id)
+            ->set('placementRoleIds', [Role::findByName('admin', 'web')->id])
+            ->call('savePlacement')
+            ->assertHasNoErrors();
+
+        $this->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Students by status chart')
+            ->assertSee('data-report-presentation="bar"', false);
+
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('name', 'Invalid ungrouped chart')
+            ->set('presentationType', ReportDesignerCatalog::PRESENTATION_DONUT)
+            ->call('save')
+            ->assertHasErrors(['presentationType']);
+    }
+
     public function test_dashboard_placement_controls_role_visibility_and_returns_to_draft_when_removed(): void
     {
         $this->seed(RoleSeeder::class);
