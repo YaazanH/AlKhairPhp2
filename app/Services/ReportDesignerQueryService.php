@@ -1271,7 +1271,10 @@ class ReportDesignerQueryService
             });
 
         $chronological = in_array($this->activeGroupBy, $this->catalog->chronologicalGroupFields($source), true);
-        $leaderboardMetric = data_get($this->activePresentation, 'type') === ReportDesignerCatalog::PRESENTATION_LEADERBOARD
+        $leaderboardMetric = in_array(data_get($this->activePresentation, 'type'), [
+            ReportDesignerCatalog::PRESENTATION_LEADERBOARD,
+            ReportDesignerCatalog::PRESENTATION_RANKING,
+        ], true)
             ? data_get($this->activePresentation, 'metric')
             : null;
         $rows = (filled($leaderboardMetric)

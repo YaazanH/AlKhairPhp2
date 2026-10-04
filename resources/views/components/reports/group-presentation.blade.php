@@ -10,12 +10,14 @@
     $isHotbar = $type === 'hotbar';
     $isPerformanceMap = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_PERFORMANCE_MAP;
     $isLeaderboard = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_LEADERBOARD;
+    $isRanking = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_RANKING;
     $rows = match (true) {
         $isTable => $allRows->take($compact ? 6 : PHP_INT_MAX)->values(),
         $isLine => $allRows->take(-$chartLimit)->values(),
         $isHotbar => $allRows->take($chartLimit)->values(),
         $isPerformanceMap => $allRows->take($compact ? 12 : 25)->values(),
         $isLeaderboard => $allRows->take(5)->values(),
+        $isRanking => $allRows->take(5)->values(),
         default => $allRows->take($chartLimit)->values(),
     };
     $metricKey = (string) data_get($presentation, 'metric', 'record_count');
@@ -23,7 +25,7 @@
         $metricKey = 'record_count';
     }
     $metricLabel = (string) data_get($grouping, 'columns.'.$metricKey, __('report_designer.calculations.record_count'));
-    if ($isLeaderboard) {
+    if ($isLeaderboard || $isRanking) {
         $rows = $allRows
             ->sort(fn (array $left, array $right): int => ($right[$metricKey] ?? 0) <=> ($left[$metricKey] ?? 0) ?: strcmp($left['group'], $right['group']))
             ->take(5)
@@ -35,8 +37,8 @@
     }
     $xMetricLabel = (string) data_get($grouping, 'columns.'.$xMetricKey, __('report_designer.calculations.record_count'));
     $chartAria = __('report_designer.presentation.chart_metric_aria', ['metric' => $metricLabel, 'group' => $grouping['label']]);
-    $remainingCount = $isTable || $isLine || $isHotbar || $isPerformanceMap || $isLeaderboard ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
-    $remainingMetric = $isTable || $isLine || $isHotbar || $isPerformanceMap || $isLeaderboard ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
+    $remainingCount = $isTable || $isLine || $isHotbar || $isPerformanceMap || $isLeaderboard || $isRanking ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
+    $remainingMetric = $isTable || $isLine || $isHotbar || $isPerformanceMap || $isLeaderboard || $isRanking ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
     if ($remainingCount > 0) {
         $other = ['group' => __('report_designer.presentation.other'), 'record_count' => $remainingCount];
         $other[$metricKey] = $metricKey === 'record_count' ? $remainingCount : $remainingMetric;
@@ -83,6 +85,44 @@
     @if($rows->isEmpty())
         <div class="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-neutral-400">
             {{ __('report_designer.presentation.empty') }}
+        </div>
+    @elseif($isRanking)
+        <div class="grid gap-4" role="group" aria-label="{{ $chartAria }}">
+            <ol class="grid items-end gap-3 sm:grid-cols-3">
+                @foreach($rows->take(3) as $row)
+                    @php
+                        $rank = $loop->iteration;
+                        $rankLayout = match ($rank) {
+                            1 => 'sm:order-2 border-amber-300/45 bg-amber-300/10 sm:min-h-48',
+                            2 => 'sm:order-1 border-slate-300/35 bg-slate-300/[0.07] sm:min-h-40',
+                            default => 'sm:order-3 border-orange-400/35 bg-orange-400/[0.07] sm:min-h-36',
+                        };
+                        $medalTone = match ($rank) {
+                            1 => 'bg-amber-300 text-amber-950',
+                            2 => 'bg-slate-300 text-slate-950',
+                            default => 'bg-orange-400 text-orange-950',
+                        };
+                    @endphp
+                    <li class="flex flex-col items-center justify-center rounded-2xl border p-4 text-center {{ $rankLayout }}">
+                        <span class="grid size-10 place-items-center rounded-full text-sm font-black shadow-lg {{ $medalTone }}" aria-label="{{ __('report_designer.presentation.rank', ['rank' => $rank]) }}">{{ $rank }}</span>
+                        <strong class="record-person-name mt-3 line-clamp-2 text-sm text-white" title="{{ $row['group'] }}">{{ $row['group'] }}</strong>
+                        <span class="mt-3 text-2xl font-semibold text-white">{{ $formatMetric($row[$metricKey] ?? 0) }}</span>
+                        <small class="mt-1 text-[0.65rem] text-neutral-400">{{ $metricLabel }}</small>
+                        <small class="mt-2 text-[0.65rem] text-neutral-400">{{ trans_choice('report_designer.presentation.sessions', (int) ($row['record_count'] ?? 0), ['count' => number_format((int) ($row['record_count'] ?? 0))]) }}</small>
+                    </li>
+                @endforeach
+            </ol>
+            @if($rows->count() > 3)
+                <ol start="4" class="grid gap-2">
+                    @foreach($rows->skip(3) as $row)
+                        <li class="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/5 bg-white/[0.025] px-3 py-2.5">
+                            <span class="grid size-8 place-items-center rounded-full bg-white/5 text-xs font-bold text-neutral-300">{{ $loop->iteration + 3 }}</span>
+                            <span class="record-person-name truncate text-sm text-neutral-200" title="{{ $row['group'] }}">{{ $row['group'] }}</span>
+                            <span class="text-end"><strong class="block text-sm text-white">{{ $formatMetric($row[$metricKey] ?? 0) }}</strong><small class="text-[0.65rem] text-neutral-400">{{ trans_choice('report_designer.presentation.sessions', (int) ($row['record_count'] ?? 0), ['count' => number_format((int) ($row['record_count'] ?? 0))]) }}</small></span>
+                        </li>
+                    @endforeach
+                </ol>
+            @endif
         </div>
     @elseif($isLeaderboard)
         <ol class="grid gap-3" aria-label="{{ $chartAria }}">

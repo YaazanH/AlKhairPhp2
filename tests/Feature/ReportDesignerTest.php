@@ -258,6 +258,29 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('data-report-presentation="leaderboard"', $leaderboardHtml);
         $this->assertStringContainsString('teacher-memorization-ranking-row', $leaderboardHtml);
         $this->assertStringContainsString('20', $leaderboardHtml);
+
+        $rankingPresentation = app(ReportDesignerCatalog::class)->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_RANKING,
+            'density' => 'comfortable',
+            'metric' => 'report_calculation_1',
+        ], 'group_name', true, ReportDesignerCatalog::MEMORIZATION_SESSIONS, $leaderboardCalculations);
+        $rankingHtml = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            [
+                'grouping' => [
+                    'label' => 'Group',
+                    'columns' => ['group' => 'Group', 'record_count' => 'Sessions', 'report_calculation_1' => 'Total pages'],
+                    'rows' => [
+                        ['group' => 'Group B', 'record_count' => 2, 'report_calculation_1' => 6.0],
+                        ['group' => 'Group A', 'record_count' => 1, 'report_calculation_1' => 20.0],
+                    ],
+                ],
+                'presentation' => $rankingPresentation,
+            ],
+        );
+        $this->assertStringContainsString('data-report-presentation="ranking"', $rankingHtml);
+        $this->assertTrue(strpos($rankingHtml, 'Group A') < strpos($rankingHtml, 'Group B'));
+        $this->assertStringContainsString('sm:order-2', $rankingHtml);
     }
 
     public function test_saved_report_exports_reuse_approved_fields_filters_and_access_rules(): void

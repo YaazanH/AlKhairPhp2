@@ -26,6 +26,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_LEADERBOARD = 'leaderboard';
 
+    public const PRESENTATION_RANKING = 'ranking';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -352,6 +354,7 @@ class ReportDesignerCatalog
             self::PRESENTATION_HOTBAR => __('report_designer.presentation.types.hotbar'),
             self::PRESENTATION_PERFORMANCE_MAP => __('report_designer.presentation.types.performance_map'),
             self::PRESENTATION_LEADERBOARD => __('report_designer.presentation.types.leaderboard'),
+            self::PRESENTATION_RANKING => __('report_designer.presentation.types.ranking'),
         ];
     }
 
@@ -416,6 +419,13 @@ class ReportDesignerCatalog
             ]);
         }
 
+        if ($type === self::PRESENTATION_RANKING
+            && ($source !== self::MEMORIZATION_SESSIONS || $groupBy !== 'group_name')) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.ranking_requires_groups'),
+            ]);
+        }
+
         if (! array_key_exists($density, $this->tableDensities())) {
             throw ValidationException::withMessages([
                 'tableDensity' => __('report_designer.validation.invalid_table_density'),
@@ -470,6 +480,13 @@ class ReportDesignerCatalog
             && $leaderboardMetric !== ['operation' => 'sum', 'field' => 'pages_count']) {
             throw ValidationException::withMessages([
                 'presentationMetric' => __('report_designer.validation.leaderboard_requires_pages'),
+            ]);
+        }
+
+        if ($type === self::PRESENTATION_RANKING
+            && $leaderboardMetric !== ['operation' => 'sum', 'field' => 'pages_count']) {
+            throw ValidationException::withMessages([
+                'presentationMetric' => __('report_designer.validation.ranking_requires_pages'),
             ]);
         }
 
