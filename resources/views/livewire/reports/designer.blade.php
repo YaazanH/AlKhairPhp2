@@ -467,7 +467,7 @@ new class extends Component
         $presentation = $catalog->validatePresentation([
             'type' => $validated['presentationType'],
             'density' => $validated['tableDensity'],
-        ], $groupBy, $this->mayPreserveSpecializedPresentation());
+        ], $groupBy, $this->mayPreserveSpecializedPresentation(), $validated['dataSource']);
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
             $validated['sortField'],

@@ -1224,9 +1224,12 @@ class ReportDesignerQueryService
                 }
 
                 return $row;
-            })
-            ->sort(fn (array $left, array $right) => $right['record_count'] <=> $left['record_count'] ?: strcmp($left['group'], $right['group']))
-            ->take($this->groupLimit)
+            });
+
+        $chronological = in_array($this->activeGroupBy, $this->catalog->chronologicalGroupFields($source), true);
+        $rows = ($chronological
+            ? $rows->sortBy('group')->take(-$this->groupLimit)
+            : $rows->sort(fn (array $left, array $right) => $right['record_count'] <=> $left['record_count'] ?: strcmp($left['group'], $right['group']))->take($this->groupLimit))
             ->values()
             ->all();
 
@@ -1255,6 +1258,7 @@ class ReportDesignerQueryService
         $baseQuery = (clone $query)->withoutEagerLoads()->reorder()->toBase();
         $groupQuery = DB::query()->fromSub($baseQuery, 'report_rows');
         $groupExpression = match ($this->activeGroupBy) {
+            'transaction_date' => 'report_rows.transaction_date',
             'transaction_type' => 'report_rows.type',
             'transaction_direction' => 'report_rows.direction',
             'finance_category' => 'COALESCE(report_rows.finance_category_id, finance_requests.finance_category_id, finance_requests.finance_pull_request_kind_id)',
@@ -1288,12 +1292,16 @@ class ReportDesignerQueryService
             );
         }
 
-        $groupRows = $groupQuery
-            ->groupByRaw($groupExpression)
-            ->orderByDesc('report_group_count')
-            ->orderBy('report_group_key')
-            ->limit($this->groupLimit)
-            ->get();
+        $groupQuery->groupByRaw($groupExpression);
+        if ($this->activeGroupBy === 'transaction_date') {
+            $groupQuery->orderByDesc('report_group_key');
+        } else {
+            $groupQuery->orderByDesc('report_group_count')->orderBy('report_group_key');
+        }
+        $groupRows = $groupQuery->limit($this->groupLimit)->get();
+        if ($this->activeGroupBy === 'transaction_date') {
+            $groupRows = $groupRows->sortBy('report_group_key')->values();
+        }
         $groupLabels = $this->financeGroupLabels($this->activeGroupBy, $groupRows->pluck('report_group_key')->all());
 
         return [
@@ -1323,6 +1331,7 @@ class ReportDesignerQueryService
         $keys = collect($keys)->filter(fn ($key) => $key !== null)->unique()->values();
 
         return match ($field) {
+            'transaction_date' => $keys->mapWithKeys(fn ($key) => [(string) $key => (string) $key])->all(),
             'transaction_type' => $keys->mapWithKeys(fn ($key) => [(string) $key => $this->finance->transactionTypeLabel((string) $key)])->all(),
             'transaction_direction' => $keys->mapWithKeys(fn ($key) => [(string) $key => __('report_designer.finance_directions.'.$key)])->all(),
             'finance_category' => FinanceCategory::query()->whereIn('id', $keys)->pluck('name', 'id')->mapWithKeys(fn ($name, $id) => [(string) $id => $name])->all(),

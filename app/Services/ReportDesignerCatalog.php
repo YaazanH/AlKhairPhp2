@@ -16,6 +16,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_LOLLIPOP = 'lollipop';
 
+    public const PRESENTATION_LINE = 'line';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -326,6 +328,7 @@ class ReportDesignerCatalog
     {
         return [
             self::PRESENTATION_LOLLIPOP => __('report_designer.presentation.types.lollipop'),
+            self::PRESENTATION_LINE => __('report_designer.presentation.types.line'),
         ];
     }
 
@@ -342,7 +345,7 @@ class ReportDesignerCatalog
         ];
     }
 
-    public function validatePresentation(array $presentation, ?string $groupBy, bool $allowSpecialized = false): array
+    public function validatePresentation(array $presentation, ?string $groupBy, bool $allowSpecialized = false, ?string $source = null): array
     {
         $type = (string) ($presentation['type'] ?? self::PRESENTATION_TABLE);
         $density = (string) ($presentation['density'] ?? 'comfortable');
@@ -358,6 +361,13 @@ class ReportDesignerCatalog
         if ($type !== self::PRESENTATION_TABLE && blank($groupBy)) {
             throw ValidationException::withMessages([
                 'presentationType' => __('report_designer.validation.chart_requires_grouping'),
+            ]);
+        }
+
+        if ($type === self::PRESENTATION_LINE
+            && ($source === null || ! in_array($groupBy, $this->chronologicalGroupFields($source), true))) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.line_requires_date_grouping'),
             ]);
         }
 
@@ -512,18 +522,30 @@ class ReportDesignerCatalog
             self::STUDENTS => ['status', 'grade_level', 'current_group'],
             self::COURSES => ['academic_year', 'status'],
             self::GROUPS => ['course_name', 'academic_year', 'teacher_name', 'assistant_teacher_name', 'grade_level', 'status'],
-            self::STUDENT_ATTENDANCE => ['attendance_status', 'presence_result', 'attendance_scope', 'course_name', 'group_name'],
-            self::MEMORIZATION_SESSIONS => ['entry_type', 'teacher_name', 'course_name', 'group_name'],
-            self::QURAN_TESTS => ['test_type', 'juz_number', 'test_status', 'teacher_name', 'course_name', 'group_name'],
+            self::STUDENT_ATTENDANCE => ['attendance_date', 'attendance_status', 'presence_result', 'attendance_scope', 'course_name', 'group_name'],
+            self::MEMORIZATION_SESSIONS => ['recorded_on', 'entry_type', 'teacher_name', 'course_name', 'group_name'],
+            self::QURAN_TESTS => ['tested_on', 'test_type', 'juz_number', 'test_status', 'teacher_name', 'course_name', 'group_name'],
             self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['juz_number', 'test_status', 'latest_attempt_status', 'teacher_name', 'course_name', 'group_name'],
-            self::ASSESSMENTS => ['assessment_type', 'assessment_groups', 'status'],
-            self::ASSESSMENT_RESULTS => ['assessment_type', 'result_status', 'teacher_name', 'course_name', 'group_name'],
+            self::ASSESSMENTS => ['due_at', 'assessment_type', 'assessment_groups', 'status'],
+            self::ASSESSMENT_RESULTS => ['due_at', 'assessment_type', 'result_status', 'teacher_name', 'course_name', 'group_name'],
             self::TEACHERS => ['teacher_status', 'job_title', 'is_helping', 'assigned_courses'],
-            self::FINANCE_TRANSACTIONS => ['transaction_type', 'transaction_direction', 'finance_category', 'cash_box', 'currency'],
+            self::FINANCE_TRANSACTIONS => ['transaction_date', 'transaction_type', 'transaction_direction', 'finance_category', 'cash_box', 'currency'],
             default => [],
         };
 
         return collect($this->fields($source))->only($fieldKeys)->all();
+    }
+
+    public function chronologicalGroupFields(string $source): array
+    {
+        return match ($source) {
+            self::STUDENT_ATTENDANCE => ['attendance_date'],
+            self::MEMORIZATION_SESSIONS => ['recorded_on'],
+            self::QURAN_TESTS => ['tested_on'],
+            self::ASSESSMENTS, self::ASSESSMENT_RESULTS => ['due_at'],
+            self::FINANCE_TRANSACTIONS => ['transaction_date'],
+            default => [],
+        };
     }
 
     public function validateGrouping(string $source, ?string $field): ?string

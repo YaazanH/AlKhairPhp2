@@ -226,6 +226,38 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('data-report-presentation="lollipop"', $html);
         $this->assertStringContainsString('Group A', $html);
         $this->assertStringContainsString('8', $html);
+
+        try {
+            $catalog->validatePresentation([
+                'type' => ReportDesignerCatalog::PRESENTATION_LINE,
+                'density' => 'comfortable',
+            ], 'presence_result', true, ReportDesignerCatalog::STUDENT_ATTENDANCE);
+            $this->fail('A time trend must reject non-date groupings.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('presentationType', $exception->errors());
+        }
+
+        $linePresentation = $catalog->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_LINE,
+            'density' => 'comfortable',
+        ], 'attendance_date', true, ReportDesignerCatalog::STUDENT_ATTENDANCE);
+        $lineHtml = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            [
+                'grouping' => [
+                    'label' => 'Attendance date',
+                    'columns' => ['group' => 'Attendance date', 'record_count' => 'Records'],
+                    'rows' => [
+                        ['group' => '2026-10-01', 'record_count' => 2],
+                        ['group' => '2026-10-02', 'record_count' => 5],
+                    ],
+                ],
+                'presentation' => $linePresentation,
+            ],
+        );
+        $this->assertStringContainsString('data-report-presentation="line"', $lineHtml);
+        $this->assertStringContainsString('<polyline', $lineHtml);
+        $this->assertStringContainsString('2026-10-02: 5', $lineHtml);
     }
 
     public function test_grouped_report_presentation_is_saved_and_reused_in_preview_full_report_and_dashboard(): void
@@ -665,6 +697,47 @@ class ReportDesignerTest extends TestCase
             'attendance_scope' => __('report_designer.attendance_scopes.center'),
             'notes' => 'Arrived on time',
         ]], $preview['rows']);
+
+        $secondStudent = Student::query()->create([
+            'first_name' => 'Omar',
+            'last_name' => 'Saleh',
+            'student_number' => 'S-402',
+            'birth_date' => '2014-02-01',
+            'status' => 'active',
+        ]);
+        foreach ([
+            ['date' => '2026-09-30', 'students' => [$student]],
+            ['date' => '2026-10-02', 'students' => [$student, $secondStudent]],
+        ] as $attendance) {
+            $attendanceDay = StudentAttendanceDay::query()->create([
+                'attendance_date' => $attendance['date'],
+                'scope' => 'center',
+                'status' => 'closed',
+                'created_by' => $administrator->id,
+            ]);
+            foreach ($attendance['students'] as $attendee) {
+                StudentAttendanceRecord::query()->create([
+                    'student_attendance_day_id' => $attendanceDay->id,
+                    'student_id' => $attendee->id,
+                    'attendance_status_id' => $present->id,
+                ]);
+            }
+        }
+
+        $trend = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => ReportDesignerCatalog::STUDENT_ATTENDANCE,
+            'selected_fields' => ['attendance_date', 'full_name'],
+            'calculations' => [['operation' => 'count', 'field' => null]],
+            'group_by' => 'attendance_date',
+            'filters' => ['status' => 'all'],
+            'sort_direction' => 'asc',
+        ], $administrator);
+
+        $this->assertSame([
+            ['group' => '2026-09-30', 'record_count' => 1],
+            ['group' => '2026-10-01', 'record_count' => 1],
+            ['group' => '2026-10-02', 'record_count' => 2],
+        ], $trend['grouping']['rows']);
     }
 
     public function test_student_attendance_preview_respects_group_scope(): void

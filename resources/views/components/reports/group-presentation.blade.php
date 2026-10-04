@@ -5,12 +5,14 @@
     $density = (string) data_get($presentation, 'density', 'comfortable');
     $allRows = collect($grouping['rows'] ?? [])->values();
     $chartLimit = $compact ? 5 : 9;
-    $rows = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_TABLE
-        ? $allRows->take($compact ? 6 : PHP_INT_MAX)->values()
-        : $allRows->take($chartLimit)->values();
-    $remainingCount = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_TABLE
-        ? 0
-        : (int) $allRows->skip($chartLimit)->sum('record_count');
+    $isTable = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_TABLE;
+    $isLine = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_LINE;
+    $rows = match (true) {
+        $isTable => $allRows->take($compact ? 6 : PHP_INT_MAX)->values(),
+        $isLine => $allRows->take(-$chartLimit)->values(),
+        default => $allRows->take($chartLimit)->values(),
+    };
+    $remainingCount = $isTable || $isLine ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
     if ($remainingCount > 0) {
         $rows->push(['group' => __('report_designer.presentation.other'), 'record_count' => $remainingCount]);
     }
@@ -26,6 +28,19 @@
             $cursor = $next;
         }
     }
+    $lineX = fn (int $index): float => app()->isLocale('ar')
+        ? 420 - ($index * (384 / max($rows->count() - 1, 1)))
+        : 36 + ($index * (384 / max($rows->count() - 1, 1)));
+    $lineY = fn (int $value): float => 164 - (($value / $maximum) * 132);
+    $linePoints = $rows->map(fn ($row, int $index): string => $lineX($index).','.$lineY((int) $row['record_count']))->implode(' ');
+    $lineDecimals = $maximum < 4 ? 1 : 0;
+    $lineLabel = function (string $value): string {
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}/', $value)) {
+            return $value;
+        }
+
+        return app()->isLocale('ar') ? substr($value, 8, 2).'-'.substr($value, 5, 2) : substr($value, 5, 5);
+    };
 @endphp
 
 <div {{ $attributes->class('report-presentation') }} data-report-presentation="{{ $type }}">
@@ -62,6 +77,23 @@
                 </div>
             @endforeach
         </div>
+    @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_LINE)
+        <svg viewBox="0 0 456 208" dir="ltr" class="h-auto w-full overflow-visible" role="img" aria-label="{{ __('report_designer.presentation.chart_aria', ['group' => $grouping['label']]) }}">
+            <line x1="36" y1="164" x2="420" y2="164" stroke="rgba(255,255,255,.22)" stroke-width="1.5" />
+            @foreach(range(0, 4) as $tick)
+                @php($gridY = 164 - (($tick / 4) * 132))
+                <line x1="36" y1="{{ $gridY }}" x2="420" y2="{{ $gridY }}" stroke="rgba(255,255,255,.08)" stroke-width="1" />
+                <text x="28" y="{{ $gridY + 3 }}" text-anchor="end" fill="#a3a3a3" font-size="9">{{ number_format(($maximum / 4) * $tick, $lineDecimals) }}</text>
+            @endforeach
+            <polyline points="{{ $linePoints }}" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+            @foreach($rows as $index => $row)
+                <g tabindex="0">
+                    <circle cx="{{ $lineX($index) }}" cy="{{ $lineY((int) $row['record_count']) }}" r="5" fill="#38bdf8" stroke="#0a0a0a" stroke-width="2" />
+                    <title>{{ $row['group'] }}: {{ number_format((int) $row['record_count']) }}</title>
+                    <text x="{{ $lineX($index) }}" y="190" text-anchor="middle" fill="#a3a3a3" font-size="9">{{ $lineLabel((string) $row['group']) }}</text>
+                </g>
+            @endforeach
+        </svg>
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_DONUT && $total > 0)
         <div class="grid items-center gap-5 sm:grid-cols-[11rem_minmax(0,1fr)]">
             <div class="relative mx-auto grid size-40 place-items-center rounded-full" style="background: conic-gradient({{ implode(', ', $segments) }})" role="img" aria-label="{{ __('report_designer.presentation.chart_aria', ['group' => $grouping['label']]) }}">
