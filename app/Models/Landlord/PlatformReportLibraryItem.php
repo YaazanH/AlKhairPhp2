@@ -10,6 +10,8 @@ class PlatformReportLibraryItem extends LandlordModel
     protected $fillable = [
         'uuid',
         'kind',
+        'system_key',
+        'is_system',
         'name',
         'description',
         'draft_definition',
@@ -27,6 +29,7 @@ class PlatformReportLibraryItem extends LandlordModel
             'description' => 'array',
             'draft_definition' => 'array',
             'required_modules' => 'array',
+            'is_system' => 'boolean',
         ];
     }
 

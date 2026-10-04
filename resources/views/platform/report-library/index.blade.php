@@ -15,7 +15,7 @@
             <article class="flex min-h-64 flex-col rounded-3xl border bg-white p-6 shadow-sm">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">{{ ucfirst($item->kind) }}</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">{{ $item->is_system ? 'Built-in template' : ucfirst($item->kind) }}</p>
                         <h2 class="mt-1 text-xl font-bold">{{ $item->name['en'] }}</h2>
                         <p class="mt-1 text-sm text-zinc-500" dir="rtl">{{ $item->name['ar'] }}</p>
                     </div>
@@ -32,7 +32,7 @@
                 </div>
                 <div class="mt-auto flex items-center justify-between border-t pt-5 text-sm">
                     <span class="text-zinc-500">Updated {{ $item->updated_at->diffForHumans() }}</span>
-                    <a href="{{ route('platform.report-library.edit', $item) }}" class="font-semibold text-emerald-700">Review item &rarr;</a>
+                    <a href="{{ route('platform.report-library.edit', $item) }}" class="font-semibold text-emerald-700">{{ $item->is_system ? 'View template' : 'Review item' }} &rarr;</a>
                 </div>
             </article>
         @empty

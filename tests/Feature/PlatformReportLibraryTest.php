@@ -38,7 +38,7 @@ class PlatformReportLibraryTest extends TestCase
         $this->actingAs($owner, 'platform')->post(route('platform.report-library.store'), $this->payload())
             ->assertRedirect();
 
-        $item = PlatformReportLibraryItem::query()->sole();
+        $item = PlatformReportLibraryItem::query()->where('is_system', false)->latest('id')->firstOrFail();
         $this->assertSame(['students'], $item->required_modules);
         $this->assertNull($item->published_revision_id);
 
@@ -82,7 +82,7 @@ class PlatformReportLibraryTest extends TestCase
 
         $this->actingAs($manager, 'platform')->post(route('platform.report-library.store'), $this->payload())
             ->assertRedirect();
-        $item = PlatformReportLibraryItem::query()->sole();
+        $item = PlatformReportLibraryItem::query()->where('is_system', false)->latest('id')->firstOrFail();
 
         $this->actingAs($manager, 'platform')->post(route('platform.report-library.publish', $item))->assertForbidden();
         $this->actingAs($publisher, 'platform')->get(route('platform.report-library.edit', $item))
@@ -92,6 +92,31 @@ class PlatformReportLibraryTest extends TestCase
             ->assertForbidden();
         $this->actingAs($publisher, 'platform')->post(route('platform.report-library.publish', $item))
             ->assertRedirect();
+    }
+
+    public function test_predefined_templates_are_published_and_cannot_be_modified_from_platform_management(): void
+    {
+        $owner = $this->administrator('owner@example.test');
+        $items = PlatformReportLibraryItem::query()->where('is_system', true)->with('publishedRevision')->get();
+
+        $this->assertCount(7, $items);
+        $this->assertSame([
+            'assessment-performance',
+            'attendance-risk',
+            'course-completion-overview',
+            'finance-summary',
+            'quran-test-outcomes',
+            'students-by-group',
+            'teacher-workload',
+        ], $items->pluck('system_key')->sort()->values()->all());
+        $this->assertTrue($items->every(fn (PlatformReportLibraryItem $item): bool => $item->publishedRevision !== null && $item->latest_version === 1));
+
+        $systemItem = $items->first();
+        $this->actingAs($owner, 'platform')->get(route('platform.report-library.edit', $systemItem))
+            ->assertOk()
+            ->assertSee('built-in template is maintained by the application');
+        $this->actingAs($owner, 'platform')->put(route('platform.report-library.update', $systemItem), $this->payload())->assertForbidden();
+        $this->actingAs($owner, 'platform')->post(route('platform.report-library.publish', $systemItem))->assertForbidden();
     }
 
     private function administrator(string $email): PlatformAdministrator

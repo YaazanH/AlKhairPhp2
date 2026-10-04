@@ -95,6 +95,29 @@ class ReportLibraryInstallationTest extends TestCase
         $this->assertDatabaseCount('report_definitions', 0);
     }
 
+    public function test_predefined_templates_are_ready_for_compatible_tenants_and_install_as_editable_copies(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(collect([
+            'report-library.install',
+            'finance.reports.view',
+        ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
+
+        $response = $this->actingAs($user)->get(route('reports.library.index'))->assertOk();
+        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية'] as $name) {
+            $response->assertSee($name);
+        }
+        $this->assertSame(7, substr_count($response->getContent(), __('report_library.labels.ready')));
+
+        $template = PlatformReportLibraryItem::query()->where('system_key', 'students-by-group')->firstOrFail();
+        $this->actingAs($user)->post(route('reports.library.install', $template))->assertRedirect();
+
+        $copy = ReportDefinition::query()->sole();
+        $this->assertSame('الطلاب حسب المجموعة', $copy->name);
+        $this->assertSame($template->uuid, $copy->library_item_uuid);
+        $this->assertSame(ReportDefinition::STATUS_DRAFT, $copy->status);
+    }
+
     private function publishedItem(string $source = 'students', array $definitionOverrides = [], array $requiredModules = ['students']): PlatformReportLibraryItem
     {
         $definition = array_replace([

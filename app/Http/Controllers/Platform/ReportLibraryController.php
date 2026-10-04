@@ -70,6 +70,7 @@ class ReportLibraryController extends Controller
 
     public function update(Request $request, PlatformReportLibraryItem $libraryItem): RedirectResponse
     {
+        abort_if($libraryItem->is_system, 403, 'System library templates are managed by the application.');
         $data = $this->validated($request);
         $administrator = $request->user('platform');
 
@@ -83,6 +84,7 @@ class ReportLibraryController extends Controller
 
     public function publish(Request $request, PlatformReportLibraryItem $libraryItem): RedirectResponse
     {
+        abort_if($libraryItem->is_system, 403, 'System library templates are managed by the application.');
         DB::connection('landlord')->transaction(function () use ($request, $libraryItem): void {
             $item = PlatformReportLibraryItem::query()->lockForUpdate()->findOrFail($libraryItem->id);
             $version = $item->latest_version + 1;

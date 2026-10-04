@@ -1,7 +1,7 @@
 @php
     $editing = $item->exists;
-    $canManage = auth('platform')->user()->hasPlatformPermission('manage.report-library');
-    $canPublish = auth('platform')->user()->hasPlatformPermission('publish.report-library');
+    $canManage = auth('platform')->user()->hasPlatformPermission('manage.report-library') && !$item->is_system;
+    $canPublish = auth('platform')->user()->hasPlatformPermission('publish.report-library') && !$item->is_system;
     $storedDefinition = $editing && data_get($item->draft_definition, 'data_source') === $source ? $item->draft_definition : [];
     $selectedFields = old('selected_fields', data_get($storedDefinition, 'selected_fields', app(\App\Services\ReportDesignerCatalog::class)->defaultFields($source)));
     $selectedCalculations = old('calculations', collect(data_get($storedDefinition, 'calculations', [['operation' => 'count', 'field' => null]]))->map(fn ($calculation) => $calculation['operation'].($calculation['field'] ? ':'.$calculation['field'] : ''))->all());
@@ -17,6 +17,10 @@
             <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Published revision <strong>v{{ $item->latest_version }}</strong> remains unchanged until you publish again.</div>
         @endif
     </header>
+
+    @if($item->is_system)
+        <div class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950">This built-in template is maintained by the application so every tenant receives the same reviewed definition. Tenants install an editable copy; this original cannot be changed here.</div>
+    @endif
 
     @if($canManage)
         <form method="GET" action="{{ $editing ? route('platform.report-library.edit', $item) : route('platform.report-library.create') }}" class="rounded-3xl border bg-white p-5 shadow-sm">
