@@ -138,7 +138,7 @@ class ReportLibraryController extends Controller
         $presentation = $this->catalog->validatePresentation([
             'type' => $data['presentation_type'],
             'density' => $data['table_density'],
-        ], $groupBy);
+        ], $groupBy, false, $source, $calculations);
 
         return [
             'kind' => $data['kind'],

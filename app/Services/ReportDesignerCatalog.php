@@ -348,10 +348,11 @@ class ReportDesignerCatalog
         ];
     }
 
-    public function validatePresentation(array $presentation, ?string $groupBy, bool $allowSpecialized = false, ?string $source = null): array
+    public function validatePresentation(array $presentation, ?string $groupBy, bool $allowSpecialized = false, ?string $source = null, array $calculations = []): array
     {
         $type = (string) ($presentation['type'] ?? self::PRESENTATION_TABLE);
         $density = (string) ($presentation['density'] ?? 'comfortable');
+        $metric = (string) ($presentation['metric'] ?? 'record_count');
 
         $types = $allowSpecialized ? $this->libraryPresentationTypes() : $this->presentationTypes();
 
@@ -380,7 +381,22 @@ class ReportDesignerCatalog
             ]);
         }
 
-        return ['type' => $type, 'density' => $density];
+        $allowedMetrics = collect($calculations)
+            ->mapWithKeys(fn (array $calculation, int $index): array => ($calculation['operation'] ?? null) === 'count'
+                ? []
+                : ['report_calculation_'.$index => true])
+            ->prepend(true, 'record_count');
+        if (! $allowedMetrics->has($metric)) {
+            throw ValidationException::withMessages([
+                'presentationMetric' => __('report_designer.validation.invalid_presentation_metric'),
+            ]);
+        }
+
+        return array_filter([
+            'type' => $type,
+            'density' => $density,
+            'metric' => $metric === 'record_count' ? null : $metric,
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     public function sortableFields(string $source): array
@@ -494,6 +510,7 @@ class ReportDesignerCatalog
         return [
             'count' => __('report_designer.calculation_operations.count'),
             'sum' => __('report_designer.calculation_operations.sum'),
+            'absolute_sum' => __('report_designer.calculation_operations.absolute_sum'),
             'avg' => __('report_designer.calculation_operations.avg'),
             'min' => __('report_designer.calculation_operations.min'),
             'max' => __('report_designer.calculation_operations.max'),

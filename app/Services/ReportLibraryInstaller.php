@@ -83,6 +83,7 @@ class ReportLibraryInstaller
         $source = (string) data_get($definition, 'data_source');
         $fields = $this->catalog->validateFields($source, (array) data_get($definition, 'selected_fields', []));
         $groupBy = $this->catalog->validateGrouping($source, data_get($definition, 'group_by'));
+        $calculations = $this->catalog->validateCalculations($source, (array) data_get($definition, 'calculations', []));
         [$sortField, $sortDirection] = $this->catalog->validateSort(
             $source,
             data_get($definition, 'sort_field'),
@@ -92,9 +93,9 @@ class ReportLibraryInstaller
         return [
             'data_source' => $source,
             'selected_fields' => $fields,
-            'calculations' => $this->catalog->validateCalculations($source, (array) data_get($definition, 'calculations', [])),
+            'calculations' => $calculations,
             'group_by' => $groupBy,
-            'presentation' => $this->catalog->validatePresentation((array) data_get($definition, 'presentation', []), $groupBy, true, $source),
+            'presentation' => $this->catalog->validatePresentation((array) data_get($definition, 'presentation', []), $groupBy, true, $source, $calculations),
             'filters' => (array) data_get($definition, 'filters', []),
             'sort_field' => $sortField,
             'sort_direction' => $sortDirection,

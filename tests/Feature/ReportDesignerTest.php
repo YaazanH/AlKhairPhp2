@@ -280,6 +280,48 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('data-report-presentation="treemap"', $treemapHtml);
         $this->assertStringContainsString('Grade 4', $treemapHtml);
         $this->assertStringContainsString('60.0%', $treemapHtml);
+
+        $financeCalculations = [
+            ['operation' => 'count', 'field' => null],
+            ['operation' => 'absolute_sum', 'field' => 'local_amount'],
+        ];
+        $expensePresentation = $catalog->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_DONUT,
+            'density' => 'comfortable',
+            'metric' => 'report_calculation_1',
+        ], 'finance_category', false, ReportDesignerCatalog::FINANCE_TRANSACTIONS, $financeCalculations);
+        $expenseHtml = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            [
+                'grouping' => [
+                    'label' => 'Category',
+                    'columns' => [
+                        'group' => 'Category',
+                        'record_count' => 'Records',
+                        'report_calculation_1' => 'Absolute total of local amount',
+                    ],
+                    'rows' => [
+                        ['group' => 'Supplies', 'record_count' => 2, 'report_calculation_1' => 100.0],
+                        ['group' => 'Transport', 'record_count' => 1, 'report_calculation_1' => 300.0],
+                    ],
+                ],
+                'presentation' => $expensePresentation,
+            ],
+        );
+        $this->assertStringContainsString('Absolute total of local amount', $expenseHtml);
+        $this->assertStringContainsString('Transport', $expenseHtml);
+        $this->assertStringContainsString('300', $expenseHtml);
+
+        try {
+            $catalog->validatePresentation([
+                'type' => ReportDesignerCatalog::PRESENTATION_DONUT,
+                'density' => 'comfortable',
+                'metric' => 'report_calculation_2',
+            ], 'finance_category', false, ReportDesignerCatalog::FINANCE_TRANSACTIONS, $financeCalculations);
+            $this->fail('A chart measure must reference an approved calculation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('presentationMetric', $exception->errors());
+        }
     }
 
     public function test_grouped_report_presentation_is_saved_and_reused_in_preview_full_report_and_dashboard(): void
@@ -1374,6 +1416,21 @@ class ReportDesignerTest extends TestCase
             ]],
             'limit' => ReportDesignerQueryService::GROUP_PREVIEW_LIMIT,
         ], $preview['grouping']);
+
+        $expensePreview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'finance_transactions',
+            'selected_fields' => ['transaction_number', 'finance_category', 'local_amount'],
+            'calculations' => [
+                ['operation' => 'count', 'field' => null],
+                ['operation' => 'absolute_sum', 'field' => 'local_amount'],
+            ],
+            'group_by' => 'finance_category',
+            'filters' => ['status' => 'expense'],
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame(100.0, $expensePreview['calculations'][1]['value']);
+        $this->assertSame(100.0, $expensePreview['grouping']['rows'][0]['report_calculation_1']);
     }
 
     public function test_calculations_use_every_filtered_record_beyond_the_preview_limit(): void

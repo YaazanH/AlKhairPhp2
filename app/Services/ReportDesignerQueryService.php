@@ -1111,7 +1111,9 @@ class ReportDesignerQueryService
             ->mapWithKeys(function (array $calculation) use ($columns, $query): array {
                 $operation = $calculation['operation'];
                 $field = $calculation['field'];
-                $value = (clone $query)->{$operation}($columns[$field]);
+                $value = $operation === 'absolute_sum'
+                    ? (clone $query)->sum(DB::raw('ABS('.$columns[$field].')'))
+                    : (clone $query)->{$operation}($columns[$field]);
 
                 return [$this->calculationKey($operation, $field) => $value === null ? null : round((float) $value, 2)];
             })
@@ -1174,7 +1176,7 @@ class ReportDesignerQueryService
             return;
         }
 
-        $number = (float) $value;
+        $number = $operation === 'absolute_sum' ? abs((float) $value) : (float) $value;
         $state ??= ['operation' => $operation, 'count' => 0, 'sum' => 0.0, 'min' => null, 'max' => null];
         $state['count']++;
         $state['sum'] += $number;
@@ -1189,7 +1191,7 @@ class ReportDesignerQueryService
         }
 
         $value = match ($state['operation']) {
-            'sum' => $state['sum'],
+            'sum', 'absolute_sum' => $state['sum'],
             'avg' => $state['sum'] / $state['count'],
             'min' => $state['min'],
             'max' => $state['max'],
@@ -1284,7 +1286,10 @@ class ReportDesignerQueryService
             }
 
             $alias = 'report_calculation_'.$index;
-            $groupQuery->selectRaw(strtoupper($calculation['operation']).'('.$calculationColumns[$calculation['field']].') as '.$alias);
+            $expression = $calculation['operation'] === 'absolute_sum'
+                ? 'SUM(ABS('.$calculationColumns[$calculation['field']].'))'
+                : strtoupper($calculation['operation']).'('.$calculationColumns[$calculation['field']].')';
+            $groupQuery->selectRaw($expression.' as '.$alias);
             $calculationLabels[$alias] = $this->catalog->calculationLabel(
                 ReportDesignerCatalog::FINANCE_TRANSACTIONS,
                 $calculation['operation'],

@@ -37,6 +37,8 @@ new class extends Component
 
     public string $tableDensity = 'comfortable';
 
+    public string $presentationMetric = 'record_count';
+
     public string $statusFilter = 'all';
 
     public string $searchFilter = '';
@@ -109,6 +111,7 @@ new class extends Component
         $this->groupBy = '';
         $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
         $this->tableDensity = 'comfortable';
+        $this->presentationMetric = 'record_count';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -156,6 +159,7 @@ new class extends Component
         $this->groupBy = $definition->group_by ?? '';
         $this->presentationType = (string) data_get($definition->presentation, 'type', ReportDesignerCatalog::PRESENTATION_TABLE);
         $this->tableDensity = (string) data_get($definition->presentation, 'density', 'comfortable');
+        $this->presentationMetric = (string) data_get($definition->presentation, 'metric', 'record_count');
         $this->statusFilter = (string) ($filters['status'] ?? 'all');
         $this->searchFilter = (string) ($filters['search'] ?? '');
         $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
@@ -453,6 +457,7 @@ new class extends Component
                     : $catalog->presentationTypes(),
             ))],
             'tableDensity' => ['required', Rule::in(array_keys($catalog->tableDensities()))],
+            'presentationMetric' => ['required', 'string'],
             'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
@@ -467,7 +472,8 @@ new class extends Component
         $presentation = $catalog->validatePresentation([
             'type' => $validated['presentationType'],
             'density' => $validated['tableDensity'],
-        ], $groupBy, $this->mayPreserveSpecializedPresentation(), $validated['dataSource']);
+            'metric' => $validated['presentationMetric'],
+        ], $groupBy, $this->mayPreserveSpecializedPresentation(), $validated['dataSource'], $calculations);
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
             $validated['sortField'],
@@ -506,6 +512,7 @@ new class extends Component
         $this->groupBy = '';
         $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
         $this->tableDensity = 'comfortable';
+        $this->presentationMetric = 'record_count';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -608,7 +615,7 @@ new class extends Component
 
         $candidates = collect([['operation' => 'count', 'field' => '']]);
         foreach (array_keys(app(ReportDesignerCatalog::class)->calculableFields($this->dataSource)) as $field) {
-            foreach (['sum', 'avg', 'min', 'max'] as $operation) {
+            foreach (['sum', 'absolute_sum', 'avg', 'min', 'max'] as $operation) {
                 $candidates->push(['operation' => $operation, 'field' => $field]);
             }
         }
@@ -921,7 +928,7 @@ new class extends Component
                                 <div class="text-sm font-semibold text-white">{{ __('report_designer.grouping.title', ['field' => $previewResult['grouping']['label']]) }}</div>
                                 <div class="mt-1 text-xs text-neutral-400">{{ __('report_designer.grouping.help', ['count' => $previewResult['grouping']['limit']]) }}</div>
                             </div>
-                            <x-reports.group-presentation :grouping="$previewResult['grouping']" :presentation="['type' => $presentationType, 'density' => $tableDensity]" />
+                            <x-reports.group-presentation :grouping="$previewResult['grouping']" :presentation="['type' => $presentationType, 'density' => $tableDensity, 'metric' => $presentationMetric]" />
                         </div>
                     @endif
                     <x-reports.detail-table :result="$previewResult" :presentation="['type' => $presentationType, 'density' => $tableDensity]" />
