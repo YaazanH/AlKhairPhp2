@@ -13,15 +13,21 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public TeacherAttendanceDay $currentDay;
+
     public string $day_status = 'open';
+
     public string $notes = '';
+
     public string $manual_teacher_id = '';
+
     public bool $showManualTeacherModal = false;
+
     public array $selected_statuses = [];
 
     public function mount(TeacherAttendanceDay $teacherAttendanceDay): void
@@ -70,6 +76,36 @@ new class extends Component {
             ->map(fn ($teacherId) => (int) $teacherId)
             ->all();
 
+        $teacherAttendancePercentages = $existingTeacherIds === []
+            ? collect()
+            : $this->scopeTeacherAttendanceRecordsQuery(
+                TeacherAttendanceRecord::query()
+                    ->with('status:id,is_present')
+                    ->whereIn('teacher_id', $existingTeacherIds)
+                    ->whereNull('course_finished_at')
+                    ->whereHas('attendanceDay', function ($query) use ($day): void {
+                        $query->whereDate('attendance_date', '<=', $day->attendance_date);
+
+                        if ($day->course_id) {
+                            $query->where('course_id', $day->course_id);
+                        } else {
+                            $query->whereNull('course_id');
+                        }
+                    })
+            )
+                ->get(['id', 'teacher_attendance_day_id', 'teacher_id', 'attendance_status_id'])
+                ->groupBy('teacher_id')
+                ->map(function ($records): int {
+                    $listedDays = $records->pluck('teacher_attendance_day_id')->unique()->count();
+                    $presentDays = $records
+                        ->filter(fn (TeacherAttendanceRecord $record) => (bool) $record->status?->is_present)
+                        ->pluck('teacher_attendance_day_id')
+                        ->unique()
+                        ->count();
+
+                    return $listedDays > 0 ? (int) ceil(($presentDays / $listedDays) * 100) : 0;
+                });
+
         $scheduledTeacherIds = $this->scheduledTeacherIdsForDate($day->attendance_date?->format('Y-m-d'));
         $statuses = AttendanceStatus::query()->where('is_active', true)
             ->whereIn('scope', ['teacher', 'both'])->orderBy('name')->get();
@@ -77,6 +113,7 @@ new class extends Component {
         return [
             'dayRecord' => $day,
             'teacherRecords' => $teacherRecords,
+            'teacherAttendancePercentages' => $teacherAttendancePercentages,
             'availableExtraTeachers' => $this->availableTeachersScopeQuery()
                 ->with('accessRole')
                 ->when($existingTeacherIds !== [], fn ($query) => $query->whereNotIn('id', $existingTeacherIds))
@@ -377,11 +414,11 @@ new class extends Component {
             ->where('is_active', true)
             ->whereIn('scope', ['teacher', 'both'])
             ->value('id') ?? AttendanceStatus::query()
-                ->where('is_active', true)
-                ->whereIn('scope', ['teacher', 'both'])
-                ->orderByDesc('is_present')
-                ->orderBy('name')
-                ->value('id');
+            ->where('is_active', true)
+            ->whereIn('scope', ['teacher', 'both'])
+            ->orderByDesc('is_present')
+            ->orderBy('name')
+            ->value('id');
     }
 
     protected function availableTeachersScopeQuery()
@@ -513,11 +550,11 @@ new class extends Component {
                             <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
                             <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
                             <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
-                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.status') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.percentage') }}</th>
                             <th class="teacher-attendance-status-column px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
                             @can('attendance.teacher.take')
                                 @if ($dayRecord->status !== 'closed')
-                                    <th class="attendance-desktop-only admin-actions-column teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.teacher_attendance.table.headers.actions') }}</th>
+                                    <th class="admin-actions-column teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.teacher_attendance.table.headers.actions') }}</th>
                                 @endif
                             @endcan
                         </tr>
@@ -547,10 +584,8 @@ new class extends Component {
                                     </div>
                                 </td>
                                 <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
-                                <td class="attendance-desktop-only px-5 py-4 lg:px-6">
-                                    <span class="{{ $teacher?->status === 'active' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                        {{ __('crud.common.status_options.'.($teacher?->status ?: 'inactive')) }}
-                                    </span>
+                                <td class="attendance-desktop-only px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="{{ $teacherAttendancePercentages->get($record->teacher_id, 0) }}">
+                                    <bdi dir="ltr">{{ number_format($teacherAttendancePercentages->get($record->teacher_id, 0)) }}%</bdi>
                                 </td>
                                 <td class="teacher-attendance-status-column px-5 py-4 lg:px-6">
                                     @if ($dayRecord->status === 'closed' || $record->course_finished_at)
@@ -575,9 +610,9 @@ new class extends Component {
                                 </td>
                                 @can('attendance.teacher.take')
                                     @if ($dayRecord->status !== 'closed')
-                                        <td class="attendance-desktop-only teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">
+                                        <td class="teacher-attendance-actions-column px-5 py-4 text-center lg:px-6">
                                             @if (! $record->course_finished_at)
-                                                <button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}">
+                                                <button type="button" wire:click="removeTeacher({{ $record->teacher_id }})" wire:confirm="{{ __('workflow.teacher_attendance.messages.confirm_remove_teacher') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" aria-label="{{ __('workflow.teacher_attendance.table.remove_teacher') }}" data-teacher-attendance-remove-action>
                                                     <x-admin-action-icon name="minus" />
                                                 </button>
                                             @endif

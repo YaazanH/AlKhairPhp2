@@ -119,7 +119,7 @@ class FinanceService
                 'direction' => $direction,
                 'amount' => $acceptedAmount,
                 'transaction_date' => $transactionDate ?: now()->toDateString(),
-                'description' => $request->requested_reason,
+                'description' => $isPull ? ($notes ?: $request->requested_reason) : $request->requested_reason,
                 'entered_by' => $reviewer?->id,
                 'metadata' => [
                     'reference' => $reference,
@@ -1113,6 +1113,39 @@ class FinanceService
             FinanceRequest::query()->whereIn('id', $allRequestIds)->eachById(fn (FinanceRequest $request) => $request->delete());
 
             return true;
+        });
+    }
+
+    public function forceDeleteDeclinedWithdrawalRequest(FinanceRequest $pullRequest): bool
+    {
+        return DB::transaction(function () use ($pullRequest): bool {
+            $request = FinanceRequest::query()
+                ->whereKey($pullRequest->getKey())
+                ->where('type', FinanceRequest::TYPE_PULL)
+                ->where('status', FinanceRequest::STATUS_DECLINED)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $request) {
+                return false;
+            }
+
+            $hasLinkedRecords = FinanceTransaction::withTrashed()
+                ->where('finance_request_id', $request->id)
+                ->orWhere(function (Builder $query) use ($request): void {
+                    $query->where('source_type', FinanceRequest::class)
+                        ->where('source_id', $request->id);
+                })
+                ->orWhere('metadata->parent_pull_request_id', $request->id)
+                ->exists();
+
+            if ($hasLinkedRecords || Invoice::withTrashed()->where('finance_request_id', $request->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'transaction_lookup_no' => __('finance.validation.declined_withdrawal_has_records'),
+                ]);
+            }
+
+            return (bool) $request->forceDelete();
         });
     }
 

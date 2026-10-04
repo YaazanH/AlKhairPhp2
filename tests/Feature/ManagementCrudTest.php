@@ -1248,8 +1248,10 @@ class ManagementCrudTest extends TestCase
             ->assertSee('min-h-[2.875rem]', false)
             ->assertSee('wire:blur="commitCurrentJuz"', false)
             ->assertSee('wire:keydown.space.prevent.stop="commitCurrentJuz"', false)
-            ->assertSee('x-on:keydown.enter.prevent.stop=""', false)
+            ->assertSee("x-on:keydown.enter.prevent.stop=\"if (window.matchMedia('(max-width: 1023px)').matches) { \$wire.addExternalMemorizedJuz() }\"", false)
             ->assertSee('x-on:keydown.tab.prevent.stop=""', false)
+            ->assertSee('wire:click="addExternalMemorizedJuz"', false)
+            ->assertSee('lg:!hidden', false)
             ->assertSee(__('crud.students.form.placeholders.enter_memorized_juz'))
             ->assertDontSee(__('crud.students.form.grade_calculated_help'))
             ->assertDontSee(__('crud.students.form.external_memorized_juzs_help'))
@@ -2368,7 +2370,8 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('.group-show-hero-layout > :first-child,', $groupCss);
         $this->assertStringContainsString('flex: 0 0 auto;', $groupCss);
         $this->assertStringContainsString('width: 26rem;', $groupCss);
-        $this->assertMatchesRegularExpression('/\.group-show-actions > \.admin-icon-button\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*0;[^}]*flex:\s*1 1 0;/s', $groupCss);
+        $this->assertMatchesRegularExpression('/\.group-show-actions > \.admin-icon-button\s*\{[^}]*width:\s*var\(--admin-action-button-size\);[^}]*min-width:\s*var\(--admin-action-button-size\);[^}]*flex:\s*0 0 var\(--admin-action-button-size\);/s', $groupCss);
+        $this->assertMatchesRegularExpression('/\.group-show-actions:has\(> \.admin-icon-button:nth-child\(3\):last-child\) > \.admin-icon-button\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*0;[^}]*flex:\s*1 1 0;/s', $groupCss);
         $this->assertStringNotContainsString("html[dir='rtl'] .group-show-hero-widgets {\n        margin-inline-end: 2.5rem;", $groupCss);
 
         $rosterPdfHtml = view('exports.group-roster-pdf', [
@@ -2688,7 +2691,7 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('إياد سليم');
     }
 
-    public function test_student_search_uses_only_name_or_student_number(): void
+    public function test_student_search_uses_name_father_name_or_student_number_but_not_school(): void
     {
         $this->signIn();
 
@@ -2713,7 +2716,7 @@ class ManagementCrudTest extends TestCase
 
         Volt::test('students.index')
             ->set('search', 'Unique Parent Lookup')
-            ->assertDontSee('Numbered Student');
+            ->assertSee('Numbered Student');
 
         Volt::test('students.index')
             ->set('search', 'Unique School Lookup')

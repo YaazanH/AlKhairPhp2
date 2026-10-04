@@ -529,7 +529,7 @@ new class extends Component
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('workflow.assessments.index.form.groups') }}</label>
                             <div class="assessment-group-scope-control flex gap-2">
-                                <select wire:model.live="group_scope" required data-clearable="false" data-search-selection-required="true" class="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"><option value="single">{{ __('workflow.assessments.index.form.group_scope_options.single') }}</option><option value="multiple">{{ __('workflow.assessments.index.form.group_scope_options.multiple') }}</option><option value="all">{{ __('workflow.assessments.index.form.group_scope_options.all') }}</option></select>
+                                <select wire:model.live="group_scope" required data-search-input="false" data-dropdown-search="false" data-clearable="false" data-search-selection-required="true" class="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"><option value="single">{{ __('workflow.assessments.index.form.group_scope_options.single') }}</option><option value="multiple">{{ __('workflow.assessments.index.form.group_scope_options.multiple') }}</option><option value="all">{{ __('workflow.assessments.index.form.group_scope_options.all') }}</option></select>
                                 @if ($group_scope !== 'all')
                                     <button type="button" wire:click="openGroupPicker" class="admin-icon-button admin-modal-action-button" title="{{ __('workflow.assessments.index.form.groups') }}" aria-label="{{ __('workflow.assessments.index.form.groups') }}" data-assessment-group-picker-open>
                                         <x-admin-action-icon name="more" class="admin-modal-action__icon" />
@@ -577,7 +577,7 @@ new class extends Component
                                 : in_array((string) $group->id, array_map('strval', $group_ids), true);
                         @endphp
                         <button type="button" wire:click="toggleGroup({{ $group->id }})" class="assessment-group-picker-option rounded-xl border px-3 py-3 text-start {{ $isSelected ? 'border-emerald-400/40 bg-emerald-500/10 text-white' : 'border-white/10 text-neutral-300' }}" data-assessment-group-picker-option>
-                            <span class="assessment-group-picker-option__copy"><span class="block font-medium">{{ $group->name }}</span><span class="block text-xs text-neutral-500"><span class="record-course-name">{{ $group->course?->name }}</span></span></span>
+                            <span class="assessment-group-picker-option__copy"><span class="block font-medium">{{ $group->name }}</span></span>
                             <span class="assessment-group-picker-option__check flex h-5 w-5 shrink-0 items-center justify-center rounded border {{ $isSelected ? 'border-emerald-400 bg-emerald-500' : 'border-white/20' }}" data-assessment-group-picker-check>{{ $isSelected ? '✓' : '' }}</span>
                         </button>
                     @endforeach
@@ -624,13 +624,12 @@ new class extends Component
                         <thead>
                             <tr>
                                 <th data-table-number-column class="w-[4%] px-2 py-3 text-center font-medium">#</th>
-                                <th class="w-[20%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
-                                <th class="w-[18%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
-                                <th class="w-[12%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
-                                <th class="w-[9%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
-                                <th class="w-[10%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.average') }}</th>
-                                <th class="w-[10%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.status') }}</th>
-                                <th class="admin-actions-column w-[17%] px-3 py-3 text-center font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
+                                <th class="w-[22%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.assessment') }}</th>
+                                <th class="w-[20%] px-4 py-3 text-left font-medium">{{ __('workflow.assessments.index.form.course') }}</th>
+                                <th class="w-[13%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.schedule') }}</th>
+                                <th class="w-[10%] px-2 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.results') }}</th>
+                                <th class="w-[11%] px-3 py-3 text-left font-medium">{{ __('workflow.assessments.index.table.headers.average') }}</th>
+                                <th class="admin-actions-column w-[20%] px-3 py-3 text-center font-medium">{{ __('workflow.assessments.index.table.headers.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -660,7 +659,6 @@ new class extends Component
                                             —
                                         @endif
                                     </td>
-                                    <td class="px-2 py-3"><span class="{{ $assessment->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">{{ $assessment->is_active ? __('crud.common.status_options.active') : ($assessment->course_finished_at ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive')) }}</span></td>
                                     <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-results.view')

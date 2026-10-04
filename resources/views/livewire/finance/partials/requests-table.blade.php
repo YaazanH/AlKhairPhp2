@@ -90,8 +90,8 @@
                         <td class="px-5 py-3">
                             <div class="admin-action-cluster admin-action-cluster--end">
                                 @if ($request->status === 'accepted' && auth()->user()?->can($printPermission) && ($request->type !== \App\Models\FinanceRequest::TYPE_REVENUE || $request->category?->is_donation))
-                                    <a href="{{ route('finance.requests.print', $request) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a>
-                                    <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
+                                    <a href="{{ route('finance.requests.print', ['financeRequest' => $request] + (in_array($request->type, [\App\Models\FinanceRequest::TYPE_REVENUE, \App\Models\FinanceRequest::TYPE_RETURN], true) ? ['pdf' => 1] : [])) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.actions.print') }}</a>
+                                    <a href="{{ route('finance.requests.print', ['financeRequest' => $request, 'choose' => 1]) }}" target="_blank" rel="noopener" class="pill-link pill-link--compact">{{ __('finance.actions.choose_print_template') }}</a>
                                 @endif
                                 @can('finance.entries.update')
                                     <button type="button" wire:click="openFinanceRequestEditModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.edit_entry') }}</button>

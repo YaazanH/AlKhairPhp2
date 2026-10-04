@@ -2,8 +2,8 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Livewire\Concerns\LinksExistingProfileAccounts;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Course;
 use App\Models\Group;
 use App\Models\ParentProfile;
@@ -12,59 +12,90 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\ManagedUserService;
-use App\Support\RoleRegistry;
+use App\Support\ArabicSearch;
 use App\Support\PhoneNumberFormatter;
+use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB;
-use Livewire\Volt\Component;
 use Livewire\Attributes\Url;
+use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
-    use SupportsCreateAndNew;
     use LinksExistingProfileAccounts;
+    use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
+
     public string $first_name = '';
+
     public string $last_name = '';
+
     public string $phone = '';
+
     public string $access_role_id = '';
+
     public array $access_roles = [];
+
     public array $direct_permissions = [];
+
     public bool $scope_student_progress_all = false;
 
     public array $scope_groups = [];
+
     public array $scope_students = [];
+
     public array $scope_teachers = [];
+
     public array $scope_parents = [];
+
     public string $course_id = '';
+
     public string $status = 'active';
+
     public string $hired_at = '';
+
     public bool $is_helping = true;
+
     public string $photo_path = '';
+
     public $photo_upload = null;
+
     public string $finance_signature_url = '';
+
     public $finance_signature_upload = null;
+
     public string $notes = '';
+
     public ?int $reviewingId = null;
+
     public string $account_username = '';
+
     public string $account_password = '';
+
     public bool $account_is_active = true;
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public string $helpingFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $showReviewModal = false;
 
     #[Url(as: 'edit')]
@@ -85,16 +116,17 @@ new class extends Component {
         $filteredQuery = $this->scopeTeachersQuery(Teacher::query())
             ->with(['accessRole', 'course', 'user'])
             ->when(filled($this->search), function ($query) {
-                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
-                $query->where(function ($builder) use ($normalizedPhone) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
+                    $normalizedPhone = PhoneNumberFormatter::normalize($token);
                     $builder
-                        ->where('first_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('last_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('phone', 'like', '%'.$this->search.'%')
+                        ->where('first_name', 'like', $search)
+                        ->orWhere('last_name', 'like', $search)
+                        ->orWhere('phone', 'like', $search)
                         ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'))
-                        ->orWhereHas('user', fn ($userQuery) => $userQuery->where('username', 'like', '%'.$this->search.'%'))
-                        ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', '%'.$this->search.'%'))
-                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%'));
+                        ->orWhereHas('user', fn ($userQuery) => $userQuery->where('username', 'like', $search))
+                        ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', $search))
+                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', $search));
                 });
             })
             ->when(in_array($this->statusFilter, ['active', 'inactive', 'blocked', 'pending', 'declined'], true), fn ($query) => $query->where('status', $this->statusFilter))
@@ -1155,7 +1187,7 @@ new class extends Component {
                                     @forelse ($availableScopeStudents as $scopeStudent)
                                         <label class="flex items-start gap-3 text-sm text-neutral-200">
                                             <input wire:model="scope_students" type="checkbox" value="{{ $scopeStudent->id }}" class="mt-0.5 rounded">
-                                            <span class="record-person-name">{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
+                                            <span class="record-person-name">{{ $scopeStudent->full_name }}</span>
                                         </label>
                                     @empty
                                         <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>

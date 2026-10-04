@@ -6,33 +6,58 @@ use App\Models\GradeLevel;
 use App\Services\CourseCompletionRuleService;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
 
     public string $required_passed_final_tests = '1';
+
     public string $required_memorized_pages = '0';
+
     public string $final_rule_operator = 'and';
+
     public string $required_passed_quizzes = '1';
+
     public string $retain_percentage = '50';
+
     public string $minimum_points = '0';
+
     public array $assessment_type_requirements = [];
+
     public array $final_test_grade_ids = [];
+
     public array $additional_final_rules = [];
+
     public array $assessment_grade_ids = [];
+
     public array $assessment_rule_grade_ids = [];
+
     public bool $showGradeRuleModal = false;
+
     public bool $showAssessmentTypeModal = false;
+
     public array $enabled_assessment_type_ids = [];
+
     public array $assessment_type_selections = [];
+
     public ?int $assessmentRuleTypeId = null;
+
     public string $gradeRuleTarget = 'final';
+
     public int $gradeRuleRowIndex = 0;
+
     public array $gradeRuleOriginalGradeIds = [];
+
     public array $gradeRuleSelectedGradeIds = [];
+
     public string $academic_year_id = '';
+
     public string $course_id = '';
+
     public string $group_id = '';
+
     public string $enrollment_status = 'active';
+
     public ?array $apply_summary = null;
 
     public function mount(): void
@@ -64,6 +89,7 @@ new class extends Component {
 
         if ($this->academic_year_id === '' && $this->course_id === '' && $this->group_id === '') {
             $this->addError('scope', __('settings.course_completion.errors.filter_required'));
+
             return;
         }
 
@@ -140,7 +166,6 @@ new class extends Component {
 
         session()->flash('status', __('settings.course_completion.messages.rules_saved'));
     }
-
 
     protected function loadSettings(): void
     {
@@ -440,7 +465,6 @@ new class extends Component {
 
         return $this->additional_final_rules[$rowIndex - 1];
     }
-
 }; ?>
 
 <div class="page-stack settings-admin-page">
@@ -476,14 +500,14 @@ new class extends Component {
                                 $operatorModel = $ruleIndex === 0 ? 'final_rule_operator' : 'additional_final_rules.'.($ruleIndex - 1).'.final_rule_operator';
                                 $pagesModel = $ruleIndex === 0 ? 'required_memorized_pages' : 'additional_final_rules.'.($ruleIndex - 1).'.required_memorized_pages';
                             @endphp
-                            <div wire:key="course-completion-final-rule-{{ $ruleIndex }}" class="course-completion-rule-row grid gap-3 md:grid-cols-[minmax(0,1fr)_4.5rem_minmax(0,1fr)_3.125rem] md:items-end" data-course-completion-final-rule-row>
+                            <div wire:key="course-completion-final-rule-{{ $ruleIndex }}" class="course-completion-rule-row grid items-end" data-course-completion-final-rule-row>
                                 <div>
                                     @if ($ruleIndex === 0)<label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.required_passed_final_tests') }}</label>@endif
                                     <input wire:model="{{ $testsModel }}" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
                                     @if ($errors->has($testsModel)) <div class="mt-1 text-sm text-red-400">{{ $errors->first($testsModel) }}</div> @endif
                                 </div>
-                                <div>
-                                    <select wire:model="{{ $operatorModel }}" class="course-completion-operator w-full rounded-xl px-4 py-3" data-clearable="false" data-search-selection-required="true" data-show-chevron="false" data-search-placeholder=""><option value="and">{{ __('settings.course_completion.options.and') }}</option><option value="or">{{ __('settings.course_completion.options.or') }}</option></select>
+                                <div class="course-completion-operator-cell">
+                                    <select wire:model="{{ $operatorModel }}" class="course-completion-operator rounded-xl" data-search-input="false" data-dropdown-search="false" data-clearable="false" data-search-selection-required="true" data-show-chevron="false"><option value="and">{{ __('settings.course_completion.options.and') }}</option><option value="or">{{ __('settings.course_completion.options.or') }}</option></select>
                                     @if ($errors->has($operatorModel)) <div class="mt-1 text-sm text-red-400">{{ $errors->first($operatorModel) }}</div> @endif
                                 </div>
                                 <div>
@@ -501,28 +525,48 @@ new class extends Component {
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="flex items-center justify-end"><x-add-action-button wire:click="openAssessmentTypeModal" :label="__('settings.course_completion.actions.add_assessment_type')" :accent="false" /></div>
-
-                    <div class="mt-4 space-y-3">
-                        @forelse ($assessmentTypes->whereIn('id', $enabled_assessment_type_ids) as $assessmentType)
-                            <div wire:key="course-completion-assessment-rule-{{ $assessmentType->id }}" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_3.125rem] sm:items-end" data-course-completion-assessment-rule>
-                                <div>
-                                    <label class="mb-1 block text-sm font-medium">{{ $assessmentType->name }}</label>
-                                    <input wire:model="assessment_type_requirements.{{ $assessmentType->id }}" type="number" min="0" class="w-full rounded-xl px-4 py-3 text-sm">
-                                    @error('assessment_type_requirements.'.$assessmentType->id) <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                                </div>
-                                <button type="button" wire:click="openGradeRule('assessment', {{ $assessmentType->id }})" class="course-completion-grade-button" aria-label="{{ __('settings.course_completion.labels.choose_grades') }}" data-course-completion-grade-button>
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75v-1.5a3.75 3.75 0 0 0-3.75-3.75h-4.5a3.75 3.75 0 0 0-3.75 3.75v1.5M10.5 10.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM15.75 10.9a2.65 2.65 0 1 0 0-5.3M17.25 13.75a3.5 3.5 0 0 1 3 3.46v1.54" />
-                                    </svg>
-                                </button>
-                            </div>
-                        @empty
-                            <div class="admin-empty-state admin-empty-state--compact">{{ __('settings.course_completion.labels.no_assessment_types') }}</div>
-                        @endforelse
+                <section class="course-completion-assessments overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table data-course-completion-assessment-table>
+                    <div class="admin-grid-meta admin-grid-meta--controls" data-mobile-title-action-row data-settings-mobile-title-action-row>
+                        <div class="admin-grid-meta__title">{{ __('settings.course_completion.fields.assessment_type_requirements') }}</div>
+                        <x-add-action-button wire:click="openAssessmentTypeModal" :label="__('settings.course_completion.actions.add_assessment_type')" :accent="false" />
                     </div>
-                </div>
+
+                    <div class="course-completion-assessments__table-wrap">
+                        <table class="table-content min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+                            <thead class="bg-neutral-50 dark:bg-neutral-900/60">
+                                <tr>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('settings.course_completion.table.assessment_type') }}</th>
+                                    <th class="px-5 py-3 text-left font-medium">{{ __('settings.course_completion.table.required_passed_results') }}</th>
+                                    <th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.course_completion.table.grades') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                @forelse ($assessmentTypes->whereIn('id', $enabled_assessment_type_ids) as $assessmentType)
+                                    <tr wire:key="course-completion-assessment-rule-{{ $assessmentType->id }}" data-course-completion-assessment-rule>
+                                        <td class="px-5 py-3 font-medium text-white">{{ $assessmentType->name }}</td>
+                                        <td class="px-5 py-3">
+                                            <input wire:model="assessment_type_requirements.{{ $assessmentType->id }}" type="number" min="0" aria-label="{{ __('settings.course_completion.table.required_passed_results') }} — {{ $assessmentType->name }}" class="course-completion-assessment-count w-full rounded-xl px-4 py-3 text-sm">
+                                            @error('assessment_type_requirements.'.$assessmentType->id) <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                                        </td>
+                                        <td class="px-5 py-3">
+                                            <div class="admin-action-cluster admin-action-cluster--end">
+                                                <button type="button" wire:click="openGradeRule('assessment', {{ $assessmentType->id }})" class="course-completion-grade-button" aria-label="{{ __('settings.course_completion.labels.choose_grades') }}" data-course-completion-grade-button>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75v-1.5a3.75 3.75 0 0 0-3.75-3.75h-4.5a3.75 3.75 0 0 0-3.75 3.75v1.5M10.5 10.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM15.75 10.9a2.65 2.65 0 1 0 0-5.3M17.25 13.75a3.5 3.5 0 0 1 3 3.46v1.54" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="px-5 py-6"><div class="admin-empty-state admin-empty-state--compact">{{ __('settings.course_completion.labels.no_assessment_types') }}</div></td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
                 <section class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div class="grid gap-4 md:grid-cols-2">

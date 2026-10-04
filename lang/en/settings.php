@@ -79,7 +79,7 @@ return [
             'email_generated_help' => 'The email is generated automatically from your username.',
             'email_help' => 'Email is kept for account identity. Password recovery is handled by mosque management.',
             'identity_locked' => 'Contact administration to change account identity.',
-            'photo_help' => 'Upload a profile photo. It saves automatically after selection.',
+            'photo_help' => 'Upload a profile photo, then save your profile changes.',
             'photo_linked' => 'This account uses the linked student or teacher photo.',
             'photo_managed_by_profile' => 'This account is linked to a student or teacher. Uploading here updates that linked profile photo too.',
             'saved' => 'Profile saved.',
@@ -602,6 +602,11 @@ return [
             'no_assessment_types' => 'No assessments are currently used as criteria.',
             'unknown_assessment_type' => 'Unknown assessment type',
             'point_effect' => 'If a student misses any enabled rule, the system keeps :percentage% of the base active points, but will not drop below :minimum points unless the student had fewer points already.',
+        ],
+        'table' => [
+            'assessment_type' => 'Assessment type',
+            'required_passed_results' => 'Required passed results',
+            'grades' => 'Grades',
         ],
         'actions' => [
             'add_assessment_type' => 'Add assessment type',

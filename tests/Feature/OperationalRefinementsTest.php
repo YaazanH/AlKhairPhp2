@@ -128,10 +128,10 @@ class OperationalRefinementsTest extends TestCase
             'tracking_tools' => ['student_notes'],
             'finance' => ['finance_dashboard', 'finance_expense_requests', 'finance_revenue_requests', 'finance_exchange', 'finance_reports'],
             'identity_tools' => ['id_card_print'],
-            'activities' => ['community_contacts'],
             'designs' => ['public_website_settings', 'print_templates'],
             'academics' => ['courses', 'groups'],
             'people' => ['users', 'teachers', 'parents'],
+            'activities' => ['community_contacts'],
             'database' => ['data_quality', 'data_audit'],
             'configuration' => ['dashboard_settings', 'finance_settings'],
         ];

@@ -114,8 +114,9 @@ return [
         'group_dashboard' => [
             'heading' => 'Group Teacher Dashboard',
             'subheading' => 'A focused view of your group’s attendance, memorisation, tests, and student ranking.',
-            'today_summary' => "Today's summary",
-            'copy_today_summary' => "Copy today's summary",
+            'latest_attendance_summary' => 'Latest attendance-day summary',
+            'copy_latest_attendance_summary' => 'Copy latest attendance-day summary',
+            'no_attendance_summary' => 'No attendance day yet',
             'stats' => [
                 'group' => 'Group name',
                 'students' => 'Number of students',

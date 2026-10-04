@@ -980,15 +980,15 @@ class ReportsAndApiTest extends TestCase
         $studentA = Student::create([
             'parent_id' => $parentA->id,
             'first_name' => 'Hasan',
-            'last_name' => 'Ansar',
+            'last_name' => 'Shared',
             'birth_date' => '2014-05-12',
             'status' => 'active',
         ]);
 
         $studentB = Student::create([
             'parent_id' => $parentB->id,
-            'first_name' => 'Yousef',
-            'last_name' => 'Ihsan',
+            'first_name' => 'Hasan',
+            'last_name' => 'Shared',
             'birth_date' => '2014-05-12',
             'status' => 'active',
         ]);

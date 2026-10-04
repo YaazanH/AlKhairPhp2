@@ -11,25 +11,36 @@ use App\Support\NumberFormatter;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
 
     public Course $course;
 
     public bool $showInvoiceModal = false;
+
     public bool $showDepartmentModal = false;
+
     public bool $showAssignmentModal = false;
+
     public bool $showDepartmentSettingsModal = false;
 
     public array $selectedInvoiceIds = [];
+
     public array $selectedItemIds = [];
+
     public array $expandedInvoiceIds = [];
+
     public array $expandedDepartmentIds = [];
 
     public string $departmentName = '';
+
     public ?int $assignmentInvoiceId = null;
+
     public ?int $assignmentDepartmentId = null;
+
     public ?int $settingsDepartmentId = null;
+
     public string $pointPrice = '1';
 
     public function mount(Course $course): void
@@ -326,9 +337,9 @@ new class extends Component {
         html[dir='rtl'] .point-market-chevron--open { transform: rotate(90deg); }
         .point-market-collapse-button {
             display: inline-flex;
-            width: 2.5rem;
-            height: 2.5rem;
-            flex: 0 0 2.5rem;
+            width: var(--admin-action-button-size);
+            height: var(--admin-action-button-size);
+            flex: 0 0 var(--admin-action-button-size);
             align-items: center;
             justify-content: center;
             border: 0;
@@ -513,7 +524,7 @@ new class extends Component {
                                             <th colspan="7"><span class="point-market-receipt-header__content"><span class="point-market-receipt-header__description">{{ $receiptDescription }}</span><bdi dir="ltr" class="point-market-receipt-header__number">{{ $receiptNumber }}</bdi></span></th>
                                         </tr>
                                     @endif
-                                    <tr wire:key="point-market-department-item-{{ $item->id }}"><td class="point-market-table__remove">@can('courses.update')<button type="button" wire:click="removeDepartmentItem({{ $item->id }})" class="admin-icon-button point-market-remove-item !h-8 !w-8 !basis-8" title="{{ __('course_end.point_market.remove_item') }}" aria-label="{{ __('course_end.point_market.remove_item') }}"><span aria-hidden="true">−</span></button>@endcan</td><td class="point-market-table__number">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $item->item_name }}</td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ \App\Support\NumberFormatter::trimmed($item->quantity, 2) }}</bdi></td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ $item->formattedAmount('unit_price') }}</bdi></td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ $item->formattedAmount('local_unit_price', true) }}</bdi></td><td class="point-market-numeric px-4 py-3 font-semibold text-emerald-100">{{ number_format($item->points($department->point_price)) }}</td></tr>
+                                    <tr wire:key="point-market-department-item-{{ $item->id }}"><td class="point-market-table__remove">@can('courses.update')<button type="button" wire:click="removeDepartmentItem({{ $item->id }})" class="admin-icon-button point-market-remove-item" title="{{ __('course_end.point_market.remove_item') }}" aria-label="{{ __('course_end.point_market.remove_item') }}"><span aria-hidden="true">−</span></button>@endcan</td><td class="point-market-table__number">{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium text-white">{{ $item->item_name }}</td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ \App\Support\NumberFormatter::trimmed($item->quantity, 2) }}</bdi></td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ $item->formattedAmount('unit_price') }}</bdi></td><td class="point-market-numeric px-4 py-3"><bdi dir="ltr">{{ $item->formattedAmount('local_unit_price', true) }}</bdi></td><td class="point-market-numeric px-4 py-3 font-semibold text-emerald-100">{{ number_format($item->points($department->point_price)) }}</td></tr>
                                 @empty
                                     <tr><td colspan="7" class="admin-empty-state">{{ __('course_end.point_market.department.empty') }}</td></tr>
                                 @endforelse

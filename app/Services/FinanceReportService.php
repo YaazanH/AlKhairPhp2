@@ -347,6 +347,15 @@ class FinanceReportService
         $startValue = data_get($generatedReport->filters, 'date_from', data_get($generatedReport->report_data, 'start'));
         $endValue = data_get($generatedReport->filters, 'date_to', data_get($generatedReport->report_data, 'end'));
 
+        return $this->ledgerPeriodLabel(
+            $startValue,
+            $endValue,
+            data_get($generatedReport->filters, 'period_mode'),
+        );
+    }
+
+    public function ledgerPeriodLabel(mixed $startValue, mixed $endValue, ?string $periodMode = null): string
+    {
         if (! $startValue || ! $endValue) {
             return '-';
         }
@@ -356,7 +365,7 @@ class FinanceReportService
         $quarterStart = $start->copy()->startOfQuarter()->startOfDay();
         $quarterEnd = $start->copy()->endOfQuarter()->startOfDay();
 
-        if ($start->equalTo($quarterStart) && $end->equalTo($quarterEnd)) {
+        if ($periodMode === 'quarter' || ($periodMode === null && $start->equalTo($quarterStart) && $end->equalTo($quarterEnd))) {
             return 'Q'.$start->quarter.'-'.$start->year;
         }
 
@@ -625,15 +634,13 @@ class FinanceReportService
 
     public function ledgerPdfFilename(array $report, ?FinanceGeneratedReport $generatedReport = null): string
     {
-        $start = Carbon::parse($report['start'] ?? now())->format('d-m-Y');
-        $end = Carbon::parse($report['end'] ?? $report['start'] ?? now())->format('d-m-Y');
+        $period = $generatedReport
+            ? $this->savedReportPeriodLabel($generatedReport)
+            : $this->ledgerPeriodLabel($report['start'] ?? null, $report['end'] ?? null);
 
         return ExportFilename::pdf([
             __('exports.pdf.finance_ledger'),
-            $generatedReport ? $this->reportNumber($generatedReport, $report) : null,
-            data_get($report, 'cash_box.name'),
-            data_get($report, 'currency.code'),
-            __('exports.pdf.date_range', ['from' => $start, 'to' => $end]),
+            $period !== '-' ? $period : null,
         ]);
     }
 

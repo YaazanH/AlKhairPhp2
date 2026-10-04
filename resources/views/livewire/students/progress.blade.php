@@ -437,27 +437,6 @@ new class extends Component
             )->distinct('group_attendance_day_id')->count('group_attendance_day_id')
             : 0;
 
-        $timelineAttendance = $this->canViewProgressSection('attendance.student.view')
-            ? $this->scopeProgressDataQuery(
-                'scopeStudentAttendanceRecordsQuery',
-                StudentAttendanceRecord::query()->with(['status', 'attendanceDay'])
-                    ->whereIn('enrollment_id', $enrollmentIds)
-            )->get()
-            : collect();
-        $timelinePoints = $this->canViewProgressSection('points.view')
-            ? $this->scopeProgressDataQuery(
-                'scopePointTransactionsQuery',
-                PointTransaction::query()->notVoided()
-                    ->where('student_id', $studentRecord->id)->whereIn('enrollment_id', $enrollmentIds)
-            )->get()
-            : null;
-        $timeline = app(\App\Services\StudentTimelineService::class)->build(
-            $visibleEnrollments,
-            $this->canViewProgressSection('memorization.view') ? $memorizationSessions : null,
-            $this->canViewProgressSection('attendance.student.view') ? $timelineAttendance : null,
-            $finalTests, $awqafTests, $finalAssessmentResults, $timelinePoints,
-        );
-
         $pageSet = $generalPages->flip();
         $externalJuzIds = $studentRecord->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
@@ -531,8 +510,6 @@ new class extends Component
 
         return [
             'studentOptions' => $studentOptions,
-            'timeline' => $timeline,
-            'timelineDefaultIndex' => app(\App\Services\StudentTimelineService::class)->defaultIndex($timeline, $defaultCourseId ? (int) $defaultCourseId : null),
             'studentRecord' => $studentRecord,
             'activeEnrollment' => $activeEnrollment,
             'enrollments' => $visibleEnrollments,
@@ -768,7 +745,6 @@ new class extends Component
             </x-student-progress-table>
         </section>
 
-        @include('livewire.students.partials.timeline')
 
         <x-admin.modal :show="$openDetails !== ''" :title="$openDetails === 'parent' ? __('workflow.student_progress.parent_details.title') : __('workflow.student_progress.actions.view_all')" close-method="closeDetails" max-width="fit" compact>
             @if ($openDetails === 'parent' && $studentRecord->parentProfile)

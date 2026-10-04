@@ -73,7 +73,7 @@
                                 @forelse ($availableScopeStudents as $scopeStudent)
                                     <label class="flex items-start gap-3 text-sm text-neutral-200">
                                         <input wire:model="scope_students" type="checkbox" value="{{ $scopeStudent->id }}" class="mt-0.5 rounded">
-                                        <span class="record-person-name">{{ $scopeStudent->first_name }} {{ $scopeStudent->last_name }}{{ $scopeStudent->parentProfile?->father_name ? ' | '.$scopeStudent->parentProfile->father_name : '' }}</span>
+                                        <span class="record-person-name">{{ $scopeStudent->full_name }}</span>
                                     </label>
                                 @empty
                                     <div class="text-sm text-neutral-400">{{ __('access.users.scopes.empty') }}</div>

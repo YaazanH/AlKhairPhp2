@@ -23,7 +23,7 @@ class SidebarNavigationService
             'tracking_tools' => ['title_key' => 'ui.nav.notes_group', 'sort_order' => 70],
             'finance' => ['title_key' => 'ui.nav.finance', 'sort_order' => 80],
             'identity_tools' => ['title_key' => 'ui.nav.cards_group', 'sort_order' => 90],
-            'activities' => ['title_key' => 'ui.nav.activities', 'sort_order' => 100],
+            'activities' => ['title_key' => 'ui.nav.communication', 'sort_order' => 135],
             'designs' => ['title_key' => 'ui.nav.designs', 'sort_order' => 110],
             'academics' => ['title_key' => 'ui.nav.courses', 'sort_order' => 120],
             'people' => ['title_key' => 'ui.nav.users', 'sort_order' => 130],
@@ -72,7 +72,6 @@ class SidebarNavigationService
             'finance_revenue_requests' => $this->item('ui.nav.finance_income', 'income-hand', 'finance.revenue-requests.index', ['finance.revenue-requests.*'], 'finance', 30, ['finance.revenue-requests.view']),
             'finance_exchange' => $this->item('ui.nav.finance_exchange', 'arrows-right-left', 'finance.exchange.index', ['finance.exchange.*'], 'finance', 40, ['finance.exchange.view']),
             'finance_reports' => $this->item('ui.nav.finance_reports', 'document-chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 50, ['finance.reports.view']),
-            'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
@@ -258,10 +257,6 @@ class SidebarNavigationService
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
-                if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
-                    continue;
-                }
-
                 if (in_array($itemKey, ['activities', 'family_activities'], true) && ! OperationalFeatureSettings::activitiesEnabled()) {
                     continue;
                 }

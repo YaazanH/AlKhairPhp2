@@ -7,25 +7,32 @@ use App\Models\Group;
 use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Services\DataQualityService;
+use App\Support\ArabicSearch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use WithPagination;
 
     public string $search = '';
+
     public string $typeFilter = 'all';
+
     public string $severityFilter = 'all';
+
     public ?string $selectedIssueKey = null;
+
     public string $editableType = '';
+
     public array $editableRecords = [];
+
     public int $perPage = 15;
 
     public function mount(): void
@@ -51,11 +58,9 @@ new class extends Component {
             ->when($this->typeFilter !== 'all', fn (Collection $issues) => $issues->where('type', $this->typeFilter))
             ->when($this->severityFilter !== 'all', fn (Collection $issues) => $issues->where('severity', $this->severityFilter))
             ->when(filled($this->search), function (Collection $issues): Collection {
-                $needle = Str::lower($this->search);
-
-                return $issues->filter(fn (array $issue): bool => Str::contains(Str::lower(implode(' ', [
+                return $issues->filter(fn (array $issue): bool => ArabicSearch::matchesAllTokens(implode(' ', [
                     $issue['title'], $issue['reason'], ...$issue['records'],
-                ])), $needle));
+                ]), $this->search));
             })
             ->values();
 
@@ -78,9 +83,20 @@ new class extends Component {
         ];
     }
 
-    public function updatedSearch(): void { $this->resetPage(); }
-    public function updatedTypeFilter(): void { $this->resetPage(); }
-    public function updatedSeverityFilter(): void { $this->resetPage(); }
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedTypeFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSeverityFilter(): void
+    {
+        $this->resetPage();
+    }
 
     public function clearFilters(): void
     {
@@ -228,28 +244,28 @@ new class extends Component {
                 ->with(['parentProfile:id,father_name,parent_number', 'user:id,name,email,phone', 'gradeLevel:id,name', 'quranCurrentJuz:id,juz_number'])
                 ->withCount(['enrollments', 'memorizationSessions', 'pageAchievements'])
                 ->whereIn('id', $ids)->get()->map(fn (Student $student): array => [
-                'id' => $student->id,
-                'label' => trim($student->first_name.' '.$student->last_name),
-                'first_name' => $student->first_name,
-                'last_name' => $student->last_name,
-                'birth_date' => $student->birth_date?->format('Y-m-d') ?? '',
-                'school_name' => $student->school_name ?? '',
-                'status' => $student->status,
-                'joined_at' => $student->joined_at?->format('Y-m-d') ?? '',
-                'details' => $this->recordDetails($student, [
-                    'parent_name' => $student->parentProfile?->father_name,
-                    'parent_number' => $student->parentProfile?->parent_number,
-                    'user_name' => $student->user?->name,
-                    'user_email' => $student->user?->email,
-                    'user_phone' => $student->user?->phone,
-                    'grade_level' => $student->gradeLevel?->name,
-                    'quran_current_juz' => $student->quranCurrentJuz?->juz_number,
-                    'page_achievements_count' => $student->page_achievements_count,
-                ], [
-                    'enrollments_count' => $student->enrollments_count,
-                    'memorization_sessions_count' => $student->memorization_sessions_count,
-                ]),
-            ])->all(),
+                    'id' => $student->id,
+                    'label' => $student->full_name,
+                    'first_name' => $student->first_name,
+                    'last_name' => $student->last_name,
+                    'birth_date' => $student->birth_date?->format('Y-m-d') ?? '',
+                    'school_name' => $student->school_name ?? '',
+                    'status' => $student->status,
+                    'joined_at' => $student->joined_at?->format('Y-m-d') ?? '',
+                    'details' => $this->recordDetails($student, [
+                        'parent_name' => $student->parentProfile?->father_name,
+                        'parent_number' => $student->parentProfile?->parent_number,
+                        'user_name' => $student->user?->name,
+                        'user_email' => $student->user?->email,
+                        'user_phone' => $student->user?->phone,
+                        'grade_level' => $student->gradeLevel?->name,
+                        'quran_current_juz' => $student->quranCurrentJuz?->juz_number,
+                        'page_achievements_count' => $student->page_achievements_count,
+                    ], [
+                        'enrollments_count' => $student->enrollments_count,
+                        'memorization_sessions_count' => $student->memorization_sessions_count,
+                    ]),
+                ])->all(),
             'parent' => ParentProfile::query()->with('user:id,name,email,phone')->withCount(['students', 'invoices'])->whereIn('id', $ids)->get()->map(fn (ParentProfile $parent): array => [
                 'id' => $parent->id,
                 'label' => $parent->father_name,
@@ -271,14 +287,14 @@ new class extends Component {
                     'invoices_count' => $parent->invoices_count,
                 ]),
             ])->all(),
-            'enrollment' => Enrollment::query()->with(['student:id,first_name,last_name', 'group:id,name'])->whereIn('id', $ids)->get()->map(fn (Enrollment $enrollment): array => [
+            'enrollment' => Enrollment::query()->with(['student:id,parent_id,first_name,last_name', 'student.parentProfile:id,father_name', 'group:id,name'])->whereIn('id', $ids)->get()->map(fn (Enrollment $enrollment): array => [
                 'id' => $enrollment->id,
-                'label' => trim($enrollment->student?->first_name.' '.$enrollment->student?->last_name).' · '.($enrollment->group?->name ?? '—'),
+                'label' => ($enrollment->student?->full_name ?? '—').' · '.($enrollment->group?->name ?? '—'),
                 'enrolled_at' => $enrollment->enrolled_at?->format('Y-m-d') ?? '',
                 'status' => $enrollment->status,
                 'left_at' => $enrollment->left_at?->format('Y-m-d') ?? '',
                 'details' => $this->recordDetails($enrollment, [
-                    'student_name' => trim($enrollment->student?->first_name.' '.$enrollment->student?->last_name),
+                    'student_name' => $enrollment->student?->full_name,
                     'group_name' => $enrollment->group?->name,
                 ]),
             ])->all(),
@@ -446,6 +462,7 @@ new class extends Component {
 
         if ($student->enrollments_count > 0 || ($student->memorization_sessions_count + $student->page_achievements_count) > 0) {
             $this->addError('delete', __('data_governance.quality.errors.student_linked'));
+
             return;
         }
 
@@ -460,6 +477,7 @@ new class extends Component {
 
         if ($parent->students_count > 0) {
             $this->addError('delete', __('data_governance.quality.errors.parent_linked'));
+
             return;
         }
 
@@ -500,7 +518,7 @@ new class extends Component {
             if ($isDate && filled($value)) {
                 try {
                     $value = Carbon::parse($value)->format('d-m-Y');
-                } catch (\Throwable) {
+                } catch (Throwable) {
                     // Keep unexpected legacy values visible instead of hiding the field.
                 }
             }
@@ -568,7 +586,7 @@ new class extends Component {
                         <td class="px-5 py-4 text-neutral-300">@foreach ($issue['records'] as $record)<div @class(['mt-1' => !$loop->first])>{{ $record }}</div>@endforeach</td>
                         <td class="px-5 py-4 text-center"><span @class(['rounded-full border px-3 py-1 text-xs font-semibold','border-red-400/30 bg-red-500/10 text-red-100' => $issue['severity']==='high','border-amber-400/30 bg-amber-500/10 text-amber-100' => $issue['severity']==='medium','border-neutral-500/30 bg-neutral-500/10 text-neutral-300' => $issue['severity']==='low'])>{{ __('data_governance.quality.'.$issue['severity']) }}</span></td>
                         <td class="px-5 py-4 text-center"><span @class(['rounded-full border px-3 py-1 text-xs font-semibold','border-emerald-400/30 bg-emerald-500/10 text-emerald-100' => $issue['status'] === 'open','border-white/10 bg-white/5 text-neutral-200' => $issue['status'] !== 'open'])>{{ __('data_governance.quality.'.$issue['status']) }}</span></td>
-                        <td class="px-5 py-4 text-center"><button type="button" wire:click="review('{{ $issue['key'] }}')" class="admin-icon-button" title="{{ __('data_governance.quality.review') }}" aria-label="{{ __('data_governance.quality.review') }}" data-data-quality-review-action><x-admin-action-icon name="review" /></button></td>
+                        <td class="admin-actions-column px-5 py-4 text-center"><button type="button" wire:click="review('{{ $issue['key'] }}')" class="admin-icon-button" title="{{ __('data_governance.quality.review') }}" aria-label="{{ __('data_governance.quality.review') }}" data-data-quality-review-action data-keep-visible-table-action><x-admin-action-icon name="review" /></button></td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="px-5 py-10 text-center text-neutral-400">{{ __('data_governance.quality.empty') }}</td></tr>

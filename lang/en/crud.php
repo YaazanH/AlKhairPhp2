@@ -411,7 +411,8 @@ return [
             'student_phone_help' => 'Optional. Used for login or contact when needed.',
             'group_help' => 'A matching group for the selected grade is picked automatically when available, and you can still choose any other group manually.',
             'grade_calculated_help' => 'Calculated automatically from the birth year and current academic year; you can correct it manually.',
-            'external_memorized_juzs_help' => 'Type a juz number and press Space to save it. Use × on a chip to remove it.',
+            'external_memorized_juzs_help' => 'Type a juz number, then tap + or press Space or Enter to add it. Use × on a chip to remove it.',
+            'add_memorized_juz' => 'Add previously memorised juz',
             'placeholders' => [
                 'select_parent' => 'Select parent',
                 'select_gender' => 'Select gender',
@@ -484,6 +485,7 @@ return [
                 'student_number' => 'Student No.',
                 'parent' => 'Parent',
                 'grade' => 'Grade',
+                'school' => 'School',
                 'juz' => 'Juz',
                 'enrollments' => 'Enrolments',
                 'status' => 'Status',

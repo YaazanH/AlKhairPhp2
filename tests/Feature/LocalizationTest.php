@@ -198,6 +198,8 @@ class LocalizationTest extends TestCase
         $this->assertStringNotContainsString("{{ __('ui.common.visit_site') }}", $mobileUserMenu);
         $this->assertStringNotContainsString("route('finance.reports.index')", $mobileUserMenu);
         $this->assertStringNotContainsString('<flux:profile', $mobileUserMenu);
+        $this->assertStringContainsString('href="{{ route(\'dashboard\') }}"', $mobileUserMenu);
+        $this->assertStringContainsString('class="mobile-header-home-link"', $mobileUserMenu);
         $this->assertStringContainsString('<x-mobile-header-mark class="mobile-header-mark text-neutral-200" />', $mobileUserMenu);
         $this->assertStringContainsString('protected const MOBILE_HIDDEN_ITEM_KEYS', $sidebarNavigationMenu);
         $this->assertStringContainsString("\$group['has_mobile_items'] ? '' : 'max-lg:hidden'", $sidebarNavigationMenu);

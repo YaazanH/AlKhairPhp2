@@ -94,6 +94,27 @@ class QuranWorkflowTest extends TestCase
         ]);
 
         Volt::test('teachers.attendance')
+            ->assertSee(__('workflow.teacher_attendance.days.table.headers.status'))
+            ->assertSee(__('workflow.common.day_status.open'))
+            ->assertDontSee('data-teacher-attendance-day-percentage', false);
+
+        $absent = AttendanceStatus::query()->where('code', 'absent')->firstOrFail();
+        $previousDay = TeacherAttendanceDay::query()->create([
+            'course_id' => $day->course_id,
+            'attendance_date' => Carbon::parse($attendanceDate)->subDay()->toDateString(),
+            'status' => 'closed',
+        ]);
+        $previousDay->records()->create([
+            'teacher_id' => $teacher->id,
+            'attendance_status_id' => $absent->id,
+        ]);
+
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
+            ->assertSee(__('workflow.teacher_attendance.table.headers.percentage'))
+            ->assertSee('class="attendance-desktop-only px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="50"', false)
+            ->assertDontSee(__('crud.common.status_options.active'));
+
+        Volt::test('teachers.attendance')
             ->assertSee('admin-modal-portal', false)
             ->call('openExportModal')
             ->assertSet('showExportModal', true)

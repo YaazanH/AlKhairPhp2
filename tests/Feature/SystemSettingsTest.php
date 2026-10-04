@@ -1091,6 +1091,9 @@ class SystemSettingsTest extends TestCase
         Volt::test('settings.course-completion')
             ->assertSee(__('settings.course_completion.labels.no_assessment_types'))
             ->assertSee('class="admin-empty-state admin-empty-state--compact"', false)
+            ->assertSee('data-course-completion-assessment-table', false)
+            ->assertSee(__('settings.course_completion.table.assessment_type'))
+            ->assertSee(__('settings.course_completion.table.required_passed_results'))
             ->call('openAssessmentTypeModal')
             ->assertSee('wire:click="closeAssessmentTypeModal"', false)
             ->assertSee($firstType->name)
@@ -1172,6 +1175,16 @@ class SystemSettingsTest extends TestCase
         $this->assertStringContainsString('margin-top: 1.5rem !important;', $css);
         $this->assertStringContainsString('@keyframes sort-drop-gap-highlight', $css);
         $this->assertStringContainsString('@keyframes sort-drop-settle', $css);
+    }
+
+    public function test_communication_sidebar_group_defaults_after_users_and_before_database(): void
+    {
+        $groups = app(SidebarNavigationService::class)->defaultGroups();
+
+        $this->assertSame('ui.nav.communication', $groups['activities']['title_key']);
+        $this->assertSame('التواصل', trans('ui.nav.communication', locale: 'ar'));
+        $this->assertGreaterThan($groups['people']['sort_order'], $groups['activities']['sort_order']);
+        $this->assertLessThan($groups['database']['sort_order'], $groups['activities']['sort_order']);
     }
 
     public function test_authorized_user_can_add_a_custom_sidebar_group_and_assign_pages_to_it(): void

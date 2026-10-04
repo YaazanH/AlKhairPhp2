@@ -659,46 +659,15 @@ class StudentProgressPageTest extends TestCase
         ]);
     }
 
-    public function test_timeline_has_one_page_per_visible_course_and_only_course_milestones(): void
+    public function test_progress_page_omits_timeline_and_preserves_student_scope(): void
     {
         $this->seed(RoleSeeder::class);
         [$parent, $student, $otherStudent] = $this->makeScopedProgressData();
         $this->actingAs($parent);
         $component = Volt::test('students.progress', ['student' => $student])
-            ->assertSee('data-student-timeline', false)
+            ->assertDontSee('data-student-timeline', false)
             ->assertDontSeeText('Hidden Quiz');
-        $timeline = $component->viewData('timeline');
-        $this->assertCount(1, $timeline);
-        $this->assertSame(3, $timeline->first()['pages']);
-        $this->assertSame(['start', 'joined', 'memorization'], $timeline->first()['milestones']->pluck('kind')->all());
         $component->set('selectedStudentId', $otherStudent->id)->assertForbidden();
-    }
-
-    public function test_timeline_shows_attendance_only_with_permission(): void
-    {
-        $this->seed(RoleSeeder::class);
-        [$parent, $student] = $this->makeScopedProgressData();
-        $enrollment = Enrollment::where('student_id', $student->id)->firstOrFail();
-        $status = AttendanceStatus::create([
-            'name' => 'Timeline absence', 'code' => 'timeline-absence', 'scope' => 'student',
-            'is_present' => false, 'is_active' => true,
-        ]);
-        $day = GroupAttendanceDay::create([
-            'group_id' => $enrollment->group_id, 'attendance_date' => '2026-09-20', 'status' => 'closed',
-        ]);
-        StudentAttendanceRecord::create([
-            'group_attendance_day_id' => $day->id, 'enrollment_id' => $enrollment->id, 'attendance_status_id' => $status->id,
-        ]);
-        $this->actingAs($parent);
-        $parent->givePermissionTo('attendance.student.view');
-        $component = Volt::test('students.progress', ['student' => $student]);
-        $this->assertSame(0, $component->viewData('timeline')->first()['days']);
-        $this->assertSame(1, $component->viewData('timeline')->first()['absences']);
-        $parent->revokePermissionTo('attendance.student.view');
-        $parent->roles->each(fn ($role) => $role->revokePermissionTo('attendance.student.view'));
-        $parent->unsetRelation('roles')->unsetRelation('permissions');
-        $component = Volt::test('students.progress', ['student' => $student]);
-        $this->assertNull($component->viewData('timeline')->first()['days']);
     }
 
     public function test_teacher_can_read_complete_progress_history_without_separate_module_permissions(): void

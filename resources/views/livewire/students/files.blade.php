@@ -9,15 +9,20 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use WithFileUploads;
 
     public Student $currentStudent;
+
     public $photo_upload = null;
+
     public $file_upload = null;
+
     public string $file_type = '';
+
     public string $captured_photo_data = '';
 
     public function mount(Student $student): void
@@ -185,7 +190,7 @@ new class extends Component {
             </div>
 
             <div class="surface-panel px-5 py-4">
-                <div class="record-person-name text-sm font-semibold text-white">{{ $studentRecord->first_name }} {{ $studentRecord->last_name }}</div>
+                <div class="record-person-name text-sm font-semibold text-white">{{ $studentRecord->full_name }}</div>
                 <div class="record-person-name mt-1 text-sm text-neutral-400">{{ $studentRecord->parentProfile?->father_name ?: __('media.student_files.profile.no_parent') }}</div>
                 <div class="mt-1 text-sm text-neutral-400">{{ $studentRecord->gradeLevel?->name ?: __('media.student_files.profile.no_grade') }}</div>
             </div>

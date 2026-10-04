@@ -363,7 +363,7 @@ class PrintTemplateFieldRegistry
     protected function recordLabel(string $entity, Model $model): string
     {
         return match ($entity) {
-            'student' => trim($model->first_name.' '.$model->last_name).' #'.($model->student_number ?: $model->id),
+            'student' => $model->full_name.' #'.($model->student_number ?: $model->id),
             'course_student' => trim(($model->student?->full_name ?? '').' · '.($model->group?->course?->name ?? '').' · '.($model->group?->name ?? '')),
             'teacher' => trim($model->first_name.' '.$model->last_name),
             'parent' => (string) $model->father_name,

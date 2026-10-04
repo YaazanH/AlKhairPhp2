@@ -423,24 +423,28 @@ new class extends Component
                         <tr>
                             <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
                             <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.group') }}</th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
-                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
-                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
+                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.teacher') }}</th>
+                            <th class="attendance-group-count px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.students') }}</th>
+                            <th class="attendance-group-count px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.present') }}</th>
                             <th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.day_details.table.headers.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($dayRecord->groupAttendanceDays as $groupDay)
+                            @php
+                                $teacherName = $groupDay->group?->teacher ? $groupDay->group->teacher->first_name.' '.$groupDay->group->teacher->last_name : __('workflow.common.no_teacher_assigned');
+                            @endphp
                             <tr wire:key="attendance-day-group-{{ $groupDay->id }}">
                                 <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
                                 <td class="attendance-person-column px-5 py-4 lg:px-6">
                                     <div class="font-semibold text-white">{{ $groupDay->group?->name ?: __('workflow.common.no_group') }}</div>
+                                    <div class="mt-1 text-xs font-normal leading-relaxed text-neutral-400 md:hidden">{{ $teacherName }}</div>
                                 </td>
-                                <td class="record-person-name px-5 py-4 text-neutral-300 lg:px-6">
-                                    {{ $groupDay->group?->teacher ? $groupDay->group->teacher->first_name.' '.$groupDay->group->teacher->last_name : __('workflow.common.no_teacher_assigned') }}
+                                <td class="attendance-desktop-only record-person-name px-5 py-4 text-neutral-300 lg:px-6">
+                                    {{ $teacherName }}
                                 </td>
-                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>
-                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
+                                <td class="attendance-group-count px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) ($groupDay->group?->active_enrollments_count ?? 0)) }}</td>
+                                <td class="attendance-group-count px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $groupDay->present_records_count) }}</td>
                                 <td class="px-5 py-4 lg:px-6">
                                     <div class="flex justify-end gap-2">
                                         <x-open-action-button :href="route('student-attendance.mark', $groupDay)" wire:navigate :label="__('workflow.student_attendance.day_details.table.open')" />

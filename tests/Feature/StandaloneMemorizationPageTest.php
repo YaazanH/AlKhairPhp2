@@ -36,8 +36,12 @@ class StandaloneMemorizationPageTest extends TestCase
         $this->assertStringContainsString('data-memorization-page-picker', $source);
         $this->assertStringNotContainsString('id="quick-memorization-from"', $source);
         $this->assertStringContainsString('.memorization-page-picker__grid', $styles);
+        $this->assertStringContainsString('class="admin-action-cluster admin-action-cluster--end quick-memorization-save-actions"', $source);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent quick-entry-save-action"', $source);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $source);
+        $this->assertStringContainsString(".quick-memorization-save-actions .quick-entry-save-action {\n        width: 100% !important;", $styles);
+        $this->assertStringContainsString('flex: 1 1 100% !important;', $styles);
+        $this->assertStringContainsString('aspect-ratio: auto !important;', $styles);
         $this->assertStringNotContainsString("<button type=\"submit\" class=\"pill-link pill-link--accent\">{{ __('workflow.memorization.quick_entry.form.save') }}</button>", $source);
     }
 
@@ -428,7 +432,43 @@ class StandaloneMemorizationPageTest extends TestCase
         ]);
     }
 
-    public function test_memorization_from_a_finished_course_cannot_be_deleted(): void
+    public function test_memorization_from_an_inactive_course_cannot_be_edited(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+
+        $session = app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-09-03',
+            'entry_type' => 'new',
+            'from_page' => 11,
+            'to_page' => 13,
+        ]);
+
+        $editor = Volt::test('memorization.index')
+            ->assertSee('data-memorization-session-edit-action', false)
+            ->call('editSession', $session->id)
+            ->assertSet('showFormModal', true);
+
+        $enrollment->group->course()->update(['is_active' => false]);
+
+        $editor
+            ->set('recorded_on', '2026-09-04')
+            ->call('save')
+            ->assertForbidden();
+
+        Volt::test('memorization.index')
+            ->assertSee('Memorization Student')
+            ->assertDontSee('data-memorization-session-edit-action', false)
+            ->call('editSession', $session->id)
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('memorization_sessions', [
+            'id' => $session->id,
+            'recorded_on' => '2026-09-03 00:00:00',
+        ]);
+    }
+
+    public function test_memorization_from_a_finished_course_cannot_be_edited_or_deleted(): void
     {
         [, $teacher, $enrollment] = $this->teacherMemorizationContext();
 
@@ -443,9 +483,12 @@ class StandaloneMemorizationPageTest extends TestCase
         app(CourseLifecycleService::class)->finish($enrollment->group->course);
 
         Volt::test('memorization.index')
-            ->call('editSession', $session->id)
-            ->assertSet('editingCourseFinished', true)
+            ->assertDontSee('data-memorization-session-edit-action', false)
             ->assertDontSee('data-memorization-session-delete-action', false)
+            ->call('editSession', $session->id)
+            ->assertForbidden();
+
+        Volt::test('memorization.index')
             ->call('deleteSession', $session->id)
             ->assertHasErrors(['deleteSession']);
 

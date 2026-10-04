@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { debounceSearch } from '../../resources/js/search-debounce.js';
 
@@ -18,7 +19,7 @@ test('search waits 500ms after the latest keystroke and only applies the latest 
     assert.deepEqual(queries, ['أح']);
 });
 
-test('closing a dropdown cancels pending filtering', (t) => {
+test('clearing a search bar cancels pending filtering', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     let calls = 0;
     const search = debounceSearch(() => calls++);
@@ -29,7 +30,7 @@ test('closing a dropdown cancels pending filtering', (t) => {
     assert.equal(calls, 0);
 });
 
-test('keyboard selection can apply the current query immediately without a later duplicate', (t) => {
+test('submitting a search bar can apply the current query immediately without a later duplicate', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const queries = [];
     const search = debounceSearch((query) => queries.push(query));
@@ -54,4 +55,29 @@ test('separate search inputs have independent timers', (t) => {
     assert.deepEqual(queries, ['student']);
     t.mock.timers.tick(200);
     assert.deepEqual(queries, ['student', 'teacher']);
+});
+
+test('dropdown menus filter immediately without the search-bar debounce', () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const start = app.indexOf('function enhanceSearchableSelect(select)');
+    const end = app.indexOf('function cleanupOrphanedSearchableSelects()', start);
+    const searchableSelectSource = app.slice(start, end);
+
+    assert.ok(start >= 0 && end > start);
+    assert.doesNotMatch(searchableSelectSource, /debounceSearch/);
+    assert.equal(
+        searchableSelectSource.match(/search\.addEventListener\('input'/g)?.length,
+        2,
+    );
+});
+
+test('dropdown menus match every search word regardless of order or adjacency', () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const start = app.indexOf('function buildSearchableSelectOptions(select, list, query = \'\')');
+    const end = app.indexOf('function scrollSearchableSelectToSelected', start);
+    const optionFilterSource = app.slice(start, end);
+
+    assert.ok(start >= 0 && end > start);
+    assert.match(optionFilterSource, /normalizedQuery\.split\(' '\)\.filter\(Boolean\)/);
+    assert.match(optionFilterSource, /queryTokens\.every\(\(token\) => searchableText\.includes\(token\)\)/);
 });

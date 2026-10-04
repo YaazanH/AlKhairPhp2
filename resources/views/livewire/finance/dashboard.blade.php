@@ -12,50 +12,80 @@ use App\Services\FinanceReportService;
 use App\Services\FinanceService;
 use App\Services\SpTodayExchangeRateService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesWithdrawalRefusal;
     use WithPagination;
 
     public int $year;
+
     public string $quarter;
+
     public bool $showTransferModal = false;
+
     public bool $showTransactionsModal = false;
+
     public bool $showCreateRequestModal = false;
+
     public bool $showRequestHistoryModal = false;
+
     public bool $showQuarterDetailsModal = false;
+
     public ?int $reviewingRequestId = null;
 
     public ?int $transfer_from_cash_box_id = null;
+
     public ?int $transfer_to_cash_box_id = null;
+
     public ?int $transfer_currency_id = null;
+
     public string $transfer_amount = '';
+
     public string $transfer_date = '';
+
     public string $transfer_notes = '';
 
     public string $filter_start_date = '';
+
     public string $filter_end_date = '';
+
     public ?int $filter_cash_box_id = null;
+
     public ?int $filter_currency_id = null;
+
     public string $filter_type = 'all';
+
     public string $filter_visibility = 'active';
 
     public ?int $request_teacher_id = null;
+
     public ?int $request_kind_id = null;
+
     public ?int $request_currency_id = null;
+
     public ?int $request_cash_box_id = null;
+
     public string $request_amount = '';
+
     public string $request_count = '';
+
     public string $request_reason = '';
+
     public string $review_amount = '';
+
     public ?int $review_cash_box_id = null;
+
     public string $review_notes = '';
+
+    public bool $show_acceptance_details = false;
 
     public function mount(): void
     {
@@ -71,16 +101,11 @@ new class extends Component {
         $this->filter_cash_box_id = $defaultFund?->id;
         $this->request_currency_id = $localCurrency->id;
         $this->request_cash_box_id = $defaultFund?->id;
-        $latestPeriod = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->first();
-        if ($latestPeriod) {
-            $this->year = (int) $latestPeriod['year'];
-            $this->quarter = (string) ($latestPeriod['quarters'][0] ?? 1);
-        }
     }
 
     public function updatedYear(): void
     {
-        $periods = app(FinanceService::class)->availableTransactionPeriods(auth()->user());
+        $periods = $this->dashboardPeriods();
         $period = $periods->firstWhere('year', $this->year) ?: $periods->first();
 
         if (! $period) {
@@ -96,7 +121,7 @@ new class extends Component {
 
     public function updatedQuarter(): void
     {
-        $period = app(FinanceService::class)->availableTransactionPeriods(auth()->user())->firstWhere('year', $this->year);
+        $period = $this->dashboardPeriods()->firstWhere('year', $this->year);
         $quarters = collect($period['quarters'] ?? [])->map(fn ($availableQuarter): int => (int) $availableQuarter);
 
         if (! $quarters->contains((int) $this->quarter)) {
@@ -125,7 +150,7 @@ new class extends Component {
 
         return [
             'report' => app(FinanceReportService::class)->report($this->year, (int) $this->quarter),
-            'availableFinancePeriods' => $service->availableTransactionPeriods(auth()->user()),
+            'availableFinancePeriods' => $this->dashboardPeriods(),
             'cashBoxes' => $cashBoxes,
             'currencies' => FinanceCurrency::query()->where('is_active', true)->where('show_in_dropdowns', true)->orderByDesc('is_local')->orderBy('code')->get(),
             'transferCurrencies' => $service->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
@@ -150,6 +175,32 @@ new class extends Component {
             'transactionTypes' => collect(['income', 'expense', 'return', 'exchange', 'transfer']),
             'transactions' => $transactions->paginate(8, pageName: 'transactionsPage'),
         ];
+    }
+
+    private function dashboardPeriods(): Collection
+    {
+        $currentYear = (int) now()->year;
+        $currentQuarter = (int) now()->quarter;
+        $periods = app(FinanceService::class)->availableTransactionPeriods(auth()->user());
+
+        if ($periods->contains('year', $currentYear)) {
+            $periods = $periods->map(function (array $period) use ($currentQuarter, $currentYear): array {
+                if ((int) $period['year'] === $currentYear) {
+                    $period['quarters'] = collect($period['quarters'])
+                        ->push($currentQuarter)
+                        ->unique()
+                        ->sortDesc()
+                        ->values()
+                        ->all();
+                }
+
+                return $period;
+            });
+        } else {
+            $periods->push(['year' => $currentYear, 'quarters' => [$currentQuarter]]);
+        }
+
+        return $periods->sortByDesc('year')->values();
     }
 
     public function openTransferModal(): void
@@ -249,6 +300,7 @@ new class extends Component {
         } catch (ValidationException $exception) {
             $request->delete();
             $this->addError('request_amount', collect($exception->errors())->flatten()->first() ?: $exception->getMessage());
+
             return;
         }
 
@@ -264,7 +316,35 @@ new class extends Component {
         $this->reviewingRequestId = $request->id;
         $this->review_amount = $this->formatFinanceNumberForInput($request->requested_amount);
         $this->review_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $request->requested_currency_id)?->id;
-        $this->review_notes = '';
+        $this->review_notes = (string) $request->requested_reason;
+        $this->show_acceptance_details = false;
+    }
+
+    public function beginAcceptance(): void
+    {
+        $this->authorizePermission('finance.pull-requests.review');
+        $this->normalizeFinanceNumberProperty('review_amount');
+        $this->validate([
+            'review_amount' => ['required', 'numeric', 'gt:0'],
+            'review_cash_box_id' => ['required', 'exists:finance_cash_boxes,id'],
+        ]);
+        $request = FinanceRequest::query()
+            ->where('type', FinanceRequest::TYPE_PULL)
+            ->where('status', FinanceRequest::STATUS_PENDING)
+            ->findOrFail($this->reviewingRequestId);
+
+        if (trim($this->review_notes) === '') {
+            $this->review_notes = (string) $request->requested_reason;
+        }
+
+        $this->show_acceptance_details = true;
+        $this->resetValidation();
+    }
+
+    public function closeAcceptanceDetails(): void
+    {
+        $this->show_acceptance_details = false;
+        $this->resetValidation();
     }
 
     public function acceptRequest(): void
@@ -274,7 +354,9 @@ new class extends Component {
         $validated = $this->validate([
             'review_amount' => ['required', 'numeric', 'gt:0'],
             'review_cash_box_id' => ['required', 'exists:finance_cash_boxes,id'],
-            'review_notes' => ['nullable', 'string', 'max:2000'],
+            'review_notes' => ['required', 'string', 'max:2000'],
+        ], [
+            'review_notes.required' => __('finance.validation.expense_details_required'),
         ]);
         $request = FinanceRequest::query()->where('type', FinanceRequest::TYPE_PULL)->where('status', FinanceRequest::STATUS_PENDING)->findOrFail($this->reviewingRequestId);
 
@@ -282,6 +364,7 @@ new class extends Component {
             app(FinanceService::class)->acceptRequest($request, (float) $validated['review_amount'], app(FinanceService::class)->cashBoxForUser((int) $validated['review_cash_box_id'], auth()->user()), auth()->user(), $validated['review_notes'] ?: null, $request->requested_count);
         } catch (ValidationException $exception) {
             $this->addError('review_amount', collect($exception->errors())->flatten()->first() ?: $exception->getMessage());
+
             return;
         }
 
@@ -292,7 +375,7 @@ new class extends Component {
     public function closeReviewModal(): void
     {
         $this->closeRefusalModal();
-        $this->reset(['reviewingRequestId', 'review_amount', 'review_cash_box_id', 'review_notes']);
+        $this->reset(['reviewingRequestId', 'review_amount', 'review_cash_box_id', 'review_notes', 'show_acceptance_details']);
         $this->resetValidation();
     }
 
@@ -429,7 +512,7 @@ new class extends Component {
             @endif
         </div>
 
-        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex shrink-0 gap-2"><button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="past" /></button><button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button></div></div><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="record-person-name px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact">{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
+        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex shrink-0 gap-2"><button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="past" /></button><button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button></div></div><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="record-person-name px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact" data-keep-visible-table-action>{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
@@ -509,7 +592,7 @@ new class extends Component {
         </form>
     </x-admin.modal>
 
-    <x-admin.modal :show="$reviewingRequestId !== null && $refusingRequestId === null" :title="__('finance.actions.review')" close-method="closeReviewModal" max-width="3xl">
+    <x-admin.modal :show="$reviewingRequestId !== null && $refusingRequestId === null && ! $show_acceptance_details" :title="__('finance.actions.review')" close-method="closeReviewModal" max-width="3xl">
         @if ($reviewRequest)
             <div data-withdrawal-review>
                 <div class="mb-4 soft-callout p-4">
@@ -529,10 +612,28 @@ new class extends Component {
                     </div>
                     <div class="md:col-span-2 flex justify-end gap-3">
                         <button wire:click="openRefusalModal" type="button" class="pill-link pill-link--danger" data-withdrawal-refuse>{{ __('finance.actions.decline') }}</button>
-                        <button wire:click="acceptRequest" type="button" class="pill-link pill-link--accent">{{ __('finance.actions.accept') }}</button>
+                        <button wire:click="beginAcceptance" type="button" class="pill-link pill-link--accent">{{ __('finance.actions.accept') }}</button>
                     </div>
                 </div>
             </div>
+        @endif
+    </x-admin.modal>
+
+    <x-admin.modal :show="$reviewingRequestId !== null && $show_acceptance_details && $refusingRequestId === null" :title="__('finance.fields.expense_details')" close-method="closeAcceptanceDetails" max-width="xl" compact>
+        @if ($reviewRequest && $show_acceptance_details)
+            <form wire:submit="acceptRequest" class="space-y-4" data-withdrawal-acceptance-form novalidate>
+                <p class="text-sm opacity-75"><bdi dir="ltr">{{ $reviewRequest->request_no }}</bdi></p>
+                <div>
+                    <label for="withdrawal-expense-details" class="mb-2 block text-sm">{{ __('finance.fields.expense_details') }}</label>
+                    <textarea id="withdrawal-expense-details" wire:model="review_notes" rows="2" maxlength="2000" required aria-required="true" @error('review_notes') aria-invalid="true" aria-describedby="withdrawal-expense-details-error" @enderror class="w-full rounded-xl px-4 py-3 text-sm" data-withdrawal-expense-details></textarea>
+                    @error('review_notes')<p id="withdrawal-expense-details-error" class="mt-1 text-sm text-red-400" role="alert">{{ $message }}</p>@enderror
+                    @error('review_amount')<p class="mt-1 text-sm text-red-400" role="alert">{{ $message }}</p>@enderror
+                    @error('review_cash_box_id')<p class="mt-1 text-sm text-red-400" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div class="admin-action-cluster admin-action-cluster--end">
+                    <x-admin.save-button wire:loading.attr="disabled" wire:target="acceptRequest" data-withdrawal-acceptance-save />
+                </div>
+            </form>
         @endif
     </x-admin.modal>
 

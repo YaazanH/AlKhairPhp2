@@ -8,19 +8,30 @@ use App\Services\FinanceService;
 use App\Services\SpTodayExchangeRateService;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
 
     public ?int $from_cash_box_id = null;
+
     public ?int $to_cash_box_id = null;
+
     public ?int $from_currency_id = null;
+
     public ?int $to_currency_id = null;
+
     public string $from_amount = '';
+
     public string $to_amount = '';
+
     public bool $to_amount_is_manual = false;
+
     public string $exchange_date = '';
+
     public string $notes = '';
+
+    public bool $showExchangeModal = false;
 
     public function mount(): void
     {
@@ -96,7 +107,21 @@ new class extends Component {
         $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
         $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
         $this->exchange_date = now()->toDateString();
+        $this->showExchangeModal = false;
         session()->flash('status', __('finance.messages.exchange_posted'));
+    }
+
+    public function openExchangeModal(): void
+    {
+        $this->authorizePermission('finance.exchange.create');
+        $this->resetValidation();
+        $this->showExchangeModal = true;
+    }
+
+    public function closeExchangeModal(): void
+    {
+        $this->resetValidation();
+        $this->showExchangeModal = false;
     }
 
     public function updated($property): void
@@ -189,39 +214,58 @@ new class extends Component {
     @error('currency_id') <div class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div> @enderror
 
     @can('finance.exchange.create')
-        <section class="surface-panel p-5 lg:p-6">
-            <div class="admin-section-card__title">{{ __('finance.exchange.new') }}</div>
-            <form wire:submit="saveExchange" class="exchange-entry-form mt-5 grid gap-4">
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_box') }}</label><select wire:model.live="from_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($fromCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
-                <div class="exchange-entry-form__amount"><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.from_amount') }}</label><x-finance.amount-input amount-model="from_amount" currency-model="from_currency_id" :currencies="$fromCurrencies" amount-live /></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
-                <div class="exchange-entry-form__action-spacer" aria-hidden="true"></div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_box') }}</label><select wire:model.live="to_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($toCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
-                <div class="exchange-entry-form__amount">
-                    <label class="mb-1 block text-sm font-medium">{{ __('finance.exchange.to_amount') }}</label>
-                    <div class="finance-amount-input" dir="ltr" data-exchange-total-amount>
-                        <select wire:model.live="to_currency_id" class="finance-amount-input__currency rounded-xl px-3 py-3 text-sm" data-clearable="false" data-finance-currency-required="true" data-search-placeholder="" aria-label="{{ __('finance.exchange.to_currency') }}">@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
-                        <div class="exchange-to-amount-control relative min-w-0" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
-                        <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="finance-amount-input__value exchange-to-amount-value w-full rounded-xl px-4 py-3 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
-                        @if (filled($from_amount) && filled($to_amount) && ! $to_amount_is_manual)
-                            <button type="button" wire:click="enableManualToAmount" class="exchange-to-amount-edit absolute inset-y-1 grid w-9 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}" data-exchange-to-amount-edit>
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
-                            </button>
-                        @endif
-                        </div>
+        <x-admin.modal :show="$showExchangeModal" :title="__('finance.exchange.new')" close-method="closeExchangeModal" max-width="3xl" compact>
+            <form id="exchange-entry-form" wire:submit="saveExchange" class="exchange-entry-form exchange-entry-form--modal" data-exchange-create-form>
+                <div class="exchange-entry-form__flow">
+                    <section class="exchange-entry-form__side" data-exchange-source-fields>
+                        <div><label class="exchange-entry-form__label">{{ __('finance.exchange.from_box') }}</label><select wire:model.live="from_cash_box_id" class="w-full rounded-xl px-4 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($fromCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
+                        <div class="exchange-entry-form__amount"><label class="exchange-entry-form__label">{{ __('finance.exchange.from_amount') }}</label><x-finance.amount-input amount-model="from_amount" currency-model="from_currency_id" :currencies="$fromCurrencies" amount-live /></div>
+                    </section>
+
+                    <div class="exchange-entry-form__direction" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m6-6-6 6 6 6" /></svg>
                     </div>
+
+                    <section class="exchange-entry-form__side" data-exchange-destination-fields>
+                        <div><label class="exchange-entry-form__label">{{ __('finance.exchange.to_box') }}</label><select wire:model.live="to_cash_box_id" class="w-full rounded-xl px-4 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($toCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
+                        <div class="exchange-entry-form__amount">
+                            <label class="exchange-entry-form__label">{{ __('finance.exchange.to_amount') }}</label>
+                            <div class="finance-amount-input" dir="ltr" data-exchange-total-amount>
+                                <select wire:model.live="to_currency_id" class="finance-amount-input__currency rounded-xl px-3 text-sm" data-clearable="false" data-finance-currency-required="true" data-search-placeholder="" aria-label="{{ __('finance.exchange.to_currency') }}">@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
+                                <div class="exchange-to-amount-control relative min-w-0" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
+                                <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="finance-amount-input__value exchange-to-amount-value w-full rounded-xl px-4 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
+                                @if (filled($from_amount) && filled($to_amount) && ! $to_amount_is_manual)
+                                    <button type="button" wire:click="enableManualToAmount" class="exchange-to-amount-edit" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}" data-exchange-to-amount-edit data-modal-action-icon-ignore>
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
+                                    </button>
+                                @endif
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                <div class="exchange-notes-action">
-                    <div class="min-w-0"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
-                    <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.post_exchange') }}" aria-label="{{ __('finance.actions.post_exchange') }}" data-exchange-save-action><x-admin-action-icon name="save" /></button>
+
+                <div class="exchange-entry-form__meta">
+                    <div><label class="exchange-entry-form__label">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 text-sm"></div>
+                    <div class="min-w-0"><label class="exchange-entry-form__label">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 text-sm"></div>
                 </div>
                 @error('from_currency_id') <div class="exchange-entry-form__error text-sm text-red-400">{{ $message }}</div> @enderror
+
+                <div class="exchange-entry-form__footer">
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.post_exchange') }}" aria-label="{{ __('finance.actions.post_exchange') }}" data-exchange-save-action><x-admin-action-icon name="save" /></button>
+                </div>
             </form>
-        </section>
+        </x-admin.modal>
     @endcan
 
     <section class="surface-table">
-        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('finance.exchange.history') }}</div></div></div>
+        <div class="admin-grid-meta">
+            <div>
+                <div class="admin-grid-meta__title">{{ __('finance.exchange.history') }}</div>
+                <div class="admin-grid-meta__summary">{{ trans_choice('crud.common.badges.in_view', $exchanges->count(), ['count' => number_format($exchanges->count())]) }}</div>
+            </div>
+            @can('finance.exchange.create')<x-add-action-button wire:click="openExchangeModal" :label="__('finance.exchange.new')" />@endcan
+        </div>
         <div class="overflow-x-auto">
             <table class="table-content text-sm">
                 <thead><tr><th class="px-5 py-3 text-left">{{ __('finance.fields.exchange_no') }}</th><th class="px-5 py-3 text-left">{{ __('finance.common.date') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.from') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.to') }}</th><th class="px-5 py-3 text-left">{{ __('finance.exchange.rates') }}</th><th class="px-5 py-3 text-left">{{ __('finance.fields.user') }}</th></tr></thead>
