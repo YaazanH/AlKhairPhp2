@@ -27,6 +27,7 @@ use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
+use App\Models\ReportDefinition;
 use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
@@ -116,6 +117,7 @@ class AppServiceProvider extends ServiceProvider
             QuranFinalTest::class,
             QuranPartialTest::class,
             QuranTest::class,
+            ReportDefinition::class,
             Student::class,
             StudentAttendanceDay::class,
             StudentAttendanceRecord::class,

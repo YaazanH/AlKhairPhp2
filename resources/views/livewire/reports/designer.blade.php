@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\ReportDefinition;
 use App\Services\ReportDefinitionAccess;
+use App\Services\ReportAuditService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
 use App\Support\RoleRegistry;
@@ -291,8 +292,10 @@ new class extends Component
         $definition = ReportDefinition::query()
             ->whereIn('data_source', $this->availableSourceKeys())
             ->findOrFail($this->placementDefinitionId);
+        $audit = app(ReportAuditService::class);
+        $before = $audit->dashboardSnapshot($definition);
 
-        DB::transaction(function () use ($definition, $roleIds, $validated): void {
+        DB::transaction(function () use ($definition, $roleIds, $validated, $audit, $before): void {
             $existingPositions = $definition->dashboardRoles()->pluck('report_dashboard_placements.position', 'roles.id');
             $placements = [];
 
@@ -312,7 +315,9 @@ new class extends Component
             $definition->forceFill([
                 'status' => $roleIds->isEmpty() ? ReportDefinition::STATUS_DRAFT : ReportDefinition::STATUS_PUBLISHED,
                 'updated_by' => auth()->id(),
-            ])->save();
+            ])->saveQuietly();
+
+            $audit->dashboardUpdated($definition, $before, $audit->dashboardSnapshot($definition));
         });
 
         $this->closePlacement();
@@ -390,12 +395,18 @@ new class extends Component
             'layoutItems.*.size' => ['required', Rule::in(['small', 'medium', 'wide'])],
         ]);
 
-        DB::transaction(function () use ($validated): void {
+        $audit = app(ReportAuditService::class);
+
+        DB::transaction(function () use ($validated, $audit): void {
             $currentIds = DB::table('report_dashboard_placements')
                 ->where('role_id', $this->layoutRoleId)
                 ->lockForUpdate()
                 ->pluck('report_definition_id')
                 ->map(fn ($id) => (int) $id);
+            $definitions = ReportDefinition::query()->whereIn('id', $currentIds)->get()->keyBy('id');
+            $before = $definitions->mapWithKeys(
+                fn (ReportDefinition $definition): array => [$definition->id => $audit->dashboardSnapshot($definition)],
+            );
             $submittedIds = collect($validated['layoutItems'])->pluck('report_id')->map(fn ($id) => (int) $id);
 
             abort_if($submittedIds->diff($currentIds)->isNotEmpty(), 422);
@@ -419,13 +430,19 @@ new class extends Component
                     ->delete();
             }
 
-            ReportDefinition::query()->whereIn('id', $currentIds)->get()->each(function (ReportDefinition $definition): void {
+            $definitions->each(function (ReportDefinition $definition) use ($audit, $before): void {
                 $definition->forceFill([
                     'status' => $definition->dashboardRoles()->exists()
                         ? ReportDefinition::STATUS_PUBLISHED
                         : ReportDefinition::STATUS_DRAFT,
                     'updated_by' => auth()->id(),
-                ])->save();
+                ])->saveQuietly();
+
+                $audit->dashboardUpdated(
+                    $definition,
+                    $before->get($definition->id, []),
+                    $audit->dashboardSnapshot($definition),
+                );
             });
         });
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\ReportDefinition;
 use App\Services\PdfBrandingService;
+use App\Services\ReportAuditService;
 use App\Services\ReportDefinitionAccess;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
@@ -28,6 +29,7 @@ class ReportDesignerExportController extends Controller
         $rows = collect($result['rows'])
             ->map(fn (array $row) => collect($fieldKeys)->map(fn (string $field) => $row[$field] ?? null)->all())
             ->all();
+        app(ReportAuditService::class)->exported($reportDefinition, 'xlsx', $result);
 
         $prefix = Str::slug($reportDefinition->name);
 
@@ -63,6 +65,7 @@ class ReportDesignerExportController extends Controller
             'organisationName' => AppSetting::groupValues('general')->get('school_name') ?: config('app.name'),
             'logo' => app(PdfBrandingService::class)->logoSource(),
         ])->render());
+        app(ReportAuditService::class)->exported($reportDefinition, 'pdf', $result);
 
         return response($pdf->Output('', Destination::STRING_RETURN), 200, [
             'Content-Disposition' => ExportFilename::inlinePdf(

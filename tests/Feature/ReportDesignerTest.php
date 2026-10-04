@@ -45,6 +45,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
+use Spatie\Activitylog\Models\Activity as AuditActivity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -97,6 +98,39 @@ class ReportDesignerTest extends TestCase
             [['operation' => 'count', 'field' => null]],
             ReportDefinition::query()->where('name', 'Active students')->sole()->calculations,
         );
+    }
+
+    public function test_report_definition_changes_are_recorded_in_the_tenant_audit_trail(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'report-audit-admin']);
+        $administrator->assignRole('admin');
+        $this->actingAs($administrator);
+
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Audited report',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $administrator->id,
+            'updated_by' => $administrator->id,
+        ]);
+        $definition->update(['name' => 'Updated audited report']);
+        $definition->delete();
+
+        $events = AuditActivity::query()
+            ->inLog('data-audit')
+            ->where('subject_type', $definition->getMorphClass())
+            ->where('subject_id', $definition->id)
+            ->orderBy('id')
+            ->pluck('event')
+            ->all();
+
+        $this->assertSame(['created', 'updated', 'deleted'], $events);
     }
 
     public function test_report_preview_rejects_fields_outside_the_approved_catalog(): void
@@ -347,9 +381,25 @@ class ReportDesignerTest extends TestCase
         $pdf->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-', $pdf->getContent());
 
+        $exports = AuditActivity::query()
+            ->inLog('data-audit')
+            ->where('subject_type', $definition->getMorphClass())
+            ->where('subject_id', $definition->id)
+            ->where('event', 'report_exported')
+            ->orderBy('id')
+            ->get();
+        $this->assertSame(['xlsx', 'pdf'], $exports->pluck('properties.after.export_format')->all());
+        $this->assertSame([30, 30], $exports->pluck('properties.after.exported_rows')->all());
+
         $this->actingAs($otherUser)
             ->get(route('reports.designer.export.xlsx', $definition, absolute: false))
             ->assertNotFound();
+        $this->assertSame(2, AuditActivity::query()
+            ->inLog('data-audit')
+            ->where('subject_type', $definition->getMorphClass())
+            ->where('subject_id', $definition->id)
+            ->where('event', 'report_exported')
+            ->count());
     }
 
     public function test_grouping_rejects_fields_outside_the_approved_dimensions(): void
@@ -617,6 +667,15 @@ class ReportDesignerTest extends TestCase
             'size' => 'wide',
         ]);
         $this->assertSame(ReportDefinition::STATUS_PUBLISHED, $definition->fresh()->status);
+        $placementAudit = AuditActivity::query()
+            ->inLog('data-audit')
+            ->where('subject_type', $definition->getMorphClass())
+            ->where('subject_id', $definition->id)
+            ->where('event', 'report_dashboard_updated')
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertSame($viewerRole->id, data_get($placementAudit->properties, 'after.dashboard_placements.0.role_id'));
+        $this->assertSame('wide', data_get($placementAudit->properties, 'after.dashboard_placements.0.size'));
         Volt::test('reports.designer')
             ->call('edit', $definition->id)
             ->call('save')
@@ -727,6 +786,11 @@ class ReportDesignerTest extends TestCase
             'position' => 2,
             'size' => 'small',
         ]);
+        $this->assertSame(4, AuditActivity::query()
+            ->inLog('data-audit')
+            ->where('event', 'report_dashboard_updated')
+            ->whereIn('subject_id', [$firstReport->id, $secondReport->id])
+            ->count());
 
         $firstWidgets = app(ReportDashboardService::class)->widgetsFor($firstViewer);
         $this->assertSame([$secondReport->id, $firstReport->id], $firstWidgets->pluck('report.id')->all());

@@ -184,6 +184,10 @@ return [
             'database_size_bytes' => 'Database size in bytes',
             'files_count' => 'File count',
             'files_size_bytes' => 'File size in bytes',
+            'dashboard_placements' => 'Dashboard placements',
+            'export_format' => 'Export format',
+            'exported_rows' => 'Exported rows',
+            'matching_records' => 'Matching records',
         ],
         'field_values' => [
             'group' => [
@@ -225,6 +229,8 @@ return [
             'updated' => 'Updated',
             'deleted' => 'Deleted',
             'restored' => 'Restored',
+            'report_dashboard_updated' => 'Dashboard placement updated',
+            'report_exported' => 'Report exported',
         ],
         'modules' => [
             'AcademicYear' => 'Academic Years', 'Activity' => 'Activities', 'AppSetting' => 'Settings',
@@ -239,6 +245,7 @@ return [
             'StudentNote' => 'Student Notes', 'Teacher' => 'Teachers', 'TeacherAttendanceDay' => 'Teacher Attendance',
             'TeacherAttendanceRecord' => 'Teacher Attendance Records', 'User' => 'Users',
             'SystemBackup' => 'Backups',
+            'ReportDefinition' => 'Custom Reports',
         ],
     ],
 ];
