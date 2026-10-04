@@ -312,6 +312,13 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('Transport', $expenseHtml);
         $this->assertStringContainsString('300', $expenseHtml);
 
+        $quarterPresentation = $catalog->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_LINE,
+            'density' => 'comfortable',
+            'metric' => 'report_calculation_1',
+        ], 'transaction_quarter', true, ReportDesignerCatalog::FINANCE_TRANSACTIONS, $financeCalculations);
+        $this->assertSame(ReportDesignerCatalog::PRESENTATION_LINE, $quarterPresentation['type']);
+
         try {
             $catalog->validatePresentation([
                 'type' => ReportDesignerCatalog::PRESENTATION_DONUT,
@@ -1431,6 +1438,40 @@ class ReportDesignerTest extends TestCase
 
         $this->assertSame(100.0, $expensePreview['calculations'][1]['value']);
         $this->assertSame(100.0, $expensePreview['grouping']['rows'][0]['report_calculation_1']);
+
+        FinanceTransaction::query()->create([
+            'transaction_no' => 'TX-DESIGNER-003',
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => $currency->id,
+            'finance_category_id' => $category->id,
+            'type' => 'expense',
+            'direction' => 'out',
+            'amount' => 250,
+            'signed_amount' => -250,
+            'rate_to_base' => 1,
+            'base_amount' => -250,
+            'local_amount' => -250,
+            'transaction_date' => '2026-06-03',
+            'description' => 'Second-quarter expense',
+            'entered_by' => $user->id,
+        ]);
+
+        $quarterPreview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => 'finance_transactions',
+            'selected_fields' => ['transaction_date', 'transaction_number', 'local_amount'],
+            'calculations' => [
+                ['operation' => 'count', 'field' => null],
+                ['operation' => 'absolute_sum', 'field' => 'local_amount'],
+            ],
+            'group_by' => 'transaction_quarter',
+            'filters' => ['status' => 'expense'],
+            'sort_direction' => 'asc',
+        ], $user);
+
+        $this->assertSame([
+            ['group' => '2026-Q2', 'record_count' => 1, 'report_calculation_1' => 250.0],
+            ['group' => '2026-Q4', 'record_count' => 1, 'report_calculation_1' => 100.0],
+        ], $quarterPreview['grouping']['rows']);
     }
 
     public function test_calculations_use_every_filtered_record_beyond_the_preview_limit(): void

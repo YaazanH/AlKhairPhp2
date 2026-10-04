@@ -1261,6 +1261,7 @@ class ReportDesignerQueryService
         $groupQuery = DB::query()->fromSub($baseQuery, 'report_rows');
         $groupExpression = match ($this->activeGroupBy) {
             'transaction_date' => 'report_rows.transaction_date',
+            'transaction_quarter' => $this->financeQuarterGroupExpression($query),
             'transaction_type' => 'report_rows.type',
             'transaction_direction' => 'report_rows.direction',
             'finance_category' => 'COALESCE(report_rows.finance_category_id, finance_requests.finance_category_id, finance_requests.finance_pull_request_kind_id)',
@@ -1298,13 +1299,13 @@ class ReportDesignerQueryService
         }
 
         $groupQuery->groupByRaw($groupExpression);
-        if ($this->activeGroupBy === 'transaction_date') {
+        if (in_array($this->activeGroupBy, ['transaction_date', 'transaction_quarter'], true)) {
             $groupQuery->orderByDesc('report_group_key');
         } else {
             $groupQuery->orderByDesc('report_group_count')->orderBy('report_group_key');
         }
         $groupRows = $groupQuery->limit($this->groupLimit)->get();
-        if ($this->activeGroupBy === 'transaction_date') {
+        if (in_array($this->activeGroupBy, ['transaction_date', 'transaction_quarter'], true)) {
             $groupRows = $groupRows->sortBy('report_group_key')->values();
         }
         $groupLabels = $this->financeGroupLabels($this->activeGroupBy, $groupRows->pluck('report_group_key')->all());
@@ -1336,12 +1337,21 @@ class ReportDesignerQueryService
         $keys = collect($keys)->filter(fn ($key) => $key !== null)->unique()->values();
 
         return match ($field) {
-            'transaction_date' => $keys->mapWithKeys(fn ($key) => [(string) $key => (string) $key])->all(),
+            'transaction_date', 'transaction_quarter' => $keys->mapWithKeys(fn ($key) => [(string) $key => (string) $key])->all(),
             'transaction_type' => $keys->mapWithKeys(fn ($key) => [(string) $key => $this->finance->transactionTypeLabel((string) $key)])->all(),
             'transaction_direction' => $keys->mapWithKeys(fn ($key) => [(string) $key => __('report_designer.finance_directions.'.$key)])->all(),
             'finance_category' => FinanceCategory::query()->whereIn('id', $keys)->pluck('name', 'id')->mapWithKeys(fn ($name, $id) => [(string) $id => $name])->all(),
             'cash_box' => FinanceCashBox::query()->whereIn('id', $keys)->pluck('name', 'id')->mapWithKeys(fn ($name, $id) => [(string) $id => $name])->all(),
             'currency' => FinanceCurrency::query()->whereIn('id', $keys)->pluck('code', 'id')->mapWithKeys(fn ($code, $id) => [(string) $id => $code])->all(),
+        };
+    }
+
+    protected function financeQuarterGroupExpression(Builder $query): string
+    {
+        return match ($query->getConnection()->getDriverName()) {
+            'sqlite' => "printf('%04d-Q%d', CAST(strftime('%Y', report_rows.transaction_date) AS INTEGER), CAST((CAST(strftime('%m', report_rows.transaction_date) AS INTEGER) + 2) / 3 AS INTEGER))",
+            'pgsql' => "TO_CHAR(report_rows.transaction_date, 'YYYY-\"Q\"Q')",
+            default => "CONCAT(YEAR(report_rows.transaction_date), '-Q', QUARTER(report_rows.transaction_date))",
         };
     }
 

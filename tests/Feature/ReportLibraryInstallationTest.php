@@ -108,10 +108,10 @@ class ReportLibraryInstallationTest extends TestCase
         ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
 
         $response = $this->actingAs($user)->get(route('reports.library.index'))->assertOk();
-        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور', 'الطلاب حسب الصف الدراسي', 'المصروفات حسب التصنيف'] as $name) {
+        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور', 'الطلاب حسب الصف الدراسي', 'المصروفات حسب التصنيف', 'اتجاه المصروفات ربع السنوي'] as $name) {
             $response->assertSee($name);
         }
-        $this->assertSame(10, substr_count($response->getContent(), __('report_library.labels.ready')));
+        $this->assertSame(11, substr_count($response->getContent(), __('report_library.labels.ready')));
 
         $trendTemplate = PlatformReportLibraryItem::query()->where('system_key', 'attendance-activity-trend')->firstOrFail();
         $this->assertSame(ReportDesignerCatalog::PRESENTATION_LINE, data_get($trendTemplate->publishedRevision->definition, 'presentation.type'));
@@ -124,6 +124,11 @@ class ReportLibraryInstallationTest extends TestCase
         $expenseTemplate = PlatformReportLibraryItem::query()->where('system_key', 'expenses-by-category')->firstOrFail();
         $this->assertSame('report_calculation_1', data_get($expenseTemplate->publishedRevision->definition, 'presentation.metric'));
         $this->assertSame(['operation' => 'absolute_sum', 'field' => 'local_amount'], data_get($expenseTemplate->publishedRevision->definition, 'calculations.1'));
+
+        $quarterlyTemplate = PlatformReportLibraryItem::query()->where('system_key', 'quarterly-expense-trend')->firstOrFail();
+        $this->assertSame(ReportDesignerCatalog::PRESENTATION_LINE, data_get($quarterlyTemplate->publishedRevision->definition, 'presentation.type'));
+        $this->assertSame('transaction_quarter', data_get($quarterlyTemplate->publishedRevision->definition, 'group_by'));
+        $this->assertSame('report_calculation_1', data_get($quarterlyTemplate->publishedRevision->definition, 'presentation.metric'));
 
         $template = PlatformReportLibraryItem::query()->where('system_key', 'students-by-group')->firstOrFail();
         $this->actingAs($user)->post(route('reports.library.install', $template))->assertRedirect();

@@ -90,6 +90,7 @@ return [
         'assigned_groups' => 'المجموعات المسندة',
         'assigned_courses' => 'الدورات المسندة',
         'transaction_date' => 'تاريخ الحركة',
+        'transaction_quarter' => 'ربع السنة للحركة',
         'transaction_number' => 'رقم القيد',
         'transaction_type' => 'نوع الحركة',
         'transaction_direction' => 'الاتجاه',

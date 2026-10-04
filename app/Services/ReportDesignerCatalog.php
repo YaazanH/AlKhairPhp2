@@ -553,7 +553,13 @@ class ReportDesignerCatalog
             default => [],
         };
 
-        return collect($this->fields($source))->only($fieldKeys)->all();
+        $fields = collect($this->fields($source))->only($fieldKeys)->all();
+
+        if ($source === self::FINANCE_TRANSACTIONS) {
+            $fields['transaction_quarter'] = $this->field('transaction_quarter', 'date');
+        }
+
+        return $fields;
     }
 
     public function chronologicalGroupFields(string $source): array
@@ -563,7 +569,7 @@ class ReportDesignerCatalog
             self::MEMORIZATION_SESSIONS => ['recorded_on'],
             self::QURAN_TESTS => ['tested_on'],
             self::ASSESSMENTS, self::ASSESSMENT_RESULTS => ['due_at'],
-            self::FINANCE_TRANSACTIONS => ['transaction_date'],
+            self::FINANCE_TRANSACTIONS => ['transaction_date', 'transaction_quarter'],
             default => [],
         };
     }

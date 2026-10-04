@@ -90,6 +90,7 @@ return [
         'assigned_groups' => 'Assigned groups',
         'assigned_courses' => 'Assigned courses',
         'transaction_date' => 'Transaction date',
+        'transaction_quarter' => 'Transaction quarter',
         'transaction_number' => 'Ledger number',
         'transaction_type' => 'Transaction type',
         'transaction_direction' => 'Direction',
