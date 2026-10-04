@@ -2,10 +2,12 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\ReportDefinition;
+use App\Models\ReportDefinitionRevision;
 use App\Services\ReportDefinitionAccess;
 use App\Services\ReportAuditService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
+use App\Services\ReportVersionService;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -70,6 +72,8 @@ new class extends Component
 
     public array $layoutItems = [];
 
+    public ?int $historyDefinitionId = null;
+
     public function mount(): void
     {
         $this->authorizeDesignerViewer();
@@ -81,6 +85,12 @@ new class extends Component
     {
         $catalog = app(ReportDesignerCatalog::class);
         $sourceKeys = array_keys($catalog->sources(auth()->user()));
+        $historyDefinition = $this->historyDefinitionId
+            ? ReportDefinition::query()
+                ->whereIn('data_source', $sourceKeys)
+                ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
+                ->find($this->historyDefinitionId)
+            : null;
         $presentationTypes = $catalog->presentationTypes();
         if (array_key_exists($this->presentationType, $catalog->specializedPresentationTypes())) {
             $presentationTypes[$this->presentationType] = $catalog->specializedPresentationTypes()[$this->presentationType];
@@ -103,6 +113,10 @@ new class extends Component
             'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
             'dashboardRoles' => auth()->user()?->can('report-dashboard-layout.manage') ? $this->availableDashboardRoles() : collect(),
+            'historyDefinition' => $historyDefinition,
+            'historyRevisions' => $historyDefinition
+                ? $historyDefinition->revisions()->with('creator:id,name,username')->latest('revision_number')->get()
+                : collect(),
         ];
     }
 
@@ -242,8 +256,51 @@ new class extends Component
         if ($this->editingId === $definitionId) {
             $this->resetEditor();
         }
+        if ($this->historyDefinitionId === $definitionId) {
+            $this->closeHistory();
+        }
 
         session()->flash('status', __('report_designer.messages.deleted'));
+    }
+
+    public function openHistory(int $definitionId): void
+    {
+        $this->authorizePermission('report-designer.update');
+        $definition = ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
+            ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
+            ->findOrFail($definitionId);
+
+        $this->historyDefinitionId = $definition->id;
+        $this->resetValidation('revision');
+    }
+
+    public function closeHistory(): void
+    {
+        $this->historyDefinitionId = null;
+        $this->resetValidation('revision');
+    }
+
+    public function restoreRevision(int $revisionId): void
+    {
+        $this->authorizePermission('report-designer.update');
+        $definition = ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
+            ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
+            ->findOrFail($this->historyDefinitionId);
+        $revision = ReportDefinitionRevision::query()
+            ->where('report_definition_id', $definition->id)
+            ->findOrFail($revisionId);
+
+        app(ReportVersionService::class)->restore($definition, $revision, auth()->user());
+
+        if ($this->editingId === $definition->id) {
+            $this->loadDefinition($definition->id, false);
+        }
+
+        session()->flash('status', __('report_designer.messages.revision_restored', [
+            'revision' => $revision->revision_number,
+        ]));
     }
 
     public function managePlacement(int $definitionId): void
@@ -718,6 +775,7 @@ new class extends Component
                             <div class="flex shrink-0 gap-2">
                                 @can('report-designer.update')
                                     <button type="button" wire:click="edit({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
+                                    <button type="button" wire:click="openHistory({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.version_history') }}"><x-admin-action-icon name="history" /></button>
                                 @else
                                     <button type="button" wire:click="viewDefinition({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.open') }}"><x-admin-action-icon name="open" /></button>
                                 @endcan
@@ -968,6 +1026,62 @@ new class extends Component
             @endif
         </div>
     </div>
+
+    <x-admin.modal :show="$historyDefinitionId !== null" :title="__('report_designer.history.title')" close-method="closeHistory" max-width="3xl">
+        @if($historyDefinition)
+            <div class="grid gap-5" data-report-version-history>
+                <div>
+                    <div class="font-semibold text-white">{{ $historyDefinition->name }}</div>
+                    <p class="mt-1 text-sm leading-6 text-neutral-300">{{ __('report_designer.history.help') }}</p>
+                </div>
+
+                @error('revision')
+                    <div class="rounded-xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100">{{ $message }}</div>
+                @enderror
+
+                <div class="grid max-h-[60vh] gap-3 overflow-y-auto pe-1">
+                    @forelse($historyRevisions as $revision)
+                        <article class="rounded-2xl border border-white/10 bg-white/[0.03] p-4" wire:key="report-revision-{{ $revision->id }}">
+                            <div class="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <div class="font-semibold text-white">{{ __('report_designer.history.revision', ['number' => $revision->revision_number]) }}</div>
+                                    <div class="mt-1 text-xs text-neutral-400">
+                                        {{ __('report_designer.history.actions.'.$revision->action) }}
+                                        · {{ $revision->creator?->name ?: $revision->creator?->username ?: __('report_designer.history.system') }}
+                                        · {{ $revision->created_at->format('Y-m-d H:i') }}
+                                    </div>
+                                    @if($revision->restored_from_revision_number)
+                                        <div class="mt-2 text-xs text-amber-200">{{ __('report_designer.history.restored_from', ['number' => $revision->restored_from_revision_number]) }}</div>
+                                    @endif
+                                </div>
+                                @if($revision->revision_number !== $historyRevisions->max('revision_number'))
+                                    <button
+                                        type="button"
+                                        wire:click="restoreRevision({{ $revision->id }})"
+                                        wire:confirm="{{ __('report_designer.history.restore_confirm', ['number' => $revision->revision_number]) }}"
+                                        class="pill-link text-xs"
+                                    >{{ __('report_designer.actions.restore_revision') }}</button>
+                                @else
+                                    <span class="rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">{{ __('report_designer.history.current') }}</span>
+                                @endif
+                            </div>
+
+                            <div class="mt-3 grid gap-2 text-xs text-neutral-300 sm:grid-cols-2">
+                                <div><span class="text-neutral-500">{{ __('report_designer.form.name') }}:</span> {{ data_get($revision->snapshot, 'name') }}</div>
+                                <div><span class="text-neutral-500">{{ __('report_designer.form.source') }}:</span> {{ data_get($sources, data_get($revision->snapshot, 'data_source').'.label', data_get($revision->snapshot, 'data_source')) }}</div>
+                            </div>
+                        </article>
+                    @empty
+                        <div class="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-neutral-400">{{ __('report_designer.history.empty') }}</div>
+                    @endforelse
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="button" wire:click="closeHistory" class="pill-link">{{ __('report_designer.actions.cancel') }}</button>
+                </div>
+            </div>
+        @endif
+    </x-admin.modal>
 
     <x-admin.modal :show="$placementDefinitionId !== null" :title="__('report_designer.placement.title')" close-method="closePlacement" max-width="2xl">
         <form wire:submit="savePlacement" class="grid gap-5">

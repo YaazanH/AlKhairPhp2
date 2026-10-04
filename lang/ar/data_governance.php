@@ -190,6 +190,9 @@ return [
             'export_format' => 'صيغة التصدير',
             'exported_rows' => 'الصفوف المصدّرة',
             'matching_records' => 'السجلات المطابقة',
+            'report_definition' => 'تعريف التقرير',
+            'restored_from_revision' => 'النسخة المستعادة',
+            'new_revision' => 'النسخة الجديدة',
         ],
         'field_values' => [
             'group' => [
@@ -233,6 +236,7 @@ return [
             'restored' => 'استعادة',
             'report_dashboard_updated' => 'تعديل موضع لوحة المعلومات',
             'report_exported' => 'تصدير التقرير',
+            'report_revision_restored' => 'استعادة نسخة التقرير',
         ],
         'modules' => [
             'AcademicYear' => 'السنوات الدراسية', 'Activity' => 'الأنشطة', 'AppSetting' => 'الإعدادات',

@@ -188,6 +188,9 @@ return [
             'export_format' => 'Export format',
             'exported_rows' => 'Exported rows',
             'matching_records' => 'Matching records',
+            'report_definition' => 'Report definition',
+            'restored_from_revision' => 'Restored from revision',
+            'new_revision' => 'New revision',
         ],
         'field_values' => [
             'group' => [
@@ -231,6 +234,7 @@ return [
             'restored' => 'Restored',
             'report_dashboard_updated' => 'Dashboard placement updated',
             'report_exported' => 'Report exported',
+            'report_revision_restored' => 'Report revision restored',
         ],
         'modules' => [
             'AcademicYear' => 'Academic Years', 'Activity' => 'Activities', 'AppSetting' => 'Settings',

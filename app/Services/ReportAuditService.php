@@ -15,6 +15,8 @@ class ReportAuditService
 
     public const EVENT_EXPORTED = 'report_exported';
 
+    public const EVENT_REVISION_RESTORED = 'report_revision_restored';
+
     public function dashboardSnapshot(ReportDefinition $definition): array
     {
         return DB::table('report_dashboard_placements')
@@ -55,6 +57,22 @@ class ReportAuditService
             'export_format' => $format,
             'exported_rows' => count($result['rows'] ?? []),
             'matching_records' => (int) ($result['total'] ?? 0),
+        ]);
+    }
+
+    public function revisionRestored(
+        ReportDefinition $definition,
+        array $before,
+        array $after,
+        int $sourceRevision,
+        ?int $newRevision,
+    ): void {
+        $this->record($definition, self::EVENT_REVISION_RESTORED, [
+            'report_definition' => $before,
+        ], [
+            'report_definition' => $after,
+            'restored_from_revision' => $sourceRevision,
+            'new_revision' => $newRevision,
         ]);
     }
 

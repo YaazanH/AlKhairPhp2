@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Permission\Models\Role;
 
 class ReportDefinition extends Model
@@ -60,5 +61,10 @@ class ReportDefinition extends Model
         return $this->belongsToMany(Role::class, 'report_dashboard_placements')
             ->withPivot(['position', 'size'])
             ->withTimestamps();
+    }
+
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(ReportDefinitionRevision::class);
     }
 }

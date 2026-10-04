@@ -133,6 +133,57 @@ class ReportDesignerTest extends TestCase
         $this->assertSame(['created', 'updated', 'deleted'], $events);
     }
 
+    public function test_report_design_versions_are_preserved_and_an_older_revision_can_be_restored(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'report-version-admin']);
+        $administrator->assignRole('admin');
+        $this->actingAs($administrator);
+
+        $component = Volt::test('reports.designer')
+            ->call('create')
+            ->set('name', 'Original report name')
+            ->set('description', 'Original purpose')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $definition = ReportDefinition::query()->where('name', 'Original report name')->sole();
+        $firstRevision = $definition->revisions()->sole();
+        $this->assertSame(1, $firstRevision->revision_number);
+        $this->assertSame('created', $firstRevision->action);
+
+        $component
+            ->set('name', 'Updated report name')
+            ->set('description', 'Updated purpose')
+            ->call('save')
+            ->assertHasNoErrors();
+        $definition->forceFill(['status' => ReportDefinition::STATUS_PUBLISHED])->saveQuietly();
+
+        $component
+            ->call('openHistory', $definition->id)
+            ->assertSee(__('report_designer.history.revision', ['number' => 2]))
+            ->assertSee(__('report_designer.history.revision', ['number' => 1]))
+            ->call('restoreRevision', $firstRevision->id)
+            ->assertHasNoErrors();
+
+        $definition->refresh();
+        $this->assertSame('Original report name', $definition->name);
+        $this->assertSame('Original purpose', $definition->description);
+        $this->assertSame(ReportDefinition::STATUS_PUBLISHED, $definition->status);
+        $this->assertSame(3, $definition->revisions()->count());
+
+        $restored = $definition->revisions()->latest('revision_number')->firstOrFail();
+        $this->assertSame('restored', $restored->action);
+        $this->assertSame(1, $restored->restored_from_revision_number);
+        $this->assertSame('Original report name', data_get($restored->snapshot, 'name'));
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => $definition->getMorphClass(),
+            'subject_id' => $definition->id,
+            'event' => 'report_revision_restored',
+        ]);
+    }
+
     public function test_report_preview_rejects_fields_outside_the_approved_catalog(): void
     {
         $this->seed(RoleSeeder::class);

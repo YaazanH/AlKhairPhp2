@@ -40,6 +40,7 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Observers\DataAuditObserver;
+use App\Observers\ReportDefinitionRevisionObserver;
 use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\Landlord\TenantContext;
 use App\Support\ApplicationTimezone;
@@ -132,5 +133,7 @@ class AppServiceProvider extends ServiceProvider
         ] as $model) {
             $model::observe(DataAuditObserver::class);
         }
+
+        ReportDefinition::observe(ReportDefinitionRevisionObserver::class);
     }
 }
