@@ -14,6 +14,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_DONUT = 'donut';
 
+    public const PRESENTATION_LOLLIPOP = 'lollipop';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -320,6 +322,18 @@ class ReportDesignerCatalog
         ];
     }
 
+    public function specializedPresentationTypes(): array
+    {
+        return [
+            self::PRESENTATION_LOLLIPOP => __('report_designer.presentation.types.lollipop'),
+        ];
+    }
+
+    public function libraryPresentationTypes(): array
+    {
+        return $this->presentationTypes() + $this->specializedPresentationTypes();
+    }
+
     public function tableDensities(): array
     {
         return [
@@ -328,12 +342,14 @@ class ReportDesignerCatalog
         ];
     }
 
-    public function validatePresentation(array $presentation, ?string $groupBy): array
+    public function validatePresentation(array $presentation, ?string $groupBy, bool $allowSpecialized = false): array
     {
         $type = (string) ($presentation['type'] ?? self::PRESENTATION_TABLE);
         $density = (string) ($presentation['density'] ?? 'comfortable');
 
-        if (! array_key_exists($type, $this->presentationTypes())) {
+        $types = $allowSpecialized ? $this->libraryPresentationTypes() : $this->presentationTypes();
+
+        if (! array_key_exists($type, $types)) {
             throw ValidationException::withMessages([
                 'presentationType' => __('report_designer.validation.invalid_presentation'),
             ]);

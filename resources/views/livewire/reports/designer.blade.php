@@ -74,6 +74,10 @@ new class extends Component
     {
         $catalog = app(ReportDesignerCatalog::class);
         $sourceKeys = array_keys($catalog->sources(auth()->user()));
+        $presentationTypes = $catalog->presentationTypes();
+        if (array_key_exists($this->presentationType, $catalog->specializedPresentationTypes())) {
+            $presentationTypes[$this->presentationType] = $catalog->specializedPresentationTypes()[$this->presentationType];
+        }
 
         return [
             'definitions' => app(ReportDefinitionAccess::class)->scopeManageable(ReportDefinition::query(), auth()->user())
@@ -88,7 +92,7 @@ new class extends Component
             'calculationOperations' => $catalog->calculationOperations(),
             'calculableFields' => $catalog->calculableFields($this->dataSource),
             'groupableFields' => $catalog->groupableFields($this->dataSource),
-            'presentationTypes' => $catalog->presentationTypes(),
+            'presentationTypes' => $presentationTypes,
             'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
             'dashboardRoles' => auth()->user()?->can('report-dashboard-layout.manage') ? $this->availableDashboardRoles() : collect(),
@@ -443,7 +447,11 @@ new class extends Component
             'calculations.*.operation' => ['required', 'string'],
             'calculations.*.field' => ['nullable', 'string'],
             'groupBy' => ['nullable', 'string'],
-            'presentationType' => ['required', Rule::in(array_keys($catalog->presentationTypes()))],
+            'presentationType' => ['required', Rule::in(array_keys(
+                $this->mayPreserveSpecializedPresentation()
+                    ? $catalog->libraryPresentationTypes()
+                    : $catalog->presentationTypes(),
+            ))],
             'tableDensity' => ['required', Rule::in(array_keys($catalog->tableDensities()))],
             'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
@@ -459,7 +467,7 @@ new class extends Component
         $presentation = $catalog->validatePresentation([
             'type' => $validated['presentationType'],
             'density' => $validated['tableDensity'],
-        ], $groupBy);
+        ], $groupBy, $this->mayPreserveSpecializedPresentation());
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
             $validated['sortField'],
@@ -506,6 +514,21 @@ new class extends Component
         $this->sortDirection = 'asc';
         $this->previewResult = [];
         $this->resetValidation();
+    }
+
+    protected function mayPreserveSpecializedPresentation(): bool
+    {
+        if (! $this->editingId || ! array_key_exists($this->presentationType, app(ReportDesignerCatalog::class)->specializedPresentationTypes())) {
+            return false;
+        }
+
+        $definition = ReportDefinition::query()
+            ->whereIn('data_source', $this->availableSourceKeys())
+            ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
+            ->find($this->editingId);
+
+        return $definition?->library_item_uuid !== null
+            && data_get($definition->presentation, 'type') === $this->presentationType;
     }
 
     protected function defaultSource(): string

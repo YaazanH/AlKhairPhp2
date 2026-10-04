@@ -37,6 +37,7 @@ use App\Services\ReportDesignerQueryService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Role;
@@ -185,6 +186,46 @@ class ReportDesignerTest extends TestCase
             ReportDesignerCatalog::FINANCE_TRANSACTIONS,
             'description',
         );
+    }
+
+    public function test_specialized_group_distribution_is_reserved_for_compatible_library_templates(): void
+    {
+        $catalog = app(ReportDesignerCatalog::class);
+
+        try {
+            $catalog->validatePresentation([
+                'type' => ReportDesignerCatalog::PRESENTATION_LOLLIPOP,
+                'density' => 'comfortable',
+            ], 'current_group');
+            $this->fail('A specialized presentation must not be available to unrestricted report definitions.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('presentationType', $exception->errors());
+        }
+
+        $presentation = $catalog->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_LOLLIPOP,
+            'density' => 'comfortable',
+        ], 'current_group', true);
+        $this->assertSame(ReportDesignerCatalog::PRESENTATION_LOLLIPOP, $presentation['type']);
+
+        $html = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            [
+                'grouping' => [
+                    'label' => 'Current group',
+                    'columns' => ['group' => 'Current group', 'record_count' => 'Records'],
+                    'rows' => [
+                        ['group' => 'Group A', 'record_count' => 8],
+                        ['group' => 'Group B', 'record_count' => 3],
+                    ],
+                ],
+                'presentation' => $presentation,
+            ],
+        );
+
+        $this->assertStringContainsString('data-report-presentation="lollipop"', $html);
+        $this->assertStringContainsString('Group A', $html);
+        $this->assertStringContainsString('8', $html);
     }
 
     public function test_grouped_report_presentation_is_saved_and_reused_in_preview_full_report_and_dashboard(): void

@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Landlord\PlatformReportLibraryItem;
 use App\Models\ReportDefinition;
 use App\Models\User;
+use App\Services\ReportDesignerCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -101,6 +103,8 @@ class ReportLibraryInstallationTest extends TestCase
         $user->givePermissionTo(collect([
             'report-library.install',
             'finance.reports.view',
+            'report-designer.view',
+            'report-designer.update',
         ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
 
         $response = $this->actingAs($user)->get(route('reports.library.index'))->assertOk();
@@ -115,7 +119,21 @@ class ReportLibraryInstallationTest extends TestCase
         $copy = ReportDefinition::query()->sole();
         $this->assertSame('الطلاب حسب المجموعة', $copy->name);
         $this->assertSame($template->uuid, $copy->library_item_uuid);
+        $this->assertSame(2, $copy->library_revision);
+        $this->assertSame(ReportDesignerCatalog::PRESENTATION_LOLLIPOP, $copy->presentation['type']);
         $this->assertSame(ReportDefinition::STATUS_DRAFT, $copy->status);
+
+        Volt::test('reports.designer')
+            ->call('edit', $copy->id)
+            ->assertSet('presentationType', ReportDesignerCatalog::PRESENTATION_LOLLIPOP)
+            ->set('name', 'Editable group distribution')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('report_definitions', [
+            'id' => $copy->id,
+            'name' => 'Editable group distribution',
+        ]);
     }
 
     private function publishedItem(string $source = 'students', array $definitionOverrides = [], array $requiredModules = ['students']): PlatformReportLibraryItem

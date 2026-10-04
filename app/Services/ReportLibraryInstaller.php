@@ -94,7 +94,7 @@ class ReportLibraryInstaller
             'selected_fields' => $fields,
             'calculations' => $this->catalog->validateCalculations($source, (array) data_get($definition, 'calculations', [])),
             'group_by' => $groupBy,
-            'presentation' => $this->catalog->validatePresentation((array) data_get($definition, 'presentation', []), $groupBy),
+            'presentation' => $this->catalog->validatePresentation((array) data_get($definition, 'presentation', []), $groupBy, true),
             'filters' => (array) data_get($definition, 'filters', []),
             'sort_field' => $sortField,
             'sort_direction' => $sortDirection,

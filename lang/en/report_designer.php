@@ -218,7 +218,7 @@ return [
         'title' => 'Report presentation',
         'help' => 'Choose how grouped results appear in previews, full reports, and dashboard widgets. Charts always show matching record counts for each approved group.',
         'type' => 'Grouped result view',
-        'types' => ['table' => 'Grouped table', 'bar' => 'Bar chart', 'donut' => 'Doughnut chart'],
+        'types' => ['table' => 'Grouped table', 'bar' => 'Bar chart', 'donut' => 'Doughnut chart', 'lollipop' => 'Group distribution'],
         'table_density' => 'Table spacing',
         'table_density_help' => 'Spacing applies to grouped and detailed tables. Dashboard tables stay compact.',
         'densities' => ['comfortable' => 'Comfortable', 'compact' => 'Compact'],

@@ -45,6 +45,23 @@
                 </div>
             @endforeach
         </div>
+    @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_LOLLIPOP)
+        <div class="grid gap-4" role="img" aria-label="{{ __('report_designer.presentation.chart_aria', ['group' => $grouping['label']]) }}">
+            @foreach($rows as $index => $row)
+                @php($width = max(4, ((int) $row['record_count'] / $maximum) * 100))
+                <div class="grid gap-2">
+                    <div class="flex items-center justify-between gap-3 text-xs">
+                        <span class="truncate text-neutral-300" title="{{ $row['group'] }}">{{ $row['group'] }}</span>
+                        <span class="shrink-0 font-semibold text-white">{{ number_format((int) $row['record_count']) }}</span>
+                    </div>
+                    <div class="relative h-4" aria-hidden="true">
+                        <div class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/10"></div>
+                        <div class="absolute start-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full" style="width: {{ $width }}%; background: {{ $colors[$index] }}"></div>
+                        <span class="absolute top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-neutral-950 shadow-[0_0_0_2px_rgba(255,255,255,0.08)]" style="inset-inline-start: calc({{ $width }}% - 0.375rem); background: {{ $colors[$index] }}"></span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_DONUT && $total > 0)
         <div class="grid items-center gap-5 sm:grid-cols-[11rem_minmax(0,1fr)]">
             <div class="relative mx-auto grid size-40 place-items-center rounded-full" style="background: conic-gradient({{ implode(', ', $segments) }})" role="img" aria-label="{{ __('report_designer.presentation.chart_aria', ['group' => $grouping['label']]) }}">
