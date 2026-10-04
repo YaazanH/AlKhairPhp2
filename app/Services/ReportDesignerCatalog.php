@@ -20,6 +20,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_TREEMAP = 'treemap';
 
+    public const PRESENTATION_HOTBAR = 'hotbar';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -186,7 +188,7 @@ class ReportDesignerCatalog
                 'active_groups_count' => $this->field('active_groups_count', 'number'),
                 'active_enrollments_count' => $this->field('active_enrollments_count', 'number'),
             ],
-            self::GROUPS => [
+            self::GROUPS => array_merge([
                 'group_name' => $this->field('group_name', 'text'),
                 'course_name' => $this->field('course_name', 'text'),
                 'academic_year' => $this->field('academic_year', 'text'),
@@ -199,7 +201,12 @@ class ReportDesignerCatalog
                 'status' => $this->field('status', 'status'),
                 'starts_on' => $this->field('starts_on', 'date'),
                 'ends_on' => $this->field('ends_on', 'date'),
-            ],
+            ], $this->modules->enabled('curriculum') ? [
+                'curriculum_name' => $this->field('curriculum_name', 'text'),
+                'curriculum_completed_lessons' => $this->field('curriculum_completed_lessons', 'number'),
+                'curriculum_total_lessons' => $this->field('curriculum_total_lessons', 'number'),
+                'curriculum_progress_percentage' => $this->field('curriculum_progress_percentage', 'number'),
+            ] : []),
             self::STUDENT_ATTENDANCE => [
                 'attendance_date' => $this->field('attendance_date', 'date'),
                 'student_number' => $this->field('student_number', 'text'),
@@ -332,6 +339,7 @@ class ReportDesignerCatalog
             self::PRESENTATION_LOLLIPOP => __('report_designer.presentation.types.lollipop'),
             self::PRESENTATION_LINE => __('report_designer.presentation.types.line'),
             self::PRESENTATION_TREEMAP => __('report_designer.presentation.types.treemap'),
+            self::PRESENTATION_HOTBAR => __('report_designer.presentation.types.hotbar'),
         ];
     }
 
@@ -375,6 +383,13 @@ class ReportDesignerCatalog
             ]);
         }
 
+        if ($type === self::PRESENTATION_HOTBAR
+            && ($source !== self::GROUPS || $groupBy !== 'group_name')) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.hotbar_requires_groups'),
+            ]);
+        }
+
         if (! array_key_exists($density, $this->tableDensities())) {
             throw ValidationException::withMessages([
                 'tableDensity' => __('report_designer.validation.invalid_table_density'),
@@ -392,10 +407,32 @@ class ReportDesignerCatalog
             ]);
         }
 
+        $totalMetric = (string) ($presentation['total_metric'] ?? '');
+        $calculationForMetric = function (string $key) use ($calculations): ?array {
+            if (! preg_match('/^report_calculation_(\d+)$/', $key, $matches)) {
+                return null;
+            }
+
+            return $calculations[(int) $matches[1]] ?? null;
+        };
+        $hotbarPercentage = $calculationForMetric($metric);
+        $hotbarTotal = $calculationForMetric($totalMetric);
+        if ($type === self::PRESENTATION_HOTBAR
+            && ($metric === 'record_count'
+                || ! $allowedMetrics->has($totalMetric)
+                || $totalMetric === 'record_count'
+                || $hotbarPercentage !== ['operation' => 'avg', 'field' => 'curriculum_progress_percentage']
+                || $hotbarTotal !== ['operation' => 'max', 'field' => 'curriculum_total_lessons'])) {
+            throw ValidationException::withMessages([
+                'presentationMetric' => __('report_designer.validation.hotbar_requires_measures'),
+            ]);
+        }
+
         return array_filter([
             'type' => $type,
             'density' => $density,
             'metric' => $metric === 'record_count' ? null : $metric,
+            'total_metric' => $type === self::PRESENTATION_HOTBAR ? $totalMetric : null,
         ], fn (mixed $value): bool => $value !== null);
     }
 
@@ -521,7 +558,7 @@ class ReportDesignerCatalog
     {
         $fieldKeys = match ($source) {
             self::COURSES => ['groups_count', 'active_groups_count', 'active_enrollments_count'],
-            self::GROUPS => ['capacity', 'active_enrollments_count', 'available_places'],
+            self::GROUPS => ['capacity', 'active_enrollments_count', 'available_places', 'curriculum_completed_lessons', 'curriculum_total_lessons', 'curriculum_progress_percentage'],
             self::MEMORIZATION_SESSIONS => ['from_page', 'to_page', 'pages_count'],
             self::QURAN_TESTS => ['score', 'attempt_number'],
             self::QURAN_PARTIAL_TESTS => ['passed_parts_count', 'parts_count', 'latest_mistake_count', 'attempts_count', 'latest_score'],
@@ -541,7 +578,7 @@ class ReportDesignerCatalog
         $fieldKeys = match ($source) {
             self::STUDENTS => ['status', 'grade_level', 'current_group'],
             self::COURSES => ['academic_year', 'status'],
-            self::GROUPS => ['course_name', 'academic_year', 'teacher_name', 'assistant_teacher_name', 'grade_level', 'status'],
+            self::GROUPS => ['group_name', 'course_name', 'academic_year', 'teacher_name', 'assistant_teacher_name', 'grade_level', 'status'],
             self::STUDENT_ATTENDANCE => ['attendance_date', 'attendance_status', 'presence_result', 'attendance_scope', 'course_name', 'group_name'],
             self::MEMORIZATION_SESSIONS => ['recorded_on', 'entry_type', 'teacher_name', 'course_name', 'group_name'],
             self::QURAN_TESTS => ['tested_on', 'test_type', 'juz_number', 'test_status', 'teacher_name', 'course_name', 'group_name'],
@@ -585,6 +622,21 @@ class ReportDesignerCatalog
         }
 
         return $field;
+    }
+
+    public function requiredModulesForDefinition(string $source, array $fields): array
+    {
+        $modules = $this->requiredModules($source);
+        if ($source === self::GROUPS && array_intersect($fields, [
+            'curriculum_name',
+            'curriculum_completed_lessons',
+            'curriculum_total_lessons',
+            'curriculum_progress_percentage',
+        ]) !== []) {
+            $modules[] = 'curriculum';
+        }
+
+        return array_values(array_unique($modules));
     }
 
     public function validateCalculations(string $source, array $calculations): array

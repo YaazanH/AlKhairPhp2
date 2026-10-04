@@ -7,9 +7,11 @@
     $chartLimit = $compact ? 5 : 9;
     $isTable = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_TABLE;
     $isLine = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_LINE;
+    $isHotbar = $type === 'hotbar';
     $rows = match (true) {
         $isTable => $allRows->take($compact ? 6 : PHP_INT_MAX)->values(),
         $isLine => $allRows->take(-$chartLimit)->values(),
+        $isHotbar => $allRows->take($chartLimit)->values(),
         default => $allRows->take($chartLimit)->values(),
     };
     $metricKey = (string) data_get($presentation, 'metric', 'record_count');
@@ -18,8 +20,8 @@
     }
     $metricLabel = (string) data_get($grouping, 'columns.'.$metricKey, __('report_designer.calculations.record_count'));
     $chartAria = __('report_designer.presentation.chart_metric_aria', ['metric' => $metricLabel, 'group' => $grouping['label']]);
-    $remainingCount = $isTable || $isLine ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
-    $remainingMetric = $isTable || $isLine ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
+    $remainingCount = $isTable || $isLine || $isHotbar ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
+    $remainingMetric = $isTable || $isLine || $isHotbar ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
     if ($remainingCount > 0) {
         $other = ['group' => __('report_designer.presentation.other'), 'record_count' => $remainingCount];
         $other[$metricKey] = $metricKey === 'record_count' ? $remainingCount : $remainingMetric;
@@ -74,7 +76,9 @@
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_LOLLIPOP)
         <div class="grid gap-4" role="img" aria-label="{{ $chartAria }}">
             @foreach($rows as $index => $row)
-                @php($width = max(4, ($metricValue($row) / $maximum) * 100))
+                @php
+                    $width = max(4, ($metricValue($row) / $maximum) * 100);
+                @endphp
                 <div class="grid gap-2">
                     <div class="flex items-center justify-between gap-3 text-xs">
                         <span class="truncate text-neutral-300" title="{{ $row['group'] }}">{{ $row['group'] }}</span>
@@ -88,11 +92,53 @@
                 </div>
             @endforeach
         </div>
+    @elseif($isHotbar)
+        @php
+            $totalMetricKey = (string) data_get($presentation, 'total_metric');
+        @endphp
+        <div class="dashboard-curriculum-hotbars grid gap-x-10 gap-y-[0.875rem] {{ $compact ? '' : 'md:grid-cols-2' }}" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-dashboard-curriculum-hotbars role="img" aria-label="{{ $chartAria }}">
+            @foreach($rows as $row)
+                @php
+                    $percentage = min(100, $metricValue($row));
+                    $peerPercentages = $allRows
+                        ->reject(fn (array $peer): bool => $peer['group'] === $row['group'])
+                        ->map(fn (array $peer): float => min(100, $metricValue($peer)));
+                    $peerAverage = $peerPercentages->isEmpty() ? $percentage : (float) $peerPercentages->average();
+                    $percentageGap = max(0, $peerAverage - $percentage);
+                    $totalLessons = max(0, (int) ($row[$totalMetricKey] ?? 0));
+                    $lessonsBehind = max(0, (int) ceil((($percentageGap / 100) * $totalLessons) - 0.00001));
+                    $tone = $percentageGap > 15 ? 'danger' : ($percentageGap > 5 ? 'warning' : 'success');
+                @endphp
+                <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="{{ __('report_designer.fields.group_name') }}" data-progress-tone="{{ $tone }}" data-lessons-behind="{{ $lessonsBehind }}">
+                    <div class="dashboard-curriculum-hotbar__identity">
+                        <span class="dashboard-curriculum-hotbar__group" title="{{ $row['group'] }}">{{ $row['group'] }}</span>
+                        <div class="record-person-name dashboard-curriculum-hotbar__teacher">{{ __('curricula.progress.completed', ['percent' => number_format($percentage, 1)]) }}</div>
+                    </div>
+                    <div class="dashboard-curriculum-hotbar__track">
+                        <span class="dashboard-curriculum-hotbar__fill dashboard-curriculum-hotbar__fill--{{ $tone }}" style="width: {{ $percentage }}%" aria-hidden="true"></span>
+                        <span
+                            class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $tone }} dashboard-lollipop-attendance"
+                            style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $percentage }}% - .5rem)))"
+                            tabindex="0"
+                            role="img"
+                            aria-label="{{ number_format($percentage, 1) }}% / {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $lessonsBehind, ['count' => number_format($lessonsBehind)]) }}"
+                        >
+                            <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
+                                <strong>{{ number_format($percentage, 1) }}%</strong>
+                                <span>{{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $lessonsBehind, ['count' => number_format($lessonsBehind)]) }}</span>
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_LINE)
         <svg viewBox="0 0 456 208" dir="ltr" class="h-auto w-full overflow-visible" role="img" aria-label="{{ $chartAria }}">
             <line x1="36" y1="164" x2="420" y2="164" stroke="rgba(255,255,255,.22)" stroke-width="1.5" />
             @foreach(range(0, 4) as $tick)
-                @php($gridY = 164 - (($tick / 4) * 132))
+                @php
+                    $gridY = 164 - (($tick / 4) * 132);
+                @endphp
                 <line x1="36" y1="{{ $gridY }}" x2="420" y2="{{ $gridY }}" stroke="rgba(255,255,255,.08)" stroke-width="1" />
                 <text x="28" y="{{ $gridY + 3 }}" text-anchor="end" fill="#a3a3a3" font-size="9">{{ number_format(($maximum / 4) * $tick, $lineDecimals) }}</text>
             @endforeach
@@ -108,8 +154,10 @@
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_TREEMAP)
         <div class="flex min-h-64 flex-wrap content-stretch gap-2" role="img" aria-label="{{ $chartAria }}">
             @foreach($rows as $index => $row)
-                @php($share = ($metricValue($row) / max(1, $rows->sum(fn (array $item): float => $metricValue($item)))) * 100)
-                @php($basis = max($compact ? 34 : 24, $share))
+                @php
+                    $share = ($metricValue($row) / max(1, $rows->sum(fn (array $item): float => $metricValue($item)))) * 100;
+                    $basis = max($compact ? 34 : 24, $share);
+                @endphp
                 <div class="flex min-w-32 flex-col justify-between overflow-hidden rounded-2xl border p-4" style="flex: {{ max(1, $metricValue($row)) }} 1 {{ $basis }}%; min-height: {{ $compact ? 6 : max(7, 6 + ($share / 12)) }}rem; border-color: {{ $colors[$index] }}; background: color-mix(in srgb, {{ $colors[$index] }} 18%, transparent)">
                     <div class="truncate text-sm font-semibold text-white" title="{{ $row['group'] }}">{{ $row['group'] }}</div>
                     <div class="mt-4 flex items-end justify-between gap-3">

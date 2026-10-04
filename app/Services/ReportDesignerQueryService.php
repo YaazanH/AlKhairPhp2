@@ -38,6 +38,8 @@ class ReportDesignerQueryService
 
     protected ?array $groupingResult = null;
 
+    protected array $curriculumSummaries = [];
+
     protected int $rowLimit = self::PREVIEW_LIMIT;
 
     protected int $groupLimit = self::GROUP_PREVIEW_LIMIT;
@@ -74,6 +76,7 @@ class ReportDesignerQueryService
         $this->activeGroupBy = $this->catalog->validateGrouping($source, $definition['group_by'] ?? null);
         $this->calculationValues = [];
         $this->groupingResult = null;
+        $this->curriculumSummaries = [];
         [$sortField, $sortDirection] = $this->catalog->validateSort(
             $source,
             $definition['sort_field'] ?? null,
@@ -261,9 +264,28 @@ class ReportDesignerQueryService
 
     protected function groupPreview(array $fields, array $filters, ?string $sortField, string $sortDirection, ?User $user): array
     {
+        $relations = ['course:id,name', 'academicYear:id,name', 'teacher:id,first_name,last_name', 'assistantTeacher:id,first_name,last_name', 'gradeLevel:id,name'];
+        $usesCurriculum = collect($fields)
+            ->merge(collect($this->activeCalculations)->pluck('field'))
+            ->contains(fn (?string $field): bool => in_array($field, [
+                'curriculum_name',
+                'curriculum_completed_lessons',
+                'curriculum_total_lessons',
+                'curriculum_progress_percentage',
+            ], true));
+        if ($usesCurriculum) {
+            $relations = array_merge($relations, [
+                'curriculum.subjects.definition',
+                'curriculum.subjects.lessons.topics',
+                'curriculumProgresses',
+                'curriculumTopicProgresses',
+                'customCurriculumLessons',
+            ]);
+        }
+
         $query = $this->accessScopes->scopeGroups(
             Group::query()
-                ->with(['course:id,name', 'academicYear:id,name', 'teacher:id,first_name,last_name', 'assistantTeacher:id,first_name,last_name', 'gradeLevel:id,name'])
+                ->with($relations)
                 ->withCount(['enrollments as active_enrollments_count' => fn (Builder $builder) => $builder->where('status', 'active')]),
             $user,
         );
@@ -863,10 +885,20 @@ class ReportDesignerQueryService
             'capacity' => $group->capacity,
             'active_enrollments_count' => $group->active_enrollments_count,
             'available_places' => max(0, (int) $group->capacity - (int) $group->active_enrollments_count),
+            'curriculum_name' => $group->curriculum?->name,
+            'curriculum_completed_lessons' => $this->curriculumSummary($group)['completed'],
+            'curriculum_total_lessons' => $this->curriculumSummary($group)['total'],
+            'curriculum_progress_percentage' => $this->curriculumSummary($group)['percentage'],
             'status' => __('report_designer.record_statuses.'.($group->is_active ? 'active' : 'inactive')),
             'starts_on' => $group->starts_on?->format('Y-m-d'),
             'ends_on' => $group->ends_on?->format('Y-m-d'),
         };
+    }
+
+    protected function curriculumSummary(Group $group): array
+    {
+        return $this->curriculumSummaries[$group->id]
+            ??= app(CurriculumProgressService::class)->summary($group);
     }
 
     protected function studentAttendanceValue(StudentAttendanceRecord $record, string $field): mixed

@@ -154,7 +154,11 @@ class ReportLibraryController extends Controller
                 'sort_field' => $sortField,
                 'sort_direction' => $sortDirection,
             ],
-            'required_modules' => $this->catalog->requiredModules($source),
+            'required_modules' => $this->catalog->requiredModulesForDefinition($source, [
+                ...$fields,
+                ...array_column($calculations, 'field'),
+                $groupBy,
+            ]),
         ];
     }
 

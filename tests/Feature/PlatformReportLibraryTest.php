@@ -99,17 +99,23 @@ class PlatformReportLibraryTest extends TestCase
         $owner = $this->administrator('owner@example.test');
         $items = PlatformReportLibraryItem::query()->where('is_system', true)->with('publishedRevision')->get();
 
-        $this->assertCount(7, $items);
+        $this->assertCount(12, $items);
         $this->assertSame([
             'assessment-performance',
+            'attendance-activity-trend',
             'attendance-risk',
             'course-completion-overview',
+            'curriculum-progress-by-group',
+            'expenses-by-category',
             'finance-summary',
+            'quarterly-expense-trend',
             'quran-test-outcomes',
+            'students-by-grade-level',
             'students-by-group',
             'teacher-workload',
         ], $items->pluck('system_key')->sort()->values()->all());
-        $this->assertTrue($items->every(fn (PlatformReportLibraryItem $item): bool => $item->publishedRevision !== null && $item->latest_version === 1));
+        $this->assertTrue($items->every(fn (PlatformReportLibraryItem $item): bool => $item->publishedRevision !== null
+            && $item->latest_version === $item->publishedRevision->version));
 
         $systemItem = $items->first();
         $this->actingAs($owner, 'platform')->get(route('platform.report-library.edit', $systemItem))

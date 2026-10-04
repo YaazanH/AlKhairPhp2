@@ -8,6 +8,10 @@ use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
+use App\Models\Curriculum;
+use App\Models\CurriculumLesson;
+use App\Models\CurriculumSubject;
+use App\Models\CurriculumSubjectDefinition;
 use App\Models\Enrollment;
 use App\Models\FinanceCashBox;
 use App\Models\FinanceCategory;
@@ -15,6 +19,7 @@ use App\Models\FinanceCurrency;
 use App\Models\FinanceTransaction;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
+use App\Models\GroupCurriculumLessonProgress;
 use App\Models\MemorizationSession;
 use App\Models\QuranFinalTest;
 use App\Models\QuranFinalTestAttempt;
@@ -674,6 +679,108 @@ class ReportDesignerTest extends TestCase
         $this->assertSame('Amina Saleh', $groups['grouping']['rows'][0]['group']);
         $this->assertSame(12.0, $groups['grouping']['rows'][0]['report_calculation_0']);
         $this->assertSame(11.0, $groups['grouping']['rows'][0]['report_calculation_1']);
+    }
+
+    public function test_group_reports_reuse_curriculum_progress_in_peer_relative_hotbars(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'curriculum-hotbar-report-admin']);
+        $administrator->assignRole('admin');
+        $year = AcademicYear::query()->create([
+            'name' => 'Curriculum year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_active' => true,
+        ]);
+        $course = Course::query()->create([
+            'academic_year_id' => $year->id,
+            'name' => 'Curriculum course',
+            'is_active' => true,
+        ]);
+        $curriculum = Curriculum::query()->create([
+            'course_id' => $course->id,
+            'name' => 'Core curriculum',
+            'is_active' => true,
+        ]);
+        $definition = CurriculumSubjectDefinition::query()->create(['name' => 'Core subject', 'is_active' => true]);
+        $subject = CurriculumSubject::query()->create([
+            'curriculum_id' => $curriculum->id,
+            'subject_definition_id' => $definition->id,
+        ]);
+        $lessons = collect(range(1, 4))->map(fn (int $number): CurriculumLesson => CurriculumLesson::query()->create([
+            'curriculum_subject_id' => $subject->id,
+            'name' => 'Curriculum lesson '.$number,
+            'sort_order' => $number * 10,
+        ]));
+        $advanced = Group::query()->create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'curriculum_id' => $curriculum->id,
+            'name' => 'Advanced group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $catchingUp = Group::query()->create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'curriculum_id' => $curriculum->id,
+            'name' => 'Catching-up group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $lessons->each(fn (CurriculumLesson $lesson) => GroupCurriculumLessonProgress::query()->create([
+            'group_id' => $advanced->id,
+            'curriculum_lesson_id' => $lesson->id,
+            'status' => 'taught',
+            'taught_on' => '2026-10-01',
+        ]));
+        $lessons->take(2)->each(fn (CurriculumLesson $lesson) => GroupCurriculumLessonProgress::query()->create([
+            'group_id' => $catchingUp->id,
+            'curriculum_lesson_id' => $lesson->id,
+            'status' => 'taught',
+            'taught_on' => '2026-10-01',
+        ]));
+
+        $calculations = [
+            ['operation' => 'count', 'field' => null],
+            ['operation' => 'avg', 'field' => 'curriculum_progress_percentage'],
+            ['operation' => 'max', 'field' => 'curriculum_total_lessons'],
+        ];
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => ReportDesignerCatalog::GROUPS,
+            'selected_fields' => ['group_name', 'curriculum_name', 'curriculum_completed_lessons', 'curriculum_total_lessons', 'curriculum_progress_percentage'],
+            'calculations' => $calculations,
+            'group_by' => 'group_name',
+            'filters' => ['status' => 'active'],
+            'sort_field' => 'group_name',
+            'sort_direction' => 'asc',
+        ], $administrator);
+
+        $rows = collect($preview['rows'])->keyBy('group_name');
+        $this->assertSame(100.0, $rows['Advanced group']['curriculum_progress_percentage']);
+        $this->assertSame(50.0, $rows['Catching-up group']['curriculum_progress_percentage']);
+        $this->assertSame(2.0, $rows['Catching-up group']['curriculum_completed_lessons']);
+        $this->assertSame(['classes', 'curriculum'], app(ReportDesignerCatalog::class)->requiredModulesForDefinition(
+            ReportDesignerCatalog::GROUPS,
+            ['group_name', 'curriculum_progress_percentage'],
+        ));
+
+        $presentation = app(ReportDesignerCatalog::class)->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_HOTBAR,
+            'density' => 'comfortable',
+            'metric' => 'report_calculation_1',
+            'total_metric' => 'report_calculation_2',
+        ], 'group_name', true, ReportDesignerCatalog::GROUPS, $calculations);
+        $html = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            ['grouping' => $preview['grouping'], 'presentation' => $presentation],
+        );
+
+        $this->assertStringContainsString('data-report-presentation="hotbar"', $html);
+        $this->assertStringContainsString('data-progress-tone="success"', $html);
+        $this->assertStringContainsString('data-progress-tone="danger"', $html);
+        $this->assertStringContainsString('data-lessons-behind="2"', $html);
     }
 
     public function test_group_and_course_previews_respect_the_users_group_scope(): void
