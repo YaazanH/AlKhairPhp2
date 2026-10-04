@@ -2,14 +2,14 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Livewire\Concerns\LinksExistingProfileAccounts;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\DataQualityResolution;
 use App\Models\Enrollment;
-use App\Models\GradeLevel;
 use App\Models\FatherJob;
+use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\ParentProfile;
 use App\Models\QuranJuz;
@@ -34,81 +34,147 @@ use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
-    use SupportsCreateAndNew;
     use LinksExistingProfileAccounts;
+    use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
 
     public ?int $editingId = null;
+
     #[Url(as: 'edit')]
     public ?int $editStudent = null;
+
     #[Url(as: 'quality_issue')]
     public string $qualityIssueKey = '';
+
     public bool $editingStudentHasEnrollments = false;
+
     public bool $editingStudentHasRelatedRecords = false;
+
     public bool $editingStudentNeedsActiveCourseEnrollment = false;
+
     public ?int $parent_id = null;
+
     public string $first_name = '';
+
     public string $last_name = '';
+
     public string $student_phone = '';
+
     public string $birth_date = '';
+
     public string $gender = '';
+
     public string $school_name = '';
+
     public ?int $grade_level_id = null;
+
     public ?int $enrollment_group_id = null;
+
     public ?int $quran_current_juz_id = null;
+
     public string $quran_current_juz_number = '';
+
     public bool $quran_current_juz_locked = false;
+
     public array $external_memorized_juz_ids = [];
+
     public string $external_memorized_juz_input = '';
+
     public string $photo_path = '';
+
     public $quick_photo_upload = null;
+
     public string $status = 'active';
+
     public string $joined_at = '';
+
     public string $notes = '';
+
     public ?int $accountStudentId = null;
+
     public string $account_username = '';
+
     public string $account_email = '';
+
     public string $account_password = '';
+
     public bool $account_is_active = true;
+
     public ?string $issued_password = null;
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public string $sortField = 'status';
+
     public string $sortDirection = 'asc';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $showAccountModal = false;
+
     public bool $showBulkStatusModal = false;
+
     public bool $showDuplicateStudentModal = false;
+
     public bool $showExternalTestModal = false;
+
     public bool $showOrphanParentDeleteModal = false;
+
     public ?int $orphanedParentId = null;
+
     public string $orphanedParentName = '';
+
     public ?int $external_test_juz_id = null;
+
     public string $external_test_type = 'partial';
+
     public ?int $duplicateStudentId = null;
+
     public bool $showQuickParentForm = false;
+
     public string $quick_parent_father_name = '';
+
     public string $quick_parent_father_work = '';
+
     public string $quick_parent_new_father_work = '';
+
     public string $quick_parent_father_phone = '';
+
     public string $quick_parent_mother_name = '';
+
     public string $quick_parent_mother_phone = '';
+
     public string $quick_parent_home_phone = '';
+
     public string $quick_parent_address = '';
+
     public string $new_school_name = '';
+
     public string $bulk_status_action = 'deactivate';
+
     public string $bulk_scope = 'all';
+
     public string $bulk_student_number_from = '';
+
     public string $bulk_student_number_to = '';
+
     public ?int $bulk_course_id = null;
+
     public ?int $bulk_group_id = null;
+
     public bool $bulk_sync_accounts = true;
+
     public bool $enrollment_group_auto = true;
+
     public bool $syncing_enrollment_group_id = false;
 
     protected array $sortableFields = [
@@ -472,7 +538,7 @@ new class extends Component {
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($ignoredUserId ?? $this->linkedUserId() ?? $this->existingAccountId)],
-            'birth_date' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
+            'birth_date' => ['required', 'string', function (string $attribute, mixed $value, Closure $fail): void {
                 if (! $this->isValidBirthYearValue((string) $value)) {
                     $fail(__('validation.date', ['attribute' => __('crud.students.form.fields.birth_year')]));
                 }
@@ -1304,6 +1370,7 @@ new class extends Component {
             $existingSchool->update(['is_active' => true]);
             $this->school_name = $existingSchool->name;
             $this->new_school_name = '';
+
             return;
         }
 
@@ -1335,6 +1402,7 @@ new class extends Component {
             $existingJob->update(['is_active' => true]);
             $this->quick_parent_father_work = $existingJob->name;
             $this->quick_parent_new_father_work = '';
+
             return;
         }
 
@@ -1408,6 +1476,7 @@ new class extends Component {
             ->where('status', 'active')->latest('enrolled_at')->latest('id')->first();
         if (! $enrollment) {
             $this->addError('external_test_juz_id', __('workflow.memorization.errors.no_active_enrollment'));
+
             return;
         }
         $juz = QuranJuz::query()->findOrFail((int) $validated['external_test_juz_id']);
@@ -1416,8 +1485,9 @@ new class extends Component {
             $test = $validated['external_test_type'] === 'partial'
                 ? app(QuranPartialTestService::class)->createForExternalMemorization($enrollment, $juz)
                 : app(QuranFinalTestService::class)->createForExternalMemorization($enrollment, $juz);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('external_test_juz_id', $exception->getMessage());
+
             return;
         }
 
@@ -1449,25 +1519,11 @@ new class extends Component {
 
     protected function applyStudentSearch(Builder $query, string $search): void
     {
-        $normalizedSearch = '%'.$this->normalizeArabicSearch($search).'%';
-        $rawSearch = '%'.trim($search).'%';
-        $normalizedFullName = $this->normalizedSqlExpression($this->sqlConcatWithSpaces(['first_name', 'last_name']));
-        $normalizedFirstName = $this->normalizedSqlExpression('coalesce(first_name, \'\')');
-        $normalizedLastName = $this->normalizedSqlExpression('coalesce(last_name, \'\')');
-
-        $query->where(function (Builder $builder) use (
-            $normalizedFirstName,
-            $normalizedFullName,
-            $normalizedLastName,
-            $normalizedSearch,
-            $rawSearch
-        ): void {
-            $builder
-                ->whereRaw($normalizedFirstName.' like ?', [$normalizedSearch])
-                ->orWhereRaw($normalizedLastName.' like ?', [$normalizedSearch])
-                ->orWhereRaw($normalizedFullName.' like ?', [$normalizedSearch])
-                ->orWhere('student_number', 'like', $rawSearch);
-        });
+        ArabicSearch::whereAllTokens(
+            $query,
+            $search,
+            fn (Builder $tokenQuery, string $token) => $tokenQuery->whereMatchesSearchToken($token),
+        );
     }
 
     protected function applyStudentSort(Builder $query): void
@@ -1906,14 +1962,6 @@ new class extends Component {
                                     @endif
                                 </button>
                             </th>
-                            <th class="table-cell-name px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('parent')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    <span>{{ __('crud.students.table.headers.parent') }}</span>
-                                    @if ($sortIndicator = $this->sortIndicator('parent'))
-                                        <span aria-hidden="true">{{ $sortIndicator }}</span>
-                                    @endif
-                                </button>
-                            </th>
                             <th class="px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('grade')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     <span>{{ __('crud.students.table.headers.grade') }}</span>
@@ -1921,6 +1969,9 @@ new class extends Component {
                                         <span aria-hidden="true">{{ $sortIndicator }}</span>
                                     @endif
                                 </button>
+                            </th>
+                            <th class="student-school-column px-5 py-4 text-left lg:px-6">
+                                {{ __('crud.students.table.headers.school') }}
                             </th>
                             <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('juz')" class="inline-flex items-center gap-2 font-medium text-inherit">
@@ -1963,18 +2014,20 @@ new class extends Component {
                             @endphp
                             <tr>
 
-                                  <td class="table-cell-name px-5 py-4 lg:px-6">
-                                      <div class="student-inline">
-                                          <x-student-avatar :student="$student" size="sm" />
-                                          <div class="student-inline__body">
-                                              <div class="record-person-name student-inline__name">{{ $student->full_name }}</div>
-                                              <div class="student-inline__meta">{{ $student->school_name ?: __('crud.students.table.no_school') }}</div>
-                                          </div>
-                                      </div>
-                                  </td>
-                                  <td class="table-cell-compact px-5 py-4 font-mono text-white lg:px-6">{{ $student->student_number ?: $student->id }}</td>
-                                   <td class="record-person-name table-cell-name px-5 py-4 text-neutral-300 lg:px-6">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</td>
+                                <td class="table-cell-name px-5 py-4 lg:px-6">
+                                    <div class="student-inline">
+                                        <x-student-avatar :student="$student" size="sm" />
+                                        <div class="student-inline__body">
+                                            <div class="record-person-name student-inline__name">{{ $student->full_name }}</div>
+                                            <div class="student-inline__meta">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="table-cell-compact px-5 py-4 font-mono text-white lg:px-6">{{ $student->student_number ?: $student->id }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $student->gradeLevel?->name ?: __('crud.common.not_available') }}</td>
+                                <td class="student-school-column px-5 py-4 text-neutral-300 lg:px-6">
+                                    <div class="student-school-cell__value" title="{{ $student->school_name ?: __('crud.students.table.no_school') }}">{{ $student->school_name ?: __('crud.students.table.no_school') }}</div>
+                                </td>
                                 <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ $student->quranCurrentJuz ? __('crud.students.labels.juz_number', ['number' => $student->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</td>
                                 <td class="table-cell-compact px-5 py-4 text-white lg:px-6">{{ $student->enrollments_count }}</td>
                                 <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="{{ $studentStatusClass }}">{{ __('crud.common.status_options.'.$student->status) }}</span></td>
@@ -2449,7 +2502,8 @@ new class extends Component {
                                 <button type="button" wire:click="removeExternalMemorizedJuz({{ $juz->id }})" class="inline-flex size-4 items-center justify-center rounded-full text-sm leading-none text-emerald-200 hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                             </span>
                         @endforeach
-                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.space.prevent.stop="addExternalMemorizedJuz" x-on:keydown.enter.prevent.stop="" x-on:keydown.tab.prevent.stop="" type="text" inputmode="numeric" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
+                        <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.space.prevent.stop="addExternalMemorizedJuz" x-on:keydown.enter.prevent.stop="if (window.matchMedia('(max-width: 1023px)').matches) { $wire.addExternalMemorizedJuz() }" x-on:keydown.tab.prevent.stop="" type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
+                        <x-add-action-button wire:click="addExternalMemorizedJuz" wire:loading.attr="disabled" wire:target="addExternalMemorizedJuz" class="min-h-11 min-w-11 lg:!hidden" :label="__('crud.students.form.add_memorized_juz')" />
                     </div>
                     @error('external_memorized_juz_input')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>

@@ -7,7 +7,7 @@ use Symfony\Component\HttpFoundation\HeaderUtils;
 final class ExportFilename
 {
     /**
-     * Build a readable, filesystem-safe PDF filename from translated labels and context.
+     * Build a compact, filesystem-safe PDF filename from the two most important parts.
      *
      * @param  array<int, mixed>  $parts
      */
@@ -16,6 +16,7 @@ final class ExportFilename
         $name = collect($parts)
             ->filter(fn ($part) => is_scalar($part) && trim((string) $part) !== '')
             ->map(fn ($part) => trim((string) $part))
+            ->take(2)
             ->implode(' - ');
 
         $name = strip_tags($name);

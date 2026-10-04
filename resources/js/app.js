@@ -537,7 +537,6 @@ function restoreSearchableSelectOverflow(wrapper) {
 }
 
 function closeSearchableSelect(wrapper) {
-    wrapper.cancelPendingSearch?.();
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
     wrapper.querySelector('.searchable-select__button')?.setAttribute('aria-expanded', 'false');
@@ -597,6 +596,7 @@ function removeOverflowingSearchableSelectOptions(select, list) {
 
 function buildSearchableSelectOptions(select, list, query = '') {
     const normalizedQuery = normalizeSearchableText(query);
+    const queryTokens = normalizedQuery.split(' ').filter(Boolean);
     const options = Array.from(select.options);
     const placeholderOption = searchableSelectPlaceholderOption(select);
     let visibleCount = 0;
@@ -619,7 +619,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
         const label = option.textContent.trim();
         const searchableText = normalizeSearchableText(`${label} ${option.dataset.search || ''}`);
 
-        if (normalizedQuery && !searchableText.includes(normalizedQuery)) {
+        if (queryTokens.length > 0 && !queryTokens.every((token) => searchableText.includes(token))) {
             return;
         }
 
@@ -981,8 +981,6 @@ function enhanceSearchableSelect(select) {
     transferMobileTableFilterCriterion(select, wrapper);
 
     let optionsSignature = '';
-    let pendingSearch;
-    wrapper.cancelPendingSearch = () => pendingSearch?.cancel();
 
     const updateRequiredSelectionValidity = (valid) => {
         if (!searchSelectionRequired) {
@@ -1030,7 +1028,6 @@ function enhanceSearchableSelect(select) {
     };
 
     const sync = (force = false) => {
-        if (force) pendingSearch?.cancel();
         search.disabled = select.disabled;
 
         if (searchInputMode) {
@@ -1110,9 +1107,6 @@ function enhanceSearchableSelect(select) {
     };
 
     const handleSearchableSelectKeydown = (event) => {
-        if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
-            pendingSearch?.flush();
-        }
         if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
             event.preventDefault();
             event.stopPropagation();
@@ -1222,7 +1216,8 @@ function enhanceSearchableSelect(select) {
             requestAnimationFrame(() => search.select());
         });
 
-        pendingSearch = debounceSearch(() => {
+        search.addEventListener('input', () => {
+            if (searchSelectionRequired) searchSelectionConfirmed = false;
             if (!select.isConnected || !wrapper.isConnected || select.disabled) return;
             const hasQuery = search.value.trim() !== '';
             wrapper.classList.toggle('searchable-select--selected', hasQuery || searchableSelectHasValue(select));
@@ -1265,11 +1260,6 @@ function enhanceSearchableSelect(select) {
             buildSearchableSelectOptions(select, list, search.value);
         });
 
-        search.addEventListener('input', () => {
-            if (searchSelectionRequired) searchSelectionConfirmed = false;
-            pendingSearch();
-        });
-
         wrapper.addEventListener('focusout', (event) => {
             if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) {
                 return;
@@ -1306,7 +1296,6 @@ function enhanceSearchableSelect(select) {
             if (willOpen) {
                 releaseSearchableSelectOverflow(wrapper);
             } else {
-                pendingSearch?.cancel();
                 restoreSearchableSelectOverflow(wrapper);
             }
             button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
@@ -1323,12 +1312,11 @@ function enhanceSearchableSelect(select) {
             }
         });
 
-        pendingSearch = debounceSearch(() => {
+        search.addEventListener('input', () => {
             if (select.isConnected && wrapper.isConnected && !select.disabled) {
                 buildSearchableSelectOptions(select, list, search.value);
             }
         });
-        search.addEventListener('input', pendingSearch);
         button.addEventListener('keydown', (event) => {
             if (!['ArrowDown', 'ArrowUp'].includes(event.key)) {
                 return;
@@ -1366,7 +1354,6 @@ function enhanceSearchableSelect(select) {
     }
 
     select.addEventListener('change', () => {
-        pendingSearch?.cancel();
         if (searchSelectionRequired && select.dataset.searchSelectionConfirmed === 'true') {
             searchSelectionConfirmed = select.value !== '';
             delete select.dataset.searchSelectionConfirmed;
@@ -1621,6 +1608,565 @@ document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.added', ({ el }) => {
         if (el instanceof HTMLSelectElement || el.querySelector?.('select')) {
             scheduleSearchableSelectInitialization();
+        }
+    });
+});
+
+const mobileScrollableTableCellSelector = [
+    '.overflow-x-auto > table > tbody > tr > td',
+    '.overflow-x-auto > table > tfoot > tr > td',
+    '.table-scroll-region > table > tbody > tr > td',
+    '.table-scroll-region > table > tfoot > tr > td',
+    '.responsive-records-desktop > table > tbody > tr > td',
+    '.responsive-records-desktop > table > tfoot > tr > td',
+].join(', ');
+
+let mobileScrollableTableTextFrame = null;
+
+function enhanceMobileScrollableTableText() {
+    mobileScrollableTableTextFrame = null;
+
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+        return;
+    }
+
+    document.querySelectorAll(mobileScrollableTableCellSelector).forEach((cell) => {
+        // Pure text cells need a real box for a two-line WebKit clamp. Leave
+        // structured cells alone so badges, actions, and custom layouts keep
+        // their component-specific behavior.
+        if (cell.children.length > 0) {
+            return;
+        }
+
+        Array.from(cell.childNodes).forEach((node) => {
+            if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) {
+                return;
+            }
+
+            const value = document.createElement('span');
+            value.className = 'mobile-scroll-table-value';
+            node.before(value);
+            value.append(node);
+        });
+    });
+}
+
+function scheduleMobileScrollableTableTextEnhancement() {
+    if (mobileScrollableTableTextFrame !== null) {
+        window.cancelAnimationFrame(mobileScrollableTableTextFrame);
+    }
+
+    mobileScrollableTableTextFrame = window.requestAnimationFrame(enhanceMobileScrollableTableText);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleMobileScrollableTableTextEnhancement);
+document.addEventListener('livewire:navigated', scheduleMobileScrollableTableTextEnhancement);
+window.addEventListener('resize', scheduleMobileScrollableTableTextEnhancement, { passive: true });
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', scheduleMobileScrollableTableTextEnhancement);
+    window.Livewire?.hook('morph.added', scheduleMobileScrollableTableTextEnhancement);
+});
+
+const singleRowActionControlSelector = 'a[href], button, input[type="button"], input[type="submit"]';
+const singleRowActionInteractiveSelector = 'a, button, input, select, textarea, summary, label, [contenteditable="true"], [role="button"], [role="link"], [wire\\:click]';
+let singleRowActionFrame = null;
+let singleRowActionListenersBound = false;
+
+function clearSingleRowAction(row) {
+    row.querySelectorAll('.single-row-action__control').forEach((control) => {
+        control.classList.remove('single-row-action__control');
+    });
+    row.removeAttribute('data-single-row-action');
+
+    if (row.dataset.singleRowActionAddedTabindex === 'true') {
+        row.removeAttribute('tabindex');
+        delete row.dataset.singleRowActionAddedTabindex;
+    }
+
+    if (row.dataset.singleRowActionAddedLabel === 'true') {
+        row.removeAttribute('aria-label');
+        delete row.dataset.singleRowActionAddedLabel;
+    }
+}
+
+function singleRowActionIsAvailable(action) {
+    if (
+        !(action instanceof HTMLElement)
+        || action.matches(':disabled, [aria-disabled="true"]')
+        || action.closest('[hidden], [aria-hidden="true"]')
+    ) {
+        return false;
+    }
+
+    const style = window.getComputedStyle(action);
+
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function tableActionColumnIndex(table) {
+    const headerCells = Array.from(table.tHead?.rows?.[0]?.cells ?? []);
+
+    return headerCells.findIndex((cell) => cell.classList.contains('admin-actions-column'));
+}
+
+function singleRowActionIsDelete(action) {
+    const wireAction = action.getAttribute('wire:click')?.trim() ?? '';
+    const label = [
+        action.getAttribute('aria-label'),
+        action.getAttribute('title'),
+        action.textContent,
+    ].filter(Boolean).join(' ');
+    const hasDestructiveDataAttribute = Array.from(action.attributes).some((attribute) => (
+        attribute.name.startsWith('data-') && /(?:delete|remove)/.test(attribute.name)
+    ));
+
+    return hasDestructiveDataAttribute
+        || /^(?:\$wire\.)?(?:delete|destroy|remove)\b/i.test(wireAction)
+        || /\b(?:delete|destroy|remove)\b/i.test(label)
+        || /حذف|إزالة|ازالة/.test(label);
+}
+
+function clearSingleRowActionColumnWidths(table) {
+    table.querySelectorAll('.single-row-action__visible-header').forEach((cell) => {
+        cell.classList.remove('single-row-action__visible-header');
+        cell.style.removeProperty('--single-row-action-column-width');
+    });
+    table.querySelectorAll(':scope > colgroup > .single-row-action__visible-column').forEach((column) => {
+        column.classList.remove('single-row-action__visible-column');
+        column.style.removeProperty('--single-row-action-column-width');
+    });
+}
+
+function redistributeSingleRowActionColumnWidth(table, headerCells, actionColumnIndex) {
+    if (!recordTableHasExplicitColumnLayout(table)) return;
+
+    const tableWidth = table.getBoundingClientRect().width;
+    const columnWidths = headerCells.map((cell) => cell.getBoundingClientRect().width);
+    const visibleColumnIndexes = headerCells.flatMap((cell, index) => (
+        index !== actionColumnIndex && window.getComputedStyle(cell).display !== 'none' ? [index] : []
+    ));
+    const flexibleColumnIndexes = visibleColumnIndexes.filter((index) => (
+        !headerCells[index].matches('[data-table-number-column], .table-cell-compact')
+    ));
+    const fixedWidth = visibleColumnIndexes
+        .filter((index) => !flexibleColumnIndexes.includes(index))
+        .reduce((total, index) => total + columnWidths[index], 0);
+    const measuredFlexibleWidth = flexibleColumnIndexes
+        .reduce((total, index) => total + columnWidths[index], 0);
+    const availableFlexibleWidth = tableWidth - fixedWidth;
+
+    if (
+        tableWidth <= 0
+        || flexibleColumnIndexes.length === 0
+        || measuredFlexibleWidth <= 0
+        || availableFlexibleWidth <= 0
+    ) return;
+
+    const colgroupColumns = Array.from(table.querySelectorAll(':scope > colgroup > col'));
+    const widthScale = availableFlexibleWidth / measuredFlexibleWidth;
+
+    flexibleColumnIndexes.forEach((index) => {
+        const width = `${(columnWidths[index] * widthScale / tableWidth) * 100}%`;
+        const header = headerCells[index];
+        const column = colgroupColumns[index];
+
+        header.classList.add('single-row-action__visible-header');
+        header.style.setProperty('--single-row-action-column-width', width);
+
+        if (column instanceof HTMLTableColElement) {
+            column.classList.add('single-row-action__visible-column');
+            column.style.setProperty('--single-row-action-column-width', width);
+        }
+    });
+}
+
+function enhanceSingleActionTableRows() {
+    singleRowActionFrame = null;
+    const replacesButtonsWithRows = window.matchMedia('(min-width: 768px)').matches;
+
+    document.querySelectorAll('table').forEach((table) => {
+        if (table.closest('.balanced-table-measure-host')) return;
+
+        table.classList.remove('table--single-row-actions');
+        table.querySelectorAll('.single-row-action__header, .single-row-action__cell').forEach((cell) => {
+            cell.classList.remove('single-row-action__header', 'single-row-action__cell');
+        });
+        table.querySelectorAll(':scope > colgroup > .single-row-action__column').forEach((column) => {
+            column.classList.remove('single-row-action__column');
+        });
+        clearSingleRowActionColumnWidths(table);
+
+        if (!replacesButtonsWithRows) return;
+
+        const markedActionColumnIndex = tableActionColumnIndex(table);
+        const headerCells = Array.from(table.tHead?.rows?.[0]?.cells ?? []);
+        const actionCells = [];
+        const keepsSingleActionsVisible = table.closest('.settings-admin-page') !== null;
+        let hasSingleActionRow = false;
+        let hasAnyAction = false;
+        let hasVisibleAction = false;
+
+        Array.from(table.tBodies).flatMap((body) => Array.from(body.rows)).forEach((row) => {
+            clearSingleRowAction(row);
+
+            const fallbackCell = row.cells[row.cells.length - 1];
+            const actionCell = markedActionColumnIndex >= 0
+                ? row.cells[markedActionColumnIndex]
+                : fallbackCell?.querySelector('.admin-icon-button, .pill-link, [data-open-action]')
+                    ? fallbackCell
+                    : null;
+
+            if (!(actionCell instanceof HTMLTableCellElement)) return;
+
+            actionCells.push(actionCell);
+
+            const actions = Array.from(actionCell.querySelectorAll(singleRowActionControlSelector))
+                .filter(singleRowActionIsAvailable);
+
+            hasAnyAction ||= actions.length > 0;
+
+            if (actions.length !== 1) {
+                hasVisibleAction ||= actions.length > 1;
+
+                return;
+            }
+
+            const action = actions[0];
+
+            if (keepsSingleActionsVisible) {
+                hasVisibleAction = true;
+
+                return;
+            }
+
+            if (action.hasAttribute('data-keep-visible-table-action')) {
+                hasVisibleAction = true;
+
+                return;
+            }
+
+            if (singleRowActionIsDelete(action)) {
+                hasVisibleAction = true;
+
+                return;
+            }
+
+            hasSingleActionRow = true;
+            const label = action.getAttribute('aria-label')
+                || action.getAttribute('title')
+                || action.textContent?.trim()
+                || '';
+
+            row.setAttribute('data-single-row-action', '');
+            action.classList.add('single-row-action__control');
+
+            if (!row.hasAttribute('tabindex')) {
+                row.tabIndex = 0;
+                row.dataset.singleRowActionAddedTabindex = 'true';
+            }
+
+            if (label && !row.hasAttribute('aria-label')) {
+                row.setAttribute('aria-label', label);
+                row.dataset.singleRowActionAddedLabel = 'true';
+            }
+        });
+
+        if (hasVisibleAction) {
+            table.querySelectorAll('tbody > tr[data-single-row-action]').forEach(clearSingleRowAction);
+        }
+
+        if (markedActionColumnIndex >= 0 && !hasVisibleAction && (hasSingleActionRow || !hasAnyAction)) {
+            redistributeSingleRowActionColumnWidth(table, headerCells, markedActionColumnIndex);
+            table.classList.add('table--single-row-actions');
+            headerCells[markedActionColumnIndex]?.classList.add('single-row-action__header');
+            actionCells.forEach((cell) => cell.classList.add('single-row-action__cell'));
+            table.querySelector(`:scope > colgroup > :nth-child(${markedActionColumnIndex + 1})`)
+                ?.classList.add('single-row-action__column');
+        }
+    });
+}
+
+function scheduleSingleActionTableRows() {
+    if (singleRowActionFrame !== null) {
+        window.cancelAnimationFrame(singleRowActionFrame);
+    }
+
+    singleRowActionFrame = window.requestAnimationFrame(enhanceSingleActionTableRows);
+}
+
+function singleActionRowFromEvent(event) {
+    if (!(event.target instanceof Element)) return null;
+
+    const row = event.target.closest('tr[data-single-row-action]');
+
+    if (!(row instanceof HTMLTableRowElement)) return null;
+
+    const nestedControl = event.target.closest(singleRowActionInteractiveSelector);
+
+    return nestedControl && nestedControl !== row ? null : row;
+}
+
+function activateSingleActionRow(row) {
+    const action = row.querySelector('.single-row-action__control');
+
+    if (
+        !(action instanceof HTMLElement)
+        || action.matches(':disabled, [aria-disabled="true"]')
+        || action.closest('[hidden], [aria-hidden="true"]')
+    ) return;
+
+    action.click();
+}
+
+function bindSingleActionTableRowListeners() {
+    if (singleRowActionListenersBound) return;
+
+    singleRowActionListenersBound = true;
+
+    document.addEventListener('click', (event) => {
+        const row = singleActionRowFromEvent(event);
+
+        if (!row || window.getSelection()?.toString()) return;
+
+        activateSingleActionRow(row);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (!['Enter', ' '].includes(event.key)) return;
+
+        const row = singleActionRowFromEvent(event);
+
+        if (!row || event.target !== row) return;
+
+        event.preventDefault();
+        activateSingleActionRow(row);
+    });
+}
+
+function initializeSingleActionTableRows() {
+    bindSingleActionTableRowListeners();
+
+    if (singleRowActionFrame !== null) {
+        window.cancelAnimationFrame(singleRowActionFrame);
+        singleRowActionFrame = null;
+    }
+
+    enhanceSingleActionTableRows();
+}
+
+document.addEventListener('DOMContentLoaded', initializeSingleActionTableRows);
+document.addEventListener('livewire:navigated', initializeSingleActionTableRows);
+window.addEventListener('resize', scheduleSingleActionTableRows, { passive: true });
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', scheduleSingleActionTableRows);
+    window.Livewire?.hook('morph.added', scheduleSingleActionTableRows);
+});
+
+const balancedRecordTableSelector = [
+    '.surface-table table',
+    '.settings-admin-page table.min-w-full:not(.curriculum-subject-resource-grid):not(.settings-academic-year-table)',
+].join(', ');
+
+let balancedRecordTableFrame = null;
+
+function clearBalancedRecordTableColumns(table) {
+    table.classList.remove('table-content--balanced');
+    delete table.dataset.balancedColumnContainerWidth;
+    table.querySelectorAll(':scope > thead > tr:first-child > :is(th, td)').forEach((cell) => {
+        cell.style.removeProperty('--balanced-column-width');
+    });
+}
+
+function recordTableRowsForHeightSync(table) {
+    return Array.from(table.tBodies).flatMap((body) => Array.from(body.rows)).filter((row) => {
+        const cells = Array.from(row.cells);
+
+        return cells.length > 0
+            && !row.hidden
+            && window.getComputedStyle(row).display !== 'none'
+            && !(cells.length === 1 && cells[0].colSpan > 1);
+    });
+}
+
+function synchronizeRecordTableRowHeights() {
+    document.querySelectorAll('.app-main table').forEach((table) => {
+        const rows = recordTableRowsForHeightSync(table);
+
+        rows.forEach((row) => row.style.removeProperty('height'));
+
+        if (rows.length < 2 || table.getBoundingClientRect().width <= 0) {
+            return;
+        }
+
+        const tallestRowHeight = Math.max(...rows.map((row) => row.getBoundingClientRect().height));
+
+        if (tallestRowHeight <= 0) {
+            return;
+        }
+
+        rows.forEach((row) => row.style.setProperty('height', `${Math.ceil(tallestRowHeight)}px`));
+    });
+}
+
+function recordTableHasExplicitColumnLayout(table) {
+    if (
+        table.querySelector(':scope > colgroup')
+        || table.matches('.attendance-scan-list__table, .attendance-days-table, .attendance-records-table, .attendance-day-groups-table, .assessment-index-table, .assessment-results-data-table, .financial-transactions-table, .student-notes-table, [data-student-progress-juz-table], [data-curriculum-subject-resource-grid]')
+    ) {
+        return true;
+    }
+
+    return !table.classList.contains('table-content--balanced')
+        && window.getComputedStyle(table).tableLayout === 'fixed';
+}
+
+function recordTableHasCompleteBalancedColumns(table, headerCells) {
+    return table.classList.contains('table-content--balanced')
+        && table.dataset.balancedColumnContainerWidth
+        && headerCells.every((cell) => cell.style.getPropertyValue('--balanced-column-width') !== '');
+}
+
+function preserveOrClearBalancedRecordTableColumns(table, headerCells, availableWidth) {
+    const previousContainerWidth = Number.parseFloat(table.dataset.balancedColumnContainerWidth ?? '');
+    const containerWidthIsStable = availableWidth <= 0
+        || (Number.isFinite(previousContainerWidth) && Math.abs(previousContainerWidth - availableWidth) <= 1);
+
+    if (!recordTableHasCompleteBalancedColumns(table, headerCells) || !containerWidthIsStable) {
+        clearBalancedRecordTableColumns(table);
+    }
+}
+
+function measureRecordTableColumns(table, columnCount) {
+    const host = document.createElement('div');
+    const clone = table.cloneNode(true);
+    const widths = Array.from({ length: columnCount }, () => 0);
+
+    host.className = 'surface-table balanced-table-measure-host';
+    clone.classList.remove('table-content--balanced');
+    clone.classList.add('table-content--measuring');
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+    clone.querySelectorAll(':scope > thead > tr:first-child > :is(th, td)').forEach((cell) => {
+        cell.style.removeProperty('--balanced-column-width');
+    });
+    host.append(clone);
+    document.body.append(host);
+
+    Array.from(clone.rows).forEach((row) => {
+        const cells = Array.from(row.cells);
+
+        if (cells.length !== columnCount || cells.some((cell) => cell.colSpan !== 1)) {
+            return;
+        }
+
+        cells.forEach((cell, index) => {
+            widths[index] = Math.max(widths[index], Math.ceil(cell.getBoundingClientRect().width));
+        });
+    });
+
+    host.remove();
+
+    return widths;
+}
+
+function synchronizeBalancedRecordTableColumns() {
+    balancedRecordTableFrame = null;
+
+    document.querySelectorAll(balancedRecordTableSelector).forEach((table) => {
+        const headerCells = Array.from(table.querySelectorAll(':scope > thead > tr:first-child > :is(th, td)'));
+        const availableWidth = table.parentElement?.clientWidth ?? 0;
+
+        if (
+            headerCells.length < 2
+            || availableWidth <= 0
+            || headerCells.some((cell) => cell.colSpan !== 1)
+        ) {
+            preserveOrClearBalancedRecordTableColumns(table, headerCells, availableWidth);
+
+            return;
+        }
+
+        if (recordTableHasExplicitColumnLayout(table)) {
+            clearBalancedRecordTableColumns(table);
+
+            return;
+        }
+
+        const measuredWidths = measureRecordTableColumns(table, headerCells.length);
+        const compactNumberColumnWidth = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) * 3.5;
+        const compactColumnIndexes = new Set(headerCells.flatMap((cell, index) => (
+            cell.matches('[data-table-number-column]') ? [index] : []
+        )));
+        const hiddenColumnIndexes = new Set(headerCells.flatMap((cell, index) => (
+            window.getComputedStyle(cell).display === 'none' ? [index] : []
+        )));
+        const baseWidths = measuredWidths.map((width, index) => (
+            hiddenColumnIndexes.has(index)
+                ? 0
+                : compactColumnIndexes.has(index)
+                    ? Math.min(width, compactNumberColumnWidth)
+                    : width
+        ));
+        const measuredTotal = baseWidths.reduce((total, width) => total + width, 0);
+        const flexibleColumnCount = headerCells.length - compactColumnIndexes.size - hiddenColumnIndexes.size;
+
+        if (!measuredTotal || measuredTotal > availableWidth || flexibleColumnCount < 1) {
+            preserveOrClearBalancedRecordTableColumns(table, headerCells, availableWidth);
+
+            return;
+        }
+
+        const sharedFreeWidth = (availableWidth - measuredTotal) / flexibleColumnCount;
+        const balancedWidths = baseWidths.map((width, index) => (
+            hiddenColumnIndexes.has(index) || compactColumnIndexes.has(index) ? width : width + sharedFreeWidth
+        ));
+
+        headerCells.forEach((cell, index) => {
+            cell.style.setProperty('--balanced-column-width', `${(balancedWidths[index] / availableWidth) * 100}%`);
+        });
+        table.dataset.balancedColumnContainerWidth = String(availableWidth);
+        table.classList.add('table-content--balanced');
+    });
+
+    synchronizeRecordTableRowHeights();
+}
+
+function scheduleBalancedRecordTableColumnSync() {
+    if (balancedRecordTableFrame !== null) {
+        window.cancelAnimationFrame(balancedRecordTableFrame);
+    }
+
+    balancedRecordTableFrame = window.requestAnimationFrame(synchronizeBalancedRecordTableColumns);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleBalancedRecordTableColumnSync);
+document.addEventListener('livewire:navigated', scheduleBalancedRecordTableColumnSync);
+window.addEventListener('resize', scheduleBalancedRecordTableColumnSync, { passive: true });
+document.fonts?.ready.then(scheduleBalancedRecordTableColumnSync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('commit', ({ succeed }) => {
+        succeed(() => {
+            window.requestAnimationFrame(scheduleBalancedRecordTableColumnSync);
+        });
+    });
+
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (
+            el.matches?.(balancedRecordTableSelector)
+            || el.querySelector?.(balancedRecordTableSelector)
+            || el.closest?.('.app-main table')
+        ) {
+            scheduleBalancedRecordTableColumnSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (
+            el.matches?.(balancedRecordTableSelector)
+            || el.querySelector?.(balancedRecordTableSelector)
+            || el.closest?.('.app-main table')
+        ) {
+            scheduleBalancedRecordTableColumnSync();
         }
     });
 });
@@ -3455,10 +4001,11 @@ function initializeQuickAttendanceScanners() {
         root.dataset.bound = 'true';
 
         const video = root.querySelector('[data-quick-attendance-video]');
-        const message = root.querySelector('[data-quick-attendance-message]');
-        const input = root.querySelector('#quick-attendance-scan');
         const startButton = root.querySelector('[data-quick-attendance-start]');
         const stopButton = root.querySelector('[data-quick-attendance-stop]');
+        const camera = root.querySelector('[data-quick-attendance-camera]');
+        const cameraDisabled = startButton?.disabled ?? false;
+        let cameraSession = 0;
         let stream = null;
         let detector = null;
         let scanning = false;
@@ -3470,10 +4017,17 @@ function initializeQuickAttendanceScanners() {
 
         const messageText = (key, fallback = '') => root.dataset[key] || fallback;
 
-        const setMessage = (text) => {
-            if (message) {
-                message.textContent = text;
+        const setMessage = (text, type = 'info') => {
+            const currentMessage = root.querySelector('[data-quick-attendance-message]');
+            if (currentMessage) {
+                currentMessage.textContent = text;
+                currentMessage.dataset.feedbackType = type;
             }
+        };
+
+        const setCameraState = (state) => {
+            if (camera) camera.dataset.cameraState = state;
+            if (startButton) startButton.disabled = cameraDisabled || state === 'starting';
         };
 
         const component = () => {
@@ -3484,6 +4038,7 @@ function initializeQuickAttendanceScanners() {
         };
 
         const stop = () => {
+            cameraSession += 1;
             scanning = false;
 
             if (stream) {
@@ -3495,6 +4050,7 @@ function initializeQuickAttendanceScanners() {
                 video.srcObject = null;
             }
 
+            setCameraState('idle');
             setMessage(messageText('cameraIdle'));
         };
 
@@ -3509,11 +4065,6 @@ function initializeQuickAttendanceScanners() {
             lastValue = normalizedValue;
             lastSeenAt = now;
             setMessage(messageText('cameraDetected'));
-
-            if (input instanceof HTMLInputElement) {
-                input.value = normalizedValue;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
 
             const livewireComponent = component();
 
@@ -3614,19 +4165,29 @@ function initializeQuickAttendanceScanners() {
                         width: { ideal: 1280 },
                         height: { ideal: 720 },
                     },
+                    audio: false,
                 });
             } catch (_error) {
-                return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             }
         };
 
         startButton?.addEventListener('click', async () => {
+            if (cameraDisabled || startButton.disabled || scanning) return;
+
             if (!navigator.mediaDevices?.getUserMedia) {
-                setMessage(messageText('cameraNotSupported'));
-                input?.focus();
+                setMessage(messageText('cameraNotSupported'), 'error');
+                const manualEntry = root.querySelector('.attendance-scanner__manual');
+                if (manualEntry) manualEntry.open = true;
+                const studentPicker = root.querySelector('.attendance-scanner__manual-field .searchable-select__search--trigger, .attendance-scanner__manual-field .searchable-select__button')
+                    || root.querySelector('#quick-attendance-student');
+                studentPicker?.focus();
 
                 return;
             }
+
+            const session = ++cameraSession;
+            setCameraState('starting');
 
             try {
                 detector = null;
@@ -3639,18 +4200,29 @@ function initializeQuickAttendanceScanners() {
                     }
                 }
 
-                stream = await startCameraStream();
-
-                if (video instanceof HTMLVideoElement) {
-                    video.srcObject = stream;
-                    await video.play();
+                const nextStream = await startCameraStream();
+                if (session !== cameraSession || !root.isConnected) {
+                    nextStream.getTracks().forEach((track) => track.stop());
+                    return;
                 }
+                stream = nextStream;
 
+                if (!(video instanceof HTMLVideoElement)) throw new Error('Camera preview is unavailable.');
+
+                video.muted = true;
+                video.playsInline = true;
+                video.srcObject = stream;
+                setCameraState('running');
+                await video.play();
+
+                if (session !== cameraSession) return;
                 scanning = true;
                 setMessage(messageText('cameraRunning'));
                 requestAnimationFrame(scanLoop);
             } catch (_error) {
-                setMessage(messageText('cameraError'));
+                if (session !== cameraSession) return;
+                stop();
+                setMessage(messageText('cameraError'), 'error');
             }
         });
 

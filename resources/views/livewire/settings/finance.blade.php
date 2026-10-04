@@ -5,8 +5,10 @@ use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Models\ActivityPayment;
 use App\Models\AppSetting;
 use App\Models\FinanceCashBox;
+use App\Models\FinanceCashBoxTransfer;
 use App\Models\FinanceCategory;
 use App\Models\FinanceCurrency;
+use App\Models\FinanceCurrencyExchange;
 use App\Models\FinanceGeneratedReport;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
@@ -17,107 +19,190 @@ use App\Models\PrintTemplate;
 use App\Models\User;
 use App\Services\FinanceService;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use WithFileUploads;
 
     public string $invoice_prefix = '';
+
     public string $transaction_prefix = '';
+
     public string $pull_request_prefix = '';
+
     public string $expense_request_prefix = '';
+
     public string $revenue_request_prefix = '';
+
     public string $exchange_prefix = '';
+
     public string $transfer_prefix = '';
+
     public bool $maint_type_locked = false;
+
     public string $report_prefix = '';
+
     public string $request_terms = '';
+
     public string $default_cash_box_id = '';
+
     public string $default_pull_request_kind_id = '';
+
     public string $default_revenue_category_id = '';
+
     public string $default_pull_print_template_id = '';
+
     public string $default_expense_print_template_id = '';
+
     public string $default_revenue_print_template_id = '';
+
     public string $default_return_print_template_id = '';
+
     public bool $cash_box_manual_adjustment_enabled = true;
+
     public bool $cash_box_transfer_enabled = true;
+
     public bool $withdrawal_requests_enabled = true;
+
     public bool $showFinanceSettingsModal = false;
 
     public ?int $currency_editing_id = null;
+
     public string $currency_code = '';
+
     public string $currency_decimal_places = '2';
+
     public string $currency_name = '';
+
     public string $currency_symbol = '';
+
     public string $currency_rate_input = '1';
+
     public ?int $currency_rate_reference_currency_id = null;
+
     public bool $currency_is_active = true;
+
     public bool $currency_show_in_dropdowns = true;
+
     public bool $currency_is_local = false;
+
     public bool $currency_is_base = false;
+
     public bool $showCurrencyModal = false;
 
     public ?int $cash_box_editing_id = null;
+
     public string $cash_box_name = '';
+
     public string $cash_box_code = '';
+
     public bool $cash_box_is_active = true;
+
     public string $cash_box_notes = '';
+
     public array $cash_box_currency_ids = [];
+
     public bool $showCashBoxModal = false;
 
     public ?int $finance_category_editing_id = null;
+
     public string $finance_category_name = '';
+
     public string $finance_category_code = '';
+
     public string $finance_category_type = 'expense';
+
     public string $finance_category_mode = 'count';
+
     public bool $finance_category_is_active = true;
+
     public bool $finance_category_is_donation = false;
+
     public bool $showFinanceCategoryModal = false;
 
     public ?int $pull_kind_editing_id = null;
+
     public string $pull_kind_name = '';
+
     public string $pull_kind_code = '';
+
     public string $pull_kind_mode = 'count';
+
     public bool $pull_kind_is_active = true;
+
     public bool $showPullKindModal = false;
 
     public ?int $payment_method_editing_id = null;
+
     public string $payment_method_name = '';
+
     public string $payment_method_code = '';
+
     public bool $payment_method_is_active = true;
+
     public bool $showPaymentMethodModal = false;
 
     public string $transaction_lookup_no = '';
+
     public ?int $maintaining_transaction_id = null;
+
+    public ?int $maintaining_declined_withdrawal_request_id = null;
+
     public bool $maintaining_transaction_deleted = false;
+
     public string $maint_transaction_date = '';
+
     public ?int $maint_cash_box_id = null;
+
     public ?int $maint_currency_id = null;
+
     public ?int $maint_category_id = null;
+
     public string $maint_type = '';
+
     public string $maint_direction = 'in';
+
     public string $maint_amount = '';
+
     public string $maint_description = '';
+
     public string $maint_special_transaction_no = '';
+
     public ?int $maint_entered_by = null;
+
     public string $maint_delete_reason = '';
+
     public string $report_lookup_no = '';
+
     public string $withdrawal_cleanup_request_no = '';
+
     public $legacy_report_pdf = null;
+
     public string $legacy_report_number = '';
+
     public string $legacy_report_period_mode = 'quarter';
+
     public int $legacy_report_year;
+
     public string $legacy_report_quarter = '';
+
     public string $legacy_report_date_from = '';
+
     public string $legacy_report_date_to = '';
+
     public string $legacy_report_cash_box = '';
+
     public string $legacy_report_currency = '';
+
     public string $legacy_report_generated_at = '';
+
     public bool $showLegacyReportModal = false;
 
     public function mount(): void
@@ -693,7 +778,26 @@ new class extends Component {
             ->first();
 
         if (! $transaction) {
+            $declinedWithdrawal = FinanceRequest::query()
+                ->where('type', FinanceRequest::TYPE_PULL)
+                ->where('status', FinanceRequest::STATUS_DECLINED)
+                ->where(function ($query) use ($lookup): void {
+                    $query->where('request_no', $lookup)->orWhere('expense_no', $lookup);
+                })
+                ->first();
+
+            if ($declinedWithdrawal) {
+                $this->maintaining_transaction_id = null;
+                $this->maintaining_declined_withdrawal_request_id = $declinedWithdrawal->id;
+                $this->maintaining_transaction_deleted = false;
+                $this->maint_delete_reason = '';
+                $this->resetValidation();
+
+                return;
+            }
+
             $this->addError('transaction_lookup_no', __('finance.validation.transaction_not_found'));
+
             return;
         }
 
@@ -704,13 +808,14 @@ new class extends Component {
         }
 
         $this->maintaining_transaction_id = $transaction->id;
+        $this->maintaining_declined_withdrawal_request_id = null;
         $this->maintaining_transaction_deleted = $transaction->trashed();
         $this->maint_transaction_date = $transaction->transaction_date?->toDateString() ?: '';
         $this->maint_cash_box_id = $transaction->cash_box_id;
         $this->maint_currency_id = $transaction->currency_id;
         $this->maint_category_id = $transaction->finance_category_id ?: $requestCategoryId;
         $this->maint_type = $transaction->type;
-        $this->maint_type_locked = in_array($transaction->source_type, [\App\Models\FinanceCurrencyExchange::class, \App\Models\FinanceCashBoxTransfer::class], true);
+        $this->maint_type_locked = in_array($transaction->source_type, [FinanceCurrencyExchange::class, FinanceCashBoxTransfer::class], true);
         $this->maint_direction = $transaction->direction;
         $this->maint_amount = $this->formatFinanceNumberForInput($transaction->amount);
         $this->maint_description = (string) preg_replace('/\s+/u', ' ', $transaction->description ?? '');
@@ -718,6 +823,23 @@ new class extends Component {
         $this->maint_entered_by = $transaction->entered_by;
         $this->maint_delete_reason = '';
         $this->resetValidation();
+    }
+
+    public function deleteDeclinedWithdrawalRequestMaintenance(): void
+    {
+        $this->authorizePermission('finance.entries.delete');
+
+        $request = FinanceRequest::query()
+            ->where('type', FinanceRequest::TYPE_PULL)
+            ->where('status', FinanceRequest::STATUS_DECLINED)
+            ->findOrFail($this->maintaining_declined_withdrawal_request_id);
+        $requestNo = $request->request_no;
+
+        app(FinanceService::class)->forceDeleteDeclinedWithdrawalRequest($request);
+
+        $this->maintaining_declined_withdrawal_request_id = null;
+        $this->transaction_lookup_no = '';
+        session()->flash('status', __('finance.messages.declined_withdrawal_deleted', ['request' => $requestNo]));
     }
 
     public function saveTransactionMaintenance(): void
@@ -737,8 +859,8 @@ new class extends Component {
         ]);
         $transaction = FinanceTransaction::withTrashed()->findOrFail($this->maintaining_transaction_id);
         abort_if($transaction->trashed(), 422);
-        if (in_array($transaction->source_type, [\App\Models\FinanceCurrencyExchange::class, \App\Models\FinanceCashBoxTransfer::class], true)) {
-            $validated['maint_type'] = $transaction->source_type === \App\Models\FinanceCurrencyExchange::class ? 'exchange' : 'transfer';
+        if (in_array($transaction->source_type, [FinanceCurrencyExchange::class, FinanceCashBoxTransfer::class], true)) {
+            $validated['maint_type'] = $transaction->source_type === FinanceCurrencyExchange::class ? 'exchange' : 'transfer';
         }
         app(FinanceService::class)->updateTransaction($transaction, [
             'amount' => $validated['maint_amount'],
@@ -852,7 +974,7 @@ new class extends Component {
         ]);
 
         if ($validated['legacy_report_period_mode'] === 'quarter') {
-            $quarterStart = \Illuminate\Support\Carbon::create((int) $validated['legacy_report_year'], (((int) $validated['legacy_report_quarter'] - 1) * 3) + 1, 1);
+            $quarterStart = Carbon::create((int) $validated['legacy_report_year'], (((int) $validated['legacy_report_quarter'] - 1) * 3) + 1, 1);
             $dateFrom = $quarterStart->toDateString();
             $dateTo = $quarterStart->copy()->endOfQuarter()->toDateString();
         } else {
@@ -927,7 +1049,7 @@ new class extends Component {
                 auth()->user(),
                 __('finance.descriptions.withdrawal_cleanup'),
             );
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             report($exception);
             $this->addError('withdrawal_cleanup_request_no', __('finance.messages.withdrawal_cleanup_failed'));
 
@@ -1407,10 +1529,10 @@ new class extends Component {
     <section class="surface-panel settings-dark-surface p-5 lg:p-6" data-settings-dark-surface="transaction-maintenance">
         <div class="admin-toolbar"><div><div class="admin-toolbar__title">{{ __('finance.settings.transaction_maintenance') }}</div><p class="admin-toolbar__subtitle">{{ __('finance.settings.transaction_maintenance_help') }}</p></div></div>
         @php($maintainingInvoice = $maintaining_transaction_id ? \App\Models\FinanceTransaction::withTrashed()->with('financeRequest.invoice')->find($maintaining_transaction_id)?->financeRequest?->invoice : null)
-        @if ($maintaining_transaction_id)
+        @if ($maintaining_transaction_id || $maintaining_declined_withdrawal_request_id)
             <div class="mt-5 flex flex-col gap-3 sm:flex-row">
                 <input wire:model="transaction_lookup_no" readonly class="transaction-maintenance-lookup min-w-0 flex-1 rounded-xl px-4 py-3 opacity-75">
-                @unless ($maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-transaction-maintenance-save-action><x-admin-action-icon name="save" /></button>@endunless
+                @if ($maintaining_transaction_id && ! $maintaining_transaction_deleted)<button type="submit" form="transaction-maintenance-form" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-transaction-maintenance-save-action><x-admin-action-icon name="save" /></button>@endif
                 @if ($maintainingInvoice && auth()->user()?->can('finance.expense-requests.review'))
                     <a href="{{ route('finance.expense-requests.index', ['edit_invoice' => $maintainingInvoice->id]) }}" wire:navigate class="admin-icon-button transaction-maintenance-action-button" title="{{ __('finance.actions.edit_invoice') }}" aria-label="{{ __('finance.actions.edit_invoice') }}" data-transaction-maintenance-receipt-action>
                         <x-admin-action-icon name="transaction-invoice-edit" />
@@ -1421,6 +1543,16 @@ new class extends Component {
             <form wire:submit="findTransaction" class="mt-5 flex flex-col gap-3 sm:flex-row"><input wire:model="transaction_lookup_no" placeholder="{{ __('finance.fields.transaction_lookup') }}" class="transaction-maintenance-lookup min-w-0 flex-1 rounded-xl px-4 py-3"> <button type="submit" class="admin-icon-button admin-icon-button--accent transaction-maintenance-action-button" title="{{ __('finance.actions.find') }}" aria-label="{{ __('finance.actions.find') }}" data-transaction-maintenance-search-action><x-admin-action-icon name="search" /></button></form>
         @endif
         @error('transaction_lookup_no')<div class="mt-2 text-sm text-red-400">{{ $message }}</div>@enderror
+        @if ($maintaining_declined_withdrawal_request_id)
+            <div class="mt-5" data-declined-withdrawal-maintenance>
+                <div class="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">{{ __('finance.settings.declined_withdrawal_delete_help') }}</div>
+                @can('finance.entries.delete')
+                    <div class="admin-action-cluster admin-action-cluster--end mt-5 border-t border-white/10 pt-5">
+                        <button wire:click="deleteDeclinedWithdrawalRequestMaintenance" wire:confirm="{{ __('finance.settings.declined_withdrawal_delete_confirm') }}" type="button" class="admin-icon-button admin-icon-button--danger transaction-maintenance-action-button" title="{{ __('finance.actions.delete') }}" aria-label="{{ __('finance.actions.delete') }}" data-declined-withdrawal-delete-action><x-admin-action-icon name="delete" /></button>
+                    </div>
+                @endcan
+            </div>
+        @endif
         @if ($maintaining_transaction_id)
             @if ($maintaining_transaction_deleted)
                 <div class="mt-5 rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">{{ __('finance.statuses.deleted') }}</div>

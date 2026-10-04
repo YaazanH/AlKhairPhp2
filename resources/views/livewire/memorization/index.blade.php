@@ -8,38 +8,62 @@ use App\Models\MemorizationSession;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\MemorizationService;
+use App\Support\ArabicSearch;
+use App\Support\OperationalFeatureSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingSessionId = null;
+
     public string $editingStudentName = '';
+
     public ?int $selectedStudentId = null;
+
     public ?int $selectedEnrollmentId = null;
+
     public ?int $teacher_id = null;
+
     public string $recorded_on = '';
+
     public string $entry_type = 'new';
+
     public string $from_page = '';
+
     public string $to_page = '';
+
     public string $search = '';
+
     public string $entryTypeFilter = 'all';
+
     public string $sortField = 'recorded_on';
+
     public string $sortDirection = 'desc';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $editingCourseFinished = false;
+
     public bool $showDuplicateModal = false;
+
     public array $duplicatePages = [];
+
     public array $uniquePages = [];
+
     public array $pendingMemorizationPayload = [];
+
     public ?int $pendingEnrollmentId = null;
+
     public ?int $pendingSessionId = null;
 
     protected array $sortableFields = [
@@ -72,15 +96,10 @@ new class extends Component {
 
         $sessionsQuery
             ->when(filled($this->search), function (Builder $query) {
-                $search = '%'.$this->search.'%';
-
-                $query->where(function (Builder $builder) use ($search) {
+                ArabicSearch::whereAllTokens($query, $this->search, function (Builder $builder, string $token): void {
+                    $search = '%'.$token.'%';
                     $builder
-                        ->whereHas('student', function (Builder $studentQuery) use ($search) {
-                            $studentQuery
-                                ->where('first_name', 'like', $search)
-                                ->orWhere('last_name', 'like', $search);
-                        })
+                        ->whereHas('student', fn (Builder $studentQuery) => $studentQuery->whereMatchesSearchToken($token))
                         ->orWhereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('name', 'like', $search))
                         ->orWhereHas('teacher', function (Builder $teacherQuery) use ($search) {
                             $teacherQuery
@@ -175,7 +194,7 @@ new class extends Component {
     public function openCreateModal(): void
     {
         $this->authorizePermission('memorization.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -194,6 +213,7 @@ new class extends Component {
         $session = $this->scopeMemorizationSessionsQuery(
             MemorizationSession::query()->with(['enrollment.group.course', 'student'])
         )->findOrFail($sessionId);
+        abort_unless($this->sessionCourseIsEditable($session), 403);
 
         $this->editingSessionId = $session->id;
         $this->editingCourseFinished = $session->enrollment?->belongsToFinishedCourse() ?? false;
@@ -215,7 +235,7 @@ new class extends Component {
         $this->authorizePermission('memorization.record');
 
         if (! $this->editingSessionId) {
-            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
 
         $validated = $this->validate([
@@ -233,9 +253,14 @@ new class extends Component {
 
         $editingSession = $this->editingSessionId
             ? $this->scopeMemorizationSessionsQuery(
-                MemorizationSession::query()->with(['student', 'enrollment.student', 'enrollment.group.teacher'])
+                MemorizationSession::query()->with(['student', 'enrollment.student', 'enrollment.group.course', 'enrollment.group.teacher'])
             )->findOrFail($this->editingSessionId)
             : null;
+
+        if ($editingSession) {
+            abort_unless($this->sessionCourseIsEditable($editingSession), 403);
+        }
+
         $student = $editingSession?->student
             ?: $this->scopeStudentsQuery(Student::query()->where('status', 'active'))->findOrFail($validated['selectedStudentId']);
         $this->authorizeScopedStudentAccess($student);
@@ -381,7 +406,7 @@ new class extends Component {
 
         try {
             app(MemorizationService::class)->deleteSession($session);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('deleteSession', $exception->getMessage());
 
             return;
@@ -435,6 +460,14 @@ new class extends Component {
     protected function currentTeacher(): ?Teacher
     {
         return auth()->user()?->teacherProfile;
+    }
+
+    protected function sessionCourseIsEditable(MemorizationSession $session): bool
+    {
+        $session->loadMissing('enrollment.group.course');
+
+        return (bool) $session->enrollment?->group?->course?->is_active
+            && ! $session->enrollment->belongsToFinishedCourse();
     }
 
     protected function applySessionSort(Builder $query): void
@@ -564,11 +597,6 @@ new class extends Component {
                                 </button>
                             </th>
                             <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('recorded_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    {{ __('workflow.memorization.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('recorded_on') }}</span>
-                                </button>
-                            </th>
-                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('pages_count')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.memorization.workbench.table.headers.pages') }} <span>{{ $this->sortIndicator('pages_count') }}</span>
                                 </button>
@@ -576,6 +604,11 @@ new class extends Component {
                             <th class="table-cell-name whitespace-nowrap px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('teacher')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.memorization.workbench.table.headers.teacher') }} <span>{{ $this->sortIndicator('teacher') }}</span>
+                                </button>
+                            </th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('recorded_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.memorization.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('recorded_on') }}</span>
                                 </button>
                             </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.memorization.workbench.table.headers.group') }}</th>
@@ -605,7 +638,6 @@ new class extends Component {
                                         <span class="text-white">{{ __('crud.common.not_available') }}</span>
                                     @endif
                                 </td>
-                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
                                 <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-white lg:px-6">
                                     @if ((int) $session->from_page === (int) $session->to_page)
                                         <bdi dir="ltr">{{ $session->from_page }}</bdi>
@@ -614,14 +646,27 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="record-person-name table-cell-name whitespace-nowrap px-5 py-4 text-neutral-300 lg:px-6">{{ $session->teacher?->first_name }} {{ $session->teacher?->last_name }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($session->recorded_on?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <div class="memorization-course-name font-medium text-white" title="{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}"><span class="record-course-name">{{ $session->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span></td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
+                                    <span
+                                        @class([
+                                            'status-text',
+                                            'status-text--emerald' => $session->entry_type === 'new',
+                                            'status-text--amber' => $session->entry_type === 'review',
+                                            'status-text--rose' => $session->entry_type === 'correction',
+                                        ])
+                                        data-memorization-entry-type="{{ $session->entry_type }}"
+                                    >{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span>
+                                </td>
                                 @can('memorization.record')
                                     <td class="table-cell-compact px-5 py-4 lg:px-6">
                                         <div class="flex flex-wrap justify-center gap-2">
-                                            <button type="button" wire:click="editSession({{ $session->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
+                                            @if ($this->sessionCourseIsEditable($session))
+                                                <button type="button" wire:click="editSession({{ $session->id }})" class="admin-icon-button" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}" data-memorization-session-edit-action><x-admin-action-icon name="edit" /></button>
+                                            @endif
                                         </div>
                                     </td>
                                 @endcan
@@ -644,10 +689,11 @@ new class extends Component {
         :title="$editingSessionId ? __('workflow.memorization.workbench.form.edit_title') : __('workflow.memorization.workbench.form.title')"
         :description="__('workflow.memorization.workbench.form.help')"
         close-method="closeFormModal"
-        max-width="5xl"
+        max-width="3xl"
+        compact
     >
-        <form wire:submit="save" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-2">
+        <form wire:submit="save" class="space-y-3" data-memorization-form-modal>
+            <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 <div>
                     <label for="memorization-student" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.workbench.form.student') }}</label>
                     @if($editingSessionId)
@@ -684,9 +730,6 @@ new class extends Component {
                     @enderror
                     </div>
                 @endif
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="memorization-recorded-on" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.recorded_on') }}</label>
                     <input id="memorization-recorded-on" wire:model="recorded_on" value="{{ $recorded_on }}" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -706,9 +749,6 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="memorization-from-page" class="mb-1 block text-sm font-medium">{{ __('workflow.memorization.form.from_page') }}</label>
                     <input id="memorization-from-page" wire:model="from_page" type="number" min="1" max="604" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -726,7 +766,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="memorization-modal-actions flex w-full flex-wrap items-center gap-3">
+            <div class="memorization-modal-actions flex w-full flex-wrap items-center gap-2">
                 @if ($editingSessionId)
                     @if (! $editingCourseFinished)
                     <x-delete-action-button

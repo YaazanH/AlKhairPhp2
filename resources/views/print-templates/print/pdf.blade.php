@@ -13,7 +13,7 @@
         @endphp
 
         @if ($item)
-            <div style="position:fixed;left:{{ $itemLeft }}mm;top:{{ $itemTop }}mm;width:{{ $template->width_mm }}mm;height:{{ $template->height_mm }}mm;overflow:hidden;border:.2mm solid #dce4de;border-radius:{{ $template->rounded_corners ? '2.2mm' : '0' }};background:#f7fbf8;"></div>
+            <div style="position:fixed;left:{{ $itemLeft }}mm;top:{{ $itemTop }}mm;width:{{ $template->width_mm }}mm;height:{{ $template->height_mm }}mm;overflow:hidden;border:.2mm solid #dce4de;border-radius:{{ $template->rounded_corners ? '2.2mm' : '0' }};background:{{ $backgroundImageSource ? 'transparent' : '#f7fbf8' }};"></div>
 
             @if ($backgroundImageSource)
                 <img src="{{ $backgroundImageSource }}" alt="" style="position:fixed;left:{{ $itemLeft }}mm;top:{{ $itemTop }}mm;width:{{ $template->width_mm }}mm;height:{{ $template->height_mm }}mm;">
@@ -45,7 +45,7 @@
                         $textAlign = $element['styling']['text_align'];
                         $textDirection = preg_match('/[\p{Arabic}\p{Hebrew}\p{Syriac}]/u', $textValue) === 1 ? 'rtl' : 'ltr';
                     @endphp
-                    <div style="{{ $positionStyle }}color:{{ $element['styling']['color'] }};direction:{{ $textDirection }};font-size:{{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;font-weight:{{ $element['styling']['font_weight'] }};text-align:{{ $textAlign }};letter-spacing:{{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;line-height:{{ number_format($element['styling']['line_height'], 2, '.', '') }};">{!! nl2br(\App\Support\DateDisplay::html($textValue)->toHtml()) !!}</div>
+                    <div style="{{ $positionStyle }}color:{{ $element['styling']['color'] }};direction:{{ $textDirection }};unicode-bidi:isolate;font-size:{{ number_format($element['styling']['font_size'], 2, '.', '') }}mm;font-weight:{{ $element['styling']['font_weight'] }};text-align:{{ $textAlign }};@if ($textAlign === 'justify') text-align-last:justify;text-justify:auto;@endif letter-spacing:{{ number_format($element['styling']['letter_spacing'], 2, '.', '') }}mm;line-height:{{ number_format($element['styling']['line_height'], 2, '.', '') }};">{!! nl2br(\App\Support\DateDisplay::html($textValue)->toHtml()) !!}</div>
                 @endif
             @endforeach
         @endif

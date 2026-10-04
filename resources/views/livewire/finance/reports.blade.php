@@ -1,38 +1,56 @@
 <?php
 
 use App\Livewire\Concerns\AuthorizesPermissions;
+use App\Models\AppSetting;
 use App\Models\FinanceGeneratedReport;
 use App\Models\FinanceReportTemplate;
-use App\Models\AppSetting;
 use App\Services\FinanceReportService;
 use App\Services\FinanceService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use WithFileUploads;
     use WithPagination;
 
     public string $ledger_period_mode = 'quarter';
+
     public int $ledger_year;
+
     public string $ledger_quarter = '';
+
     public string $ledger_cash_box_id = '';
+
     public array $ledger_cash_box_ids = [];
+
     public string $ledger_currency_id = '';
+
     public string $ledger_date_from = '';
+
     public string $ledger_date_to = '';
+
     public $report_background_upload = null;
+
     public $report_logo_upload = null;
+
     public $report_stamp_upload = null;
+
     public string $report_notes = '----';
+
     public bool $remove_report_background = false;
+
     public bool $remove_report_logo = false;
+
     public bool $remove_report_stamp = false;
+
     public bool $showReportSettingsModal = false;
+
     public bool $showCreateReportModal = false;
 
     public function mount(): void
@@ -317,7 +335,7 @@ new class extends Component {
     protected function syncLedgerQuarterDates(): void
     {
         $quarter = max(1, min(4, (int) $this->ledger_quarter));
-        $start = \Illuminate\Support\Carbon::create($this->ledger_year, (($quarter - 1) * 3) + 1, 1)->startOfDay();
+        $start = Carbon::create($this->ledger_year, (($quarter - 1) * 3) + 1, 1)->startOfDay();
         $this->ledger_date_from = $start->toDateString();
         $this->ledger_date_to = $start->copy()->addMonths(2)->endOfMonth()->toDateString();
     }
@@ -440,7 +458,7 @@ new class extends Component {
                                     <td class="px-5 py-3">{{ \App\Support\DateDisplay::html($generatedReport->created_at?->format('d-m-Y')) }}</td>
                                     <td class="px-5 py-3">
                                         <div class="admin-action-cluster admin-action-cluster--end">
-                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.reports.review_saved_report') }}" aria-label="{{ __('finance.reports.review_saved_report') }}" data-financial-record-view-action><x-admin-action-icon name="financial-report-open" /></a>
+                                            <a href="{{ route('finance.reports.generated.show', $generatedReport) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('finance.reports.review_saved_report') }}" aria-label="{{ __('finance.reports.review_saved_report') }}" data-financial-record-view-action data-keep-visible-table-action><x-admin-action-icon name="financial-report-open" /></a>
                                         </div>
                                     </td>
                                 </tr>
@@ -471,19 +489,19 @@ new class extends Component {
         @php
             $ledgerReady = $ledger_cash_box_id !== '' && $ledger_date_from !== '' && $ledger_date_to !== '';
         @endphp
-        <x-admin.modal :show="$showCreateReportModal" :title="__('finance.reports.generate_report')" close-method="closeCreateReport" max-width="4xl">
-        <div class="grid gap-4">
+        <x-admin.modal :show="$showCreateReportModal" :title="__('finance.reports.generate_report')" close-method="closeCreateReport" max-width="3xl" compact>
+        <div class="grid gap-3" data-finance-report-create-form>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
-                    <div class="finance-report-funds flex gap-2 overflow-x-auto pb-1">
+                    <div class="finance-report-funds grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3" data-finance-report-funds-grid>
                         @forelse ($ledgerCashBoxes as $cashBox)
-                            <label class="flex shrink-0 items-center gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm"><input type="checkbox" wire:model.live="ledger_cash_box_ids" value="{{ $cashBox->id }}" class="rounded"><span>{{ $cashBox->name }}</span></label>
+                            <label class="flex min-h-[3.125rem] items-center gap-3 rounded-xl border border-white/10 px-3 py-2 text-sm"><input type="checkbox" wire:model.live="ledger_cash_box_ids" value="{{ $cashBox->id }}" class="rounded"><span>{{ $cashBox->name }}</span></label>
                         @empty
                             <span>{{ __('finance.empty.no_cash_boxes') }}</span>
                         @endforelse
                     </div>
                 </div>
-                <div class="grid gap-4 md:grid-cols-3">
+                <div class="grid gap-2 md:grid-cols-3" data-finance-report-period-grid>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.period') }}</label>
                         <select wire:model.live="ledger_period_mode" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm" data-ledger-period-mode>
@@ -503,20 +521,20 @@ new class extends Component {
                     @else
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.from_date') }}</label>
-                            <input wire:model.live="ledger_date_from" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <input wire:model.live="ledger_date_from" type="date" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.to_date') }}</label>
-                            <input wire:model.live="ledger_date_to" type="date" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <input wire:model.live="ledger_date_to" type="date" class="h-[3.125rem] min-h-[3.125rem] w-full rounded-xl px-4 py-3 text-sm">
                         </div>
                     @endif
                 </div>
-            <div class="mt-5">
+            <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('finance.reports.report_notes') }}</label>
-                <textarea wire:model.live="report_notes" rows="3" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                <textarea wire:model.live="report_notes" rows="2" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
             </div>
 
-            <div class="mt-5 flex flex-wrap gap-3">
+            <div class="flex flex-wrap justify-end gap-3">
                 @if ($ledgerReady)
                     <button type="button" wire:click="createReport" wire:loading.attr="disabled" wire:target="createReport" x-on:click="beginGeneratedReport()" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.reports.generate_report') }}" aria-label="{{ __('finance.reports.generate_report') }}" data-finance-report-create-save-action><x-admin-action-icon name="financial-report-create" class="admin-modal-action__icon" /></button>
                 @else

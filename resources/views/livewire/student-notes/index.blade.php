@@ -51,6 +51,7 @@ new class extends Component
     public function with(): array
     {
         $students = $this->availableStudentsQuery()
+            ->with('parentProfile')
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();
@@ -249,7 +250,7 @@ new class extends Component
     {
         return $this->scopeStudentNotesQuery(
             StudentNote::query()
-                ->with('student')
+                ->with('student.parentProfile')
                 ->latest('noted_at')
                 ->latest('id')
         );
@@ -384,7 +385,7 @@ new class extends Component
                             <select wire:model="student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="student-note-form__control w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" data-record-label="person">
                                 <option value="">{{ __('notes.form.placeholders.student') }}</option>
                                 @foreach ($students as $student)
-                                    <option value="{{ $student->id }}">{{ trim($student->first_name.' '.$student->last_name) }}</option>
+                                    <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                                 @endforeach
                             </select>
                         @endif
@@ -465,7 +466,7 @@ new class extends Component
                         <select id="student-notes-student-filter" wire:model.live="filter_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" data-record-label="person">
                             <option value="">{{ __('notes.log.filters.all_students') }}</option>
                             @foreach ($students as $student)
-                                <option value="{{ $student->id }}">{{ trim($student->first_name.' '.$student->last_name) }}</option>
+                                <option value="{{ $student->id }}">{{ $student->full_name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -528,7 +529,7 @@ new class extends Component
                                 @endphp
                                 <tr>
                                     <td class="px-4 py-4">{{ $loop->iteration }}</td>
-                                    <td class="record-person-name px-4 py-4 font-semibold">{{ $note->student ? trim($note->student->first_name.' '.$note->student->last_name) : '-' }}</td>
+                                    <td class="record-person-name px-4 py-4 font-semibold">{{ $note->student?->full_name ?: '-' }}</td>
                                     <td class="px-4 py-4"><bdi dir="ltr">{{ \App\Support\DateDisplay::html($note->noted_at?->format('d-m-Y') ?: '-') }}</bdi></td>
                                     <td class="px-4 py-4">{{ __('notes.visibility.'.$note->visibility) }}</td>
                                     <td class="px-4 py-4">

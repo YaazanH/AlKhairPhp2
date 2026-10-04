@@ -4,41 +4,60 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Enrollment;
-use App\Models\QuranJuz;
 use App\Models\QuranFinalTest;
+use App\Models\QuranJuz;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
+use App\Support\ArabicSearch;
+use App\Support\OperationalFeatureSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $selectedStudentId = null;
+
     public ?int $selectedEnrollmentId = null;
+
     public ?int $editingTestId = null;
+
     public string $editingStudentName = '';
+
     public ?int $juz_id = null;
+
     public string $tested_on = '';
+
     public string $score = '';
+
     public string $status = 'passed';
+
     public string $notes = '';
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public string $juzFilter = 'all';
+
     public string $sortField = 'tested_on';
+
     public string $sortDirection = 'desc';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $showEligibleAwqafModal = false;
 
     protected array $sortableFields = [
@@ -74,16 +93,10 @@ new class extends Component {
 
         $testsQuery
             ->when(filled($this->search), function (Builder $query) {
-                $search = '%'.$this->search.'%';
-
-                $query->where(function (Builder $builder) use ($search) {
+                ArabicSearch::whereAllTokens($query, $this->search, function (Builder $builder, string $token): void {
+                    $search = '%'.$token.'%';
                     $builder
-                        ->whereHas('student', function (Builder $studentQuery) use ($search) {
-                            $studentQuery
-                                ->where('first_name', 'like', $search)
-                                ->orWhere('last_name', 'like', $search)
-                                ->orWhere('student_number', 'like', $search);
-                        })
+                        ->whereHas('student', fn (Builder $studentQuery) => $studentQuery->whereMatchesSearchToken($token))
                         ->orWhereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('name', 'like', $search))
                         ->orWhereHas('teacher', function (Builder $teacherQuery) use ($search) {
                             $teacherQuery
@@ -203,7 +216,7 @@ new class extends Component {
     public function openCreateModal(): void
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -260,7 +273,7 @@ new class extends Component {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
         if (! $this->editingTestId) {
-            \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
 
         $validated = $this->validate([
@@ -701,16 +714,16 @@ new class extends Component {
                                 </button>
                             </th>
                             <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_tests.workbench.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
+                                </button>
+                            </th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_tests.workbench.table.headers.date') }} <span>{{ $this->sortIndicator('tested_on') }}</span>
                                 </button>
                             </th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_tests.workbench.table.headers.group') }}</th>
-                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    {{ __('workflow.quran_tests.workbench.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
-                                </button>
-                            </th>
                             @canany(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete'])
                             <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('crud.common.actions.actions') }}</th>
                             @endcanany
@@ -734,11 +747,21 @@ new class extends Component {
                                 </td>
                                 <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
                                 <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ $test->score !== null ? $test->score : __('workflow.common.not_available') }}</td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
+                                    <span
+                                        @class([
+                                            'status-text',
+                                            'status-text--emerald' => $test->status === 'passed',
+                                            'status-text--rose' => $test->status === 'failed',
+                                            'status-text--slate' => $test->status === 'cancelled',
+                                        ])
+                                        data-saber-status="{{ $test->status }}"
+                                    >{{ __('workflow.common.result_status.'.$test->status) }}</span>
+                                </td>
                                 <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($test->tested_on?->format('d-m-Y')) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <div class="awqaf-course-name font-medium text-white" title="{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}"><span class="record-course-name">{{ $test->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="status-chip {{ $test->status === 'passed' ? 'status-chip--emerald' : 'status-chip--slate' }}">{{ __('workflow.common.result_status.'.$test->status) }}</span></td>
                                 @canany(['quran-awqaf-tests.record', 'quran-tests.record', 'quran-awqaf-tests.delete'])
                                     <td class="table-cell-compact px-5 py-4 text-center lg:px-6">
                                         <div class="flex flex-wrap justify-center gap-2">
@@ -835,7 +858,7 @@ new class extends Component {
                                 <option value="">{{ __('workflow.quran_tests.workbench.form.select_student') }}</option>
                                 @foreach ($studentOptions as $student)
                                     <option value="{{ $student->id }}">
-                                        {{ trim($student->first_name.' '.$student->last_name) }}
+                                        {{ $student->full_name }}
                                     </option>
                                 @endforeach
                             </select>

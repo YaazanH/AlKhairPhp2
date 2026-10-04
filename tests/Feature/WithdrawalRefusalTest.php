@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\FinanceCashBox;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
@@ -41,7 +42,6 @@ class WithdrawalRefusalTest extends TestCase
     {
         return [
             ['finance.dashboard', 'ar'], ['finance.dashboard', 'en'],
-            ['finance.pull-requests', 'ar'], ['finance.pull-requests', 'en'],
         ];
     }
 
@@ -51,12 +51,12 @@ class WithdrawalRefusalTest extends TestCase
         app()->setLocale($locale);
         $request = $this->request();
         $transactions = FinanceTransaction::count();
-        $amountProperty = $screen === 'finance.dashboard' ? 'review_amount' : "review_amounts.{$request->id}";
+        $amountProperty = 'review_amount';
         $component = Volt::test($screen)
             ->call('openReviewModal', $request->id)
             ->set($amountProperty, '90')
             ->assertSee('data-withdrawal-review', false)
-            ->assertDontSee('wire:model="review_notes', false)
+            ->assertDontSee('data-withdrawal-expense-details', false)
             ->call('openRefusalModal')
             ->assertSet('refusingRequestId', $request->id)
             ->assertSee('data-withdrawal-refusal-form', false)
@@ -80,6 +80,7 @@ class WithdrawalRefusalTest extends TestCase
             ->assertSet('refusal_reason', '')
             ->assertSet($amountProperty, '90')
             ->assertSee('data-withdrawal-review', false)
+            ->assertDontSee('data-withdrawal-expense-details', false)
             ->assertDontSee('data-withdrawal-refusal-form', false)
             ->assertHasNoErrors();
 
@@ -180,6 +181,59 @@ class WithdrawalRefusalTest extends TestCase
         $request = $this->request(['status' => FinanceRequest::STATUS_DECLINED]);
         app()->setLocale('ar');
         Volt::test('finance.dashboard')->call('openRefusalReason', $request->id)->assertSee(__('finance.refusal.not_recorded'));
+    }
+
+    #[DataProvider('reviewScreens')]
+    public function test_accepting_a_withdrawal_requires_expense_details_and_posts_them(string $screen, string $locale): void
+    {
+        app()->setLocale($locale);
+        $request = $this->request();
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        app(FinanceService::class)->postTransaction([
+            'cash_box_id' => $cashBox->id,
+            'currency_id' => app(FinanceService::class)->localCurrency()->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 500,
+        ]);
+
+        $component = Volt::test($screen)
+            ->call('openReviewModal', $request->id)
+            ->assertSet('review_notes', 'Class materials')
+            ->assertSet('show_acceptance_details', false)
+            ->assertDontSee('data-withdrawal-expense-details', false)
+            ->set('review_amount', '90')
+            ->set('review_cash_box_id', $cashBox->id)
+            ->call('beginAcceptance')
+            ->assertSet('show_acceptance_details', true)
+            ->assertSee('data-withdrawal-acceptance-form', false)
+            ->assertSee('data-withdrawal-expense-details', false)
+            ->assertSee('rows="2"', false)
+            ->assertDontSee('data-withdrawal-review', false);
+        $this->assertSame(1, substr_count($component->html(), 'class="admin-modal '));
+
+        $component
+            ->call('closeAcceptanceDetails')
+            ->assertSet('show_acceptance_details', false)
+            ->assertSee('data-withdrawal-review', false)
+            ->assertDontSee('data-withdrawal-acceptance-form', false)
+            ->call('beginAcceptance')
+            ->assertSee('data-withdrawal-acceptance-form', false);
+
+        $component
+            ->set('review_notes', '')
+            ->call('acceptRequest')
+            ->assertHasErrors(['review_notes' => 'required'])
+            ->assertSee(__('finance.validation.expense_details_required'))
+            ->set('review_notes', 'Purchased classroom supplies')
+            ->call('acceptRequest');
+
+        $component->assertHasNoErrors();
+        $request->refresh();
+        $this->assertSame(FinanceRequest::STATUS_ACCEPTED, $request->status);
+        $this->assertSame('Purchased classroom supplies', $request->review_notes);
+        $this->assertSame('Purchased classroom supplies', $request->postedTransaction?->description);
+        $this->assertSame('Class materials', $request->requested_reason);
     }
 
     private function request(array $attributes = []): FinanceRequest

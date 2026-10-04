@@ -15,7 +15,8 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use FormatsFinanceNumbers;
     use HandlesFinanceRequestMaintenance;
@@ -23,24 +24,43 @@ new class extends Component {
     use WithPagination;
 
     public string $requested_amount = '';
+
     public string $requested_count = '';
+
     public string $request_date = '';
+
     public ?int $finance_pull_request_kind_id = null;
+
     public ?int $cash_box_id = null;
+
     public ?int $teacher_id = null;
+
     public string $requested_reason = '';
+
     public bool $accepted_terms = false;
+
     public array $review_amounts = [];
+
     public array $review_cash_boxes = [];
+
     public array $review_counts = [];
+
     public array $review_dates = [];
+
     public array $review_notes = [];
+
     public array $settlement_counts = [];
+
     public array $settlement_remaining_amounts = [];
+
     public int $perPage = 15;
+
     public bool $showCreateModal = false;
+
     public bool $showTermsModal = false;
+
     public ?int $reviewingRequestId = null;
+
     public ?int $settlingRequestId = null;
 
     public function mount(): void
@@ -57,7 +77,6 @@ new class extends Component {
         if (! $this->finance_pull_request_kind_id && $kinds->isNotEmpty()) {
             $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId() ?: $kinds->first()->id;
         }
-
 
         return [
             'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $localCurrency->id)->get(),
@@ -244,13 +263,16 @@ new class extends Component {
             "review_amounts.{$requestId}" => ['nullable', 'numeric', 'gt:0'],
             "review_cash_boxes.{$requestId}" => ['required', 'exists:finance_cash_boxes,id'],
             "review_dates.{$requestId}" => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
+            "review_notes.{$requestId}" => ['required', 'string', 'max:2000'],
         ];
 
         if ($request->pullRequestKind?->mode === FinancePullRequestKind::MODE_COUNT) {
             $rules["review_counts.{$requestId}"] = ['nullable', 'integer', 'min:1'];
         }
 
-        $this->validate($rules);
+        $this->validate($rules, [
+            "review_notes.{$requestId}.required" => __('finance.validation.expense_details_required'),
+        ]);
 
         $reviewAmount = $this->review_amounts[$requestId] ?? null;
         $reviewCount = $this->review_counts[$requestId] ?? null;
@@ -511,6 +533,11 @@ new class extends Component {
                         @endforeach
                     </select>
                     @error("review_cash_boxes.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                </div>
+                <div class="lg:col-span-4">
+                    <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.expense_details') }}</label>
+                    <textarea wire:model="review_notes.{{ $reviewRequest->id }}" rows="2" class="w-full rounded-xl px-4 py-3 text-sm" data-withdrawal-expense-details></textarea>
+                    @error("review_notes.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
                     <button type="button" wire:click="closeReviewModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>

@@ -14,25 +14,40 @@ use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use WithFileUploads;
     use WithPagination;
 
     public bool $showSettingsModal = false;
+
     public bool $showAppKeyModal = false;
+
     public bool $appKeyRevealed = false;
+
     public bool $showRestoreModal = false;
+
     public bool $showFileRestoreModal = false;
+
     public string $frequency = 'daily';
+
     public string $backupTime = '02:00';
+
     public string $weekday = '5';
+
     public string $retentionCount = '14';
+
     public string $healthWarningHours = '48';
+
     public string $appKeyPassword = '';
+
     public ?int $restoreBackupId = null;
+
     public string $restorePassword = '';
+
     public string $restoreConfirmation = '';
+
     public $restoreFile = null;
 
     #[Locked]
@@ -83,7 +98,7 @@ new class extends Component {
             app(SystemBackupService::class)->create(auth()->user(), scope: $scope);
             $this->resetPage();
             session()->flash('status', __('backups.messages.created'));
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             report($exception);
             $this->addError('backup', __('backups.errors.operation_failed'));
         }
@@ -272,7 +287,7 @@ new class extends Component {
             $this->addError('restoreAppKey', __($hadSourceKey
                 ? 'backups.errors.source_key_invalid'
                 : 'backups.errors.source_key_required'));
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->restoreAppKey = '';
             report($exception);
             $this->addError('restoreFileOperation', __('backups.errors.restore_file_failed'));
@@ -310,7 +325,7 @@ new class extends Component {
             $this->addError('restore', __('backups.errors.database_conversion_failed'));
         } catch (BackupDatabaseMismatchException $exception) {
             $this->addError('restore', $exception->userMessage());
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             report($exception);
             $this->addError('restore', __('backups.errors.operation_failed'));
         }
@@ -417,7 +432,7 @@ new class extends Component {
     </section>
 
     <section class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700" data-settings-table data-backup-history-table>
-        <div class="admin-grid-meta items-center">
+        <div class="admin-grid-meta items-center" data-mobile-title-action-row data-backup-history-title-action-row>
             <div>
                 <div class="admin-grid-meta__title">{{ __('backups.history.title') }}</div>
                 <div class="admin-grid-meta__summary">{{ __('backups.history.summary', ['count' => number_format($backups->total())]) }}</div>

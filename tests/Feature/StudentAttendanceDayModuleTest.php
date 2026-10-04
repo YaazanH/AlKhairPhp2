@@ -664,6 +664,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $firstEnrollment = $this->makeEnrollment($teacher->id, 'Quick First Group');
         $secondEnrollment = $this->makeEnrollment($teacher->id, 'Quick Second Group', course: $firstEnrollment->group->course);
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $absent = AttendanceStatus::query()->where('code', 'absent')->firstOrFail();
 
         $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
             '2026-10-11',
@@ -678,12 +679,34 @@ class StudentAttendanceDayModuleTest extends TestCase
         Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
             ->assertSee('Quick First Group Student')
             ->assertSee('Quick Second Group Student')
+            ->assertSee(__('workflow.student_attendance.quick.list_title'))
+            ->assertSee('data-quick-attendance-day-date-metric', false)
+            ->assertDontSee('data-code-type="qrcode"', false)
+            ->assertDontSee('aria-label="QR code حضور الطلاب"', false)
+            ->assertSee('attendance-scanner__corner--bottom-right', false)
+            ->assertSee('data-quick-attendance-video autoplay muted playsinline webkit-playsinline', false)
+            ->assertSee('attendance-scanner__camera-button--start', false)
+            ->assertSee('attendance-scanner__camera-button--stop', false)
+            ->assertSee('attendance-scan-list__table', false)
+            ->assertSee('attendance-scan-list__student-column', false)
+            ->assertSee('attendance-scan-list__status-column', false)
+            ->assertSee('attendance-scan-list__action-column', false)
+            ->assertSee('11-10-2026')
+            ->assertDontSee(__('settings.tracking.labels.default_attendance_status'))
+            ->assertViewHas('statuses', fn ($statuses) => $statuses->every->is_present && ! $statuses->contains('id', $absent->id))
+            ->assertSee('data-search-input="false"', false)
+            ->assertSee('id="quick-attendance-student" wire:model="manual_enrollment_id" data-search-input="true"', false)
+            ->assertDontSee('quick-attendance-search', false)
+            ->set('selected_status_id', (string) $absent->id)
+            ->call('markEnrollment', $firstEnrollment->id)
+            ->assertHasErrors('selected_status_id')
             ->set('selected_status_id', (string) $present->id)
             ->call('markEnrollment', $firstEnrollment->id)
             ->assertHasNoErrors()
             ->set('scan_value', (string) $secondEnrollment->student->fresh()->student_number)
             ->call('scanStudent')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSee('طالبان حاضران');
 
         $this->assertDatabaseHas('student_attendance_records', [
             'enrollment_id' => $firstEnrollment->id,
@@ -693,6 +716,120 @@ class StudentAttendanceDayModuleTest extends TestCase
             'enrollment_id' => $secondEnrollment->id,
             'attendance_status_id' => $present->id,
         ]);
+    }
+
+    public function test_quick_manual_picker_is_scoped_to_active_course_enrollments_and_adds_missing_group(): void
+    {
+        $this->seed();
+        [$user, $teacher, $enrollment] = $this->teacherContext('Quick Assigned');
+        $extra = $this->makeEnrollment($teacher->id, 'Quick Extra', course: $enrollment->group->course);
+        $inactive = $this->makeEnrollment($teacher->id, 'Quick Inactive', course: $enrollment->group->course);
+        $inactive->update(['status' => 'withdrawn']);
+        $otherCourse = $this->makeEnrollment($teacher->id, 'Quick Other Course');
+        [, $otherTeacher] = $this->teacherContext('Quick Other Teacher', otherTeacher: true);
+        $hidden = $this->makeEnrollment($otherTeacher->id, 'Quick Hidden', course: $enrollment->group->course);
+        $day = app(StudentAttendanceDayService::class)->createOrSyncDay('2026-10-11', collect([$enrollment->group]), $user);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertViewHas('enrollments', fn ($items) => $items->modelKeys() === [$enrollment->id, $extra->id])
+            ->assertViewHas('addedRecords', fn ($items) => $items->isEmpty())
+            ->call('addManualStudent')->assertHasErrors('manual_enrollment_id')
+            ->set('selected_status_id', (string) $present->id)
+            ->set('manual_enrollment_id', (string) $extra->id)
+            ->call('addManualStudent')->assertHasNoErrors()
+            ->assertSet('manual_enrollment_id', '')
+            ->assertViewHas('addedRecords', fn ($items) => $items->pluck('enrollment_id')->all() === [$extra->id]);
+        $this->assertDatabaseHas('group_attendance_days', ['student_attendance_day_id' => $day->id, 'group_id' => $extra->group_id]);
+        foreach ([['markEnrollment', $inactive], ['markEnrollment', $otherCourse], ['markEnrollment', $hidden], ['removeEnrollment', $hidden]] as [$action, $excluded]) {
+            try {
+                Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+                    ->set('selected_status_id', (string) $present->id)
+                    ->call($action, $excluded->id);
+                $this->fail('An out-of-scope enrollment must be rejected.');
+            } catch (ModelNotFoundException) {
+                $this->assertDatabaseMissing('student_attendance_records', ['enrollment_id' => $excluded->id]);
+            }
+        }
+    }
+
+    public function test_quick_undo_restores_original_status_notes_and_points_after_repeated_scans_and_refresh(): void
+    {
+        $this->seed();
+        [$user, , $enrollment] = $this->teacherContext('Quick Undo');
+        $service = app(StudentAttendanceDayService::class);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $late = AttendanceStatus::query()->where('code', 'late')->firstOrFail();
+        $day = $service->createOrSyncDay('2026-10-11', collect([$enrollment->group]), $user);
+        $record = $service->recordEnrollmentStatus($day, $enrollment, $present, 'Original note');
+        $tomorrow = $service->createOrSyncDay('2026-10-12', collect([$enrollment->group]), $user);
+        $tomorrowRecord = $service->recordEnrollmentStatus($tomorrow, $enrollment, $present);
+        $service->setDayStatus($day->fresh(), 'open');
+        $originalPoints = $enrollment->fresh()->final_points_cached;
+
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertViewHas('addedRecords', fn ($items) => $items->isEmpty())
+            ->set('selected_status_id', (string) $late->id)
+            ->set('scan_value', (string) $enrollment->student->student_number)
+            ->call('scanStudent')->assertHasNoErrors()
+            ->set('scan_value', (string) $enrollment->student->student_number)
+            ->call('scanStudent')->assertHasNoErrors();
+        $this->assertSame($present->id, $record->fresh()->quick_attendance_previous['attendance_status_id']);
+        $this->assertNotEquals($originalPoints, $enrollment->fresh()->final_points_cached);
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertViewHas('addedRecords', fn ($items) => $items->count() === 1)
+            ->call('removeEnrollment', $enrollment->id)->assertHasNoErrors()
+            ->assertViewHas('addedRecords', fn ($items) => $items->isEmpty());
+        $this->assertSame($present->id, $record->fresh()->attendance_status_id);
+        $this->assertSame('Original note', $record->fresh()->notes);
+        $this->assertNull($record->fresh()->quick_attendance_added_at);
+        $this->assertNull($record->fresh()->quick_attendance_previous);
+        $this->assertSame($originalPoints, $enrollment->fresh()->final_points_cached);
+        $this->assertSame($present->id, $tomorrowRecord->fresh()->attendance_status_id);
+        $this->assertSame('active', $enrollment->fresh()->status);
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertViewHas('addedRecords', fn ($items) => $items->isEmpty());
+    }
+
+    public function test_quick_undo_deletes_new_record_and_voids_points_without_overwriting_later_manual_changes(): void
+    {
+        $this->seed();
+        [$user, , $enrollment] = $this->teacherContext('Quick New');
+        $service = app(StudentAttendanceDayService::class);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $absent = AttendanceStatus::query()->where('code', 'absent')->firstOrFail();
+        $day = $service->createOrSyncDay('2026-10-11', collect([$enrollment->group]), $user);
+        $record = $service->recordQuickEnrollmentStatus($day, $enrollment, $present);
+        $this->assertFalse($record->quick_attendance_previous['exists']);
+        $service->undoQuickEnrollmentStatus($day, $enrollment);
+        $this->assertModelMissing($record);
+        $this->assertSame(0, $enrollment->fresh()->final_points_cached);
+        $this->assertSame(0, PointTransaction::query()->where('source_type', 'student_attendance_record')->where('source_id', $record->id)->whereNull('voided_at')->count());
+
+        $record = $service->recordQuickEnrollmentStatus($day, $enrollment, $present);
+        $service->recordEnrollmentStatus($day, $enrollment, $absent, 'Edited elsewhere');
+        $service->undoQuickEnrollmentStatus($day, $enrollment);
+        $this->assertSame($absent->id, $record->fresh()->attendance_status_id);
+        $this->assertSame('Edited elsewhere', $record->fresh()->notes);
+        $this->assertNull($record->fresh()->quick_attendance_added_at);
+    }
+
+    public function test_quick_undo_rejects_closed_and_archived_days(): void
+    {
+        $this->seed();
+        [$user, , $enrollment] = $this->teacherContext('Quick Locked');
+        $service = app(StudentAttendanceDayService::class);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $day = $service->createOrSyncDay('2026-10-11', collect([$enrollment->group]), $user);
+        $component = Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->set('selected_status_id', (string) $present->id)
+            ->call('markEnrollment', $enrollment->id)->assertHasNoErrors();
+        $record = StudentAttendanceRecord::where('enrollment_id', $enrollment->id)->firstOrFail();
+        $day->update(['status' => 'closed']);
+        $component->call('removeEnrollment', $enrollment->id)->assertHasErrors('scan_value');
+        $this->assertNotNull($record->fresh()->quick_attendance_added_at);
+        $day->update(['status' => 'open', 'course_finished_at' => now()]);
+        $component->call('removeEnrollment', $enrollment->id)->assertHasErrors('scan_value');
+        $this->assertNotNull($record->fresh()->quick_attendance_added_at);
     }
 
     public function test_teacher_can_only_open_attendance_days_for_accessible_groups(): void

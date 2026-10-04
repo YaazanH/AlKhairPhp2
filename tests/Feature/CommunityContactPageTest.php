@@ -27,6 +27,14 @@ class CommunityContactPageTest extends TestCase
 
         $this->get(route('community-contacts.index'))->assertOk();
 
+        $source = file_get_contents(resource_path('views/livewire/community-contacts/index.blade.php'));
+        $this->assertStringContainsString('data-community-contact-edit-action', $source);
+        $this->assertStringContainsString('data-community-contact-delete-action', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="edit" />', $source);
+        $this->assertStringContainsString('<x-delete-action-button', $source);
+        $this->assertStringNotContainsString('wire:click="delete({{ $contact->id }})"', $source);
+        $this->assertStringNotContainsString("pill-link pill-link--compact whitespace-nowrap px-4\">{{ __('crud.common.actions.edit') }}", $source);
+
         Volt::test('community-contacts.index')
             ->call('openCreateModal')
             ->assertSee('data-community-contact-save-action', false)
@@ -46,6 +54,7 @@ class CommunityContactPageTest extends TestCase
         Volt::test('community-contacts.index')
             ->call('edit', $contact->id)
             ->assertSee('wire:model="is_active"', false)
+            ->assertSee('data-community-contact-delete-action', false)
             ->set('category', 'Transport')
             ->set('is_active', false)
             ->call('save')

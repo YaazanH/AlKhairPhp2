@@ -268,6 +268,7 @@ class CurriculumModuleTest extends TestCase
             ->assertSee('data-importance-bars', false)
             ->assertSee('data-add-lesson-icon', false)
             ->assertSee('data-edit-lesson-icon', false)
+            ->assertSee('data-keep-visible-table-action', false)
             ->assertSee('data-curriculum-topics-toggle', false)
             ->assertSee('data-curriculum-topics-column', false)
             ->assertSee('data-collapsed-direction="left"', false)
@@ -362,9 +363,24 @@ class CurriculumModuleTest extends TestCase
 
         $this->assertStringContainsString('class="curricula-table-add-action" data-curricula-add-icon', $indexSource);
         $this->assertMatchesRegularExpression(
-            '/\[data-curricula-index-table\].*?\.curricula-table-add-action\s*\{[^}]*width:\s*2\.5rem;[^}]*height:\s*2\.5rem;/s',
+            '/\[data-curricula-index-table\].*?\.curricula-table-add-action\s*\{[^}]*width:\s*var\(--admin-action-button-size\);[^}]*height:\s*var\(--admin-action-button-size\);/s',
             file_get_contents(resource_path('css/app.css')),
         );
+        $this->assertStringContainsString('data-curriculum-group-details-tables', $indexSource);
+        $this->assertStringContainsString('<details class="surface-table" data-curriculum-group-details-table>', $indexSource);
+        $this->assertStringNotContainsString('<details class="surface-table" open data-curriculum-group-details-table>', $indexSource);
+        $this->assertStringContainsString('data-curriculum-group-details-toggle', $indexSource);
+        $this->assertStringContainsString('data-curriculum-group-details-heading', $indexSource);
+        $this->assertStringContainsString('data-curriculum-group-details-collapse', $indexSource);
+        $this->assertStringContainsString('data-curriculum-group-details-chevron', $indexSource);
+        $this->assertMatchesRegularExpression(
+            '/\[data-curriculum-group-details-collapse\]\s*\{[^}]*border:\s*0\s*!important;[^}]*background:\s*transparent\s*!important;[^}]*box-shadow:\s*none\s*!important;/s',
+            file_get_contents(resource_path('css/app.css')),
+        );
+        $this->assertStringContainsString('class="admin-grid-meta__title">{{ $subject[\'name\'] }}</div>', $indexSource);
+        $this->assertStringContainsString('<table class="table-content text-sm">', $indexSource);
+        $this->assertStringNotContainsString('<details class="rounded-2xl border border-white/10 p-4">', $indexSource);
+        $this->assertStringContainsString('[data-curriculum-group-details-table][open] > [data-curriculum-group-details-toggle] [data-curriculum-group-details-chevron]', file_get_contents(resource_path('css/app.css')));
 
         foreach ([$indexSource, $source] as $curriculumModalSource) {
             $this->assertStringContainsString('wire:submit="saveCurriculum" class="w-[min(28rem,calc(100vw-3rem))] space-y-4"', $curriculumModalSource);
@@ -375,6 +391,13 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('class="flex flex-wrap items-center justify-between gap-4" data-curriculum-detail-hero-content', $source);
         $this->assertStringContainsString('data-curriculum-title-edit-action', $source);
         $this->assertStringContainsString('<x-edit-action-button wire:click="$set(\'showCurriculumModal\', true)"', $source);
+        $this->assertStringContainsString('data-curriculum-standalone-books-action', $source);
+        $this->assertStringContainsString('wire:click="openStandaloneResources" class="admin-icon-button"', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="book" />', $source);
+        $this->assertStringContainsString(':show="$showStandaloneResourcesModal"', $source);
+        $this->assertStringContainsString('close-method="closeStandaloneResources" max-width="fit" compact', $source);
+        $this->assertStringContainsString('data-compact-standalone-books-modal', $source);
+        $this->assertStringNotContainsString('<section class="surface-panel p-5"><div class="admin-toolbar__title">{{ __(\'curricula.fields.standalone_books\') }}</div>', $source);
         $this->assertStringContainsString('class="admin-action-cluster admin-action-cluster--end" data-curriculum-modal-actions', $source);
         $this->assertStringContainsString('data-curriculum-delete-action', $source);
         $this->assertStringContainsString('<x-delete-action-button wire:click="deleteCurriculum" wire:confirm=', $source);
@@ -392,7 +415,7 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('data-table-scroll-region', $source);
         $this->assertStringContainsString('<x-admin-action-icon :name="$editingSubjectId ? \'save\' : \'add\'"', $source);
         $this->assertStringContainsString('data-edit-lesson-icon', $source);
-        $this->assertStringContainsString('<x-edit-action-button wire:click="openLesson(', $source);
+        $this->assertStringContainsString('<x-edit-action-button wire:click="openLesson({{ $subject->id }}, {{ $lesson->id }})" :label="__(\'curricula.actions.edit\')" data-edit-lesson-icon data-keep-visible-table-action />', $source);
         $this->assertStringContainsString('data-curriculum-lesson-editing', $source);
         $this->assertStringContainsString('data-inline-lesson-name', $source);
         $this->assertStringNotContainsString('data-compact-lesson-modal', $source);
@@ -403,6 +426,76 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('data-delete-lesson-in-edit', $source);
         $this->assertStringNotContainsString('data-edit-lesson-icon><svg', $source);
         $this->assertStringNotContainsString('data-add-lesson-icon><svg', $source);
+    }
+
+    public function test_curriculum_standalone_books_are_selected_in_the_compact_header_popup(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        [, , $grade] = $this->learningStructure(false);
+        $curriculum = Curriculum::create(['grade_level_id' => $grade->id, 'name' => 'Standalone books curriculum', 'is_active' => true]);
+        $resource = CurriculumResource::create(['book_name' => 'Standalone selection', 'is_active' => true]);
+
+        Volt::test('curricula.show', ['curriculum' => $curriculum])
+            ->assertSet('showStandaloneResourcesModal', false)
+            ->assertSee('data-curriculum-standalone-books-action', false)
+            ->assertDontSee('data-compact-standalone-books-modal', false)
+            ->call('openStandaloneResources')
+            ->assertSet('showStandaloneResourcesModal', true)
+            ->assertSee('data-compact-standalone-books-modal', false)
+            ->assertSee('Standalone selection')
+            ->call('toggleStandaloneResource', $resource->id)
+            ->assertHasNoErrors()
+            ->call('closeStandaloneResources')
+            ->assertSet('showStandaloneResourcesModal', false);
+
+        $this->assertDatabaseHas('curriculum_resource_curriculum', [
+            'curriculum_id' => $curriculum->id,
+            'curriculum_resource_id' => $resource->id,
+        ]);
+    }
+
+    public function test_curriculum_assigned_to_an_active_group_cannot_be_deleted(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        [$course, $year, $grade, $teacher] = $this->learningStructure();
+        $curriculum = Curriculum::create([
+            'grade_level_id' => $grade->id,
+            'name' => 'Assigned curriculum',
+            'is_active' => true,
+        ]);
+        Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'grade_level_id' => $grade->id,
+            'curriculum_id' => $curriculum->id,
+            'name' => 'Active curriculum group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+
+        Volt::test('curricula.show', ['curriculum' => $curriculum])
+            ->set('showCurriculumModal', true)
+            ->assertDontSee('data-curriculum-delete-action', false)
+            ->call('deleteCurriculum')
+            ->assertHasErrors('delete');
+
+        Volt::test('curricula.index')
+            ->call('deleteCurriculum', $curriculum->id)
+            ->assertHasErrors('delete');
+
+        $this->assertDatabaseHas('curricula', [
+            'id' => $curriculum->id,
+            'deleted_at' => null,
+        ]);
     }
 
     public function test_curriculum_subject_books_are_edited_in_the_compact_popup(): void

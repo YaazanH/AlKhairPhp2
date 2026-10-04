@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MemorizationSession;
+use App\Models\Student;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -135,7 +136,7 @@ class MemorizationRankingService
 
     protected function studentRowsForRange(array $filters, string $range, ?User $user): Collection
     {
-        return $this->baseRangeQuery($filters, $range, $user)
+        $rows = $this->baseRangeQuery($filters, $range, $user)
             ->join('students', 'students.id', '=', 'memorization_sessions.student_id')
             ->selectRaw('students.id as entity_id, students.first_name, students.last_name, SUM(memorization_sessions.pages_count) as total_pages, COUNT(memorization_sessions.id) as sessions_count')
             ->groupBy('students.id', 'students.first_name', 'students.last_name')
@@ -143,13 +144,21 @@ class MemorizationRankingService
             ->orderByDesc('sessions_count')
             ->orderBy('students.first_name')
             ->orderBy('students.last_name')
+            ->get();
+
+        $students = Student::query()
+            ->with('parentProfile')
+            ->whereKey($rows->pluck('entity_id'))
             ->get()
-            ->map(fn (object $row) => [
-                'entity_id' => (int) $row->entity_id,
-                'entity_name' => trim(($row->first_name ?? '').' '.($row->last_name ?? '')),
-                'pages' => (int) $row->total_pages,
-                'sessions' => (int) $row->sessions_count,
-            ]);
+            ->keyBy('id');
+
+        return $rows->map(fn (object $row) => [
+            'entity_id' => (int) $row->entity_id,
+            'entity_name' => $students->get((int) $row->entity_id)?->full_name
+                ?? trim(($row->first_name ?? '').' '.($row->last_name ?? '')),
+            'pages' => (int) $row->total_pages,
+            'sessions' => (int) $row->sessions_count,
+        ]);
     }
 
     protected function baseRangeQuery(array $filters, string $range, ?User $user): Builder

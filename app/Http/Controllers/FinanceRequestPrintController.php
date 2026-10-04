@@ -14,6 +14,7 @@ use App\Support\PdfOptions;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Mpdf\Mpdf;
 
 class FinanceRequestPrintController extends Controller
@@ -46,11 +47,11 @@ class FinanceRequestPrintController extends Controller
 
         $isIncome = in_array($financeRequest->type, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true);
 
-        if ($defaultTemplate && $isIncome && request()->boolean('pdf')) {
+        if ($defaultTemplate && $isIncome && ! request()->boolean('choose')) {
             return $this->pdfWithTemplate($financeRequest, $defaultTemplate);
         }
 
-        if ($defaultTemplate && ($isIncome || ! request()->boolean('choose'))) {
+        if ($defaultTemplate && ! request()->boolean('choose')) {
             return $this->previewWithTemplate($financeRequest, $defaultTemplate);
         }
 
@@ -126,6 +127,7 @@ class FinanceRequestPrintController extends Controller
         $mpdf->autoArabic = true;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+        $payload['pages'] = app(PrintTemplateRenderService::class)->preparePdfPages($payload['pages'], $mpdf);
         $mpdf->WriteHTML(view('print-templates.print.pdf', $payload + [
             'pdfAssetResolver' => fn (?string $source): ?string => $this->pdfAssetSource($source),
         ])->render());
@@ -178,15 +180,15 @@ class FinanceRequestPrintController extends Controller
         }
 
         if (str_starts_with($source, '/storage/')) {
-            $path = storage_path('app/public/'.ltrim(substr($source, strlen('/storage/')), '/'));
+            $path = Storage::disk('public')->path(ltrim(substr($source, strlen('/storage/')), '/'));
 
-            return is_file($path) ? $path : $source;
+            return is_file($path) ? $path : null;
         }
 
         if (str_starts_with($source, '/')) {
             $path = public_path(ltrim($source, '/'));
 
-            return is_file($path) ? $path : $source;
+            return is_file($path) ? $path : null;
         }
 
         return $source;

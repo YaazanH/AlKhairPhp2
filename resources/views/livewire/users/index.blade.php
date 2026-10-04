@@ -9,9 +9,11 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\ManagedUserService;
-use App\Support\RoleRegistry;
+use App\Support\ArabicSearch;
 use App\Support\PhoneNumberFormatter;
+use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -92,13 +94,14 @@ new class extends Component
         $filteredQuery = User::query()
             ->with(['roles', 'permissions', 'teacherProfile', 'parentProfile', 'studentProfile', 'scopeOverrides'])
             ->when(filled($this->search), function ($query) {
-                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
-                $query->where(function ($builder) use ($normalizedPhone) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
+                    $normalizedPhone = PhoneNumberFormatter::normalize($token);
                     $builder
-                        ->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('username', 'like', '%'.$this->search.'%')
-                        ->orWhere('email', 'like', '%'.$this->search.'%')
-                        ->orWhere('phone', 'like', '%'.$this->search.'%')
+                        ->where('name', 'like', $search)
+                        ->orWhere('username', 'like', $search)
+                        ->orWhere('email', 'like', $search)
+                        ->orWhere('phone', 'like', $search)
                         ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'));
                 });
             })
@@ -391,7 +394,7 @@ new class extends Component
             'direct_permissions' => ['nullable', 'array'],
             'direct_permissions.*' => ['string', Rule::exists('permissions', 'name')],
         ]);
-        \Illuminate\Support\Facades\DB::transaction(function () use ($validated): void {
+        DB::transaction(function () use ($validated): void {
             $user = User::lockForUpdate()->findOrFail($this->viewingAccountId);
             $user->syncPermissions($validated['direct_permissions'] ?? []);
         });

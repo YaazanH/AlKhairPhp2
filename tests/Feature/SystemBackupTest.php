@@ -152,6 +152,7 @@ class SystemBackupTest extends TestCase
             ->assertSee('data-settings-dark-surface="backup-health"', false)
             ->assertSee('data-backup-history-table', false)
             ->assertSee('class="admin-grid-meta items-center"', false)
+            ->assertSee('data-backup-history-title-action-row', false)
             ->assertSee('data-backup-history-actions', false)
             ->assertSee('data-backup-settings-action', false)
             ->assertSee('data-icon-name="gear"', false)

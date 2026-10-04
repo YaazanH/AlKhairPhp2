@@ -55,6 +55,11 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.25 7.75h3l1.5-2.25h6.5l1.5 2.25h3A1.75 1.75 0 0 1 21 9.5v8.25a1.75 1.75 0 0 1-1.75 1.75H4.75A1.75 1.75 0 0 1 3 17.75V9.5a1.75 1.75 0 0 1 1.25-1.75Z" />
             <circle cx="12" cy="13.25" r="3.25" />
             @break
+        @case('camera-off')
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.25 7.75h3l1.5-2.25h6.5l1.5 2.25h3A1.75 1.75 0 0 1 21 9.5v8.25a1.75 1.75 0 0 1-1.75 1.75H4.75A1.75 1.75 0 0 1 3 17.75V9.5a1.75 1.75 0 0 1 1.25-1.75Z" />
+            <circle cx="12" cy="13.25" r="3.25" />
+            <path stroke-linecap="round" d="m4 4 16 16" />
+            @break
         @case('edit')
             <path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" />
             @break

@@ -144,6 +144,7 @@
             </div>
         </main>
 
+        @include('partials.table-row-actions-bootstrap')
         @fluxScripts
     </body>
 </html>

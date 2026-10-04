@@ -55,8 +55,8 @@ class DataQualityService
                     ->map(function (array $pair): array {
                         [$first, $second] = $pair;
                         $labels = [
-                            $first->first_name.' '.$first->last_name.' · '.$first->student_number,
-                            $second->first_name.' '.$second->last_name.' · '.$second->student_number,
+                            $first->full_name.' · '.$first->student_number,
+                            $second->full_name.' · '.$second->student_number,
                         ];
 
                         return $this->issue(
@@ -101,7 +101,7 @@ class DataQualityService
     {
         return Enrollment::query()
             ->where('status', 'active')
-            ->with(['student:id,first_name,last_name,student_number', 'group:id,course_id,name', 'group.course:id,name'])
+            ->with(['student:id,parent_id,first_name,last_name,student_number', 'student.parentProfile:id,father_name', 'group:id,course_id,name', 'group.course:id,name'])
             ->get()
             ->filter(fn (Enrollment $enrollment): bool => $enrollment->group?->course_id !== null)
             ->groupBy(fn (Enrollment $enrollment): string => $enrollment->student_id.'|'.$enrollment->group->course_id)
@@ -115,7 +115,7 @@ class DataQualityService
                     'high',
                     __('data_governance.quality.types.overlapping_enrollment'),
                     __('data_governance.quality.reasons.multiple_course_enrollments', ['course' => $first->group->course?->name]),
-                    collect([$first->student?->first_name.' '.$first->student?->last_name])
+                    collect([$first->student?->full_name])
                         ->concat($enrollments->map(fn (Enrollment $enrollment): string => $enrollment->group?->name ?? '—'))
                         ->all(),
                     'enrollment',

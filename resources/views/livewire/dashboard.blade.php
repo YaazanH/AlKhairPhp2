@@ -24,11 +24,14 @@ use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use WithPagination;
 
     public ?int $selectedManagerStudentId = null;
+
     public bool $showTeacherLeaderboardModal = false;
+
     public bool $showTeacherMemorizationsModal = false;
 
     public function with(): array
@@ -352,7 +355,7 @@ new class extends Component {
         $this->selectedManagerStudentId = null;
     }
 
-    public function copyTeacherTodaySummary(int $groupId): void
+    public function copyTeacherLatestAttendanceSummary(int $groupId): void
     {
         $user = Auth::user();
         $teacher = $user?->teacherProfile?->load(['accessRole', 'jobTitle']);
@@ -368,7 +371,17 @@ new class extends Component {
             return;
         }
 
-        $date = now()->toDateString();
+        $latestAttendanceDay = GroupAttendanceDay::query()
+            ->where('group_id', $group->id)
+            ->orderByDesc('attendance_date')
+            ->orderByDesc('id')
+            ->first(['id', 'attendance_date']);
+
+        if (! $latestAttendanceDay) {
+            return;
+        }
+
+        $date = $latestAttendanceDay->attendance_date->toDateString();
 
         $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($group, $date, $user));
     }
@@ -531,6 +544,7 @@ new class extends Component {
             ->map(fn ($date) => Carbon::parse($date))
             ->reverse()
             ->values();
+        $latestAttendanceDate = $trendDates->last()?->toDateString();
         $trendStart = $trendDates->first()?->toDateString();
         $trendFinish = $trendDates->last()?->toDateString();
         $memorizedByDate = MemorizationSession::query()
@@ -601,9 +615,11 @@ new class extends Component {
             'profileMeta' => $accessRoleLabel,
             'stats' => [
                 [
-                    'label' => __('dashboard.teacher.group_dashboard.today_summary'),
-                    'value' => __('dashboard.teacher.group_dashboard.copy_today_summary'),
-                    'action' => $group ? 'copyTeacherTodaySummary('.$group->id.')' : null,
+                    'label' => __('dashboard.teacher.group_dashboard.latest_attendance_summary'),
+                    'value' => $latestAttendanceDate
+                        ? __('dashboard.teacher.group_dashboard.copy_latest_attendance_summary')
+                        : __('dashboard.teacher.group_dashboard.no_attendance_summary'),
+                    'action' => $group && $latestAttendanceDate ? 'copyTeacherLatestAttendanceSummary('.$group->id.')' : null,
                 ],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.students'), 'value' => $enrollments->count()],
                 ['label' => __('dashboard.teacher.group_dashboard.stats.attendance_average'), 'value' => number_format($attendanceAverage, 1).'%'],

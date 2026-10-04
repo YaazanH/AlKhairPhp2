@@ -8,6 +8,8 @@ use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Services\QuranFinalTestService;
+use App\Support\ArabicSearch;
+use App\Support\OperationalFeatureSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -76,16 +78,10 @@ new class extends Component
 
         $testsQuery
             ->when(filled($this->search), function (Builder $query) {
-                $search = '%'.$this->search.'%';
-
-                $query->where(function (Builder $builder) use ($search) {
+                ArabicSearch::whereAllTokens($query, $this->search, function (Builder $builder, string $token): void {
+                    $search = '%'.$token.'%';
                     $builder
-                        ->whereHas('student', function (Builder $studentQuery) use ($search) {
-                            $studentQuery
-                                ->where('first_name', 'like', $search)
-                                ->orWhere('last_name', 'like', $search)
-                                ->orWhere('student_number', 'like', $search);
-                        })
+                        ->whereHas('student', fn (Builder $studentQuery) => $studentQuery->whereMatchesSearchToken($token))
                         ->orWhereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('name', 'like', $search))
                         ->orWhereHas('juz', fn (Builder $juzQuery) => $juzQuery->where('juz_number', 'like', $search));
                 });
@@ -188,7 +184,7 @@ new class extends Component
     public function openCreateModal(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -230,7 +226,7 @@ new class extends Component
     public function save(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
@@ -328,7 +324,7 @@ new class extends Component
 
         try {
             app(QuranFinalTestService::class)->deleteTest($finalTest);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('delete', $exception->getMessage());
 
             return;
@@ -475,18 +471,18 @@ new class extends Component
                                     {{ __('workflow.quran_final_tests.table.headers.juz') }} <span>{{ $this->sortIndicator('juz') }}</span>
                                 </button>
                             </th>
-                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.attempts') }}</th>
-                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
-                                <button type="button" wire:click="sortBy('last_tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
-                                    {{ __('workflow.quran_final_tests.table.headers.last_tested_on') }} <span>{{ $this->sortIndicator('last_tested_on') }}</span>
-                                </button>
-                            </th>
-                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.common.filters.course') }}</th>
                             <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
                                 <button type="button" wire:click="sortBy('status')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                     {{ __('workflow.quran_final_tests.table.headers.status') }} <span>{{ $this->sortIndicator('status') }}</span>
                                 </button>
                             </th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">
+                                <button type="button" wire:click="sortBy('last_tested_on')" class="inline-flex items-center gap-2 font-medium text-inherit">
+                                    {{ __('workflow.quran_final_tests.table.headers.last_tested_on') }} <span>{{ $this->sortIndicator('last_tested_on') }}</span>
+                                </button>
+                            </th>
+                            <th class="table-cell-compact px-5 py-4 text-left lg:px-6">{{ __('workflow.quran_final_tests.table.headers.attempts') }}</th>
+                            <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.common.filters.course') }}</th>
                             <th class="table-cell-compact admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.quran_final_tests.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -498,17 +494,26 @@ new class extends Component
                                     <div class="student-inline">
 
                                         <div class="student-inline__body">
-                                            <div class="record-person-name student-inline__name whitespace-nowrap">{{ trim(($finalTest->student?->first_name ?? '').' '.($finalTest->student?->last_name ?? '')) }}</div>
+                                            <div class="record-person-name student-inline__name whitespace-nowrap">{{ $finalTest->student?->full_name }}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="table-cell-compact whitespace-nowrap px-5 py-4 text-white lg:px-6">{{ __('workflow.common.labels.juz_number', ['number' => $finalTest->juz?->juz_number ?: __('workflow.common.not_available')]) }}</td>
-                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
+                                <td class="table-cell-compact px-5 py-4 lg:px-6">
+                                    <span
+                                        @class([
+                                            'status-text',
+                                            'status-text--emerald' => $finalTest->status === 'passed',
+                                            'status-text--amber' => $finalTest->status === 'in_progress',
+                                        ])
+                                        data-saber-status="{{ $finalTest->status }}"
+                                    >{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span>
+                                </td>
                                 <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($finalTest->last_tested_on?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</td>
+                                <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($finalTest->attempts->count()) }}</td>
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6">
                                     <div class="whitespace-nowrap font-medium text-white"><span class="record-course-name">{{ $finalTest->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="table-cell-compact px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('workflow.quran_final_tests.statuses.'.$finalTest->status) }}</span></td>
                                 <td class="table-cell-compact px-5 py-4 text-center lg:px-6">
                                     <div class="flex flex-wrap justify-center gap-2">
                                         <x-open-action-button :href="route('quran-final-tests.show', $finalTest)" wire:navigate :label="__('workflow.quran_final_tests.actions.open')" />
@@ -546,7 +551,7 @@ new class extends Component
                         <option value="">{{ __('workflow.quran_final_tests.form.select_student') }}</option>
                         @foreach ($studentOptions as $student)
                             <option value="{{ $student->id }}">
-                                {{ trim($student->first_name.' '.$student->last_name) }}
+                                {{ $student->full_name }}
                             </option>
                         @endforeach
                     </select>

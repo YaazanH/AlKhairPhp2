@@ -309,7 +309,7 @@ class FinanceAndActivitiesTest extends TestCase
         Volt::test('finance.pull-requests')
             ->set("review_amounts.{$request->id}", '1,075')
             ->set("review_cash_boxes.{$request->id}", $cashBox->id)
-            ->set("review_notes.{$request->id}", 'Approved lower amount')
+            ->set("review_notes.{$request->id}", 'Purchased classroom supplies')
             ->call('accept', $request->id)
             ->assertHasNoErrors();
 
@@ -324,7 +324,7 @@ class FinanceAndActivitiesTest extends TestCase
             'cash_box_id' => $cashBox->id,
             'type' => 'expense',
             'special_transaction_no' => 'DBIT-000001',
-            'description' => 'Class materials',
+            'description' => 'Purchased classroom supplies',
             'signed_amount' => -1075,
         ]);
 
@@ -404,6 +404,12 @@ class FinanceAndActivitiesTest extends TestCase
             'accepted_at' => now(),
         ]);
 
+        Storage::fake('public');
+        Storage::disk('public')->put(
+            'print-templates/backgrounds/revenue-receipt.png',
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),
+        );
+
         $revenueTemplate = PrintTemplate::query()->create([
             'name' => 'Revenue Receipt',
             'width_mm' => 80,
@@ -414,6 +420,7 @@ class FinanceAndActivitiesTest extends TestCase
             'margin_right_mm' => 8,
             'margin_bottom_mm' => 9,
             'margin_left_mm' => 6,
+            'background_image' => 'print-templates/backgrounds/revenue-receipt.png',
             'data_sources' => [
                 ['entity' => 'revenue', 'mode' => 'single'],
             ],
@@ -484,31 +491,27 @@ class FinanceAndActivitiesTest extends TestCase
 
         AppSetting::storeValue('finance', 'default_revenue_print_template_id', $revenueTemplate->id, 'integer');
 
-        $this->get(route('finance.requests.print', $revenueRequest))
-            ->assertOk()
-            ->assertDontSee('Revenue Receipt')
-            ->assertSee($revenueRequest->request_no)
-            ->assertSee(now()->format('d-m-Y'))
-            ->assertSee('Page 1')
-            ->assertSee('width: 105mm', false)
-            ->assertSee('padding: 7mm 8mm 9mm 6mm', false);
-
-        $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'auto_print' => 1]))
-            ->assertOk()
-            ->assertSee('data-auto-print', false)
-            ->assertSee("window.addEventListener('load', () => window.print()", false)
-            ->assertDontSee('<div class="print-template-toolbar">', false);
-
-        $incomePdf = $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'pdf' => 1]))
+        $incomePdf = $this->get(route('finance.requests.print', $revenueRequest))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-', $incomePdf->getContent());
+        $this->assertStringContainsString('/Subtype /Image', $incomePdf->getContent());
         $this->assertStringStartsWith('inline;', (string) $incomePdf->headers->get('content-disposition'));
+
+        Storage::disk('public')->delete('print-templates/backgrounds/revenue-receipt.png');
+        $this->get(route('finance.requests.print', $revenueRequest))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $legacyIncomePrint = $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'auto_print' => 1]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $legacyIncomePrint->getContent());
 
         $this->get(route('finance.requests.print', ['financeRequest' => $revenueRequest, 'choose' => 1]))
             ->assertOk()
-            ->assertDontSee('Revenue Receipt')
-            ->assertDontSee(__('finance.print.title'));
+            ->assertSee('Revenue Receipt')
+            ->assertSee(__('finance.print.title'));
     }
 
     public function test_finance_settings_currency_and_cash_box_rules(): void
@@ -1229,6 +1232,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->call('openReviewModal', $request->id)
             ->set("review_amounts.{$request->id}", '100')
             ->set("review_cash_boxes.{$request->id}", $cashBox->id)
+            ->set("review_notes.{$request->id}", 'Expense details')
             ->call('accept', $request->id)
             ->assertHasErrors(["review_amounts.{$request->id}"])
             ->assertSee($expectedMessage);
@@ -1364,12 +1368,23 @@ class FinanceAndActivitiesTest extends TestCase
         Volt::test('finance.exchange')
             ->assertSee('EXC-000001')
             ->assertSee('Test exchange')
+            ->assertSet('showExchangeModal', false)
+            ->assertSee('wire:click="openExchangeModal"', false)
+            ->assertSeeText(trans_choice('crud.common.badges.in_view', 1, ['count' => 1]))
+            ->assertDontSee('data-exchange-create-form', false)
+            ->call('openExchangeModal')
+            ->assertSet('showExchangeModal', true)
+            ->assertSee('data-exchange-create-form', false)
             ->assertSee('dir="ltr" data-exchange-total-amount', false)
             ->assertSee('class="exchange-to-amount-control relative min-w-0" dir="rtl"', false)
             ->assertViewHas('toCurrencies', fn ($currencies) => $currencies->doesntContain('id', $usd->id) && $currencies->contains('id', $syp->id))
-            ->assertDontSeeText(__('finance.exchange.rate_board_title'));
+            ->assertDontSeeText(__('finance.exchange.rate_board_title'))
+            ->call('closeExchangeModal')
+            ->assertSet('showExchangeModal', false)
+            ->assertDontSee('data-exchange-create-form', false);
 
         Volt::test('finance.exchange')
+            ->call('openExchangeModal')
             ->set('from_amount', '10')
             ->assertSee('data-exchange-to-amount-edit', false)
             ->call('enableManualToAmount')
@@ -2279,6 +2294,43 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame($originalExpenseNo, $request->postedTransaction->fresh()->special_transaction_no);
     }
 
+    public function test_transaction_maintenance_deletes_a_declined_withdrawal_without_a_transaction(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $request = FinanceRequest::query()->create([
+            'request_no' => $service->nextRequestNumber(FinanceRequest::TYPE_PULL),
+            'type' => FinanceRequest::TYPE_PULL,
+            'status' => FinanceRequest::STATUS_DECLINED,
+            'finance_pull_request_kind_id' => FinancePullRequestKind::query()->firstOrFail()->id,
+            'requested_currency_id' => $service->localCurrency()->id,
+            'requested_amount' => 20,
+            'requested_reason' => 'Declined sample request',
+            'review_notes' => 'Not approved',
+            'requested_by' => auth()->id(),
+            'reviewed_by' => auth()->id(),
+            'declined_at' => now(),
+        ]);
+
+        Volt::test('settings.finance')
+            ->set('transaction_lookup_no', $request->request_no)
+            ->call('findTransaction')
+            ->assertHasNoErrors()
+            ->assertSet('maintaining_transaction_id', null)
+            ->assertSet('maintaining_declined_withdrawal_request_id', $request->id)
+            ->assertSee('data-declined-withdrawal-maintenance', false)
+            ->assertSee('data-declined-withdrawal-delete-action', false)
+            ->assertDontSee(__('finance.fields.deletion_reason'))
+            ->call('deleteDeclinedWithdrawalRequestMaintenance')
+            ->assertHasNoErrors()
+            ->assertSet('maintaining_declined_withdrawal_request_id', null)
+            ->assertSet('transaction_lookup_no', '');
+
+        $this->assertDatabaseMissing('finance_requests', ['id' => $request->id]);
+        $this->assertNull(FinanceRequest::withTrashed()->find($request->id));
+    }
+
     public function test_historical_finance_source_repair_uses_the_ledger_as_its_base(): void
     {
         $this->signIn();
@@ -2508,6 +2560,31 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertCount(2, $exchangeTransactions);
         $this->assertTrue($exchangeTransactions->every(fn (FinanceTransaction $transaction) => $transaction->special_transaction_no === 'XCHG-000001'));
         $this->assertTrue($exchangeTransactions->every(fn (FinanceTransaction $transaction) => data_get($transaction->metadata, 'reference') === 'XCHG-000001'));
+    }
+
+    public function test_finance_dashboard_defaults_to_the_current_quarter_when_it_has_no_transactions(): void
+    {
+        $this->signIn();
+
+        FinanceTransaction::query()->delete();
+        $service = app(FinanceService::class);
+        $service->postTransaction([
+            'cash_box_id' => FinanceCashBox::query()->firstOrFail()->id,
+            'currency_id' => $service->localCurrency()->id,
+            'type' => 'opening_balance',
+            'direction' => 'in',
+            'amount' => 100,
+            'transaction_date' => now()->subQuarter()->toDateString(),
+        ]);
+
+        Volt::test('finance.dashboard')
+            ->assertSet('year', (int) now()->year)
+            ->assertSet('quarter', (string) now()->quarter)
+            ->assertViewHas('availableFinancePeriods', function ($periods): bool {
+                $currentPeriod = collect($periods)->firstWhere('year', (int) now()->year);
+
+                return in_array((int) now()->quarter, $currentPeriod['quarters'] ?? [], true);
+            });
     }
 
     public function test_finance_dashboard_limits_latest_activity_and_exposes_category_percentage(): void
@@ -3200,7 +3277,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', $response->getContent());
     }
 
-    public function test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins(): void
+    public function test_standalone_withdrawal_page_and_navigation_are_removed(): void
     {
         $this->seed();
         $teacherUser = User::factory()->create();
@@ -3213,15 +3290,10 @@ class FinanceAndActivitiesTest extends TestCase
             'status' => 'active',
         ]);
 
-        $this->actingAs($teacherUser)->get(route('finance.pull-requests.index'))->assertOk();
+        $this->actingAs($teacherUser)->get('/finance/pull-requests')->assertNotFound();
         $teacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
-        $this->assertTrue($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
+        $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
         $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
-
-        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', false, 'boolean');
-        $disabledTeacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
-        $this->assertFalse($disabledTeacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
-        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', true, 'boolean');
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');
