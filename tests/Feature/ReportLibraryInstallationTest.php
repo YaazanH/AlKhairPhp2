@@ -108,10 +108,10 @@ class ReportLibraryInstallationTest extends TestCase
         ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
 
         $response = $this->actingAs($user)->get(route('reports.library.index'))->assertOk();
-        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور', 'الطلاب حسب الصف الدراسي', 'المصروفات حسب التصنيف', 'اتجاه المصروفات ربع السنوي', 'تقدم المنهاج حسب المجموعة', 'خريطة أداء الطلاب'] as $name) {
+        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور', 'الطلاب حسب الصف الدراسي', 'المصروفات حسب التصنيف', 'اتجاه المصروفات ربع السنوي', 'تقدم المنهاج حسب المجموعة', 'خريطة أداء الطلاب', 'لوحة ترتيب الطلاب في الحفظ'] as $name) {
             $response->assertSee($name);
         }
-        $this->assertSame(13, substr_count($response->getContent(), __('report_library.labels.ready')));
+        $this->assertSame(14, substr_count($response->getContent(), __('report_library.labels.ready')));
 
         $trendTemplate = PlatformReportLibraryItem::query()->where('system_key', 'attendance-activity-trend')->firstOrFail();
         $this->assertSame(ReportDesignerCatalog::PRESENTATION_LINE, data_get($trendTemplate->publishedRevision->definition, 'presentation.type'));
@@ -140,6 +140,11 @@ class ReportLibraryInstallationTest extends TestCase
         $this->assertSame(ReportDesignerCatalog::PRESENTATION_PERFORMANCE_MAP, data_get($performanceTemplate->publishedRevision->definition, 'presentation.type'));
         $this->assertSame('report_calculation_1', data_get($performanceTemplate->publishedRevision->definition, 'presentation.x_metric'));
         $this->assertSame('report_calculation_2', data_get($performanceTemplate->publishedRevision->definition, 'presentation.metric'));
+
+        $leaderboardTemplate = PlatformReportLibraryItem::query()->where('system_key', 'student-memorization-leaderboard')->firstOrFail();
+        $this->assertSame(['memorization'], $leaderboardTemplate->required_modules);
+        $this->assertSame(ReportDesignerCatalog::PRESENTATION_LEADERBOARD, data_get($leaderboardTemplate->publishedRevision->definition, 'presentation.type'));
+        $this->assertSame('report_calculation_1', data_get($leaderboardTemplate->publishedRevision->definition, 'presentation.metric'));
 
         $template = PlatformReportLibraryItem::query()->where('system_key', 'students-by-group')->firstOrFail();
         $this->actingAs($user)->post(route('reports.library.install', $template))->assertRedirect();
@@ -182,6 +187,16 @@ class ReportLibraryInstallationTest extends TestCase
             ->assertSet('presentationXMetric', 'report_calculation_1')
             ->assertSet('presentationMetric', 'report_calculation_2')
             ->set('name', 'Editable student performance map')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->actingAs($user)->post(route('reports.library.install', $leaderboardTemplate))->assertRedirect();
+        $leaderboardCopy = ReportDefinition::query()->where('library_item_uuid', $leaderboardTemplate->uuid)->sole();
+        Volt::test('reports.designer')
+            ->call('edit', $leaderboardCopy->id)
+            ->assertSet('presentationType', ReportDesignerCatalog::PRESENTATION_LEADERBOARD)
+            ->assertSet('presentationMetric', 'report_calculation_1')
+            ->set('name', 'Editable memorization leaderboard')
             ->call('save')
             ->assertHasNoErrors();
     }

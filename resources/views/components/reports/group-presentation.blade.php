@@ -9,11 +9,13 @@
     $isLine = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_LINE;
     $isHotbar = $type === 'hotbar';
     $isPerformanceMap = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_PERFORMANCE_MAP;
+    $isLeaderboard = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_LEADERBOARD;
     $rows = match (true) {
         $isTable => $allRows->take($compact ? 6 : PHP_INT_MAX)->values(),
         $isLine => $allRows->take(-$chartLimit)->values(),
         $isHotbar => $allRows->take($chartLimit)->values(),
         $isPerformanceMap => $allRows->take($compact ? 12 : 25)->values(),
+        $isLeaderboard => $allRows->take(5)->values(),
         default => $allRows->take($chartLimit)->values(),
     };
     $metricKey = (string) data_get($presentation, 'metric', 'record_count');
@@ -21,14 +23,20 @@
         $metricKey = 'record_count';
     }
     $metricLabel = (string) data_get($grouping, 'columns.'.$metricKey, __('report_designer.calculations.record_count'));
+    if ($isLeaderboard) {
+        $rows = $allRows
+            ->sort(fn (array $left, array $right): int => ($right[$metricKey] ?? 0) <=> ($left[$metricKey] ?? 0) ?: strcmp($left['group'], $right['group']))
+            ->take(5)
+            ->values();
+    }
     $xMetricKey = (string) data_get($presentation, 'x_metric', '');
     if (! array_key_exists($xMetricKey, $grouping['columns'] ?? [])) {
         $xMetricKey = 'record_count';
     }
     $xMetricLabel = (string) data_get($grouping, 'columns.'.$xMetricKey, __('report_designer.calculations.record_count'));
     $chartAria = __('report_designer.presentation.chart_metric_aria', ['metric' => $metricLabel, 'group' => $grouping['label']]);
-    $remainingCount = $isTable || $isLine || $isHotbar || $isPerformanceMap ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
-    $remainingMetric = $isTable || $isLine || $isHotbar || $isPerformanceMap ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
+    $remainingCount = $isTable || $isLine || $isHotbar || $isPerformanceMap || $isLeaderboard ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
+    $remainingMetric = $isTable || $isLine || $isHotbar || $isPerformanceMap || $isLeaderboard ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
     if ($remainingCount > 0) {
         $other = ['group' => __('report_designer.presentation.other'), 'record_count' => $remainingCount];
         $other[$metricKey] = $metricKey === 'record_count' ? $remainingCount : $remainingMetric;
@@ -76,6 +84,35 @@
         <div class="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-neutral-400">
             {{ __('report_designer.presentation.empty') }}
         </div>
+    @elseif($isLeaderboard)
+        <ol class="grid gap-3" aria-label="{{ $chartAria }}">
+            @foreach($rows as $row)
+                @php
+                    $rank = $loop->iteration;
+                    $value = $metricValue($row);
+                    $width = max(4, ($value / $maximum) * 100);
+                    $rankTone = match ($rank) {
+                        1 => 'border-amber-300/60 bg-amber-300/15 text-amber-100',
+                        2 => 'border-slate-300/50 bg-slate-300/10 text-slate-100',
+                        3 => 'border-orange-400/50 bg-orange-400/10 text-orange-100',
+                        default => 'border-white/10 bg-white/5 text-neutral-300',
+                    };
+                @endphp
+                <li class="teacher-memorization-ranking-row grid grid-cols-[2.5rem_minmax(7rem,0.9fr)_minmax(8rem,1.4fr)_auto] items-center gap-3 rounded-xl border border-white/5 bg-white/[0.025] p-3">
+                    <span class="grid size-9 place-items-center rounded-full border text-sm font-bold {{ $rankTone }}" aria-label="{{ __('report_designer.presentation.rank', ['rank' => $rank]) }}">{{ $rank }}</span>
+                    <span class="record-person-name truncate text-sm font-medium text-white" title="{{ $row['group'] }}">{{ $row['group'] }}</span>
+                    <span class="relative h-4" aria-hidden="true">
+                        <span class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/10"></span>
+                        <span class="absolute start-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-emerald-400/80" style="width: {{ $width }}%"></span>
+                        <span class="absolute top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-neutral-950 bg-emerald-400" style="inset-inline-start: calc({{ $width }}% - .375rem)"></span>
+                    </span>
+                    <span class="min-w-16 text-end">
+                        <strong class="block text-sm text-white">{{ $formatMetric($value) }}</strong>
+                        <small class="text-[0.65rem] text-neutral-400">{{ trans_choice('report_designer.presentation.sessions', (int) ($row['record_count'] ?? 0), ['count' => number_format((int) ($row['record_count'] ?? 0))]) }}</small>
+                    </span>
+                </li>
+            @endforeach
+        </ol>
     @elseif($isPerformanceMap)
         <div class="dashboard-performance-map" role="img" aria-label="{{ $chartAria }}">
             <div class="dashboard-performance-map__plot">

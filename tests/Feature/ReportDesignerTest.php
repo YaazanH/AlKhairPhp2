@@ -137,7 +137,7 @@ class ReportDesignerTest extends TestCase
             'birth_date' => '2014-01-01',
             'status' => 'active',
         ]);
-        Enrollment::query()->create([
+        $enrollment = Enrollment::query()->create([
             'student_id' => $student->id,
             'group_id' => $group->id,
             'enrolled_at' => '2026-09-01',
@@ -145,6 +145,42 @@ class ReportDesignerTest extends TestCase
             'final_points_cached' => 42,
             'memorized_pages_cached' => 18,
         ]);
+        $secondStudent = Student::query()->create([
+            'first_name' => 'Ziad',
+            'last_name' => 'Sessions',
+            'birth_date' => '2014-02-01',
+            'status' => 'active',
+        ]);
+        $secondEnrollment = Enrollment::query()->create([
+            'student_id' => $secondStudent->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 2,
+            'memorized_pages_cached' => 6,
+        ]);
+        MemorizationSession::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'teacher_id' => $teacher->id,
+            'recorded_on' => '2026-10-01',
+            'entry_type' => 'new',
+            'from_page' => 1,
+            'to_page' => 20,
+            'pages_count' => 20,
+        ]);
+        foreach ([1, 2] as $day) {
+            MemorizationSession::query()->create([
+                'enrollment_id' => $secondEnrollment->id,
+                'student_id' => $secondStudent->id,
+                'teacher_id' => $teacher->id,
+                'recorded_on' => '2026-10-0'.$day,
+                'entry_type' => 'new',
+                'from_page' => (($day - 1) * 3) + 1,
+                'to_page' => $day * 3,
+                'pages_count' => 3,
+            ]);
+        }
 
         $calculations = [
             ['operation' => 'count', 'field' => null],
@@ -186,6 +222,42 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('data-report-presentation="performance_map"', $html);
         $this->assertStringContainsString('dashboard-performance-map__plot', $html);
         $this->assertStringContainsString('dashboard-performance-map__point--below-average', $html);
+
+        $leaderboardCalculations = [
+            ['operation' => 'count', 'field' => null],
+            ['operation' => 'sum', 'field' => 'pages_count'],
+        ];
+        $leaderboard = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => ReportDesignerCatalog::MEMORIZATION_SESSIONS,
+            'selected_fields' => ['recorded_on', 'full_name', 'pages_count'],
+            'calculations' => $leaderboardCalculations,
+            'group_by' => 'student_identity',
+            'presentation' => [
+                'type' => ReportDesignerCatalog::PRESENTATION_LEADERBOARD,
+                'density' => 'comfortable',
+                'metric' => 'report_calculation_1',
+            ],
+            'filters' => ['status' => 'all', 'date_from' => '', 'date_to' => ''],
+            'sort_field' => 'recorded_on',
+            'sort_direction' => 'desc',
+        ], $administrator);
+
+        $this->assertStringStartsWith('Omar Map', $leaderboard['grouping']['rows'][0]['group']);
+        $this->assertSame(20.0, $leaderboard['grouping']['rows'][0]['report_calculation_1']);
+        $this->assertSame(1, $leaderboard['grouping']['rows'][0]['record_count']);
+        $this->assertSame(6.0, $leaderboard['grouping']['rows'][1]['report_calculation_1']);
+        $this->assertSame(2, $leaderboard['grouping']['rows'][1]['record_count']);
+
+        $leaderboardHtml = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            ['grouping' => $leaderboard['grouping'], 'presentation' => [
+                'type' => ReportDesignerCatalog::PRESENTATION_LEADERBOARD,
+                'metric' => 'report_calculation_1',
+            ]],
+        );
+        $this->assertStringContainsString('data-report-presentation="leaderboard"', $leaderboardHtml);
+        $this->assertStringContainsString('teacher-memorization-ranking-row', $leaderboardHtml);
+        $this->assertStringContainsString('20', $leaderboardHtml);
     }
 
     public function test_saved_report_exports_reuse_approved_fields_filters_and_access_rules(): void

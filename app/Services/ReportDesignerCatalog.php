@@ -24,6 +24,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_PERFORMANCE_MAP = 'performance_map';
 
+    public const PRESENTATION_LEADERBOARD = 'leaderboard';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -229,6 +231,7 @@ class ReportDesignerCatalog
                 'recorded_on' => $this->field('recorded_on', 'date'),
                 'student_number' => $this->field('student_number', 'text'),
                 'full_name' => $this->field('full_name', 'text'),
+                'student_identity' => $this->field('student_identity', 'text'),
                 'entry_type' => $this->field('entry_type', 'status'),
                 'from_page' => $this->field('from_page', 'number'),
                 'to_page' => $this->field('to_page', 'number'),
@@ -348,6 +351,7 @@ class ReportDesignerCatalog
             self::PRESENTATION_TREEMAP => __('report_designer.presentation.types.treemap'),
             self::PRESENTATION_HOTBAR => __('report_designer.presentation.types.hotbar'),
             self::PRESENTATION_PERFORMANCE_MAP => __('report_designer.presentation.types.performance_map'),
+            self::PRESENTATION_LEADERBOARD => __('report_designer.presentation.types.leaderboard'),
         ];
     }
 
@@ -405,6 +409,13 @@ class ReportDesignerCatalog
             ]);
         }
 
+        if ($type === self::PRESENTATION_LEADERBOARD
+            && ($source !== self::MEMORIZATION_SESSIONS || $groupBy !== 'student_identity')) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.leaderboard_requires_memorization'),
+            ]);
+        }
+
         if (! array_key_exists($density, $this->tableDensities())) {
             throw ValidationException::withMessages([
                 'tableDensity' => __('report_designer.validation.invalid_table_density'),
@@ -451,6 +462,14 @@ class ReportDesignerCatalog
                 || $performanceY !== ['operation' => 'sum', 'field' => 'points_balance'])) {
             throw ValidationException::withMessages([
                 'presentationMetric' => __('report_designer.validation.performance_map_requires_measures'),
+            ]);
+        }
+
+        $leaderboardMetric = $calculationForMetric($metric);
+        if ($type === self::PRESENTATION_LEADERBOARD
+            && $leaderboardMetric !== ['operation' => 'sum', 'field' => 'pages_count']) {
+            throw ValidationException::withMessages([
+                'presentationMetric' => __('report_designer.validation.leaderboard_requires_pages'),
             ]);
         }
 
@@ -608,7 +627,7 @@ class ReportDesignerCatalog
             self::COURSES => ['academic_year', 'status'],
             self::GROUPS => ['group_name', 'course_name', 'academic_year', 'teacher_name', 'assistant_teacher_name', 'grade_level', 'status'],
             self::STUDENT_ATTENDANCE => ['attendance_date', 'attendance_status', 'presence_result', 'attendance_scope', 'course_name', 'group_name'],
-            self::MEMORIZATION_SESSIONS => ['recorded_on', 'entry_type', 'teacher_name', 'course_name', 'group_name'],
+            self::MEMORIZATION_SESSIONS => ['recorded_on', 'student_identity', 'entry_type', 'teacher_name', 'course_name', 'group_name'],
             self::QURAN_TESTS => ['tested_on', 'test_type', 'juz_number', 'test_status', 'teacher_name', 'course_name', 'group_name'],
             self::QURAN_PARTIAL_TESTS, self::QURAN_FINAL_TESTS => ['juz_number', 'test_status', 'latest_attempt_status', 'teacher_name', 'course_name', 'group_name'],
             self::ASSESSMENTS => ['due_at', 'assessment_type', 'assessment_groups', 'status'],

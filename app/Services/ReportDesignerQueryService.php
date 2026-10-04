@@ -38,6 +38,8 @@ class ReportDesignerQueryService
 
     protected ?array $groupingResult = null;
 
+    protected array $activePresentation = [];
+
     protected array $curriculumSummaries = [];
 
     protected int $rowLimit = self::PREVIEW_LIMIT;
@@ -74,6 +76,13 @@ class ReportDesignerQueryService
         $fields = $this->catalog->validateFields($source, (array) ($definition['selected_fields'] ?? []));
         $this->activeCalculations = $this->catalog->validateCalculations($source, (array) ($definition['calculations'] ?? []));
         $this->activeGroupBy = $this->catalog->validateGrouping($source, $definition['group_by'] ?? null);
+        $this->activePresentation = $this->catalog->validatePresentation(
+            (array) ($definition['presentation'] ?? []),
+            $this->activeGroupBy,
+            true,
+            $source,
+            $this->activeCalculations,
+        );
         $this->calculationValues = [];
         $this->groupingResult = null;
         $this->curriculumSummaries = [];
@@ -928,6 +937,7 @@ class ReportDesignerQueryService
             'recorded_on' => $session->recorded_on?->format('Y-m-d'),
             'student_number' => $session->student?->student_number,
             'full_name' => $this->personName($session->student),
+            'student_identity' => $this->personName($session->student).' ('.$session->student?->student_number.')',
             'entry_type' => __('report_designer.entry_types.'.$session->entry_type),
             'from_page' => $session->from_page,
             'to_page' => $session->to_page,
@@ -1261,9 +1271,14 @@ class ReportDesignerQueryService
             });
 
         $chronological = in_array($this->activeGroupBy, $this->catalog->chronologicalGroupFields($source), true);
-        $rows = ($chronological
-            ? $rows->sortBy('group')->take(-$this->groupLimit)
-            : $rows->sort(fn (array $left, array $right) => $right['record_count'] <=> $left['record_count'] ?: strcmp($left['group'], $right['group']))->take($this->groupLimit))
+        $leaderboardMetric = data_get($this->activePresentation, 'type') === ReportDesignerCatalog::PRESENTATION_LEADERBOARD
+            ? data_get($this->activePresentation, 'metric')
+            : null;
+        $rows = (filled($leaderboardMetric)
+            ? $rows->sort(fn (array $left, array $right) => ($right[$leaderboardMetric] ?? 0) <=> ($left[$leaderboardMetric] ?? 0) ?: strcmp($left['group'], $right['group']))->take($this->groupLimit)
+            : ($chronological
+                ? $rows->sortBy('group')->take(-$this->groupLimit)
+                : $rows->sort(fn (array $left, array $right) => $right['record_count'] <=> $left['record_count'] ?: strcmp($left['group'], $right['group']))->take($this->groupLimit)))
             ->values()
             ->all();
 
