@@ -18,6 +18,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_LINE = 'line';
 
+    public const PRESENTATION_TREEMAP = 'treemap';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -329,6 +331,7 @@ class ReportDesignerCatalog
         return [
             self::PRESENTATION_LOLLIPOP => __('report_designer.presentation.types.lollipop'),
             self::PRESENTATION_LINE => __('report_designer.presentation.types.line'),
+            self::PRESENTATION_TREEMAP => __('report_designer.presentation.types.treemap'),
         ];
     }
 

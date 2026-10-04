@@ -94,6 +94,20 @@
                 </g>
             @endforeach
         </svg>
+    @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_TREEMAP)
+        <div class="flex min-h-64 flex-wrap content-stretch gap-2" role="img" aria-label="{{ __('report_designer.presentation.chart_aria', ['group' => $grouping['label']]) }}">
+            @foreach($rows as $index => $row)
+                @php($share = ((int) $row['record_count'] / max(1, $rows->sum('record_count'))) * 100)
+                @php($basis = max($compact ? 34 : 24, $share))
+                <div class="flex min-w-32 flex-col justify-between overflow-hidden rounded-2xl border p-4" style="flex: {{ max(1, (int) $row['record_count']) }} 1 {{ $basis }}%; min-height: {{ $compact ? 6 : max(7, 6 + ($share / 12)) }}rem; border-color: {{ $colors[$index] }}; background: color-mix(in srgb, {{ $colors[$index] }} 18%, transparent)">
+                    <div class="truncate text-sm font-semibold text-white" title="{{ $row['group'] }}">{{ $row['group'] }}</div>
+                    <div class="mt-4 flex items-end justify-between gap-3">
+                        <span class="text-3xl font-semibold text-white">{{ number_format((int) $row['record_count']) }}</span>
+                        <span class="rounded-full bg-black/20 px-2 py-1 text-xs text-neutral-200">{{ number_format($share, 1) }}%</span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_DONUT && $total > 0)
         <div class="grid items-center gap-5 sm:grid-cols-[11rem_minmax(0,1fr)]">
             <div class="relative mx-auto grid size-40 place-items-center rounded-full" style="background: conic-gradient({{ implode(', ', $segments) }})" role="img" aria-label="{{ __('report_designer.presentation.chart_aria', ['group' => $grouping['label']]) }}">

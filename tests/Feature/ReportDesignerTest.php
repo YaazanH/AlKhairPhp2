@@ -258,6 +258,28 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('data-report-presentation="line"', $lineHtml);
         $this->assertStringContainsString('<polyline', $lineHtml);
         $this->assertStringContainsString('2026-10-02: 5', $lineHtml);
+
+        $treemapPresentation = $catalog->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_TREEMAP,
+            'density' => 'comfortable',
+        ], 'grade_level', true, ReportDesignerCatalog::STUDENTS);
+        $treemapHtml = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            [
+                'grouping' => [
+                    'label' => 'Grade level',
+                    'columns' => ['group' => 'Grade level', 'record_count' => 'Records'],
+                    'rows' => [
+                        ['group' => 'Grade 4', 'record_count' => 6],
+                        ['group' => 'Grade 5', 'record_count' => 4],
+                    ],
+                ],
+                'presentation' => $treemapPresentation,
+            ],
+        );
+        $this->assertStringContainsString('data-report-presentation="treemap"', $treemapHtml);
+        $this->assertStringContainsString('Grade 4', $treemapHtml);
+        $this->assertStringContainsString('60.0%', $treemapHtml);
     }
 
     public function test_grouped_report_presentation_is_saved_and_reused_in_preview_full_report_and_dashboard(): void

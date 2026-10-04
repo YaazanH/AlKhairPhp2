@@ -108,14 +108,18 @@ class ReportLibraryInstallationTest extends TestCase
         ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
 
         $response = $this->actingAs($user)->get(route('reports.library.index'))->assertOk();
-        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور'] as $name) {
+        foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور', 'الطلاب حسب الصف الدراسي'] as $name) {
             $response->assertSee($name);
         }
-        $this->assertSame(8, substr_count($response->getContent(), __('report_library.labels.ready')));
+        $this->assertSame(9, substr_count($response->getContent(), __('report_library.labels.ready')));
 
         $trendTemplate = PlatformReportLibraryItem::query()->where('system_key', 'attendance-activity-trend')->firstOrFail();
         $this->assertSame(ReportDesignerCatalog::PRESENTATION_LINE, data_get($trendTemplate->publishedRevision->definition, 'presentation.type'));
         $this->assertSame('attendance_date', data_get($trendTemplate->publishedRevision->definition, 'group_by'));
+
+        $gradeTemplate = PlatformReportLibraryItem::query()->where('system_key', 'students-by-grade-level')->firstOrFail();
+        $this->assertSame(ReportDesignerCatalog::PRESENTATION_TREEMAP, data_get($gradeTemplate->publishedRevision->definition, 'presentation.type'));
+        $this->assertSame('grade_level', data_get($gradeTemplate->publishedRevision->definition, 'group_by'));
 
         $template = PlatformReportLibraryItem::query()->where('system_key', 'students-by-group')->firstOrFail();
         $this->actingAs($user)->post(route('reports.library.install', $template))->assertRedirect();
