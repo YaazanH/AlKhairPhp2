@@ -99,7 +99,7 @@ class PlatformReportLibraryTest extends TestCase
         $owner = $this->administrator('owner@example.test');
         $items = PlatformReportLibraryItem::query()->where('is_system', true)->with('publishedRevision')->get();
 
-        $this->assertCount(12, $items);
+        $this->assertCount(13, $items);
         $this->assertSame([
             'assessment-performance',
             'attendance-activity-trend',
@@ -110,6 +110,7 @@ class PlatformReportLibraryTest extends TestCase
             'finance-summary',
             'quarterly-expense-trend',
             'quran-test-outcomes',
+            'student-performance-map',
             'students-by-grade-level',
             'students-by-group',
             'teacher-workload',

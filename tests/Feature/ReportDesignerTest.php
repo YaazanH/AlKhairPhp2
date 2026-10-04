@@ -114,6 +114,80 @@ class ReportDesignerTest extends TestCase
             ->assertHasErrors('selectedFields');
     }
 
+    public function test_student_performance_map_uses_approved_enrollment_totals(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $administrator = User::factory()->create(['username' => 'performance-map-admin']);
+        $administrator->assignRole('admin');
+        $year = AcademicYear::query()->create(['name' => 'Performance year', 'starts_on' => '2026-09-01', 'ends_on' => '2027-08-31', 'is_current' => true, 'is_active' => true]);
+        $teacher = Teacher::query()->create(['first_name' => 'Performance', 'last_name' => 'Teacher', 'phone' => '0900000099', 'status' => 'active']);
+        $course = Course::query()->create(['name' => 'Performance course', 'is_active' => true]);
+        $group = Group::query()->create([
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Performance group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::query()->create([
+            'first_name' => 'Omar',
+            'last_name' => 'Map',
+            'student_number' => 'MAP-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        Enrollment::query()->create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+            'final_points_cached' => 42,
+            'memorized_pages_cached' => 18,
+        ]);
+
+        $calculations = [
+            ['operation' => 'count', 'field' => null],
+            ['operation' => 'sum', 'field' => 'memorized_pages'],
+            ['operation' => 'sum', 'field' => 'points_balance'],
+        ];
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['student_number', 'full_name', 'memorized_pages', 'points_balance'],
+            'calculations' => $calculations,
+            'group_by' => 'student_identity',
+            'filters' => ['status' => 'active'],
+            'sort_field' => 'full_name',
+            'sort_direction' => 'asc',
+        ], $administrator);
+
+        $this->assertSame(18, $preview['rows'][0]['memorized_pages']);
+        $this->assertSame(42, $preview['rows'][0]['points_balance']);
+        $studentLabel = 'Omar Map ('.$student->student_number.')';
+        $this->assertSame($studentLabel, $preview['grouping']['rows'][0]['group']);
+        $this->assertSame(18.0, $preview['grouping']['rows'][0]['report_calculation_1']);
+        $this->assertSame(42.0, $preview['grouping']['rows'][0]['report_calculation_2']);
+        $this->assertSame(['students', 'points_rewards', 'memorization'], app(ReportDesignerCatalog::class)->requiredModulesForDefinition(
+            ReportDesignerCatalog::STUDENTS,
+            ['student_identity', 'memorized_pages', 'points_balance'],
+        ));
+
+        $presentation = app(ReportDesignerCatalog::class)->validatePresentation([
+            'type' => ReportDesignerCatalog::PRESENTATION_PERFORMANCE_MAP,
+            'density' => 'comfortable',
+            'x_metric' => 'report_calculation_1',
+            'metric' => 'report_calculation_2',
+        ], 'student_identity', true, ReportDesignerCatalog::STUDENTS, $calculations);
+        $html = Blade::render(
+            '<x-reports.group-presentation :grouping="$grouping" :presentation="$presentation" />',
+            ['grouping' => $preview['grouping'], 'presentation' => $presentation],
+        );
+
+        $this->assertStringContainsString('data-report-presentation="performance_map"', $html);
+        $this->assertStringContainsString('dashboard-performance-map__plot', $html);
+        $this->assertStringContainsString('dashboard-performance-map__point--below-average', $html);
+    }
+
     public function test_saved_report_exports_reuse_approved_fields_filters_and_access_rules(): void
     {
         $this->seed(RoleSeeder::class);

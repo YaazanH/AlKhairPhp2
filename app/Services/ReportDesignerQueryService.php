@@ -1401,11 +1401,14 @@ class ReportDesignerQueryService
         return match ($field) {
             'student_number' => $student->student_number,
             'full_name' => trim($student->first_name.' '.$student->last_name),
+            'student_identity' => trim($student->first_name.' '.$student->last_name).' ('.$student->student_number.')',
             'status' => __('report_designer.record_statuses.'.$student->status),
             'joined_at' => $student->joined_at?->format('Y-m-d'),
             'birth_date' => $student->birth_date?->format('Y-m-d'),
             'grade_level' => $student->gradeLevel?->name,
             'current_group' => $student->currentActiveEnrollment()?->group?->name,
+            'points_balance' => (int) $student->enrollments->sum('final_points_cached'),
+            'memorized_pages' => (int) $student->enrollments->sum('memorized_pages_cached'),
         };
     }
 }

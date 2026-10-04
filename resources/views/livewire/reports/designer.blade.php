@@ -41,6 +41,8 @@ new class extends Component
 
     public string $presentationTotalMetric = '';
 
+    public string $presentationXMetric = '';
+
     public string $statusFilter = 'all';
 
     public string $searchFilter = '';
@@ -115,6 +117,7 @@ new class extends Component
         $this->tableDensity = 'comfortable';
         $this->presentationMetric = 'record_count';
         $this->presentationTotalMetric = '';
+        $this->presentationXMetric = '';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -164,6 +167,7 @@ new class extends Component
         $this->tableDensity = (string) data_get($definition->presentation, 'density', 'comfortable');
         $this->presentationMetric = (string) data_get($definition->presentation, 'metric', 'record_count');
         $this->presentationTotalMetric = (string) data_get($definition->presentation, 'total_metric', '');
+        $this->presentationXMetric = (string) data_get($definition->presentation, 'x_metric', '');
         $this->statusFilter = (string) ($filters['status'] ?? 'all');
         $this->searchFilter = (string) ($filters['search'] ?? '');
         $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
@@ -463,6 +467,7 @@ new class extends Component
             'tableDensity' => ['required', Rule::in(array_keys($catalog->tableDensities()))],
             'presentationMetric' => ['required', 'string'],
             'presentationTotalMetric' => ['nullable', 'string'],
+            'presentationXMetric' => ['nullable', 'string'],
             'statusFilter' => ['required', Rule::in($statusKeys)],
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
@@ -479,6 +484,7 @@ new class extends Component
             'density' => $validated['tableDensity'],
             'metric' => $validated['presentationMetric'],
             'total_metric' => $validated['presentationTotalMetric'],
+            'x_metric' => $validated['presentationXMetric'],
         ], $groupBy, $this->mayPreserveSpecializedPresentation(), $validated['dataSource'], $calculations);
         [$sortField, $sortDirection] = $catalog->validateSort(
             $validated['dataSource'],
@@ -520,6 +526,7 @@ new class extends Component
         $this->tableDensity = 'comfortable';
         $this->presentationMetric = 'record_count';
         $this->presentationTotalMetric = '';
+        $this->presentationXMetric = '';
         $this->statusFilter = 'all';
         $this->searchFilter = '';
         $this->dateFrom = '';
@@ -935,7 +942,7 @@ new class extends Component
                                 <div class="text-sm font-semibold text-white">{{ __('report_designer.grouping.title', ['field' => $previewResult['grouping']['label']]) }}</div>
                                 <div class="mt-1 text-xs text-neutral-400">{{ __('report_designer.grouping.help', ['count' => $previewResult['grouping']['limit']]) }}</div>
                             </div>
-                            <x-reports.group-presentation :grouping="$previewResult['grouping']" :presentation="['type' => $presentationType, 'density' => $tableDensity, 'metric' => $presentationMetric, 'total_metric' => $presentationTotalMetric]" />
+                            <x-reports.group-presentation :grouping="$previewResult['grouping']" :presentation="['type' => $presentationType, 'density' => $tableDensity, 'metric' => $presentationMetric, 'total_metric' => $presentationTotalMetric, 'x_metric' => $presentationXMetric]" />
                         </div>
                     @endif
                     <x-reports.detail-table :result="$previewResult" :presentation="['type' => $presentationType, 'density' => $tableDensity]" />

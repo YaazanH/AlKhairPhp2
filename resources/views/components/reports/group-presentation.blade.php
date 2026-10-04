@@ -8,10 +8,12 @@
     $isTable = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_TABLE;
     $isLine = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_LINE;
     $isHotbar = $type === 'hotbar';
+    $isPerformanceMap = $type === \App\Services\ReportDesignerCatalog::PRESENTATION_PERFORMANCE_MAP;
     $rows = match (true) {
         $isTable => $allRows->take($compact ? 6 : PHP_INT_MAX)->values(),
         $isLine => $allRows->take(-$chartLimit)->values(),
         $isHotbar => $allRows->take($chartLimit)->values(),
+        $isPerformanceMap => $allRows->take($compact ? 12 : 25)->values(),
         default => $allRows->take($chartLimit)->values(),
     };
     $metricKey = (string) data_get($presentation, 'metric', 'record_count');
@@ -19,9 +21,14 @@
         $metricKey = 'record_count';
     }
     $metricLabel = (string) data_get($grouping, 'columns.'.$metricKey, __('report_designer.calculations.record_count'));
+    $xMetricKey = (string) data_get($presentation, 'x_metric', '');
+    if (! array_key_exists($xMetricKey, $grouping['columns'] ?? [])) {
+        $xMetricKey = 'record_count';
+    }
+    $xMetricLabel = (string) data_get($grouping, 'columns.'.$xMetricKey, __('report_designer.calculations.record_count'));
     $chartAria = __('report_designer.presentation.chart_metric_aria', ['metric' => $metricLabel, 'group' => $grouping['label']]);
-    $remainingCount = $isTable || $isLine || $isHotbar ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
-    $remainingMetric = $isTable || $isLine || $isHotbar ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
+    $remainingCount = $isTable || $isLine || $isHotbar || $isPerformanceMap ? 0 : (int) $allRows->skip($chartLimit)->sum('record_count');
+    $remainingMetric = $isTable || $isLine || $isHotbar || $isPerformanceMap ? 0.0 : (float) $allRows->skip($chartLimit)->sum($metricKey);
     if ($remainingCount > 0) {
         $other = ['group' => __('report_designer.presentation.other'), 'record_count' => $remainingCount];
         $other[$metricKey] = $metricKey === 'record_count' ? $remainingCount : $remainingMetric;
@@ -54,12 +61,63 @@
 
         return app()->isLocale('ar') ? substr($value, 8, 2).'-'.substr($value, 5, 2) : substr($value, 5, 5);
     };
+    $performanceMinimumY = min(0.0, (float) $rows->min(fn (array $row): float => (float) ($row[$metricKey] ?? 0)));
+    $performanceMaximumY = max(1.0, (float) $rows->max(fn (array $row): float => (float) ($row[$metricKey] ?? 0)));
+    $performanceMaximumX = max(1.0, (float) $rows->max(fn (array $row): float => max(0, (float) ($row[$xMetricKey] ?? 0))));
+    $performanceYSpan = max(1.0, $performanceMaximumY - $performanceMinimumY);
+    $performanceAverageY = $rows->isEmpty() ? 0.0 : (float) $rows->avg(fn (array $row): float => (float) ($row[$metricKey] ?? 0));
+    $performanceAverageX = $rows->isEmpty() ? 0.0 : (float) $rows->avg(fn (array $row): float => max(0, (float) ($row[$xMetricKey] ?? 0)));
+    $performancePositionX = fn (float $value): float => 7 + ((max(0, $value) / $performanceMaximumX) * 86);
+    $performancePositionY = fn (float $value): float => 7 + (((min($performanceMaximumY, max($performanceMinimumY, $value)) - $performanceMinimumY) / $performanceYSpan) * 86);
 @endphp
 
 <div {{ $attributes->class('report-presentation') }} data-report-presentation="{{ $type }}">
     @if($rows->isEmpty())
         <div class="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-neutral-400">
             {{ __('report_designer.presentation.empty') }}
+        </div>
+    @elseif($isPerformanceMap)
+        <div class="dashboard-performance-map" role="img" aria-label="{{ $chartAria }}">
+            <div class="dashboard-performance-map__plot">
+                <span class="dashboard-performance-map__zone dashboard-performance-map__zone--high-points">{{ __('dashboard.manager.analytics.high_points') }}</span>
+                <span class="dashboard-performance-map__zone dashboard-performance-map__zone--high-pages">{{ __('dashboard.manager.analytics.high_memorization') }}</span>
+                <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--vertical" style="--average-position: {{ $performancePositionX($performanceAverageX) }}%"></span>
+                <span class="dashboard-performance-map__average-line dashboard-performance-map__average-line--horizontal" style="--average-position: {{ $performancePositionY($performanceAverageY) }}%"></span>
+                @foreach($rows as $row)
+                    @php
+                        $xValue = max(0, (float) ($row[$xMetricKey] ?? 0));
+                        $yValue = (float) ($row[$metricKey] ?? 0);
+                        $pointX = $performancePositionX($xValue);
+                        $pointY = $performancePositionY($yValue);
+                        $aboveAverage = $xValue > $performanceAverageX && $yValue > $performanceAverageY;
+                    @endphp
+                    @if($aboveAverage)
+                        <button type="button" class="dashboard-performance-map__point dashboard-performance-map__point--above-average" style="--point-x: {{ $pointX }}%; --point-y: {{ $pointY }}%" aria-label="{{ $row['group'] }}: {{ $formatMetric($xValue) }} {{ $xMetricLabel }}, {{ $formatMetric($yValue) }} {{ $metricLabel }}">
+                            <span class="dashboard-performance-map__dot" aria-hidden="true"></span>
+                        </button>
+                        <span class="dashboard-performance-map__tooltip" style="--point-x: {{ $pointX }}%; --point-y: {{ $pointY }}%">
+                            <strong>{{ $row['group'] }}</strong>
+                            <small>{{ $xMetricLabel }}: {{ $formatMetric($xValue) }} · {{ $metricLabel }}: {{ $formatMetric($yValue) }}</small>
+                        </span>
+                    @endif
+                @endforeach
+                <div class="dashboard-performance-map__dimmed-layer" aria-hidden="true">
+                    @foreach($rows as $row)
+                        @php
+                            $xValue = max(0, (float) ($row[$xMetricKey] ?? 0));
+                            $yValue = (float) ($row[$metricKey] ?? 0);
+                            $aboveAverage = $xValue > $performanceAverageX && $yValue > $performanceAverageY;
+                        @endphp
+                        @unless($aboveAverage)
+                            <span class="dashboard-performance-map__point dashboard-performance-map__point--below-average" style="--point-x: {{ $performancePositionX($xValue) }}%; --point-y: {{ $performancePositionY($yValue) }}%"><span class="dashboard-performance-map__dot"></span></span>
+                        @endunless
+                    @endforeach
+                </div>
+            </div>
+            <div class="dashboard-performance-map__averages" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
+                <span>{{ $xMetricLabel }}: <bdi>{{ $formatMetric($performanceAverageX) }}</bdi></span>
+                <span>{{ $metricLabel }}: <bdi>{{ $formatMetric($performanceAverageY) }}</bdi></span>
+            </div>
         </div>
     @elseif($type === \App\Services\ReportDesignerCatalog::PRESENTATION_BAR)
         <div class="grid gap-3" role="img" aria-label="{{ $chartAria }}">

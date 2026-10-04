@@ -22,6 +22,8 @@ class ReportDesignerCatalog
 
     public const PRESENTATION_HOTBAR = 'hotbar';
 
+    public const PRESENTATION_PERFORMANCE_MAP = 'performance_map';
+
     public const CALCULATION_LIMIT = 5;
 
     public const STUDENTS = 'students';
@@ -169,15 +171,20 @@ class ReportDesignerCatalog
     public function fields(string $source): array
     {
         return match ($source) {
-            self::STUDENTS => [
+            self::STUDENTS => array_merge([
                 'student_number' => $this->field('student_number', 'text'),
                 'full_name' => $this->field('full_name', 'text'),
+                'student_identity' => $this->field('student_identity', 'text'),
                 'status' => $this->field('status', 'status'),
                 'joined_at' => $this->field('joined_at', 'date'),
                 'birth_date' => $this->field('birth_date', 'date'),
                 'grade_level' => $this->field('grade_level', 'text'),
                 'current_group' => $this->field('current_group', 'text'),
-            ],
+            ], $this->modules->enabled('points_rewards') ? [
+                'points_balance' => $this->field('points_balance', 'number'),
+            ] : [], $this->modules->enabled('memorization') ? [
+                'memorized_pages' => $this->field('memorized_pages', 'number'),
+            ] : []),
             self::COURSES => [
                 'course_name' => $this->field('course_name', 'text'),
                 'academic_year' => $this->field('academic_year', 'text'),
@@ -340,6 +347,7 @@ class ReportDesignerCatalog
             self::PRESENTATION_LINE => __('report_designer.presentation.types.line'),
             self::PRESENTATION_TREEMAP => __('report_designer.presentation.types.treemap'),
             self::PRESENTATION_HOTBAR => __('report_designer.presentation.types.hotbar'),
+            self::PRESENTATION_PERFORMANCE_MAP => __('report_designer.presentation.types.performance_map'),
         ];
     }
 
@@ -390,6 +398,13 @@ class ReportDesignerCatalog
             ]);
         }
 
+        if ($type === self::PRESENTATION_PERFORMANCE_MAP
+            && ($source !== self::STUDENTS || $groupBy !== 'student_identity')) {
+            throw ValidationException::withMessages([
+                'presentationType' => __('report_designer.validation.performance_map_requires_students'),
+            ]);
+        }
+
         if (! array_key_exists($density, $this->tableDensities())) {
             throw ValidationException::withMessages([
                 'tableDensity' => __('report_designer.validation.invalid_table_density'),
@@ -428,11 +443,23 @@ class ReportDesignerCatalog
             ]);
         }
 
+        $xMetric = (string) ($presentation['x_metric'] ?? '');
+        $performanceX = $calculationForMetric($xMetric);
+        $performanceY = $calculationForMetric($metric);
+        if ($type === self::PRESENTATION_PERFORMANCE_MAP
+            && ($performanceX !== ['operation' => 'sum', 'field' => 'memorized_pages']
+                || $performanceY !== ['operation' => 'sum', 'field' => 'points_balance'])) {
+            throw ValidationException::withMessages([
+                'presentationMetric' => __('report_designer.validation.performance_map_requires_measures'),
+            ]);
+        }
+
         return array_filter([
             'type' => $type,
             'density' => $density,
             'metric' => $metric === 'record_count' ? null : $metric,
             'total_metric' => $type === self::PRESENTATION_HOTBAR ? $totalMetric : null,
+            'x_metric' => $type === self::PRESENTATION_PERFORMANCE_MAP ? $xMetric : null,
         ], fn (mixed $value): bool => $value !== null);
     }
 
@@ -557,6 +584,7 @@ class ReportDesignerCatalog
     public function calculableFields(string $source): array
     {
         $fieldKeys = match ($source) {
+            self::STUDENTS => ['points_balance', 'memorized_pages'],
             self::COURSES => ['groups_count', 'active_groups_count', 'active_enrollments_count'],
             self::GROUPS => ['capacity', 'active_enrollments_count', 'available_places', 'curriculum_completed_lessons', 'curriculum_total_lessons', 'curriculum_progress_percentage'],
             self::MEMORIZATION_SESSIONS => ['from_page', 'to_page', 'pages_count'],
@@ -576,7 +604,7 @@ class ReportDesignerCatalog
     public function groupableFields(string $source): array
     {
         $fieldKeys = match ($source) {
-            self::STUDENTS => ['status', 'grade_level', 'current_group'],
+            self::STUDENTS => ['student_identity', 'status', 'grade_level', 'current_group'],
             self::COURSES => ['academic_year', 'status'],
             self::GROUPS => ['group_name', 'course_name', 'academic_year', 'teacher_name', 'assistant_teacher_name', 'grade_level', 'status'],
             self::STUDENT_ATTENDANCE => ['attendance_date', 'attendance_status', 'presence_result', 'attendance_scope', 'course_name', 'group_name'],
@@ -634,6 +662,12 @@ class ReportDesignerCatalog
             'curriculum_progress_percentage',
         ]) !== []) {
             $modules[] = 'curriculum';
+        }
+        if ($source === self::STUDENTS && in_array('points_balance', $fields, true)) {
+            $modules[] = 'points_rewards';
+        }
+        if ($source === self::STUDENTS && in_array('memorized_pages', $fields, true)) {
+            $modules[] = 'memorization';
         }
 
         return array_values(array_unique($modules));
