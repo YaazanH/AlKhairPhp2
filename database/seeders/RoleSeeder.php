@@ -163,6 +163,7 @@ class RoleSeeder extends Seeder
             'report-designer.update',
             'report-designer.delete',
             'report-dashboard-layout.manage',
+            'report-library.install',
             'data-quality.view',
             'data-quality.resolve',
             'data-audit.view',

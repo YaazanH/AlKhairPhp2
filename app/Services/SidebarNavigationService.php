@@ -39,6 +39,7 @@ class SidebarNavigationService
         return [
             'dashboard' => $this->item('ui.nav.dashboard', 'home', 'dashboard', ['dashboard'], 'platform', 10),
             'reports' => $this->item('ui.nav.reports', 'chart-bar', 'reports.index', ['reports.*'], 'platform', 30, ['reports.view']),
+            'report_library' => $this->item('ui.nav.report_library', 'book-open', 'reports.library.index', ['reports.library.*'], 'platform', 35, ['report-library.install']),
 
             'users' => $this->item('ui.nav.users', 'user-group', 'users.index', ['users.*'], 'people', 10, ['users.view']),
             'parents' => $this->item('ui.nav.parents', 'parents-couple', 'parents.index', ['parents.*'], 'people', 30, ['parents.view']),
@@ -298,7 +299,8 @@ class SidebarNavigationService
                     'href' => $teacherGroup
                         ? route('groups.show', $teacherGroup)
                         : route($isAssignedReports ? 'reports.custom' : $itemDefinition['route_name']),
-                    'current' => request()->routeIs(...$itemDefinition['current_patterns']),
+                    'current' => request()->routeIs(...$itemDefinition['current_patterns'])
+                        && ! ($itemKey === 'reports' && request()->routeIs('reports.library.*')),
                     'sort_order' => $isTeacherCurriculum
                         ? 40
                         : ($settings['items'][$itemKey]['sort_order'] ?? $itemDefinition['sort_order']),

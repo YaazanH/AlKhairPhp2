@@ -41,6 +41,7 @@ use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
 use App\Http\Controllers\ReportDefinitionViewController;
 use App\Http\Controllers\ReportDesignerExportController;
 use App\Http\Controllers\ReportExportController;
+use App\Http\Controllers\ReportLibraryInstallController;
 use App\Http\Controllers\RequiredPasswordChangeController;
 use App\Http\Controllers\StudentAttendanceExportController;
 use App\Http\Controllers\SystemBackupDownloadController;
@@ -198,6 +199,8 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/custom', 'reports.custom')->name('reports.custom');
     Volt::route('reports/designer', 'reports.designer')->middleware('permission:report-designer.view|report-dashboard-layout.manage')->name('reports.designer');
+    Route::get('reports/library', [ReportLibraryInstallController::class, 'index'])->middleware('permission:report-library.install')->name('reports.library.index');
+    Route::post('reports/library/{libraryItem}/install', [ReportLibraryInstallController::class, 'store'])->middleware('permission:report-library.install')->name('reports.library.install');
     Route::get('reports/designer/{reportDefinition}', ReportDefinitionViewController::class)->name('reports.designer.show');
     Route::get('reports/designer/{reportDefinition}/export.xlsx', [ReportDesignerExportController::class, 'xlsx'])->name('reports.designer.export.xlsx');
     Route::get('reports/designer/{reportDefinition}/export.pdf', [ReportDesignerExportController::class, 'pdf'])->name('reports.designer.export.pdf');

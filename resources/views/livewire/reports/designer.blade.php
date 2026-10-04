@@ -606,7 +606,12 @@ new class extends Component
                 <h1 class="font-display text-4xl leading-none text-white md:text-5xl">{{ __('report_designer.title') }}</h1>
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('report_designer.subtitle') }}</p>
             </div>
-            <a href="{{ route('reports.index') }}" class="pill-link">{{ __('report_designer.actions.back') }}</a>
+            <div class="flex flex-wrap gap-2">
+                @can('report-library.install')
+                    <a href="{{ route('reports.library.index') }}" class="pill-link">{{ __('report_library.title') }}</a>
+                @endcan
+                <a href="{{ route('reports.index') }}" class="pill-link">{{ __('report_designer.actions.back') }}</a>
+            </div>
         </div>
     </section>
 
@@ -644,6 +649,9 @@ new class extends Component
                             <div class="min-w-0">
                                 <div class="truncate font-semibold text-white">{{ $definition->name }}</div>
                                 <div class="mt-1 text-xs text-neutral-400">{{ $sources[$definition->data_source]['label'] ?? $definition->data_source }} · {{ __('report_designer.statuses.'.$definition->status) }}</div>
+                                @if($definition->library_item_uuid)
+                                    <div class="mt-2 inline-flex rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-200">{{ __('report_library.labels.installed_revision', ['version' => $definition->library_revision]) }}</div>
+                                @endif
                                 <div class="mt-2 text-xs text-neutral-500">{{ __('report_designer.saved.updated', ['date' => $definition->updated_at->diffForHumans()]) }}</div>
                             </div>
                             <div class="flex shrink-0 gap-2">

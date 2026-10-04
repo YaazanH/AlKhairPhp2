@@ -28,6 +28,8 @@ class ReportDefinition extends Model
         'sort_field',
         'sort_direction',
         'status',
+        'library_item_uuid',
+        'library_revision',
         'created_by',
         'updated_by',
     ];
@@ -39,6 +41,7 @@ class ReportDefinition extends Model
             'calculations' => 'array',
             'presentation' => 'array',
             'filters' => 'array',
+            'library_revision' => 'integer',
         ];
     }
 

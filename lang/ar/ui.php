@@ -36,6 +36,7 @@ return [
         'platform' => 'المنصة',
         'dashboard' => 'الصفحة الرئيسية',
         'reports' => 'التقارير',
+        'report_library' => 'مكتبة التقارير',
         'custom_reports' => 'التقارير المخصصة',
         'people' => 'الأشخاص',
         'users' => 'المستخدمون',

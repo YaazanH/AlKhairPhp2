@@ -1,0 +1,133 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Landlord\PlatformReportLibraryItem;
+use App\Models\ReportDefinition;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
+use Tests\TestCase;
+
+class ReportLibraryInstallationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config()->set('database.connections.landlord', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true]);
+        config()->set('tenancy.base_domain', 'localhost');
+        DB::purge('landlord');
+        Artisan::call('migrate', ['--database' => 'landlord', '--path' => database_path('migrations/landlord'), '--realpath' => true, '--force' => true]);
+    }
+
+    protected function tearDown(): void
+    {
+        DB::purge('landlord');
+        parent::tearDown();
+    }
+
+    public function test_authorized_tenant_user_installs_an_independent_copy_of_the_published_revision(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(collect([
+            'report-library.install',
+            'report-designer.view',
+            'report-designer.update',
+        ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
+        $item = $this->publishedItem();
+
+        $this->actingAs($user)->get(route('reports.library.index'))
+            ->assertOk()
+            ->assertSee('الطلاب المعرضون للخطر')
+            ->assertSee('مكتبة التقارير')
+            ->assertSee(__('report_library.labels.ready'));
+
+        $this->actingAs($user)->post(route('reports.library.install', $item))->assertRedirect(route('reports.library.index'));
+
+        $copy = ReportDefinition::query()->sole();
+        $this->assertSame(ReportDefinition::STATUS_DRAFT, $copy->status);
+        $this->assertSame($item->uuid, $copy->library_item_uuid);
+        $this->assertSame(1, $copy->library_revision);
+        $this->assertSame(['student_number', 'full_name', 'status'], $copy->selected_fields);
+        $this->assertSame('bar', $copy->presentation['type']);
+        $this->actingAs($user)->get(route('reports.designer'))
+            ->assertOk()
+            ->assertSee('الطلاب المعرضون للخطر')
+            ->assertSee(__('report_library.labels.installed_revision', ['version' => 1]));
+
+        $item->update(['name' => ['en' => 'Changed draft', 'ar' => 'مسودة معدلة']]);
+        $this->actingAs($user)->post(route('reports.library.install', $item))->assertRedirect();
+
+        $this->assertSame(['الطلاب المعرضون للخطر', 'الطلاب المعرضون للخطر (2)'], ReportDefinition::query()->orderBy('id')->pluck('name')->all());
+        $this->assertSame([1, 1], ReportDefinition::query()->orderBy('id')->pluck('library_revision')->all());
+    }
+
+    public function test_library_permission_is_required_for_browsing_and_installing(): void
+    {
+        $user = User::factory()->create();
+        $item = $this->publishedItem();
+
+        $this->actingAs($user)->get(route('reports.library.index'))->assertForbidden();
+        $this->actingAs($user)->post(route('reports.library.install', $item))->assertForbidden();
+        $this->assertDatabaseCount('report_definitions', 0);
+    }
+
+    public function test_template_is_blocked_when_the_user_cannot_access_its_data_source(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('report-library.install', 'web'));
+        $item = $this->publishedItem('finance_transactions', [
+            'selected_fields' => ['transaction_date', 'transaction_type', 'amount'],
+            'group_by' => 'transaction_type',
+        ], ['finance']);
+
+        $this->actingAs($user)->get(route('reports.library.index'))
+            ->assertOk()
+            ->assertSee(__('report_library.compatibility.source_permission'));
+
+        $this->actingAs($user)->post(route('reports.library.install', $item))
+            ->assertSessionHasErrors('library_item');
+        $this->assertDatabaseCount('report_definitions', 0);
+    }
+
+    private function publishedItem(string $source = 'students', array $definitionOverrides = [], array $requiredModules = ['students']): PlatformReportLibraryItem
+    {
+        $definition = array_replace([
+            'data_source' => $source,
+            'selected_fields' => ['student_number', 'full_name', 'status'],
+            'calculations' => [['operation' => 'count', 'field' => null]],
+            'group_by' => 'status',
+            'presentation' => ['type' => 'bar', 'density' => 'compact'],
+            'filters' => [],
+            'sort_field' => 'full_name',
+            'sort_direction' => 'asc',
+        ], $definitionOverrides);
+
+        $item = PlatformReportLibraryItem::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'kind' => 'both',
+            'name' => ['en' => 'Changed draft', 'ar' => 'مسودة معدلة'],
+            'description' => ['en' => 'Draft description', 'ar' => 'وصف المسودة'],
+            'draft_definition' => $definition,
+            'required_modules' => $requiredModules,
+            'latest_version' => 1,
+        ]);
+        $revision = $item->revisions()->create([
+            'version' => 1,
+            'kind' => 'both',
+            'name' => ['en' => 'Students at risk', 'ar' => 'الطلاب المعرضون للخطر'],
+            'description' => ['en' => 'Groups students by status.', 'ar' => 'يجمع الطلاب حسب الحالة.'],
+            'definition' => $definition,
+            'required_modules' => $requiredModules,
+            'published_at' => now(),
+        ]);
+        $item->update(['published_revision_id' => $revision->id]);
+
+        return $item->fresh('publishedRevision');
+    }
+}
