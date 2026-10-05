@@ -1571,7 +1571,9 @@ new class extends Component {
                                 <a href="{{ route('reports.designer.show', $widget['report']) }}" class="admin-icon-button shrink-0" title="{{ __('dashboard.custom_reports.open') }}"><x-admin-action-icon name="open" /></a>
                             </div>
 
-                            @if($preview['calculations'] !== [])
+                            @if(filled($preview['error'] ?? null))
+                                <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-100" data-report-widget-timeout>{{ $preview['error'] }}</div>
+                            @elseif($preview['calculations'] !== [])
                                 <div class="mt-4 grid gap-2 sm:grid-cols-2">
                                     @foreach($preview['calculations'] as $calculation)
                                         <div class="rounded-xl border border-white/8 bg-white/4 p-3">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ReportQueryTimeoutException;
 use App\Models\AppSetting;
 use App\Models\ReportDefinition;
 use App\Services\PdfBrandingService;
@@ -81,15 +82,19 @@ class ReportDesignerExportController extends Controller
         $user = $request->user();
         abort_unless(app(ReportDefinitionAccess::class)->canView($user, $definition), 404);
 
-        $result = app(ReportDesignerQueryService::class)->export([
-            'data_source' => $definition->data_source,
-            'selected_fields' => $definition->selected_fields,
-            'calculations' => $definition->calculations ?? [],
-            'group_by' => $definition->group_by,
-            'filters' => $definition->filters ?? [],
-            'sort_field' => $definition->sort_field,
-            'sort_direction' => $definition->sort_direction,
-        ], $user);
+        try {
+            $result = app(ReportDesignerQueryService::class)->export([
+                'data_source' => $definition->data_source,
+                'selected_fields' => $definition->selected_fields,
+                'calculations' => $definition->calculations ?? [],
+                'group_by' => $definition->group_by,
+                'filters' => $definition->filters ?? [],
+                'sort_field' => $definition->sort_field,
+                'sort_direction' => $definition->sort_direction,
+            ], $user);
+        } catch (ReportQueryTimeoutException $exception) {
+            abort(422, $exception->userMessage());
+        }
 
         abort_if(
             $result['total'] > ReportDesignerQueryService::EXPORT_LIMIT,

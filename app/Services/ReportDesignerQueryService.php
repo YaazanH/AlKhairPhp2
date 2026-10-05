@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ReportQueryTimeoutException;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\Course;
@@ -20,6 +21,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class ReportDesignerQueryService
@@ -58,7 +60,7 @@ class ReportDesignerQueryService
         $this->rowLimit = self::PREVIEW_LIMIT;
         $this->groupLimit = self::GROUP_PREVIEW_LIMIT;
 
-        return $this->run($definition, $user);
+        return $this->withinQueryTimeout(fn (): array => $this->run($definition, $user));
     }
 
     public function export(array $definition, ?User $user): array
@@ -66,7 +68,46 @@ class ReportDesignerQueryService
         $this->rowLimit = self::EXPORT_LIMIT;
         $this->groupLimit = self::EXPORT_LIMIT;
 
-        return $this->run($definition, $user);
+        return $this->withinQueryTimeout(fn (): array => $this->run($definition, $user));
+    }
+
+    protected function withinQueryTimeout(callable $callback): mixed
+    {
+        $milliseconds = (int) config('performance.report_query_timeout_ms', 5000);
+        $connection = DB::connection();
+
+        if ($milliseconds <= 0 || $connection->getDriverName() !== 'mysql') {
+            return $callback();
+        }
+
+        $previous = (int) data_get(
+            $connection->selectOne('SELECT @@SESSION.MAX_EXECUTION_TIME AS value'),
+            'value',
+            0,
+        );
+
+        $connection->unprepared('SET SESSION MAX_EXECUTION_TIME = '.max(1, $milliseconds));
+
+        try {
+            return $callback();
+        } catch (QueryException $exception) {
+            if ($this->isQueryTimeout($exception)) {
+                throw new ReportQueryTimeoutException($exception);
+            }
+
+            throw $exception;
+        } finally {
+            $connection->unprepared('SET SESSION MAX_EXECUTION_TIME = '.$previous);
+        }
+    }
+
+    protected function isQueryTimeout(QueryException $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return (int) ($exception->errorInfo[1] ?? 0) === 3024
+            || str_contains($message, 'maximum statement execution time exceeded')
+            || str_contains($message, 'max_execution_time');
     }
 
     protected function run(array $definition, ?User $user): array

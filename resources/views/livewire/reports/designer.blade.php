@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\ReportQueryTimeoutException;
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\ReportDefinition;
 use App\Models\ReportDefinitionRevision;
@@ -234,15 +235,21 @@ new class extends Component
             $definition = $this->validatedDefinition(false);
         }
 
-        $this->previewResult = app(ReportDesignerQueryService::class)->preview([
-            'data_source' => $definition['data_source'],
-            'selected_fields' => $definition['selected_fields'],
-            'calculations' => $definition['calculations'],
-            'group_by' => $definition['group_by'],
-            'filters' => $definition['filters'],
-            'sort_field' => $definition['sort_field'],
-            'sort_direction' => $definition['sort_direction'],
-        ], auth()->user());
+        try {
+            $this->previewResult = app(ReportDesignerQueryService::class)->preview([
+                'data_source' => $definition['data_source'],
+                'selected_fields' => $definition['selected_fields'],
+                'calculations' => $definition['calculations'],
+                'group_by' => $definition['group_by'],
+                'filters' => $definition['filters'],
+                'sort_field' => $definition['sort_field'],
+                'sort_direction' => $definition['sort_direction'],
+            ], auth()->user());
+            $this->resetErrorBag('preview');
+        } catch (ReportQueryTimeoutException $exception) {
+            $this->previewResult = [];
+            $this->addError('preview', $exception->userMessage());
+        }
     }
 
     public function delete(int $definitionId): void
@@ -983,6 +990,10 @@ new class extends Component
                             </select>
                         </label>
                     </div>
+
+                    @error('preview')
+                        <div class="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-100" data-report-timeout-error>{{ $message }}</div>
+                    @enderror
 
                     <div class="flex flex-wrap justify-end gap-3 border-t border-white/10 pt-5">
                         <button type="button" wire:click="preview" class="pill-link">{{ __('report_designer.actions.preview') }}</button>

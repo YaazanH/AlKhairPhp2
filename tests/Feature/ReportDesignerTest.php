@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\ReportQueryTimeoutException;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
@@ -41,11 +42,13 @@ use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
+use PDOException;
 use Spatie\Activitylog\Models\Activity as AuditActivity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -53,6 +56,106 @@ use Tests\TestCase;
 class ReportDesignerTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_mysql_report_timeout_errors_are_recognized_without_hiding_other_database_errors(): void
+    {
+        $service = app(ReportDesignerQueryService::class);
+        $method = new \ReflectionMethod($service, 'isQueryTimeout');
+
+        $timeout = new PDOException('Query execution was interrupted, maximum statement execution time exceeded');
+        $timeout->errorInfo = ['HY000', 3024, 'Query execution was interrupted'];
+        $ordinary = new PDOException('Unknown column');
+        $ordinary->errorInfo = ['42S22', 1054, 'Unknown column'];
+
+        $this->assertTrue($method->invoke($service, new QueryException('mysql', 'select 1', [], $timeout)));
+        $this->assertFalse($method->invoke($service, new QueryException('mysql', 'select missing', [], $ordinary)));
+    }
+
+    public function test_report_timeout_is_shown_inside_the_designer_preview(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'report-timeout-admin']);
+        $administrator->assignRole('admin');
+        $this->actingAs($administrator);
+
+        $this->mock(ReportDesignerQueryService::class, function ($mock): void {
+            $mock->shouldReceive('preview')->once()->andThrow(new ReportQueryTimeoutException);
+        });
+
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('name', 'Slow report')
+            ->set('selectedFields', ['full_name'])
+            ->call('preview')
+            ->assertHasErrors('preview')
+            ->assertSee(__('report_designer.errors.query_timeout'))
+            ->assertSee('data-report-timeout-error', false);
+    }
+
+    public function test_timed_out_dashboard_widget_fails_independently_and_is_not_cached(): void
+    {
+        $this->seed(RoleSeeder::class);
+        Cache::flush();
+
+        $role = Role::findOrCreate('timeout-report-reviewer', 'web');
+        $viewer = User::factory()->create(['username' => 'timeout-report-viewer']);
+        $viewer->assignRole($role);
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Slow dashboard report',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_PUBLISHED,
+        ]);
+        $definition->dashboardRoles()->attach($role->id, ['position' => 1, 'size' => 'medium']);
+
+        $this->mock(ReportDesignerQueryService::class, function ($mock): void {
+            $mock->shouldReceive('preview')->twice()->andThrow(new ReportQueryTimeoutException);
+        });
+
+        $first = app(ReportDashboardService::class)->widgetsFor($viewer)->sole()['preview'];
+        $second = app(ReportDashboardService::class)->widgetsFor($viewer)->sole()['preview'];
+
+        $this->assertSame(__('report_designer.errors.query_timeout'), $first['error']);
+        $this->assertSame($first, $second);
+    }
+
+    public function test_timed_out_export_returns_a_clear_error_and_is_not_audited_as_successful(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $owner = User::factory()->create(['username' => 'report-timeout-exporter']);
+        $owner->givePermissionTo('report-designer.view');
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Slow export',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $owner->id,
+            'updated_by' => $owner->id,
+        ]);
+
+        $this->mock(ReportDesignerQueryService::class, function ($mock): void {
+            $mock->shouldReceive('export')->once()->andThrow(new ReportQueryTimeoutException);
+        });
+
+        $this->actingAs($owner)
+            ->get(route('reports.designer.export.xlsx', $definition, absolute: false))
+            ->assertStatus(422)
+            ->assertSee(__('report_designer.errors.query_timeout'));
+
+        $this->assertDatabaseMissing('activity_log', [
+            'subject_type' => $definition->getMorphClass(),
+            'subject_id' => $definition->id,
+            'event' => 'report_exported',
+        ]);
+    }
 
     public function test_tenant_administrator_can_save_and_preview_a_student_report_draft(): void
     {

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ReportQueryTimeoutException;
 use App\Models\ReportDefinition;
 use App\Models\User;
 use App\Services\Landlord\TenantContext;
@@ -65,14 +66,25 @@ class ReportDashboardService
     public function widgetsFor(?User $user): Collection
     {
         return $this->reportsFor($user)->map(function (ReportDefinition $report) use ($user): array {
-            $preview = Cache::remember(
-                $this->widgetCacheKey($report, $user),
-                now()->addSeconds(max(1, (int) config('performance.report_cache_ttl_seconds', 30))),
-                fn (): array => app(ReportDesignerQueryService::class)->preview(
-                    $this->queryDefinition($report),
-                    $user,
-                ),
-            );
+            try {
+                $preview = Cache::remember(
+                    $this->widgetCacheKey($report, $user),
+                    now()->addSeconds(max(1, (int) config('performance.report_cache_ttl_seconds', 30))),
+                    fn (): array => app(ReportDesignerQueryService::class)->preview(
+                        $this->queryDefinition($report),
+                        $user,
+                    ),
+                );
+            } catch (ReportQueryTimeoutException $exception) {
+                $preview = [
+                    'columns' => [],
+                    'rows' => [],
+                    'total' => 0,
+                    'calculations' => [],
+                    'grouping' => null,
+                    'error' => $exception->userMessage(),
+                ];
+            }
 
             return [
                 'report' => $report,

@@ -270,6 +270,9 @@ return [
         'generated_at' => 'Generated :date',
         'too_many_rows' => 'This report contains more than :count records. Narrow the filters before exporting it.',
     ],
+    'errors' => [
+        'query_timeout' => 'This report took too long to calculate. Narrow the date range or filters and try again.',
+    ],
     'preview' => [
         'title' => 'Safe preview',
         'summary' => 'Showing :shown of :total matching records. Previews are limited to 25 rows.',
