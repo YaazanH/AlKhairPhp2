@@ -96,7 +96,7 @@ class ManagedUserService
 
     public function exclusiveAccountsQuery(string $profile): Builder
     {
-        $query = User::query();
+        $query = User::query()->tenantManaged();
         foreach (['teacher', 'parent', 'student'] as $type) {
             if ($type !== $profile) {
                 $query->whereDoesntHave($type.'Profile', fn ($profileQuery) => $profileQuery->withTrashed());

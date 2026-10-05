@@ -421,6 +421,7 @@ class AdminExportController extends Controller
         abort_unless($request->user()?->can('users.view'), 403);
 
         $query = User::query()
+            ->tenantManaged()
             ->with(['roles', 'permissions', 'teacherProfile', 'parentProfile', 'studentProfile'])
             ->orderBy('name');
 

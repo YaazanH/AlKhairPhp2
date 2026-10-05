@@ -7,6 +7,7 @@ use App\Support\AvatarDefaults;
 use App\Support\PhoneNumberFormatter;
 use App\Support\RoleRegistry;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -288,6 +289,14 @@ class User extends Authenticatable // implements MustVerifyEmail
     public function platformAdministratorLink(): HasOne
     {
         return $this->hasOne(TenantPlatformAdministratorLink::class);
+    }
+
+    public function scopeTenantManaged(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->whereDoesntHave('platformAdministratorLink')
+                ->orWhere('is_tenant_administrator', true);
+        });
     }
 
     public function isPlatformAdministrator(): bool
