@@ -3981,14 +3981,22 @@ function initializeLandingStories() {
         const steps = Array.from(story.querySelectorAll('[data-landing-story-step]'));
         const images = Array.from(story.querySelectorAll('[data-landing-story-image]'));
         const activate = (index) => {
-            steps.forEach((step) => step.classList.toggle('is-active', step.dataset.landingStoryStep === index));
-            images.forEach((image) => image.classList.toggle('is-active', image.dataset.landingStoryImage === index));
+            steps.forEach((step) => {
+                const active = step.dataset.landingStoryStep === index;
+                step.classList.toggle('is-active', active);
+                step.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            images.forEach((image) => {
+                const active = image.dataset.landingStoryImage === index;
+                image.classList.toggle('is-active', active);
+                image.setAttribute('aria-hidden', active ? 'false' : 'true');
+            });
         };
-        const observer = new IntersectionObserver((entries) => {
-            entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)
-                .slice(0, 1).forEach((entry) => activate(entry.target.dataset.landingStoryStep));
-        }, { rootMargin: '-30% 0px -45% 0px', threshold: [0, .25, .5, .75] });
-        steps.forEach((step) => { observer.observe(step); step.addEventListener('mouseenter', () => activate(step.dataset.landingStoryStep)); });
+        steps.forEach((step) => {
+            ['click', 'mouseenter', 'focus'].forEach((eventName) => {
+                step.addEventListener(eventName, () => activate(step.dataset.landingStoryStep));
+            });
+        });
     });
 }
 

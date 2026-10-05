@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Landlord\Feature;
+use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\PlatformLandingEnquiry;
 use App\Models\Landlord\PlatformLandingPage;
@@ -65,6 +67,34 @@ class PlatformLandingPageTest extends TestCase
             'locale' => 'en',
         ], 'landlord');
         $this->assertSame(1, PlatformLandingEnquiry::query()->count());
+    }
+
+    public function test_public_packages_show_full_details_and_product_story_uses_distinct_default_images(): void
+    {
+        $features = collect(range(1, 6))->map(fn (int $index): Feature => Feature::query()->create([
+            'code' => 'capability_'.$index,
+            'name' => 'Capability '.$index,
+            'is_active' => true,
+        ]));
+        $plan = Plan::query()->create([
+            'code' => 'complete',
+            'name' => 'Complete',
+            'description' => 'A complete package for growing organisations.',
+            'is_active' => true,
+            'price_syp' => 250000,
+            'billing_period_days' => 30,
+            'storage_limit_bytes' => 10 * 1024 * 1024 * 1024,
+        ]);
+        $plan->features()->sync($features->pluck('id'));
+
+        $this->withHeader('Accept-Language', 'en-GB,en;q=0.9')->get('http://localhost/')
+            ->assertOk()
+            ->assertSee('See full package details')
+            ->assertSee('Capability 6')
+            ->assertSee('10 GB')
+            ->assertSee(asset('images/platform-landing/daily-overview.webp'), false)
+            ->assertSee(asset('images/platform-landing/learner-progress.webp'), false)
+            ->assertSee(asset('images/platform-landing/report-builder.webp'), false);
     }
 
     public function test_manage_and_publish_permissions_are_separate_and_public_content_changes_only_after_publish(): void
