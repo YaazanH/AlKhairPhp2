@@ -84,6 +84,23 @@ class ReportDesignerTest extends TestCase
         $catalog = app(ReportDesignerCatalog::class);
         $guidance = app(ReportDesignerGuidance::class);
         $studentFields = array_slice(array_keys($catalog->fields(ReportDesignerCatalog::STUDENTS)), 0, 9);
+        $studentCatalog = $catalog->fields(ReportDesignerCatalog::STUDENTS);
+        $attendanceCatalog = $catalog->fields(ReportDesignerCatalog::STUDENT_ATTENDANCE);
+        $financeCatalog = $catalog->fields(ReportDesignerCatalog::FINANCE_TRANSACTIONS);
+
+        $this->assertSame(__('report_designer.field_types.text'), $studentCatalog['full_name']['type_label']);
+        $this->assertSame(
+            __('report_designer.field_help.types.text', ['field' => $studentCatalog['full_name']['label']]),
+            $studentCatalog['full_name']['description'],
+        );
+        $this->assertSame(
+            __('report_designer.field_help.overrides.presence_result'),
+            $attendanceCatalog['presence_result']['description'],
+        );
+        $this->assertSame(
+            __('report_designer.field_help.overrides.local_amount'),
+            $financeCatalog['local_amount']['description'],
+        );
 
         $studentDesign = $guidance->build([
             'data_source' => ReportDesignerCatalog::STUDENTS,
@@ -114,6 +131,8 @@ class ReportDesignerTest extends TestCase
         Volt::test('reports.designer')
             ->call('create')
             ->assertSee('data-report-guidance', false)
+            ->assertSee('data-report-field-description', false)
+            ->assertSee($studentCatalog['full_name']['description'])
             ->assertSee(__('report_designer.guidance.warnings.no_filters'));
     }
 

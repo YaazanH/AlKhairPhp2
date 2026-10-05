@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\Validation\ValidationException;
 
 class ReportDesignerCatalog
@@ -757,9 +758,16 @@ class ReportDesignerCatalog
 
     private function field(string $key, string $type): array
     {
+        $label = __('report_designer.fields.'.$key);
+        $overrideKey = 'report_designer.field_help.overrides.'.$key;
+
         return [
-            'label' => __('report_designer.fields.'.$key),
+            'label' => $label,
             'type' => $type,
+            'type_label' => __('report_designer.field_types.'.$type),
+            'description' => Lang::has($overrideKey)
+                ? __($overrideKey)
+                : __('report_designer.field_help.types.'.$type, ['field' => $label]),
         ];
     }
 

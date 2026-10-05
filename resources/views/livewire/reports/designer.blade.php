@@ -882,9 +882,15 @@ new class extends Component
                         <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('report_designer.form.fields_help') }}</p>
                         <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             @foreach ($availableFields as $fieldKey => $field)
-                                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-neutral-200">
-                                    <input wire:model.live="selectedFields" type="checkbox" value="{{ $fieldKey }}" class="rounded border-white/20 bg-transparent" @disabled($readOnly)>
-                                    <span>{{ $field['label'] }}</span>
+                                <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-neutral-200">
+                                    <input wire:model.live="selectedFields" type="checkbox" value="{{ $fieldKey }}" class="mt-1 rounded border-white/20 bg-transparent" @disabled($readOnly)>
+                                    <span class="min-w-0">
+                                        <span class="flex flex-wrap items-center gap-2">
+                                            <span class="font-medium text-white">{{ $field['label'] }}</span>
+                                            <span class="rounded-full bg-white/8 px-2 py-0.5 text-[0.65rem] text-neutral-300">{{ $field['type_label'] }}</span>
+                                        </span>
+                                        <span class="mt-1 block text-xs leading-5 text-neutral-400" data-report-field-description>{{ $field['description'] }}</span>
+                                    </span>
                                 </label>
                             @endforeach
                         </div>
