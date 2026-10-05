@@ -191,6 +191,14 @@ class ReportDesignerTest extends TestCase
         ], $administrator);
 
         $this->assertStringContainsString('Students', $studentDesign['summary']);
+        $this->assertStringContainsString('One result row represents', $studentDesign['sentence']);
+        $this->assertSame(__('report_designer.guidance.flow.row_basis'), $studentDesign['flow'][0]['label']);
+        $this->assertSame(__('report_designer.guidance.flow.output'), $studentDesign['flow'][2]['label']);
+        $this->assertContains(__('report_designer.presentation.types.table'), $studentDesign['badges']);
+        $this->assertSame(__('report_designer.guidance.values.default_sort'), collect($studentDesign['facts'])->firstWhere(
+            'label',
+            __('report_designer.guidance.facts.sorting'),
+        )['value']);
         $this->assertContains(__('report_designer.guidance.warnings.no_filters'), $studentDesign['warnings']);
         $this->assertContains(__('report_designer.guidance.warnings.many_fields'), $studentDesign['warnings']);
 
@@ -210,6 +218,9 @@ class ReportDesignerTest extends TestCase
         Volt::test('reports.designer')
             ->call('create')
             ->assertSee('data-report-guidance', false)
+            ->assertSee('data-report-query-sentence', false)
+            ->assertSee('data-report-query-flow', false)
+            ->assertSee('data-report-query-outline', false)
             ->assertSee('data-report-field-description', false)
             ->assertSee($studentCatalog['full_name']['description'])
             ->assertSee(__('report_designer.guidance.warnings.no_filters'));

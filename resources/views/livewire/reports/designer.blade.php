@@ -119,6 +119,21 @@ new class extends Component
         $definitions = $definitions
             ->filter(fn (ReportDefinition $definition): bool => $definitionCompatibility[$definition->id]['visible'])
             ->values();
+        $guidance = app(ReportDesignerGuidance::class);
+        $definitionGuidance = $definitions->mapWithKeys(
+            fn (ReportDefinition $definition): array => [
+                $definition->id => $guidance->build([
+                    'data_source' => $definition->data_source,
+                    'selected_fields' => $definition->selected_fields,
+                    'calculations' => $definition->calculations ?? [],
+                    'group_by' => $definition->group_by,
+                    'presentation' => $definition->presentation ?? [],
+                    'filters' => $definition->filters ?? [],
+                    'sort_field' => $definition->sort_field,
+                    'sort_direction' => $definition->sort_direction,
+                ], auth()->user()),
+            ],
+        );
         $historyDefinition = $this->historyDefinitionId
             ? ReportDefinition::query()
                 ->whereIn('data_source', $sourceKeys)
@@ -133,6 +148,7 @@ new class extends Component
         return [
             'definitions' => $definitions,
             'definitionCompatibility' => $definitionCompatibility,
+            'definitionGuidance' => $definitionGuidance,
             'sources' => $catalog->sources(auth()->user()),
             'allSources' => $catalog->librarySources(),
             'availableFields' => $catalog->fields($this->dataSource),
@@ -156,6 +172,8 @@ new class extends Component
                     'date_from' => $this->dateFrom,
                     'date_to' => $this->dateTo,
                 ],
+                'sort_field' => $this->sortField,
+                'sort_direction' => $this->sortDirection,
             ], auth()->user()),
             'dashboardRoles' => $dashboardRoles,
             'previewRole' => $previewRole,
@@ -890,11 +908,20 @@ new class extends Component
             <div class="mt-5 grid gap-3">
                 @forelse ($definitions as $definition)
                     @php($compatibility = $definitionCompatibility[$definition->id])
+                    @php($savedGuidance = $definitionGuidance[$definition->id])
                     <article class="rounded-2xl border border-white/10 bg-white/[0.03] p-4" wire:key="report-definition-{{ $definition->id }}">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="truncate font-semibold text-white">{{ $definition->name }}</div>
                                 <div class="mt-1 text-xs text-neutral-400">{{ $allSources[$definition->data_source]['label'] ?? $definition->data_source }} · {{ __('report_designer.statuses.'.$definition->status) }}</div>
+                                @if($savedGuidance['sentence'] !== '')
+                                    <p class="mt-3 max-w-3xl text-sm leading-6 text-neutral-300" data-report-query-summary>{{ $savedGuidance['sentence'] }}</p>
+                                    <div class="mt-3 flex flex-wrap gap-2" data-report-query-badges>
+                                        @foreach($savedGuidance['badges'] as $badge)
+                                            <span class="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[0.7rem] text-neutral-300">{{ $badge }}</span>
+                                        @endforeach
+                                    </div>
+                                @endif
                                 @if(! $compatibility['compatible'])
                                     <div class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100" data-report-incompatible>{{ $compatibility['reason'] }}</div>
                                 @endif
@@ -1109,7 +1136,7 @@ new class extends Component
                     <div class="grid gap-4 md:grid-cols-2">
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.sort') }}</span>
-                            <select wire:model="sortField" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <select wire:model.live="sortField" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                                 <option value="">{{ __('report_designer.form.default_sort') }}</option>
                                 @foreach ($sortableFields as $fieldKey => $field)
                                     <option value="{{ $fieldKey }}">{{ $field['label'] }}</option>
@@ -1118,7 +1145,7 @@ new class extends Component
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.direction') }}</span>
-                            <select wire:model="sortDirection" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <select wire:model.live="sortDirection" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                                 <option value="asc">{{ __('report_designer.form.ascending') }}</option>
                                 <option value="desc">{{ __('report_designer.form.descending') }}</option>
                             </select>
@@ -1128,9 +1155,24 @@ new class extends Component
                     <section class="rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.06] p-4" data-report-guidance>
                         <div class="eyebrow">{{ __('report_designer.guidance.eyebrow') }}</div>
                         <h3 class="mt-2 text-lg font-semibold text-white">{{ __('report_designer.guidance.title') }}</h3>
-                        <p class="mt-2 text-sm leading-6 text-neutral-200">{{ $designGuidance['summary'] }}</p>
+                        <p class="mt-2 text-sm leading-7 text-neutral-100" data-report-query-sentence>{{ $designGuidance['sentence'] }}</p>
 
-                        <dl class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <ol class="mt-5 grid gap-3 lg:grid-cols-4" data-report-query-flow>
+                            @foreach($designGuidance['flow'] as $flowIndex => $step)
+                                <li class="relative rounded-xl border border-emerald-200/15 bg-black/10 px-4 py-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="grid size-6 place-items-center rounded-full bg-emerald-300/15 text-xs font-bold text-emerald-100">{{ $flowIndex + 1 }}</span>
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-emerald-200">{{ $step['label'] }}</span>
+                                    </div>
+                                    <p class="mt-3 text-sm leading-6 text-white">{{ $step['value'] }}</p>
+                                    @if(! $loop->last)
+                                        <span class="absolute -end-2 top-1/2 hidden -translate-y-1/2 text-emerald-300/50 lg:block" aria-hidden="true">→</span>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ol>
+
+                        <dl class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-report-query-outline>
                             @foreach($designGuidance['facts'] as $fact)
                                 <div class="rounded-xl border border-white/8 bg-black/10 px-3 py-3">
                                     <dt class="text-xs text-neutral-400">{{ $fact['label'] }}</dt>
