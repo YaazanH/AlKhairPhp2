@@ -40,6 +40,7 @@ use App\Services\AccessScopeService;
 use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\ReportDashboardService;
 use App\Services\ReportDesignerCatalog;
+use App\Services\ReportDesignerGuidance;
 use App\Services\ReportDesignerQueryService;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
@@ -70,6 +71,50 @@ class ReportDesignerTest extends TestCase
 
         $this->assertTrue($method->invoke($service, new QueryException('mysql', 'select 1', [], $timeout)));
         $this->assertFalse($method->invoke($service, new QueryException('mysql', 'select missing', [], $ordinary)));
+    }
+
+    public function test_report_guidance_explains_the_design_and_flags_likely_scope_and_currency_mistakes(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $this->app->setLocale('en');
+
+        $administrator = User::factory()->create(['username' => 'report-guidance-admin']);
+        $administrator->assignRole('admin');
+        $administrator->givePermissionTo('finance.reports.view');
+        $catalog = app(ReportDesignerCatalog::class);
+        $guidance = app(ReportDesignerGuidance::class);
+        $studentFields = array_slice(array_keys($catalog->fields(ReportDesignerCatalog::STUDENTS)), 0, 9);
+
+        $studentDesign = $guidance->build([
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => $studentFields,
+            'calculations' => [],
+            'group_by' => null,
+            'presentation' => ['type' => ReportDesignerCatalog::PRESENTATION_TABLE],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+        ], $administrator);
+
+        $this->assertStringContainsString('Students', $studentDesign['summary']);
+        $this->assertContains(__('report_designer.guidance.warnings.no_filters'), $studentDesign['warnings']);
+        $this->assertContains(__('report_designer.guidance.warnings.many_fields'), $studentDesign['warnings']);
+
+        $financeDesign = $guidance->build([
+            'data_source' => ReportDesignerCatalog::FINANCE_TRANSACTIONS,
+            'selected_fields' => ['transaction_date', 'amount'],
+            'calculations' => [['operation' => 'sum', 'field' => 'amount']],
+            'group_by' => 'finance_category',
+            'presentation' => ['type' => ReportDesignerCatalog::PRESENTATION_TABLE],
+            'filters' => ['status' => 'expense', 'search' => '', 'date_from' => '', 'date_to' => ''],
+        ], $administrator);
+
+        $this->assertContains(__('report_designer.guidance.warnings.no_date_range'), $financeDesign['warnings']);
+        $this->assertContains(__('report_designer.guidance.warnings.mixed_currency'), $financeDesign['warnings']);
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('create')
+            ->assertSee('data-report-guidance', false)
+            ->assertSee(__('report_designer.guidance.warnings.no_filters'));
     }
 
     public function test_report_timeout_is_shown_inside_the_designer_preview(): void

@@ -8,6 +8,7 @@ use App\Services\ReportDefinitionAccess;
 use App\Services\ReportDefinitionCompatibility;
 use App\Services\ReportAuditService;
 use App\Services\ReportDesignerCatalog;
+use App\Services\ReportDesignerGuidance;
 use App\Services\ReportDesignerQueryService;
 use App\Services\ReportVersionService;
 use App\Support\RoleRegistry;
@@ -125,6 +126,19 @@ new class extends Component
             'presentationTypes' => $presentationTypes,
             'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
+            'designGuidance' => app(ReportDesignerGuidance::class)->build([
+                'data_source' => $this->dataSource,
+                'selected_fields' => $this->selectedFields,
+                'calculations' => $this->calculations,
+                'group_by' => $this->groupBy,
+                'presentation' => ['type' => $this->presentationType],
+                'filters' => [
+                    'status' => $this->statusFilter,
+                    'search' => $this->searchFilter,
+                    'date_from' => $this->dateFrom,
+                    'date_to' => $this->dateTo,
+                ],
+            ], auth()->user()),
             'dashboardRoles' => auth()->user()?->can('report-dashboard-layout.manage') ? $this->availableDashboardRoles() : collect(),
             'historyDefinition' => $historyDefinition,
             'historyRevisions' => $historyDefinition
@@ -869,7 +883,7 @@ new class extends Component
                         <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             @foreach ($availableFields as $fieldKey => $field)
                                 <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-neutral-200">
-                                    <input wire:model="selectedFields" type="checkbox" value="{{ $fieldKey }}" class="rounded border-white/20 bg-transparent" @disabled($readOnly)>
+                                    <input wire:model.live="selectedFields" type="checkbox" value="{{ $fieldKey }}" class="rounded border-white/20 bg-transparent" @disabled($readOnly)>
                                     <span>{{ $field['label'] }}</span>
                                 </label>
                             @endforeach
@@ -909,7 +923,7 @@ new class extends Component
                                             @if (($calculation['operation'] ?? 'count') === 'count')
                                                 <input value="{{ __('report_designer.form.all_records') }}" class="rounded-xl px-4 py-3" disabled>
                                             @else
-                                                <select wire:model="calculations.{{ $calculationIndex }}.field" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                                                <select wire:model.live="calculations.{{ $calculationIndex }}.field" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                                                     <option value="">{{ __('report_designer.form.choose_calculation_field') }}</option>
                                                     @foreach ($calculableFields as $fieldKey => $field)
                                                         <option value="{{ $fieldKey }}">{{ $field['label'] }}</option>
@@ -972,7 +986,7 @@ new class extends Component
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.status') }}</span>
-                            <select wire:model="statusFilter" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <select wire:model.live="statusFilter" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                                 @foreach ($statusFilters as $filterKey => $filterLabel)
                                     <option value="{{ $filterKey }}">{{ $filterLabel }}</option>
                                 @endforeach
@@ -980,15 +994,15 @@ new class extends Component
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.search') }}</span>
-                            <input wire:model="searchFilter" type="search" class="rounded-xl px-4 py-3" placeholder="{{ __('report_designer.form.search_placeholder') }}" @disabled($readOnly)>
+                            <input wire:model.live.debounce.400ms="searchFilter" type="search" class="rounded-xl px-4 py-3" placeholder="{{ __('report_designer.form.search_placeholder') }}" @disabled($readOnly)>
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.date_from') }}</span>
-                            <input wire:model="dateFrom" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <input wire:model.live="dateFrom" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                         </label>
                         <label class="grid gap-2 text-sm text-neutral-200">
                             <span>{{ __('report_designer.form.date_to') }}</span>
-                            <input wire:model="dateTo" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
+                            <input wire:model.live="dateTo" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                         </label>
                     </div>
 
@@ -1010,6 +1024,34 @@ new class extends Component
                             </select>
                         </label>
                     </div>
+
+                    <section class="rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.06] p-4" data-report-guidance>
+                        <div class="eyebrow">{{ __('report_designer.guidance.eyebrow') }}</div>
+                        <h3 class="mt-2 text-lg font-semibold text-white">{{ __('report_designer.guidance.title') }}</h3>
+                        <p class="mt-2 text-sm leading-6 text-neutral-200">{{ $designGuidance['summary'] }}</p>
+
+                        <dl class="mt-4 grid gap-3 sm:grid-cols-2">
+                            @foreach($designGuidance['facts'] as $fact)
+                                <div class="rounded-xl border border-white/8 bg-black/10 px-3 py-3">
+                                    <dt class="text-xs text-neutral-400">{{ $fact['label'] }}</dt>
+                                    <dd class="mt-1 text-sm leading-6 text-white">{{ $fact['value'] }}</dd>
+                                </div>
+                            @endforeach
+                        </dl>
+
+                        @if($designGuidance['warnings'] !== [])
+                            <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3" data-report-guidance-warnings>
+                                <div class="text-sm font-semibold text-amber-100">{{ __('report_designer.guidance.check_title') }}</div>
+                                <ul class="mt-2 list-disc space-y-1 ps-5 text-xs leading-5 text-amber-100">
+                                    @foreach($designGuidance['warnings'] as $warning)
+                                        <li>{{ $warning }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @else
+                            <div class="mt-4 text-xs leading-5 text-emerald-200" data-report-guidance-ready>{{ __('report_designer.guidance.ready') }}</div>
+                        @endif
+                    </section>
 
                     @error('preview')
                         <div class="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-100" data-report-timeout-error>{{ $message }}</div>
