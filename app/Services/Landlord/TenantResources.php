@@ -26,18 +26,25 @@ class TenantResources
         return $database;
     }
 
-    public function delete(Tenant $tenant): void
-    {
-        $database = $tenant->database_name ?: $this->databaseNames->for($tenant);
-        $this->assertDatabaseName($database);
+    public function delete(
+        Tenant $tenant,
+        bool $deleteDatabase = true,
+        bool $deleteStorage = true,
+    ): void {
+        if ($deleteDatabase) {
+            $database = $tenant->database_name ?: $this->databaseNames->for($tenant);
+            $this->assertDatabaseName($database);
 
-        $this->withoutSelectedTenantDatabase(function () use ($database): void {
-            DB::connection('tenant')->statement("DROP DATABASE IF EXISTS `{$database}`");
-        });
+            $this->withoutSelectedTenantDatabase(function () use ($database): void {
+                DB::connection('tenant')->statement("DROP DATABASE IF EXISTS `{$database}`");
+            });
+        }
 
-        $root = $this->storage->root($tenant);
-        Storage::disk('public')->deleteDirectory($root);
-        Storage::disk('local')->deleteDirectory($root);
+        if ($deleteStorage) {
+            $root = $this->storage->root($tenant);
+            Storage::disk('public')->deleteDirectory($root);
+            Storage::disk('local')->deleteDirectory($root);
+        }
     }
 
     private function assertDatabaseName(string $database): void

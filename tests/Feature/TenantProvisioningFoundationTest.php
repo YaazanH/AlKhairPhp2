@@ -56,4 +56,24 @@ class TenantProvisioningFoundationTest extends TestCase
         Storage::disk('public')->assertMissing($paths['public']);
         Storage::disk('local')->assertMissing($paths['private']);
     }
+
+    public function test_cleanup_does_not_delete_a_database_the_attempt_did_not_create(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $tenant = new Tenant([
+            'uuid' => (string) Str::uuid(),
+            'slug' => 'existing-database',
+        ]);
+        $paths = app(TenantStorage::class)->initialise($tenant);
+
+        DB::shouldReceive('purge')->never();
+        DB::shouldReceive('connection')->never();
+
+        app(TenantResources::class)->delete($tenant, deleteDatabase: false);
+
+        Storage::disk('public')->assertMissing($paths['public']);
+        Storage::disk('local')->assertMissing($paths['private']);
+    }
 }

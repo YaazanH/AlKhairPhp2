@@ -73,13 +73,17 @@ class ProvisionTenantCommand extends Command
         $previousConnection = DB::getDefaultConnection();
         $previousPublicRoot = config('filesystems.disks.public.root');
         $previousPrivateRoot = config('filesystems.disks.local.root');
+        $databaseCreated = false;
+        $storageInitialised = false;
 
         try {
             $resources->createDatabase($tenant);
+            $databaseCreated = true;
             config()->set('database.connections.tenant.database', $database);
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
             Artisan::call('migrate', ['--database' => 'tenant', '--force' => true]);
+            $storageInitialised = true;
             $tenantRoot = $storage->initialise($tenant)['public'];
             config()->set('filesystems.disks.public.root', storage_path('app/public/'.$tenantRoot));
             config()->set('filesystems.disks.local.root', storage_path('app/private/'.$tenantRoot));
@@ -116,7 +120,11 @@ class ProvisionTenantCommand extends Command
             $cleanupFailure = null;
 
             try {
-                $resources->delete($tenant);
+                $resources->delete(
+                    $tenant,
+                    deleteDatabase: $databaseCreated,
+                    deleteStorage: $storageInitialised,
+                );
             } catch (\Throwable $cleanupException) {
                 $cleanupFailure = $cleanupException;
                 report($cleanupException);
