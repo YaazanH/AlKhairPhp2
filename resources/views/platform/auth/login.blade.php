@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}" dir="{{ config('app.supported_locales.'.app()->getLocale().'.direction', 'ltr') }}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ __('platform.login.title') }}</title>@vite(['resources/css/app.css', 'resources/js/app.js'])</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ __('platform.login.title') }} | {{ app(\App\Support\BrandIdentity::class)->platformName() }}</title>@vite(['resources/css/app.css', 'resources/js/app.js'])</head>
 <body class="min-h-screen bg-zinc-50 p-6 dark:bg-zinc-950"><main class="mx-auto max-w-md rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
     <div class="flex flex-col gap-6">
         <h1 class="text-2xl font-bold">{{ __('platform.login.title') }}</h1><p>{{ __('platform.login.description') }}</p>

@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Services\AccessScopeService;
+use App\Support\BrandIdentity;
 use Illuminate\Contracts\View\View;
 
 class PrintController extends Controller
@@ -70,7 +71,7 @@ class PrintController extends Controller
         return [
             'address' => (string) ($settings['school_address'] ?? ''),
             'email' => (string) ($settings['school_email'] ?? ''),
-            'name' => (string) ($settings['school_name'] ?? config('app.name', 'Alkhair')),
+            'name' => (string) ($settings['school_name'] ?? app(BrandIdentity::class)->currentName()),
             'phone' => (string) ($settings['school_phone'] ?? ''),
         ];
     }

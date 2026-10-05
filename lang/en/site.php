@@ -14,7 +14,7 @@ return [
             'gallery' => 'Gallery',
             'visit' => 'Visit & Contact',
             'video' => 'Featured Video',
-            'latest_pages' => 'More From Masjid AlKhair',
+            'latest_pages' => 'More From Our Organisation',
         ],
         'labels' => [
             'phone' => 'Phone',

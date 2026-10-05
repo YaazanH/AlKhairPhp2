@@ -2,6 +2,7 @@
     $locale = app()->getLocale();
     $direction = config('app.supported_locales.'.$locale.'.direction', 'ltr');
     $copy = __('errors.pages.'.$status);
+    $brandName = app(\App\Support\BrandIdentity::class)->currentName();
 
     if (! is_array($copy)) {
         $copy = __('errors.pages.'.($status >= 500 ? '5xx' : '4xx'));
@@ -18,7 +19,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="robots" content="noindex, nofollow">
-        <title>{{ $status }} · {{ $copy['title'] }} | {{ __('ui.app.name') }}</title>
+        <title>{{ $status }} · {{ $copy['title'] }} | {{ $brandName }}</title>
         <link rel="preload" href="{{ asset('fonts/dubai/Dubai-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
         <script>
             try {

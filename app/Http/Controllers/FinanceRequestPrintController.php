@@ -10,6 +10,7 @@ use App\Services\IdCards\IdCardPrintLayoutService;
 use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PrintTemplates\PrintTemplateDataSourceService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
+use App\Support\BrandIdentity;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Contracts\View\View;
@@ -205,7 +206,7 @@ class FinanceRequestPrintController extends Controller
         return [
             'address' => (string) ($settings['school_address'] ?? ''),
             'email' => (string) ($settings['school_email'] ?? ''),
-            'name' => (string) ($settings['school_name'] ?? config('app.name', 'Alkhair')),
+            'name' => (string) ($settings['school_name'] ?? app(BrandIdentity::class)->currentName()),
             'phone' => (string) ($settings['school_phone'] ?? ''),
         ];
     }

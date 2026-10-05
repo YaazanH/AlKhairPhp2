@@ -88,10 +88,10 @@ class ProvisionTenantCommand extends Command
             config()->set('filesystems.disks.local.root', storage_path('app/private/'.$tenantRoot));
             app('filesystem')->forgetDisk('public');
             app('filesystem')->forgetDisk('local');
+            app(TenantSetupManager::class)->initialiseNewTenant($tenant);
             foreach ([RoleSeeder::class, MasterDataSeeder::class, QuranJuzSeeder::class, WebsiteSeeder::class] as $seeder) {
                 app($seeder)->run();
             }
-            app(TenantSetupManager::class)->initialiseNewTenant($tenant);
             $administrators->provision(
                 ownerName: $ownerName,
                 ownerEmail: $this->argument('owner-email'),

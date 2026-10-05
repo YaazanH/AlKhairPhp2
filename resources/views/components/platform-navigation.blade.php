@@ -1,8 +1,8 @@
 @php($platformUser = auth('platform')->user())
 <div class="app-sidebar-scroll-region">
     <div class="px-3 pt-4">
-        <a href="{{ route('platform.dashboard') }}" class="text-lg font-bold text-white">AlKhair <span class="text-emerald-400">Platform</span></a>
-        <p class="mt-1 text-xs text-zinc-400">SaaS administration</p>
+        <a href="{{ route('platform.dashboard') }}" class="text-lg font-bold text-white">{{ app(\App\Support\BrandIdentity::class)->platformName() }}</a>
+        <p class="mt-1 text-xs text-zinc-400">{{ __('platform.brand.administration') }}</p>
     </div>
 
     <flux:navlist variant="outline" class="mt-6">

@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'brand' => [
+        'name' => 'AlKhair Platform',
+        'administration' => 'SaaS administration',
+    ],
     'login' => [
         'title' => 'Platform Administration',
         'description' => 'Sign in to manage SaaS tenants and subscriptions.',
@@ -10,7 +14,7 @@ return [
         'submit' => 'Sign in',
     ],
     'dashboard' => [
-        'eyebrow' => 'AlKhair SaaS',
+        'eyebrow' => 'Platform operations',
         'title' => 'Platform Administration',
         'description' => 'Tenant and manual subscription overview.',
         'sign_out' => 'Sign out',

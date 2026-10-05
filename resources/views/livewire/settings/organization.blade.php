@@ -1355,7 +1355,7 @@ new class extends Component
         $settings = AppSetting::groupValues('general');
         $media = AppSetting::groupValues('media');
 
-        $this->school_name = (string) ($settings['school_name'] ?? 'Alkhair');
+        $this->school_name = (string) ($settings['school_name'] ?? app(\App\Support\BrandIdentity::class)->currentName());
         $this->school_phone = (string) ($settings['school_phone'] ?? '');
         $this->school_email = (string) ($settings['school_email'] ?? '');
         $this->email_domain = (string) ($settings['email_domain'] ?? 'alkhair.local');

@@ -1,5 +1,6 @@
 @php
-    $pageTitle = isset($title) && $title ? $title.' | '.__('ui.app.name') : __('ui.app.name');
+    $brandName = app(\App\Support\BrandIdentity::class)->currentName();
+    $pageTitle = isset($title) && $title && $title !== $brandName ? $title.' | '.$brandName : $brandName;
     $pageDescription = $metaDescription ?? __('ui.app.workspace_tagline');
     $pageUrl = $metaUrl ?? url()->current();
     $pageImage = $metaImage ?? null;
@@ -29,7 +30,7 @@
 <meta name="description" content="{{ $pageDescription }}" />
 
 <meta property="og:type" content="{{ $metaType ?? 'website' }}" />
-<meta property="og:site_name" content="{{ $metaSiteName ?? __('ui.app.name') }}" />
+<meta property="og:site_name" content="{{ $metaSiteName ?? $brandName }}" />
 <meta property="og:title" content="{{ $pageTitle }}" />
 <meta property="og:description" content="{{ $pageDescription }}" />
 <meta property="og:url" content="{{ $pageUrl }}" />

@@ -118,6 +118,12 @@ class PlatformAdministrationTest extends TestCase
 
     public function test_platform_dashboard_redirects_guests_to_the_platform_login(): void
     {
+        app()->setLocale('en');
+
+        $this->get(route('platform.login'))
+            ->assertOk()
+            ->assertSee('<title>Platform Administration | AlKhair Platform</title>', false);
+
         $this->get(route('platform.dashboard'))
             ->assertRedirect(route('platform.login'));
     }

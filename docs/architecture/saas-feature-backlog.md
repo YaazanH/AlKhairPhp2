@@ -65,7 +65,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed Platform editing behaviour | A Platform user with the future tenant-management permission may correct an organisation name or logo. The change must appear immediately in both the Platform directory and that tenant's application, using the same canonical branding record rather than a second manually maintained tenant copy. |
 | Public website title | A tenant may later set an optional separate public title. Until then, it defaults to the organisation name. |
 | Domain rule | The subdomain is selected during tenant creation and is immutable afterward. Renaming an organisation never changes its tenant subdomain; the subdomain remains the stable tenant URL. |
-| Implementation note | Implemented on the SaaS branch: canonical tenant name, immediate tenant and Platform propagation, and immutable subdomain. Optional public title remains future scope. |
+| Implementation note | Implemented on the SaaS branch: canonical tenant name, immediate tenant and Platform propagation, immutable subdomain, tenant-aware browser titles and application chrome, organisation-based public-site defaults, and separate Platform branding. Optional public title remains future scope. |
 
 ### SAAS-003 — Logo during tenant creation and platform navigation
 

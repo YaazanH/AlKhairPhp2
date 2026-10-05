@@ -1,10 +1,14 @@
-@props(['title' => 'Platform Administration'])
+@props(['title' => null])
+@php
+    $brandName = app(\App\Support\BrandIdentity::class)->platformName();
+    $pageTitle = $title && $title !== $brandName ? $title.' | '.$brandName : $brandName;
+@endphp
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>{{ $title }}</title>
+    <title>{{ $pageTitle }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @fluxAppearance
 </head>

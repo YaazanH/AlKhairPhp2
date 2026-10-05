@@ -1,10 +1,11 @@
 @props([
-    'title' => __('ui.app.name'),
+    'title' => null,
     'subtitle' => __('ui.app.short_tagline'),
     'justifySubtitleToTitle' => false,
 ])
 
 @php
+    $title = $title ?: app(\App\Support\BrandIdentity::class)->currentName();
     $siteLogoUrl = app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
     $fallbackLogoPath = public_path('storage/website/branding/logo.jpeg');
     $logoUrl = $siteLogoUrl ?: (file_exists($fallbackLogoPath) ? asset('storage/website/branding/logo.jpeg') : null);
@@ -15,7 +16,7 @@
 
 <div class="flex aspect-square size-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_18px_30px_-18px_rgba(0,107,45,0.6)]">
     @if ($logoUrl)
-        <img src="{{ $logoUrl }}" alt="{{ __('ui.app.name') }}" class="h-full w-full object-cover" />
+        <img src="{{ $logoUrl }}" alt="{{ $title }}" class="h-full w-full object-cover" />
     @else
         <x-app-logo-icon class="size-6 fill-current text-[#006b2d]" />
     @endif

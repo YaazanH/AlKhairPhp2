@@ -2,7 +2,7 @@
 
 return [
     'app' => [
-        'name' => 'AlKhair Mosque',
+        'name' => 'AlKhair Platform',
         'quran_course' => 'Quran Course',
         'short_tagline' => 'Learning Hub',
         'workspace_tagline' => 'Quran tracking, school operations, finance, and reporting connected in one workspace.',

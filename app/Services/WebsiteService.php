@@ -6,14 +6,22 @@ use App\Models\AppSetting;
 use App\Models\WebsiteMenu;
 use App\Models\WebsiteMenuItem;
 use App\Models\WebsitePage;
+use App\Services\Landlord\TenantContext;
+use App\Support\BrandIdentity;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class WebsiteService
 {
+    public function __construct(
+        private BrandIdentity $branding,
+    ) {}
+
     public function homePage(): WebsitePage
     {
+        $organisationName = $this->branding->currentName();
+
         return WebsitePage::query()
             ->published()
             ->where('is_home', true)
@@ -22,12 +30,12 @@ class WebsiteService
                 'slug' => 'home',
                 'template' => 'home',
                 'title' => [
-                    'en' => 'Masjid AlKhair',
-                    'ar' => 'مسجد الخير',
+                    'en' => $organisationName,
+                    'ar' => $organisationName,
                 ],
                 'excerpt' => [
-                    'en' => 'A welcoming mosque website connected to the AlKhair platform.',
-                    'ar' => 'واجهة مسجد مرحبة مرتبطة بمنصة الخير.',
+                    'en' => 'A welcoming public website for your organisation.',
+                    'ar' => 'موقع عام مرحب لمؤسستك.',
                 ],
                 'sections' => [
                     [
@@ -154,14 +162,16 @@ class WebsiteService
         $website = AppSetting::groupValues('website');
         $general = AppSetting::groupValues('general');
 
-        $siteName = $website->get('site_name') ?: $general->get('school_name') ?: __('ui.app.name');
+        $siteName = app(TenantContext::class)->hasTenant()
+            ? $this->branding->currentName()
+            : ($website->get('site_name') ?: $general->get('school_name') ?: $this->branding->platformName());
         $tagline = $website->get('site_tagline') ?: [
             'en' => 'Quran, community, and family learning under one roof.',
             'ar' => 'القرآن والمجتمع وتعلّم الأسرة تحت سقف واحد.',
         ];
         $description = $website->get('site_description') ?: [
-            'en' => 'A bilingual mosque website connected to the AlKhair platform.',
-            'ar' => 'موقع مسجد ثنائي اللغة مرتبط بمنصة الخير.',
+            'en' => 'A bilingual public website for your organisation.',
+            'ar' => 'موقع عام ثنائي اللغة لمؤسستك.',
         ];
         $address = $website->get('contact_address') ?: [
             'en' => (string) ($general->get('school_address') ?: 'Damascus'),
@@ -239,6 +249,10 @@ class WebsiteService
 
     public function resolveMetaTitle(WebsitePage $page): string
     {
+        if ($page->is_home) {
+            return $this->siteSettings()['site_name'];
+        }
+
         return $page->localizedText('seo_title')
             ?: $page->localizedText('title')
             ?: $this->siteSettings()['site_name'];

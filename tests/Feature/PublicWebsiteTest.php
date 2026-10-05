@@ -32,7 +32,7 @@ class PublicWebsiteTest extends TestCase
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('Masjid AlKhair')
+            ->assertSee('AlKhair Platform')
             ->assertSee('Programmes')
             ->assertSee('Visit Us');
     }
@@ -46,7 +46,7 @@ class PublicWebsiteTest extends TestCase
             ->assertOk()
             ->assertSee('lang="ar"', false)
             ->assertSee('dir="rtl"', false)
-            ->assertSee('مسجد الخير');
+            ->assertSee('منصة الخير');
     }
 
     public function test_public_header_hides_language_selection_and_names_the_signed_in_course_app_action(): void

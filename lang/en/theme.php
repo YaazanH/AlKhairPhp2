@@ -21,7 +21,7 @@ return [
     'preview_action' => 'Example action',
     'derived_palette' => 'Derived shades',
     'reset' => 'Reset to default',
-    'reset_help' => 'Remove the custom colour and return this tenant to the AlKhair default.',
+    'reset_help' => 'Remove the custom colour and return this tenant to the platform default.',
     'reset_confirm' => 'Reset this tenant to the default colour theme?',
     'reset_done' => 'The tenant colour theme was reset to the default.',
     'validation' => [

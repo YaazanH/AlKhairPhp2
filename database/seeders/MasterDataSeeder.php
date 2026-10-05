@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AppSetting;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -234,7 +235,7 @@ class MasterDataSeeder extends Seeder
         ], ['code'], ['name', 'is_active', 'updated_at']);
 
         DB::table('app_settings')->upsert([
-            ['group' => 'app', 'key' => 'school_name', 'value' => 'Alkhair', 'type' => 'string', 'created_at' => $now, 'updated_at' => $now],
+            ['group' => 'app', 'key' => 'school_name', 'value' => AppSetting::groupValues('general')->get('school_name') ?: __('ui.app.name'), 'type' => 'string', 'created_at' => $now, 'updated_at' => $now],
             ['group' => 'app', 'key' => 'default_currency', 'value' => 'USD', 'type' => 'string', 'created_at' => $now, 'updated_at' => $now],
             ['group' => 'app', 'key' => 'timezone', 'value' => 'Asia/Damascus', 'type' => 'string', 'created_at' => $now, 'updated_at' => $now],
             ['group' => 'finance', 'key' => 'invoice_prefix', 'value' => 'INV', 'type' => 'string', 'created_at' => $now, 'updated_at' => $now],

@@ -100,6 +100,7 @@ class TenantSetupManager
             AppSetting::storeValue('app', 'timezone', $data['school_timezone']);
             $this->setState('foundation', 'ready');
         });
+        $tenant->update(['name' => trim($data['school_name'])]);
         app(ApplicationTimezone::class)->apply($data['school_timezone']);
 
         return $this->summary($tenant);

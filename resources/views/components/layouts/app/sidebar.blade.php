@@ -9,6 +9,7 @@
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
     $monthLabel = \App\Support\ArabicMonthFormatter::monthYearWithHijri(now());
+    $brandName = app(\App\Support\BrandIdentity::class)->currentName();
 @endphp
 
 <!DOCTYPE html>
@@ -38,7 +39,7 @@
                 <div class="app-sidebar-scroll-region">
                     <div class="px-1 pt-2">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" :justify-subtitle-to-title="true" />
+                            <x-app-logo :title="$brandName" :subtitle="$monthLabel" :justify-subtitle-to-title="true" />
                         </a>
                     </div>
 
@@ -115,7 +116,7 @@
                     <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="{{ $sidebarToggleInset }}" />
 
                     <div class="{{ $mobileIdentitySpacingClass }} min-w-0">
-                        <div class="text-[0.78rem] font-light tracking-normal text-neutral-400">{{ __('ui.app.name') }}</div>
+                        <div class="text-[0.78rem] font-light tracking-normal text-neutral-400">{{ $brandName }}</div>
                         <div class="truncate text-sm text-neutral-200" data-primary-role="{{ $primaryRole ?: '' }}">{{ $roleLabel ?: __('ui.common.workspace') }}</div>
                     </div>
 
