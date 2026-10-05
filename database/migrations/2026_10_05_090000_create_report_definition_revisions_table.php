@@ -19,7 +19,10 @@ return new class extends Migration
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
-            $table->unique(['report_definition_id', 'revision_number']);
+            $table->unique(
+                ['report_definition_id', 'revision_number'],
+                'report_revision_definition_number_unique',
+            );
         });
 
         DB::table('report_definitions')->orderBy('id')->get()->each(function (object $definition): void {

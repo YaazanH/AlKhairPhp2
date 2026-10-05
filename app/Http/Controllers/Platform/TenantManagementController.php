@@ -11,12 +11,11 @@ use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Services\Landlord\PlanModuleManager;
 use App\Services\Landlord\TenantModuleAccess;
-use App\Services\Landlord\TenantStorage;
+use App\Services\Landlord\TenantResources;
 use App\Services\Landlord\TenantStorageUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -178,19 +177,12 @@ class TenantManagementController extends Controller
         return back()->with('status', 'Tenant administrator password reset successfully.');
     }
 
-    public function destroy(Request $request, Tenant $tenant, TenantStorage $storage): RedirectResponse
+    public function destroy(Request $request, Tenant $tenant, TenantResources $resources): RedirectResponse
     {
         $request->validate(['confirm_slug' => ['required', Rule::in([$tenant->slug])]]);
-        $database = $tenant->database_name;
         $uuid = $tenant->uuid;
         $slug = $tenant->slug;
-
-        if ($database !== null && preg_match('/^alkhair_tenant_[a-f0-9]{32}$/', $database)) {
-            DB::connection('tenant')->statement('DROP DATABASE '.$database);
-        }
-
-        File::deleteDirectory(storage_path('app/public/'.$storage->root($tenant)));
-        File::deleteDirectory(storage_path('app/private/'.$storage->root($tenant)));
+        $resources->delete($tenant);
         $tenant->delete();
         PlatformAuditEvent::query()->create(['uuid' => (string) Str::uuid(), 'platform_administrator_id' => $request->user('platform')->id, 'event' => 'tenant_deleted', 'properties' => ['tenant_uuid' => $uuid, 'slug' => $slug], 'ip_address' => $request->ip()]);
 

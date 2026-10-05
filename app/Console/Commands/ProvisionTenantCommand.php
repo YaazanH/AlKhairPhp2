@@ -8,6 +8,7 @@ use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\TenantProvisioningAttempt;
 use App\Services\Landlord\TenantAdministratorProvisioner;
 use App\Services\Landlord\TenantDatabaseName;
+use App\Services\Landlord\TenantResources;
 use App\Services\Landlord\TenantSetupManager;
 use App\Services\Landlord\TenantStorage;
 use Database\Seeders\MasterDataSeeder;
@@ -28,8 +29,12 @@ class ProvisionTenantCommand extends Command
     public function handle(
         TenantDatabaseName $databaseNames,
         TenantStorage $storage,
+        TenantResources $resources,
         TenantAdministratorProvisioner $administrators,
     ): int {
+        set_time_limit(0);
+        ignore_user_abort(true);
+
         $platform = PlatformAdministrator::query()->where('email', $this->option('platform-email'))->firstOrFail();
         $ownerName = $this->option('owner-name') ?: $this->argument('owner-email');
         $ownerPassword = $this->option('owner-password') ?: $this->secret('Tenant owner password');
@@ -70,7 +75,7 @@ class ProvisionTenantCommand extends Command
         $previousPrivateRoot = config('filesystems.disks.local.root');
 
         try {
-            DB::connection('tenant')->statement("CREATE DATABASE `{$database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $resources->createDatabase($tenant);
             config()->set('database.connections.tenant.database', $database);
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
@@ -101,10 +106,33 @@ class ProvisionTenantCommand extends Command
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
-            $tenant->update(['status' => Tenant::STATUS_PROVISIONING_FAILED]);
+            DB::setDefaultConnection($previousConnection);
+            DB::purge('tenant');
+            config()->set('filesystems.disks.public.root', $previousPublicRoot);
+            config()->set('filesystems.disks.local.root', $previousPrivateRoot);
+            app('filesystem')->forgetDisk('public');
+            app('filesystem')->forgetDisk('local');
+
+            $cleanupFailure = null;
+
+            try {
+                $resources->delete($tenant);
+            } catch (\Throwable $cleanupException) {
+                $cleanupFailure = $cleanupException;
+                report($cleanupException);
+            }
+
+            $tenant->domains()->delete();
+            $tenant->update([
+                'database_name' => null,
+                'status' => Tenant::STATUS_PROVISIONING_FAILED,
+            ]);
             $attempt->update([
                 'status' => Tenant::STATUS_PROVISIONING_FAILED,
-                'error_message' => Str::limit($e->getMessage(), 1000),
+                'error_message' => Str::limit(
+                    $e->getMessage().($cleanupFailure ? ' Cleanup also failed: '.$cleanupFailure->getMessage() : ''),
+                    1000,
+                ),
                 'finished_at' => now(),
             ]);
 
