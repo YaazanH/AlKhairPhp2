@@ -147,6 +147,7 @@ return [
         'route' => 'Route',
         'ip_address' => 'IP address',
         'system' => 'System',
+        'platform_management' => 'Platform Management',
         'empty' => 'No changes match the current search criteria.',
         'structure_fields' => [
             'value' => 'Value',

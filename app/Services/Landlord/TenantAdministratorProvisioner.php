@@ -5,6 +5,8 @@ namespace App\Services\Landlord;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\TenantPlatformAdministratorLink;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class TenantAdministratorProvisioner
 {
@@ -32,10 +34,10 @@ class TenantAdministratorProvisioner
         $support = $sameAccount
             ? $owner
             : User::query()->create([
-                'name' => $platform->name,
-                'email' => $platform->email,
-                'username' => 'platform-admin',
-                'password' => $platform->password,
+                'name' => PlatformTenantAccess::SUPPORT_ACTOR_NAME,
+                'email' => 'platform-'.Str::lower($platform->uuid).'@support.invalid',
+                'username' => 'platform-'.Str::lower(Str::substr(str_replace('-', '', $platform->uuid), 0, 16)),
+                'password' => Hash::make(Str::random(64)),
                 'is_active' => true,
                 'must_change_password' => false,
                 'password_changed_at' => now(),

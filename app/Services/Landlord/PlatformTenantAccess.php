@@ -18,6 +18,8 @@ class PlatformTenantAccess
 {
     public const SESSION_KEY = 'platform_support_access';
 
+    public const SUPPORT_ACTOR_NAME = 'Platform Management';
+
     public function createHandoff(PlatformAdministrator $administrator, Tenant $tenant, string $level, ?string $ipAddress): array
     {
         if (! in_array($level, [PlatformTenantHandoff::LEVEL_READ, PlatformTenantHandoff::LEVEL_EDIT, PlatformTenantHandoff::LEVEL_DELETE], true)) {
@@ -145,13 +147,25 @@ class PlatformTenantAccess
             ->first()?->user;
 
         if ($linkedUser) {
+            if (! $linkedUser->is_tenant_administrator) {
+                $linkedUser->forceFill([
+                    'name' => self::SUPPORT_ACTOR_NAME,
+                    'username' => $this->supportUsername($administrator),
+                    'email' => $this->supportEmail($administrator),
+                    'password' => Hash::make(Str::random(64)),
+                    'issued_password' => null,
+                    'must_change_password' => false,
+                    'password_changed_at' => CarbonImmutable::now('UTC'),
+                ])->saveQuietly();
+            }
+
             return $linkedUser;
         }
 
         $user = User::query()->create([
-            'name' => $administrator->name,
-            'username' => 'platform-'.Str::lower(Str::substr(str_replace('-', '', $administrator->uuid), 0, 16)),
-            'email' => 'platform-'.Str::lower($administrator->uuid).'@support.invalid',
+            'name' => self::SUPPORT_ACTOR_NAME,
+            'username' => $this->supportUsername($administrator),
+            'email' => $this->supportEmail($administrator),
             'password' => Hash::make(Str::random(64)),
             'is_active' => true,
             'must_change_password' => false,
@@ -164,6 +178,16 @@ class PlatformTenantAccess
         ]);
 
         return $user;
+    }
+
+    private function supportUsername(PlatformAdministrator $administrator): string
+    {
+        return 'platform-'.Str::lower(Str::substr(str_replace('-', '', $administrator->uuid), 0, 16));
+    }
+
+    private function supportEmail(PlatformAdministrator $administrator): string
+    {
+        return 'platform-'.Str::lower($administrator->uuid).'@support.invalid';
     }
 
     private function audit(?PlatformAdministrator $administrator, Tenant $tenant, string $event, array $properties, ?string $ipAddress): void

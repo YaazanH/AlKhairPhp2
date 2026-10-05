@@ -149,6 +149,7 @@ return [
         'route' => 'المسار',
         'ip_address' => 'عنوان الشبكة',
         'system' => 'النظام',
+        'platform_management' => 'إدارة المنصة',
         'empty' => 'لا توجد تغييرات مطابقة لمعايير البحث.',
         'structure_fields' => [
             'value' => 'القيمة',

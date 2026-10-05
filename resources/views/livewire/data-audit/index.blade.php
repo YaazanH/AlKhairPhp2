@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
+use App\Models\User;
 use App\Services\SidebarNavigationService;
 use App\Support\ApplicationTimezone;
 use App\Support\DataAuditVisibility;
@@ -233,9 +234,24 @@ new class extends Component {
     public function bundleActorLabel(iterable $activities): string
     {
         return collect($activities)
-            ->map(fn (AuditActivity $activity): string => $activity->causer?->name ?? __('data_governance.audit.system'))
+            ->map(fn (AuditActivity $activity): string => $this->activityActorLabel($activity))
             ->unique()
             ->implode(app()->isLocale('ar') ? '، ' : ', ');
+    }
+
+    public function activityActorLabel(AuditActivity $activity): string
+    {
+        if ($activity->getProperty('actor_scope') === 'platform_management') {
+            return __('data_governance.audit.platform_management');
+        }
+
+        $causer = $activity->causer;
+
+        if ($causer instanceof User && $causer->isPlatformAdministrator()) {
+            return __('data_governance.audit.platform_management');
+        }
+
+        return $causer?->name ?? __('data_governance.audit.system');
     }
 
     public function bundleEventLabel(iterable $activities): string

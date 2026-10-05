@@ -9,6 +9,7 @@ use App\Models\Landlord\PlatformPermission;
 use App\Models\Landlord\PlatformRole;
 use App\Models\Landlord\PlatformTenantHandoff;
 use App\Models\Landlord\Tenant;
+use App\Models\User;
 use App\Services\Landlord\PlatformTenantAccess;
 use App\Services\Landlord\TenantContext;
 use App\Support\ApplicationTimezone;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity as AuditActivity;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
@@ -60,6 +62,8 @@ class PlatformTenantSupportAccessTest extends TestCase
         [$user, $supportSession] = app(PlatformTenantAccess::class)->consume($token, $tenant, '127.0.0.2');
 
         $this->assertTrue($user->isPlatformAdministrator());
+        $this->assertSame('Platform Management', $user->name);
+        $this->assertStringEndsWith('@support.invalid', $user->email);
         $this->assertTrue($user->hasRole('super_admin'));
         $this->assertSame('edit', $supportSession['access_level']);
         $this->assertSame($tenant->uuid, $supportSession['tenant_uuid']);
@@ -73,6 +77,38 @@ class PlatformTenantSupportAccessTest extends TestCase
         } catch (HttpException $exception) {
             $this->assertSame(403, $exception->getStatusCode());
         }
+    }
+
+    public function test_tenant_changes_hide_the_platform_identity_while_the_landlord_audit_keeps_it(): void
+    {
+        $administrator = $this->administrator();
+        $tenant = $this->tenant();
+        [, $token] = app(PlatformTenantAccess::class)->createHandoff($administrator, $tenant, 'edit', '127.0.0.1');
+        [$supportUser] = app(PlatformTenantAccess::class)->consume($token, $tenant, '127.0.0.2');
+        Auth::guard('web')->login($supportUser);
+
+        User::query()->create([
+            'name' => 'Tenant User',
+            'username' => 'tenant-user',
+            'email' => 'tenant-user@example.test',
+            'password' => 'temporary-password',
+            'is_active' => true,
+        ]);
+
+        $tenantActivity = AuditActivity::query()
+            ->inLog('data-audit')
+            ->where('causer_id', $supportUser->id)
+            ->latest('id')
+            ->firstOrFail();
+        $platformActivity = PlatformAuditEvent::query()
+            ->where('event', 'tenant_support_session_started')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('platform_management', $tenantActivity->getProperty('actor_scope'));
+        $this->assertSame($administrator->id, $platformActivity->platform_administrator_id);
+        $this->assertSame('Platform Administrator', $platformActivity->platformAdministrator->name);
+        $this->assertSame($tenant->id, $platformActivity->tenant_id);
     }
 
     public function test_platform_permission_limits_the_handoff_level(): void

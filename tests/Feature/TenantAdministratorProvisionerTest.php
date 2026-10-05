@@ -71,7 +71,7 @@ class TenantAdministratorProvisionerTest extends TestCase
         );
 
         $owner = User::query()->where('email', 'tenant-admin@example.test')->sole();
-        $support = User::query()->where('email', 'platform@example.test')->sole();
+        $support = User::query()->where('email', 'like', '%@support.invalid')->sole();
 
         $this->assertSame('tenant-admin@example.test', $owner->username);
         $this->assertTrue($owner->is_tenant_administrator);
@@ -79,6 +79,8 @@ class TenantAdministratorProvisionerTest extends TestCase
         $this->assertNull($owner->password_changed_at);
         $this->assertSame('temporary-password', $owner->issued_password);
         $this->assertFalse($support->is_tenant_administrator);
+        $this->assertSame('Platform Management', $support->name);
+        $this->assertFalse(Hash::check('platform-password', $support->password));
         $this->assertFalse($support->must_change_password);
         $this->assertNotNull($support->password_changed_at);
     }
