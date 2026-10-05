@@ -273,6 +273,10 @@ return [
     'errors' => [
         'query_timeout' => 'This report took too long to calculate. Narrow the date range or filters and try again.',
     ],
+    'compatibility' => [
+        'source_unavailable' => 'This report is paused because its data source or required tenant module is unavailable. Re-enable it to use the report, or delete the saved report if it is no longer needed.',
+        'definition_outdated' => 'This report is paused because a saved field or setting is no longer available. Delete it and create a compatible replacement.',
+    ],
     'preview' => [
         'title' => 'Safe preview',
         'summary' => 'Showing :shown of :total matching records. Previews are limited to 25 rows.',

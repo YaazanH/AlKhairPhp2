@@ -37,6 +37,7 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\ReportDashboardService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
@@ -155,6 +156,104 @@ class ReportDesignerTest extends TestCase
             'subject_id' => $definition->id,
             'event' => 'report_exported',
         ]);
+    }
+
+    public function test_outdated_report_definition_stays_manageable_but_cannot_execute_or_reach_a_dashboard(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'outdated-report-admin']);
+        $administrator->assignRole('admin');
+        $adminRole = Role::findByName('admin', 'web');
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Outdated student report',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name', 'retired_field'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_PUBLISHED,
+            'created_by' => $administrator->id,
+            'updated_by' => $administrator->id,
+        ]);
+        $definition->dashboardRoles()->attach($adminRole->id, ['position' => 1, 'size' => 'medium']);
+
+        $this->actingAs($administrator)
+            ->get(route('reports.designer', absolute: false))
+            ->assertOk()
+            ->assertSee('Outdated student report')
+            ->assertSee(__('report_designer.compatibility.definition_outdated'))
+            ->assertSee('data-report-incompatible', false);
+
+        $this->assertTrue(app(ReportDashboardService::class)->reportsFor($administrator)->isEmpty());
+        $this->get(route('reports.designer.show', $definition, absolute: false))->assertNotFound();
+        $this->get(route('reports.designer.export.xlsx', $definition, absolute: false))->assertNotFound();
+
+        Volt::test('reports.designer')
+            ->call('delete', $definition->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('report_definitions', ['id' => $definition->id]);
+    }
+
+    public function test_report_with_disabled_source_remains_visible_to_the_designer_with_a_clear_warning(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'disabled-source-report-admin']);
+        $administrator->assignRole('admin');
+        ReportDefinition::query()->create([
+            'name' => 'Paused memorization report',
+            'data_source' => ReportDesignerCatalog::MEMORIZATION_SESSIONS,
+            'selected_fields' => ['full_name', 'pages_count'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $administrator->id,
+            'updated_by' => $administrator->id,
+        ]);
+
+        $this->mock(CurrentModuleAccess::class, function ($mock): void {
+            $mock->makePartial();
+            $mock->shouldReceive('enabled')->andReturnUsing(
+                fn (string $module): bool => $module !== 'memorization',
+            );
+        });
+
+        $this->actingAs($administrator)
+            ->get(route('reports.designer', absolute: false))
+            ->assertOk()
+            ->assertSee('Paused memorization report')
+            ->assertSee(__('report_designer.compatibility.source_unavailable'));
+    }
+
+    public function test_full_report_timeout_returns_the_same_clear_error_as_other_report_surfaces(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $owner = User::factory()->create(['username' => 'full-report-timeout-owner']);
+        $owner->givePermissionTo('report-designer.view');
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Slow full report',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $owner->id,
+            'updated_by' => $owner->id,
+        ]);
+
+        $this->mock(ReportDesignerQueryService::class, function ($mock): void {
+            $mock->shouldReceive('preview')->once()->andThrow(new ReportQueryTimeoutException);
+        });
+
+        $this->actingAs($owner)
+            ->get(route('reports.designer.show', $definition, absolute: false))
+            ->assertStatus(422)
+            ->assertSee(__('report_designer.errors.query_timeout'));
     }
 
     public function test_tenant_administrator_can_save_and_preview_a_student_report_draft(): void

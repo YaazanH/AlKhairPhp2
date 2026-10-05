@@ -18,6 +18,7 @@ class ReportDashboardService
     public function __construct(
         protected ReportDefinitionAccess $access,
         protected ReportDesignerCatalog $catalog,
+        protected ReportDefinitionCompatibility $compatibility,
     ) {}
 
     public function landingRouteNameFor(?User $user): ?string
@@ -48,6 +49,7 @@ class ReportDashboardService
             ->with(['dashboardRoles' => fn ($query) => $query
                 ->whereIn('roles.id', $user->roles()->pluck('roles.id'))])
             ->get()
+            ->filter(fn (ReportDefinition $report): bool => $this->compatibility->isCompatible($report, $user))
             ->map(function (ReportDefinition $report): ReportDefinition {
                 $placementRole = RoleRegistry::sortCollection($report->dashboardRoles)->first();
 

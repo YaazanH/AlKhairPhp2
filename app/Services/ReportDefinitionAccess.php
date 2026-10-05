@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ReportDefinitionAccess
 {
+    public function __construct(protected ReportDefinitionCompatibility $compatibility) {}
+
     public function canManageAll(?User $user): bool
     {
         return (bool) $user?->can('report-designer.update')
@@ -16,7 +18,7 @@ class ReportDefinitionAccess
 
     public function canView(?User $user, ReportDefinition $definition): bool
     {
-        if (! $user || ! $this->sourceIsAvailable($user, $definition)) {
+        if (! $user || ! $this->compatibility->isCompatible($definition, $user)) {
             return false;
         }
 

@@ -5,6 +5,7 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\ReportDefinition;
 use App\Models\ReportDefinitionRevision;
 use App\Services\ReportDefinitionAccess;
+use App\Services\ReportDefinitionCompatibility;
 use App\Services\ReportAuditService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerQueryService;
@@ -86,6 +87,19 @@ new class extends Component
     {
         $catalog = app(ReportDesignerCatalog::class);
         $sourceKeys = array_keys($catalog->sources(auth()->user()));
+        $definitions = app(ReportDefinitionAccess::class)->scopeManageable(ReportDefinition::query(), auth()->user())
+            ->with('creator:id,name,username')
+            ->latest('updated_at')
+            ->get();
+        $compatibility = app(ReportDefinitionCompatibility::class);
+        $definitionCompatibility = $definitions->mapWithKeys(
+            fn (ReportDefinition $definition): array => [
+                $definition->id => $compatibility->inspect($definition, auth()->user()),
+            ],
+        );
+        $definitions = $definitions
+            ->filter(fn (ReportDefinition $definition): bool => $definitionCompatibility[$definition->id]['visible'])
+            ->values();
         $historyDefinition = $this->historyDefinitionId
             ? ReportDefinition::query()
                 ->whereIn('data_source', $sourceKeys)
@@ -98,12 +112,10 @@ new class extends Component
         }
 
         return [
-            'definitions' => app(ReportDefinitionAccess::class)->scopeManageable(ReportDefinition::query(), auth()->user())
-                ->with('creator:id,name,username')
-                ->whereIn('data_source', $sourceKeys)
-                ->latest('updated_at')
-                ->get(),
+            'definitions' => $definitions,
+            'definitionCompatibility' => $definitionCompatibility,
             'sources' => $catalog->sources(auth()->user()),
+            'allSources' => $catalog->librarySources(),
             'availableFields' => $catalog->fields($this->dataSource),
             'sortableFields' => $catalog->sortableFields($this->dataSource),
             'statusFilters' => $catalog->statusFilters($this->dataSource),
@@ -256,7 +268,7 @@ new class extends Component
     {
         $this->authorizePermission('report-designer.delete');
         ReportDefinition::query()
-            ->whereIn('data_source', $this->availableSourceKeys())
+            ->tap(fn ($query) => app(ReportDefinitionAccess::class)->scopeManageable($query, auth()->user()))
             ->findOrFail($definitionId)
             ->delete();
 
@@ -769,35 +781,43 @@ new class extends Component
 
             <div class="mt-5 grid gap-3">
                 @forelse ($definitions as $definition)
+                    @php($compatibility = $definitionCompatibility[$definition->id])
                     <article class="rounded-2xl border border-white/10 bg-white/[0.03] p-4" wire:key="report-definition-{{ $definition->id }}">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="truncate font-semibold text-white">{{ $definition->name }}</div>
-                                <div class="mt-1 text-xs text-neutral-400">{{ $sources[$definition->data_source]['label'] ?? $definition->data_source }} · {{ __('report_designer.statuses.'.$definition->status) }}</div>
+                                <div class="mt-1 text-xs text-neutral-400">{{ $allSources[$definition->data_source]['label'] ?? $definition->data_source }} · {{ __('report_designer.statuses.'.$definition->status) }}</div>
+                                @if(! $compatibility['compatible'])
+                                    <div class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100" data-report-incompatible>{{ $compatibility['reason'] }}</div>
+                                @endif
                                 @if($definition->library_item_uuid)
                                     <div class="mt-2 inline-flex rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-200">{{ __('report_library.labels.installed_revision', ['version' => $definition->library_revision]) }}</div>
                                 @endif
                                 <div class="mt-2 text-xs text-neutral-500">{{ __('report_designer.saved.updated', ['date' => $definition->updated_at->diffForHumans()]) }}</div>
                             </div>
                             <div class="flex shrink-0 gap-2">
-                                @can('report-designer.update')
-                                    <button type="button" wire:click="edit({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
-                                    <button type="button" wire:click="openHistory({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.version_history') }}"><x-admin-action-icon name="history" /></button>
-                                @else
-                                    <button type="button" wire:click="viewDefinition({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.open') }}"><x-admin-action-icon name="open" /></button>
-                                @endcan
+                                @if($compatibility['compatible'])
+                                    @can('report-designer.update')
+                                        <button type="button" wire:click="edit({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
+                                        <button type="button" wire:click="openHistory({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.version_history') }}"><x-admin-action-icon name="history" /></button>
+                                    @else
+                                        <button type="button" wire:click="viewDefinition({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.open') }}"><x-admin-action-icon name="open" /></button>
+                                    @endcan
+                                @endif
                                 @can('report-designer.delete')
                                     <button type="button" wire:click="delete({{ $definition->id }})" wire:confirm="{{ __('report_designer.actions.delete_confirm') }}" class="admin-icon-button" title="{{ __('report_designer.actions.delete') }}"><x-admin-action-icon name="delete" /></button>
                                 @endcan
-                                @can('report-dashboard-layout.manage')
+                                @if($compatibility['compatible'] && auth()->user()?->can('report-dashboard-layout.manage'))
                                     <button type="button" wire:click="managePlacement({{ $definition->id }})" class="admin-icon-button" title="{{ __('report_designer.actions.manage_placement') }}"><x-admin-action-icon name="chart" /></button>
-                                @endcan
+                                @endif
                             </div>
                         </div>
-                        <div class="mt-4 flex flex-wrap gap-2 border-t border-white/5 pt-3">
-                            <a href="{{ route('reports.designer.export.xlsx', $definition) }}" class="pill-link text-xs" data-report-export-xlsx>{{ __('report_designer.actions.export_xlsx') }}</a>
-                            <a href="{{ route('reports.designer.export.pdf', $definition) }}" target="_blank" rel="noopener" class="pill-link text-xs" data-report-export-pdf>{{ __('report_designer.actions.export_pdf') }}</a>
-                        </div>
+                        @if($compatibility['compatible'])
+                            <div class="mt-4 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                                <a href="{{ route('reports.designer.export.xlsx', $definition) }}" class="pill-link text-xs" data-report-export-xlsx>{{ __('report_designer.actions.export_xlsx') }}</a>
+                                <a href="{{ route('reports.designer.export.pdf', $definition) }}" target="_blank" rel="noopener" class="pill-link text-xs" data-report-export-pdf>{{ __('report_designer.actions.export_pdf') }}</a>
+                            </div>
+                        @endif
                     </article>
                 @empty
                     <div class="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm leading-6 text-neutral-400">{{ __('report_designer.saved.empty') }}</div>
