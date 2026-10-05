@@ -43,6 +43,7 @@ use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Spatie\Activitylog\Models\Activity as AuditActivity;
@@ -871,6 +872,66 @@ class ReportDesignerTest extends TestCase
         ]);
         $this->assertSame(ReportDefinition::STATUS_PUBLISHED, $firstReport->fresh()->status);
         $this->assertSame([$firstReport->id], app(ReportDashboardService::class)->reportsFor($secondViewer)->pluck('id')->all());
+    }
+
+    public function test_dashboard_widget_cache_is_scoped_and_invalidated_by_access_and_report_changes(): void
+    {
+        $this->seed(RoleSeeder::class);
+        Cache::flush();
+
+        $role = Role::findOrCreate('cached-report-reviewer', 'web');
+        $firstViewer = User::factory()->create(['username' => 'cached-report-first']);
+        $firstViewer->assignRole($role);
+        $secondViewer = User::factory()->create(['username' => 'cached-report-second']);
+        $secondViewer->assignRole($role);
+        $firstStudent = Student::query()->create([
+            'first_name' => 'First',
+            'last_name' => 'Scoped',
+            'student_number' => 'CACHE-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $secondStudent = Student::query()->create([
+            'first_name' => 'Second',
+            'last_name' => 'Scoped',
+            'student_number' => 'CACHE-002',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        app(AccessScopeService::class)->syncUserOverrides($firstViewer, ['student' => [$firstStudent->id]]);
+        app(AccessScopeService::class)->syncUserOverrides($secondViewer, ['student' => [$firstStudent->id]]);
+
+        $definition = ReportDefinition::query()->create([
+            'name' => 'Cached scoped report',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['full_name'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_PUBLISHED,
+        ]);
+        $definition->dashboardRoles()->attach($role->id, ['position' => 1, 'size' => 'medium']);
+
+        $this->mock(ReportDesignerQueryService::class, function ($mock): void {
+            $mock->shouldReceive('preview')->times(4)->andReturn(
+                ['cache_marker' => 1],
+                ['cache_marker' => 2],
+                ['cache_marker' => 3],
+                ['cache_marker' => 4],
+            );
+        });
+
+        $this->assertSame(1, app(ReportDashboardService::class)->widgetsFor($firstViewer)->first()['preview']['cache_marker']);
+        $this->assertSame(1, app(ReportDashboardService::class)->widgetsFor($firstViewer)->first()['preview']['cache_marker']);
+
+        app(AccessScopeService::class)->syncUserOverrides($firstViewer, ['student' => [$secondStudent->id]]);
+        $this->assertSame(2, app(ReportDashboardService::class)->widgetsFor($firstViewer)->first()['preview']['cache_marker']);
+
+        $definition->update([
+            'filters' => ['status' => 'active', 'search' => '', 'date_from' => '', 'date_to' => ''],
+        ]);
+        $this->assertSame(3, app(ReportDashboardService::class)->widgetsFor($firstViewer)->first()['preview']['cache_marker']);
+        $this->assertSame(4, app(ReportDashboardService::class)->widgetsFor($secondViewer)->first()['preview']['cache_marker']);
     }
 
     public function test_courses_and_groups_are_approved_sources_with_operational_counts(): void
