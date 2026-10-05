@@ -8,6 +8,7 @@ use App\Models\Landlord\PlatformTenantHandoff;
 use App\Models\Landlord\Tenant;
 use App\Models\TenantPlatformAdministratorLink;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -35,6 +36,7 @@ class PlatformTenantAccess
             throw ValidationException::withMessages(['access_level' => 'This tenant is not available for support access.']);
         }
 
+        $utcNow = CarbonImmutable::now('UTC');
         $nonce = Str::random(64);
         $plainToken = $nonce.'.'.hash_hmac('sha256', $nonce, (string) config('app.key'));
         $handoff = PlatformTenantHandoff::query()->create([
@@ -43,7 +45,7 @@ class PlatformTenantAccess
             'platform_administrator_id' => $administrator->id,
             'token_hash' => hash('sha256', $plainToken),
             'access_level' => $level,
-            'expires_at' => now()->addMinutes(5),
+            'expires_at' => $utcNow->addMinutes(5),
             'created_ip_address' => $ipAddress,
         ]);
 
@@ -79,9 +81,11 @@ class PlatformTenantAccess
             }
 
             $administrator = $handoff->platformAdministrator;
+            $utcNow = CarbonImmutable::now('UTC');
+            $expiresAt = CarbonImmutable::parse((string) $handoff->getRawOriginal('expires_at'), 'UTC');
             $failure = match (true) {
                 $handoff->consumed_at !== null => 'already_consumed',
-                $handoff->expires_at->isPast() => 'expired',
+                $expiresAt->lessThan($utcNow) => 'expired',
                 ! $administrator?->is_active => 'administrator_inactive',
                 ! $administrator?->hasPlatformPermission('support-access.'.$handoff->access_level) => 'permission_revoked',
                 default => null,
@@ -91,13 +95,17 @@ class PlatformTenantAccess
                 return compact('handoff', 'administrator', 'failure');
             }
 
-            $handoff->update(['consumed_at' => now(), 'consumed_ip_address' => $ipAddress]);
+            $handoff->forceFill([
+                'consumed_at' => $utcNow,
+                'consumed_ip_address' => $ipAddress,
+                'updated_at' => $utcNow,
+            ])->save();
             $user = $this->tenantSupportUser($administrator);
 
             $this->audit($administrator, $tenant, 'tenant_support_session_started', [
                 'handoff_uuid' => $handoff->uuid,
                 'access_level' => $handoff->access_level,
-                'expires_at' => now()->addMinutes(60)->toIso8601String(),
+                'expires_at' => $utcNow->addMinutes(60)->toIso8601String(),
             ], $ipAddress);
 
             return ['session' => [$user, [
@@ -106,7 +114,7 @@ class PlatformTenantAccess
                 'platform_administrator_id' => $administrator->id,
                 'platform_administrator_uuid' => $administrator->uuid,
                 'access_level' => $handoff->access_level,
-                'expires_at' => now()->addMinutes(60)->timestamp,
+                'expires_at' => $utcNow->addMinutes(60)->timestamp,
             ]]];
         });
 
@@ -147,7 +155,7 @@ class PlatformTenantAccess
             'password' => Hash::make(Str::random(64)),
             'is_active' => true,
             'must_change_password' => false,
-            'password_changed_at' => now(),
+            'password_changed_at' => CarbonImmutable::now('UTC'),
         ]);
         $user->assignRole('super_admin');
         TenantPlatformAdministratorLink::query()->create([
@@ -160,13 +168,17 @@ class PlatformTenantAccess
 
     private function audit(?PlatformAdministrator $administrator, Tenant $tenant, string $event, array $properties, ?string $ipAddress): void
     {
-        PlatformAuditEvent::query()->create([
+        $utcNow = CarbonImmutable::now('UTC');
+
+        PlatformAuditEvent::query()->forceCreate([
             'uuid' => (string) Str::uuid(),
             'platform_administrator_id' => $administrator?->id,
             'tenant_id' => $tenant->id,
             'event' => $event,
             'properties' => $properties,
             'ip_address' => $ipAddress,
+            'created_at' => $utcNow,
+            'updated_at' => $utcNow,
         ]);
     }
 }

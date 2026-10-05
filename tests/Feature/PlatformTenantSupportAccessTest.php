@@ -11,6 +11,8 @@ use App\Models\Landlord\PlatformTenantHandoff;
 use App\Models\Landlord\Tenant;
 use App\Services\Landlord\PlatformTenantAccess;
 use App\Services\Landlord\TenantContext;
+use App\Support\ApplicationTimezone;
+use Carbon\CarbonImmutable;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -37,6 +39,7 @@ class PlatformTenantSupportAccessTest extends TestCase
 
     protected function tearDown(): void
     {
+        app(ApplicationTimezone::class)->apply('UTC');
         app(TenantContext::class)->clear();
         DB::purge('landlord');
         parent::tearDown();
@@ -173,6 +176,25 @@ class PlatformTenantSupportAccessTest extends TestCase
         $event = PlatformAuditEvent::query()->where('event', 'tenant_support_handoff_denied')->latest('id')->firstOrFail();
         $this->assertSame('expired', $event->properties['reason']);
         $this->assertSame('127.0.0.2', $event->ip_address);
+    }
+
+    public function test_handoff_created_in_utc_remains_valid_after_tenant_timezone_is_applied(): void
+    {
+        $administrator = $this->administrator();
+        $tenant = $this->tenant();
+        [, $token] = app(PlatformTenantAccess::class)->createHandoff($administrator, $tenant, 'read', '127.0.0.1');
+
+        app(ApplicationTimezone::class)->apply('Asia/Damascus');
+
+        [$user, $supportSession] = app(PlatformTenantAccess::class)->consume($token, $tenant, '127.0.0.1');
+
+        $this->assertTrue($user->isPlatformAdministrator());
+        $this->assertSame('read', $supportSession['access_level']);
+        $this->assertGreaterThan(CarbonImmutable::now('UTC')->addMinutes(59)->timestamp, $supportSession['expires_at']);
+        $this->assertDatabaseHas('platform_audit_events', [
+            'event' => 'tenant_support_session_started',
+            'tenant_id' => $tenant->id,
+        ], 'landlord');
     }
 
     public function test_tampered_handoff_signature_is_rejected(): void
