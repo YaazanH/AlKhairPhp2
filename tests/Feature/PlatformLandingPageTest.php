@@ -83,7 +83,6 @@ class PlatformLandingPageTest extends TestCase
             'is_active' => true,
             'price_syp' => 250000,
             'billing_period_days' => 30,
-            'storage_limit_bytes' => 10 * 1024 * 1024 * 1024,
         ]);
         $plan->features()->sync($features->pluck('id'));
 
@@ -91,7 +90,7 @@ class PlatformLandingPageTest extends TestCase
             ->assertOk()
             ->assertSee('See full package details')
             ->assertSee('Capability 6')
-            ->assertSee('10 GB')
+            ->assertDontSee('10 GB')
             ->assertSee(asset('images/platform-landing/daily-overview.webp'), false)
             ->assertSee(asset('images/platform-landing/learner-progress.webp'), false)
             ->assertSee(asset('images/platform-landing/report-builder.webp'), false);

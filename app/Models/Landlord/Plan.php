@@ -14,7 +14,6 @@ class Plan extends LandlordModel
         'is_active',
         'price_syp',
         'billing_period_days',
-        'storage_limit_bytes',
     ];
 
     protected function casts(): array
@@ -23,7 +22,6 @@ class Plan extends LandlordModel
             'is_active' => 'boolean',
             'price_syp' => 'integer',
             'billing_period_days' => 'integer',
-            'storage_limit_bytes' => 'integer',
         ];
     }
 

@@ -49,9 +49,28 @@ class SubscriptionBillingTest extends TestCase
         $result = $billing->processDueSubscriptions();
         $this->assertSame(1, $result['renewed']);
         $this->assertSame(0, $billing->balance($tenant));
-        $this->assertTrue($subscription->fresh()->ends_at->equalTo(now()->addMonthNoOverflow()));
+        $this->assertTrue($subscription->fresh()->ends_at->equalTo(now()->addDays(30)));
         $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'debit_syp' => 50000, 'type' => 'renewal'], 'landlord');
         $this->assertDatabaseHas('platform_subscription_allocations', ['payment_entry_id' => $payment->id, 'amount_syp' => 50000], 'landlord');
+    }
+
+    public function test_initial_paid_activation_uses_tenant_credit_voucher_and_package_period(): void
+    {
+        $tenant = Tenant::query()->create(['uuid' => (string) Str::uuid(), 'name' => 'New Centre', 'slug' => 'new-centre', 'status' => Tenant::STATUS_DRAFT]);
+        $plan = Plan::query()->create(['code' => 'quarter', 'name' => 'Quarter', 'price_syp' => 120000, 'billing_period_days' => 90, 'is_active' => true]);
+        $voucher = SubscriptionVoucher::query()->create(['code' => 'START25', 'name' => 'Start', 'discount_type' => SubscriptionVoucher::PERCENT, 'discount_value' => 25, 'application_type' => SubscriptionVoucher::APPLICATION_FIRST_PERIOD]);
+        $billing = app(SubscriptionBillingService::class);
+        $admin = $this->admin();
+        $billing->recordOfflinePayment($tenant, 100000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'START-CASH', null, $admin, null);
+
+        $subscription = $billing->activatePackage($tenant, $plan, $voucher, now(), true, $admin, '127.0.0.1');
+
+        $this->assertSame(Tenant::STATUS_ACTIVE, $tenant->fresh()->status);
+        $this->assertSame(TenantSubscription::STATUS_ACTIVE, $subscription->status);
+        $this->assertTrue($subscription->ends_at->equalTo(now()->addDays(90)));
+        $this->assertSame(10000, $billing->balance($tenant));
+        $this->assertDatabaseHas('platform_subscription_ledger_entries', ['tenant_id' => $tenant->id, 'type' => PlatformSubscriptionLedgerEntry::TYPE_ACTIVATION, 'debit_syp' => 90000], 'landlord');
+        $this->assertDatabaseHas('subscription_voucher_redemptions', ['tenant_id' => $tenant->id, 'discount_syp' => 30000, 'final_charge_syp' => 90000], 'landlord');
     }
 
     public function test_voucher_reduces_one_subscription_renewal_and_records_its_snapshot(): void
@@ -120,7 +139,10 @@ class SubscriptionBillingTest extends TestCase
             'grace_ends_at' => now()->subMonth(),
         ]);
 
-        app(SubscriptionBillingService::class)->reactivate($tenant, $this->admin(), null);
+        $billing = app(SubscriptionBillingService::class);
+        $admin = $this->admin();
+        $billing->recordOfflinePayment($tenant, 50000, PlatformSubscriptionLedgerEntry::PAYMENT_METHOD_CASH, now(), 'REACTIVATE-50', null, $admin, null);
+        $billing->reactivate($tenant, $admin, null);
 
         $this->assertSame(Tenant::STATUS_ACTIVE, $tenant->fresh()->status);
         $this->assertNull($tenant->fresh()->suspended_at);
@@ -128,7 +150,7 @@ class SubscriptionBillingTest extends TestCase
         $this->assertNull($subscription->fresh()->cancelled_at);
         $this->assertNull($subscription->fresh()->grace_ends_at);
         $this->assertTrue($subscription->fresh()->starts_at->equalTo(now()));
-        $this->assertTrue($subscription->fresh()->ends_at->equalTo(now()->addMonthNoOverflow()));
+        $this->assertTrue($subscription->fresh()->ends_at->equalTo(now()->addDays(30)));
     }
 
     public function test_partial_payments_remain_as_credit_and_are_allocated_fifo_when_the_balance_is_enough(): void

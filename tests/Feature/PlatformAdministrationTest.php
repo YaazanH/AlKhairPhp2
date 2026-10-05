@@ -144,19 +144,12 @@ class PlatformAdministrationTest extends TestCase
             'email' => 'platform@example.test',
             'password' => 'secret-password',
         ]);
-        $voucher = SubscriptionVoucher::query()->create([
-            'code' => 'START10',
-            'name' => 'Signup discount',
-            'discount_type' => SubscriptionVoucher::PERCENT,
-            'discount_value' => 10,
-            'application_type' => SubscriptionVoucher::APPLICATION_FIRST_PERIOD,
-        ]);
-
         Artisan::shouldReceive('call')
             ->once()
             ->with('saas:provision-tenant', \Mockery::on(fn (array $arguments) => $arguments['--platform-email'] === $administrator->email
-                && $arguments['--plan'] === 'custom_learning'
-                && $arguments['--voucher'] === 'START10'
+                && (float) $arguments['--storage-limit-gb'] === 12.5
+                && ! array_key_exists('--plan', $arguments)
+                && ! array_key_exists('--voucher', $arguments)
                 && $arguments['--timezone'] === 'Asia/Damascus'
                 && $arguments['--locale'] === 'ar'))
             ->andReturn(Command::SUCCESS);
@@ -168,13 +161,12 @@ class PlatformAdministrationTest extends TestCase
                 'owner_name' => 'Tenant Owner',
                 'owner_email' => 'owner@alnoor.test',
                 'owner_password' => 'temporary-password',
-                'plan' => 'custom_learning',
-                'voucher_id' => $voucher->id,
+                'storage_limit_gb' => 12.5,
                 'timezone' => 'Asia/Damascus',
                 'locale' => 'ar',
             ])
             ->assertRedirect(route('platform.dashboard'))
-            ->assertSessionHas('status', __('platform.provisioning.success'));
+            ->assertSessionHas('status');
     }
 
     public function test_platform_administrator_cannot_assign_a_reserved_subdomain_to_a_tenant(): void
@@ -200,7 +192,7 @@ class PlatformAdministrationTest extends TestCase
             ->assertSessionHasErrors('slug');
     }
 
-    public function test_tenant_creation_reports_duplicate_subdomains_and_inactive_packages_clearly(): void
+    public function test_tenant_creation_reports_duplicate_subdomains_clearly(): void
     {
         $this->seed(LandlordCatalogSeeder::class);
         $administrator = PlatformAdministrator::query()->create([
@@ -215,22 +207,17 @@ class PlatformAdministrationTest extends TestCase
             'slug' => 'existing-centre',
             'status' => Tenant::STATUS_ACTIVE,
         ]);
-        Plan::query()->create(['code' => 'inactive_custom', 'name' => 'Inactive Custom', 'is_active' => false]);
         $payload = [
             'name' => 'New Centre',
             'owner_name' => 'Tenant Owner',
             'owner_email' => 'owner@example.test',
             'owner_password' => 'temporary-password',
-            'plan' => 'core',
+            'storage_limit_gb' => 10,
         ];
 
         $this->actingAs($administrator, 'platform')
             ->post(route('platform.tenants.store'), $payload + ['slug' => 'existing-centre'])
             ->assertSessionHasErrors(['slug' => 'This subdomain is already assigned to another tenant.']);
-
-        $this->actingAs($administrator, 'platform')
-            ->post(route('platform.tenants.store'), array_merge($payload, ['slug' => 'new-centre', 'plan' => 'inactive_custom']))
-            ->assertSessionHasErrors(['plan' => 'Choose an active package from the package list.']);
     }
 
     public function test_package_creation_reports_a_duplicate_code_clearly(): void
@@ -272,7 +259,7 @@ class PlatformAdministrationTest extends TestCase
 
         $this->actingAs($administrator, 'platform')
             ->put(route('platform.tenants.subscription.update', $tenant), ['plan' => 'core_finance_printing'])
-            ->assertRedirect(route('platform.dashboard'))
+            ->assertRedirect(route('platform.tenants.subscription', $tenant))
             ->assertSessionHas('status', __('platform.provisioning.subscription_updated'));
 
         $this->assertDatabaseHas('tenant_subscriptions', [
@@ -286,7 +273,7 @@ class PlatformAdministrationTest extends TestCase
         ], 'landlord');
     }
 
-    public function test_platform_owner_can_set_an_annual_subscription_period(): void
+    public function test_package_defines_the_subscription_billing_period(): void
     {
         $this->seed(LandlordCatalogSeeder::class);
         $administrator = PlatformAdministrator::query()->create([
@@ -301,24 +288,23 @@ class PlatformAdministrationTest extends TestCase
             'slug' => 'annual-centre',
             'status' => Tenant::STATUS_ACTIVE,
         ]);
+        Plan::query()->where('code', 'core')->update(['billing_period_days' => 365]);
 
         $this->actingAs($administrator, 'platform')
             ->put(route('platform.tenants.subscription.update', $tenant), [
                 'plan' => 'core',
                 'subscription_status' => TenantSubscription::STATUS_ACTIVE,
-                'period_type' => TenantSubscription::PERIOD_ANNUAL,
                 'starts_at' => '2026-10-01 12:00:00',
                 'renews_automatically' => '1',
             ])
-            ->assertRedirect(route('platform.dashboard'));
+            ->assertRedirect(route('platform.tenants.subscription', $tenant));
 
         $subscription = $tenant->subscription()->sole();
-        $this->assertSame(TenantSubscription::PERIOD_ANNUAL, $subscription->period_type);
         $this->assertTrue($subscription->ends_at->equalTo('2027-10-01 12:00:00'));
         $this->assertTrue($subscription->renews_automatically);
     }
 
-    public function test_custom_subscription_uses_its_selected_end_and_disables_automatic_renewal(): void
+    public function test_trial_length_is_separate_from_the_package_billing_period(): void
     {
         $this->seed(LandlordCatalogSeeder::class);
         $administrator = PlatformAdministrator::query()->create([
@@ -338,17 +324,15 @@ class PlatformAdministrationTest extends TestCase
             ->put(route('platform.tenants.subscription.update', $tenant), [
                 'plan' => 'core',
                 'subscription_status' => TenantSubscription::STATUS_TRIAL,
-                'period_type' => TenantSubscription::PERIOD_CUSTOM,
                 'starts_at' => '2026-10-01 12:00:00',
-                'ends_at' => '2026-10-10 12:00:00',
+                'trial_days' => 9,
                 'renews_automatically' => '1',
             ])
-            ->assertRedirect(route('platform.dashboard'));
+            ->assertRedirect(route('platform.tenants.subscription', $tenant));
 
         $subscription = $tenant->subscription()->sole();
-        $this->assertSame(TenantSubscription::PERIOD_CUSTOM, $subscription->period_type);
         $this->assertTrue($subscription->ends_at->equalTo('2026-10-10 12:00:00'));
-        $this->assertFalse($subscription->renews_automatically);
+        $this->assertSame(TenantSubscription::STATUS_TRIAL, $subscription->status);
     }
 
     public function test_platform_owner_can_update_the_suspended_data_retention_setting(): void
@@ -547,7 +531,7 @@ class PlatformAdministrationTest extends TestCase
             ->put(route('platform.tenants.update', $tenant), [
                 'name' => 'New Name', 'slug' => 'new-name',
                 'timezone' => 'Asia/Damascus', 'locale' => 'ar',
-            ])->assertRedirect(route('platform.tenants.edit', 'old-name'));
+            ])->assertRedirect(route('platform.tenants.organisation', 'old-name'));
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'name' => 'New Name', 'slug' => 'old-name'], 'landlord');
 
@@ -646,12 +630,12 @@ class PlatformAdministrationTest extends TestCase
         $access = app(TenantModuleAccess::class);
         $version = $access->snapshot($tenant)['version'];
 
-        $response = $this->actingAs($administrator, 'platform')->get(route('platform.tenants.edit', $tenant));
+        $response = $this->actingAs($administrator, 'platform')->get(route('platform.tenants.modules', $tenant));
         $response->assertOk()
             ->assertSee('Tenant-specific extras')
             ->assertSee('Grey checked modules are already supplied by the package')
             ->assertSee('data-package-module="finance"', false)
-            ->assertSee('Included by package · manage from the package settings');
+            ->assertSee('Included by package');
         $this->assertMatchesRegularExpression('/<input[^>]+value="finance"[^>]+checked[^>]+disabled/', $response->getContent());
 
         $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.preview', $tenant), [
@@ -660,7 +644,7 @@ class PlatformAdministrationTest extends TestCase
 
         $this->actingAs($administrator, 'platform')->put(route('platform.tenants.extras.update', $tenant), [
             'modules' => ['parent_portal'], 'expected_version' => $version, 'confirm_extras' => '1',
-        ])->assertRedirect(route('platform.tenants.edit', $tenant));
+        ])->assertRedirect(route('platform.tenants.modules', $tenant));
         $snapshot = $access->snapshot($tenant);
         $this->assertContains('finance', $snapshot['enabled']);
         $this->assertContains('parent_portal', $snapshot['enabled']);

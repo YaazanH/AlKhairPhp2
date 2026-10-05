@@ -167,14 +167,14 @@ for safe tenant onboarding. They are not a sprint plan.
 | Status | Implemented |
 | Priority | P1 |
 | Requested outcome | Every tenant has a clear plan, start date, end date, and operational status so the platform can manage trials, renewals, expiry, suspension, and cancellation consistently. |
-| Agreed plan and period model | A plan defines what the tenant receives. A subscription defines its start date, end date, and selected period: monthly, annual, or custom end date. Platform staff manages the subscription. |
+| Agreed plan and period model | A package defines what the tenant receives, its SYP price, and its billing-period length in days. A tenant never selects a second monthly, annual, or custom paid period. The subscription records the calculated start and end dates. Platform staff manages the subscription. |
 | Candidate lifecycle | Draft → Trial or Active → Expiring soon → Expired or Suspended → Cancelled. Renewal returns an eligible tenant to Active. |
 | Agreed expiry path | Show a renewal warning seven days before expiry. When the end date passes, allow a seven-day grace period. When grace ends, suspend the tenant from creating or changing data; never automatically delete tenant data. A renewal reactivates the tenant. |
 | Agreed warning audience | Tenant administrators receive the clear expiry date and renewal guidance in their dashboard. Authorized Platform users see every tenant's subscription state. Regular tenant users do not receive pre-expiry commercial warnings. |
 | Agreed suspended-user message | When a tenant is suspended, all tenant users see a simple service-unavailable message directing them to their organisation administrator. Do not show payment or subscription details to ordinary users. |
 | Agreed cancellation and retention | A Platform user marks a subscription cancelled. The tenant remains usable through its paid end date and grace period, then becomes suspended. Keep suspended tenant data for a retention period controlled in Platform settings, initially twelve months. Permanent deletion is a separate explicit, audited Platform action. |
-| Agreed trial scope | Do not create a separate standalone trial feature. When a short evaluation period is needed, a Platform user creates a normal tenant subscription with a short custom end date; it follows the same warning, grace-period, suspension, and retention rules. |
-| Implemented decisions | Monthly, annual, and custom periods; tenant-administrator expiry warnings; seven-day grace; generic suspended access page; cancellation at paid-period end; Platform-controlled retention setting; explicit audited deletion; and reactivation. |
+| Agreed trial scope | Do not create a separate standalone trial product. A Platform user may activate a newly created tenant with a short trial duration that is separate from the package's paid billing period. It follows the same warning, grace-period, suspension, and retention rules. |
+| Implemented decisions | **Done.** Package-owned billing days, separate short trial duration, tenant-administrator expiry warnings, seven-day grace, generic suspended access page, cancellation at paid-period end, Platform-controlled retention setting, explicit audited deletion, and reactivation. |
 
 ### SAAS-009 — Platform payment recording for offline and online payments
 
@@ -193,7 +193,7 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed price-change rule | A plan price change affects only charges created for future subscription periods. A tenant keeps the recorded price for an already-paid period. |
 | Future online path | Add payment-provider integrations behind a provider interface after the manual flow is proven. Provider callbacks must be verified, idempotent, and audited before changing subscription status. |
 | Boundary | Platform subscription payments are landlord data. They are not the tenant's internal finance, invoices, or student payments. |
-| Implemented decisions | SYP-only offline payments are recorded immediately as immutable prepaid credits with method, paid date, reference, note, receipt number, and recording user. Renewal charges keep price and discount snapshots and allocate available payment credits FIFO. Partial credit remains available; refunds and online providers remain outside this first version. |
+| Implemented decisions | **Done.** SYP-only offline payments are recorded immediately as immutable prepaid credits with method, paid date, reference, note, receipt number, and recording user. Initial paid activation and renewal both require enough balance, create immutable price and discount snapshots, and allocate payment credits FIFO. Partial credit remains available; refunds and online providers remain outside this first version. |
 
 ### SAAS-010 — Voucher and discount codes
 
@@ -274,11 +274,11 @@ for safe tenant onboarding. They are not a sprint plan.
 | Agreed automation | A scheduled Platform job backs up every active tenant's database plus matching public and private tenant storage. Archives are retained on the VPS and made available for authorized manual download. Automatic off-VPS upload is deferred. |
 | Agreed scheduling model | The VPS has one fixed Laravel scheduler cron entry. A Platform Owner manages backup enabled state, frequency, preferred run time, and retention from Platform settings; the application decides when the scheduled job is due. |
 | Agreed retention model | Platform Settings contains a per-tenant backup retention count, initially defaulting to the latest 30 complete backup archives. |
-| Agreed tenant data-size rule | Each subscription plan has one tenant data-size limit. Its purpose is to prevent one tenant's database and files from growing so large that its backups consume an unfair share of VPS storage. Do not create a separate tenant backup quota or a second tenant-facing storage rule. |
+| Agreed tenant data-size rule | Each tenant has one data-size limit, independent of its package. Its purpose is to prevent one tenant's database and files from growing so large that its backups consume an unfair share of VPS storage. Do not create a separate tenant backup quota or a second tenant-facing storage rule. |
 | Agreed tenant storage page | A tenant user with the dedicated **view storage usage** permission can open a Storage page for that tenant only. It shows one total and a plain breakdown of photos/media, uploaded documents, other tenant files, database records, and backup archives. A usage bar shows, for example, **6.2 GB used of 10 GB**. This is informational and does not add separate limits. |
 | Agreed Platform storage overview | A Platform user with **view Platform storage usage** can see every tenant's current total storage usage and the same category breakdown, with tenant-by-tenant comparison, sorting, and the same usage bar. The overview shows usage figures only; it does not grant access to the tenant's files or database contents. |
 | Agreed usage-bar thresholds | Show normal below 80% of the tenant data-size limit, warning from 80% to 99%, and full at 100%. These visual states do not create notifications. |
-| Agreed full-limit behaviour | At 100%, block new file uploads while keeping existing data readable and normal records usable. A tenant administrator can remove unneeded files, or Platform staff can increase the tenant's subscription data-size limit. |
+| Agreed full-limit behaviour | At 100%, block new file uploads while keeping existing data readable and normal records usable. A tenant administrator can remove unneeded files, or Platform staff can increase the tenant-specific data-size limit. |
 | Agreed storage-cleanup safeguard | When backup storage needs space, remove only the oldest verified scheduled archives. Before a new backup completes, always retain at least one verified backup for that same tenant. Never remove the active restore safety backup. If enough space cannot be made while preserving these safeguards, fail the new backup safely and record the failure. |
 | Agreed access | Platform administrators can restore any tenant. A tenant administrator may restore only that tenant's own backup after a prominent destructive-action warning and typed confirmation. Standalone-import remains Platform-only. |
 | Agreed self-restore approval | A tenant administrator's same-tenant restore begins immediately after the required destructive-action warning and typed confirmation. It does not require Platform approval; the mandatory verified safety backup provides the recovery path. |
@@ -382,6 +382,19 @@ for safe tenant onboarding. They are not a sprint plan.
 | Implemented student memorization leaderboard | **Done.** The protected Student memorization leaderboard ranks the top five scoped students by total memorized pages for the report’s selected date range, shows session counts as supporting context, and reuses the existing report leaderboard meaning. The query ranks the complete matching set before applying the preview limit, and installed copies remain editable. |
 | Implemented group memorization ranking | **Done.** The protected Group memorization ranking orders the top five scoped groups by total memorized pages for the selected date range. It presents the top three as a clear podium and the remaining positions as a compact ranked list, includes session counts for context, and remains editable after installation. |
 | Deferred follow-ups | Configurable retention for report revisions and direct tenant-to-tenant report copying remain outside the agreed first version. User formulas and scheduled report delivery are intentionally excluded from the first version. |
+
+### SAAS-017 — Tenant-first provisioning and management workspace
+
+| Field | Value |
+| --- | --- |
+| Status | Implemented |
+| Priority | P1 |
+| Requested outcome | Platform staff creates the tenant organisation first, then manages its package, voucher, balance, payments, storage, modules, and history from a clear settings-style workspace. |
+| Agreed creation boundary | Tenant creation collects organisation identity, immutable subdomain, timezone, language, first tenant administrator, and tenant storage limit. It provisions the isolated database and files but does not select a package, voucher, billing period, or payment. The completed tenant starts in Setup/Draft state. |
+| Agreed management layout | The tenant workspace separates Overview, Organisation, Package, Payments, Storage, Modules, and Activity instead of combining unrelated operations in one edit form. Each page follows Platform role permissions. |
+| Agreed activation sequence | Record offline credit when needed, choose one package and optional voucher, review price, discount, charge, and package-owned period, then activate explicitly. Paid activation fails without enough tenant credit. Trial activation uses a separate short trial duration and does not redefine the package billing period. |
+| Agreed package history | Package activation, changes, cancellation, reactivation, and automatic renewal remain visible in the tenant's Platform activity and package history. Charges and voucher use remain immutable ledger records. |
+| Implemented decisions | **Done.** Provisioning no longer accepts a package or voucher; tenant storage is tenant-owned; packages own price and billing days; paid activation debits prepaid SYP credit with voucher snapshots; and tenant management uses the agreed settings pages with permission-aware navigation. |
 
 ## Future requests
 

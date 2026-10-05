@@ -46,7 +46,7 @@ class TenantModuleExtrasController extends Controller
         }
         $request->session()->forget('platform.tenant_extra_preview.'.$tenant->id);
 
-        return redirect()->route('platform.tenants.edit', $tenant)->with('status', 'Tenant extras updated successfully.');
+        return redirect()->route('platform.tenants.modules', $tenant)->with('status', 'Tenant extras updated successfully.');
     }
 
     private function validated(Request $request): array

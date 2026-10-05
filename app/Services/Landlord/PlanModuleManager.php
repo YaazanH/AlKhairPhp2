@@ -118,7 +118,12 @@ class PlanModuleManager
 
         return DB::connection('landlord')->transaction(function () use ($plan, $name, $code, $selection, $actor, $ipAddress): Plan {
             $copy = Plan::query()->create([
-                'code' => $code, 'name' => $name, 'description' => $plan->description, 'is_active' => true, 'storage_limit_bytes' => $plan->storage_limit_bytes,
+                'code' => $code,
+                'name' => $name,
+                'description' => $plan->description,
+                'is_active' => true,
+                'price_syp' => $plan->price_syp,
+                'billing_period_days' => $plan->billing_period_days,
             ]);
             $copy->features()->sync($this->featureIds($selection['selected']));
             $this->audit($actor, 'plan_duplicated', $copy, [

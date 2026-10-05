@@ -14,6 +14,8 @@ class TenantSubscription extends LandlordModel
 
     public const STATUS_TRIAL = 'trial';
 
+    public const STATUS_PENDING = 'pending';
+
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_SUSPENDED = 'suspended';

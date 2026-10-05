@@ -125,6 +125,13 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('tenants', [TenantProvisioningController::class, 'store'])->middleware('platform.permission:manage.tenants')->name('tenants.store');
         Route::get('tenants/create', [TenantManagementController::class, 'create'])->middleware('platform.permission:manage.tenants')->name('tenants.create');
         Route::get('tenants/{tenant}/edit', [TenantManagementController::class, 'edit'])->middleware('platform.permission:view.tenants')->name('tenants.edit');
+        Route::get('tenants/{tenant}/organisation', [TenantManagementController::class, 'organisation'])->middleware('platform.permission:view.tenants')->name('tenants.organisation');
+        Route::get('tenants/{tenant}/subscription', [TenantManagementController::class, 'subscription'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('tenants.subscription');
+        Route::get('tenants/{tenant}/billing', [TenantManagementController::class, 'billing'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('tenants.billing');
+        Route::get('tenants/{tenant}/storage', [TenantManagementController::class, 'storage'])->middleware('platform.permission:view.storage,manage.tenants')->name('tenants.storage');
+        Route::get('tenants/{tenant}/modules', [TenantManagementController::class, 'modules'])->middleware('platform.permission:view.tenants')->name('tenants.modules');
+        Route::put('tenants/{tenant}/storage', [TenantManagementController::class, 'updateStorage'])->middleware('platform.permission:manage.tenants')->name('tenants.storage.update');
+        Route::get('tenants/{tenant}/activity', [TenantManagementController::class, 'activity'])->middleware('platform.permission:view.tenants')->name('tenants.activity');
         Route::post('tenants/{tenant}/support-access', [TenantSupportAccessController::class, 'store'])->middleware('platform.permission:support-access.read,support-access.edit,support-access.delete')->name('tenants.support-access.store');
         Route::put('tenants/{tenant}', [TenantManagementController::class, 'update'])->middleware('platform.permission:manage.tenants')->name('tenants.update');
         Route::patch('tenants/{tenant}/status', [TenantManagementController::class, 'setStatus'])->middleware('platform.permission:manage.tenants')->name('tenants.status');

@@ -12,6 +12,8 @@ class PlatformSubscriptionLedgerEntry extends LandlordModel
 
     public const TYPE_RENEWAL = 'renewal';
 
+    public const TYPE_ACTIVATION = 'activation';
+
     public const PAYMENT_METHOD_CASH = 'cash';
 
     public const PAYMENT_METHOD_BANK_TRANSFER = 'bank_transfer';

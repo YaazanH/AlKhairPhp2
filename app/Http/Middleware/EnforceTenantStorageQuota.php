@@ -19,9 +19,9 @@ class EnforceTenantStorageQuota
         }
 
         $bytes = collect($request->allFiles())->flatten()->sum(fn ($file) => method_exists($file, 'getSize') ? (int) $file->getSize() : 0);
-        if (app(TenantStorageUsage::class)->wouldExceed($context->tenant()->loadMissing('subscription.plan'), $bytes)) {
+        if (app(TenantStorageUsage::class)->wouldExceed($context->tenant(), $bytes)) {
             throw ValidationException::withMessages([
-                'uploads' => 'Your tenant has reached its storage limit. Delete unused files or backups, or ask the Platform administrator to increase the package limit.',
+                'uploads' => 'Your tenant has reached its storage limit. Delete unused files or backups, or ask the Platform administrator to increase the tenant limit.',
             ]);
         }
 

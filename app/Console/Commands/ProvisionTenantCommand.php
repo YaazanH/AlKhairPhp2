@@ -2,13 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
-use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\TenantProvisioningAttempt;
-use App\Models\Landlord\TenantSubscription;
 use App\Services\Landlord\TenantAdministratorProvisioner;
 use App\Services\Landlord\TenantDatabaseName;
 use App\Services\Landlord\TenantSetupManager;
@@ -24,7 +21,7 @@ use Illuminate\Support\Str;
 
 class ProvisionTenantCommand extends Command
 {
-    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--plan=core} {--voucher=} {--timezone=} {--locale=}';
+    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--storage-limit-gb=} {--timezone=} {--locale=}';
 
     protected $description = 'Create a new isolated tenant database, users, seed data, and storage.';
 
@@ -34,14 +31,6 @@ class ProvisionTenantCommand extends Command
         TenantAdministratorProvisioner $administrators,
     ): int {
         $platform = PlatformAdministrator::query()->where('email', $this->option('platform-email'))->firstOrFail();
-        $plan = Plan::query()->where('code', $this->option('plan'))->firstOrFail();
-        $voucher = filled($this->option('voucher'))
-            ? SubscriptionVoucher::query()
-                ->where('code', Str::upper((string) $this->option('voucher')))
-                ->where('is_active', true)
-                ->whereNull('tenant_id')
-                ->firstOrFail()
-            : null;
         $ownerName = $this->option('owner-name') ?: $this->argument('owner-email');
         $ownerPassword = $this->option('owner-password') ?: $this->secret('Tenant owner password');
         $slug = Str::slug($this->argument('slug'));
@@ -65,6 +54,9 @@ class ProvisionTenantCommand extends Command
             'status' => Tenant::STATUS_PROVISIONING,
             'timezone' => $this->option('timezone') ?: null,
             'locale' => $this->option('locale') ?: null,
+            'storage_limit_bytes' => filled($this->option('storage-limit-gb'))
+                ? (int) round((float) $this->option('storage-limit-gb') * 1024 * 1024 * 1024)
+                : null,
         ]);
         $database = $databaseNames->for($tenant);
         $attempt = TenantProvisioningAttempt::query()->create([
@@ -98,15 +90,14 @@ class ProvisionTenantCommand extends Command
                 ownerPassword: $ownerPassword,
                 platform: $platform,
             );
-            $tenant->update(['database_name' => $database, 'status' => Tenant::STATUS_ACTIVE]);
+            $tenant->update(['database_name' => $database, 'status' => Tenant::STATUS_DRAFT]);
             TenantDomain::query()->create([
                 'tenant_id' => $tenant->id,
                 'host' => $slug.'.'.config('tenancy.base_domain'),
                 'is_primary' => true,
             ]);
-            TenantSubscription::query()->create(['tenant_id' => $tenant->id, 'plan_id' => $plan->id, 'subscription_voucher_id' => $voucher?->id, 'status' => TenantSubscription::STATUS_ACTIVE, 'starts_at' => now(), 'changed_by_platform_administrator_id' => $platform->id]);
             $attempt->update(['status' => Tenant::STATUS_ACTIVE, 'finished_at' => now()]);
-            $this->info("Tenant {$tenant->slug} is active: {$database}");
+            $this->info("Tenant {$tenant->slug} is ready for subscription setup: {$database}");
 
             return self::SUCCESS;
         } catch (\Throwable $e) {

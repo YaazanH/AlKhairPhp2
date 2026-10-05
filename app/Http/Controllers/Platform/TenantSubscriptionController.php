@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Landlord\Plan;
-use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
@@ -13,7 +12,6 @@ use App\Services\Landlord\SubscriptionBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class TenantSubscriptionController extends Controller
@@ -26,60 +24,29 @@ class TenantSubscriptionController extends Controller
             'plan' => ['required', 'string'],
             'voucher_id' => ['nullable', 'integer', 'exists:landlord.subscription_vouchers,id'],
             'subscription_status' => ['nullable', Rule::in([TenantSubscription::STATUS_ACTIVE, TenantSubscription::STATUS_TRIAL])],
-            'period_type' => ['nullable', Rule::in([
-                TenantSubscription::PERIOD_MONTHLY,
-                TenantSubscription::PERIOD_ANNUAL,
-                TenantSubscription::PERIOD_CUSTOM,
-            ])],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after:starts_at'],
+            'trial_days' => ['nullable', 'required_if:subscription_status,'.TenantSubscription::STATUS_TRIAL, 'integer', 'min:1', 'max:365'],
+            'starts_at' => ['nullable', 'date', 'before_or_equal:today'],
             'renews_automatically' => ['nullable', 'boolean'],
         ]);
         $plan = Plan::query()->where('code', $data['plan'])->where('is_active', true)->firstOrFail();
-        $subscription = TenantSubscription::query()->firstOrNew(['tenant_id' => $tenant->id]);
+        $subscription = TenantSubscription::query()->where('tenant_id', $tenant->id)->first();
         $voucher = isset($data['voucher_id']) ? SubscriptionVoucher::query()->findOrFail($data['voucher_id']) : null;
-        if ($voucher && ! $voucher->canBeAssignedTo($tenant) && $subscription->subscription_voucher_id !== $voucher->id) {
+        if ($voucher && ! $voucher->canBeAssignedTo($tenant) && $subscription?->subscription_voucher_id !== $voucher->id) {
             return back()->withErrors(['voucher_id' => 'This voucher is inactive or belongs to another tenant.'])->withInput();
         }
-        $periodType = $data['period_type'] ?? $subscription->period_type ?? TenantSubscription::PERIOD_MONTHLY;
-        $start = isset($data['starts_at']) ? Carbon::parse($data['starts_at']) : ($subscription->starts_at ?? now());
-        $scheduleChanged = ! $subscription->exists || $request->hasAny(['period_type', 'starts_at', 'ends_at']);
-        $end = $subscription->ends_at;
+        $this->billing->activatePackage(
+            $tenant,
+            $plan,
+            $voucher,
+            isset($data['starts_at']) ? Carbon::parse($data['starts_at']) : now(),
+            (bool) ($data['renews_automatically'] ?? false),
+            $request->user('platform'),
+            $request->ip(),
+            ($data['subscription_status'] ?? TenantSubscription::STATUS_ACTIVE) === TenantSubscription::STATUS_TRIAL,
+            (int) ($data['trial_days'] ?? 0),
+        );
 
-        if ($scheduleChanged) {
-            $end = match ($periodType) {
-                TenantSubscription::PERIOD_ANNUAL => $start->copy()->addYearNoOverflow(),
-                TenantSubscription::PERIOD_CUSTOM => isset($data['ends_at']) ? Carbon::parse($data['ends_at']) : null,
-                default => $start->copy()->addMonthNoOverflow(),
-            };
-        }
-
-        if ($periodType === TenantSubscription::PERIOD_CUSTOM && $end === null) {
-            return back()->withErrors(['ends_at' => 'A custom subscription requires an end date.'])->withInput();
-        }
-
-        $status = $subscription->exists
-            ? $subscription->status
-            : ($data['subscription_status'] ?? TenantSubscription::STATUS_ACTIVE);
-        if (! in_array($status, [TenantSubscription::STATUS_CANCELLED, TenantSubscription::STATUS_SUSPENDED], true)) {
-            $status = $data['subscription_status'] ?? $status;
-        }
-
-        $subscription->fill([
-            'plan_id' => $plan->id,
-            'subscription_voucher_id' => $data['voucher_id'] ?? null,
-            'status' => $status,
-            'period_type' => $periodType,
-            'starts_at' => $start,
-            'ends_at' => $end,
-            'renews_automatically' => $periodType !== TenantSubscription::PERIOD_CUSTOM
-                && (bool) ($data['renews_automatically'] ?? false),
-            'changed_by_platform_administrator_id' => $request->user('platform')->id,
-        ]);
-        $subscription->save();
-        PlatformAuditEvent::query()->create(['uuid' => (string) Str::uuid(), 'platform_administrator_id' => $request->user('platform')->id, 'tenant_id' => $tenant->id, 'event' => 'tenant_subscription_updated', 'properties' => ['plan' => $plan->code, 'subscription_id' => $subscription->id, 'status' => $subscription->status, 'period_type' => $subscription->period_type, 'starts_at' => $subscription->starts_at?->toIso8601String(), 'ends_at' => $subscription->ends_at?->toIso8601String()], 'ip_address' => $request->ip()]);
-
-        return redirect()->route('platform.dashboard')->with('status', __('platform.provisioning.subscription_updated'));
+        return redirect()->route('platform.tenants.subscription', $tenant)->with('status', __('platform.provisioning.subscription_updated'));
     }
 
     public function cancel(Request $request, Tenant $tenant): RedirectResponse

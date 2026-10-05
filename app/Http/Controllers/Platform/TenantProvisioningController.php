@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
-use App\Models\Landlord\Plan;
-use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use Illuminate\Console\Command;
 use Illuminate\Http\RedirectResponse;
@@ -24,37 +22,25 @@ class TenantProvisioningController extends Controller
             'owner_password' => ['required', 'string', 'min:8'],
             'timezone' => ['nullable', 'timezone'],
             'locale' => ['nullable', Rule::in(array_keys(config('app.supported_locales', [])))],
-            'plan' => [
-                'required',
-                Rule::in(Plan::query()->where('is_active', true)->pluck('code')->all()),
-            ],
-            'voucher_id' => [
-                'nullable',
-                Rule::exists(SubscriptionVoucher::class, 'id')->where(fn ($query) => $query
-                    ->where('is_active', true)
-                    ->whereNull('tenant_id')),
-            ],
+            'storage_limit_gb' => ['required', 'numeric', 'min:0.1', 'max:100000'],
         ], [
             'slug.alpha_dash' => 'The subdomain may contain only letters, numbers, dashes, and underscores.',
             'slug.not_in' => 'This subdomain is reserved by the platform. Choose another one.',
             'slug.unique' => 'This subdomain is already assigned to another tenant.',
             'owner_password.min' => 'The temporary password must contain at least 8 characters.',
-            'plan.in' => 'Choose an active package from the package list.',
         ], [
             'name' => 'organisation name',
             'slug' => 'subdomain',
             'owner_name' => 'tenant administrator name',
             'owner_email' => 'tenant administrator email',
             'owner_password' => 'temporary password',
-            'plan' => 'initial package',
+            'storage_limit_gb' => 'tenant storage limit',
         ]);
         $exitCode = Artisan::call('saas:provision-tenant', [
             'name' => $data['name'], 'slug' => $data['slug'], 'owner-email' => $data['owner_email'],
-            '--owner-name' => $data['owner_name'], '--owner-password' => $data['owner_password'], '--plan' => $data['plan'],
+            '--owner-name' => $data['owner_name'], '--owner-password' => $data['owner_password'],
             '--platform-email' => $request->user('platform')->email,
-            '--voucher' => isset($data['voucher_id'])
-                ? SubscriptionVoucher::query()->findOrFail($data['voucher_id'])->code
-                : null,
+            '--storage-limit-gb' => $data['storage_limit_gb'],
             '--timezone' => $data['timezone'] ?? null, '--locale' => $data['locale'] ?? null,
         ]);
 
@@ -68,7 +54,10 @@ class TenantProvisioningController extends Controller
                 ->withErrors(['tenant' => $this->friendlyFailureMessage($failure)]);
         }
 
-        return redirect()->route('platform.dashboard')->with('status', __('platform.provisioning.success'));
+        $tenant = Tenant::query()->where('slug', Str::slug($data['slug']))->first();
+
+        return redirect()->route($tenant ? 'platform.tenants.edit' : 'platform.dashboard', $tenant ? [$tenant] : [])
+            ->with('status', 'Tenant workspace created. Add credit and select a package when you are ready to activate it.');
     }
 
     private function friendlyFailureMessage(?string $failure): string

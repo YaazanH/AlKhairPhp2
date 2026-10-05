@@ -2,6 +2,7 @@
 
 namespace App\Services\Landlord;
 
+use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformSubscriptionAllocation;
@@ -19,6 +20,117 @@ use LogicException;
 
 class SubscriptionBillingService
 {
+    public function quote(Tenant $tenant, Plan $plan, ?SubscriptionVoucher $voucher = null, ?TenantSubscription $subscription = null): array
+    {
+        $price = (int) $plan->price_syp;
+        $discount = $voucher && $subscription && $voucher->isUsableFor($tenant, $subscription)
+            ? $voucher->discountFor($price)
+            : 0;
+
+        return [
+            'price_syp' => $price,
+            'discount_syp' => $discount,
+            'charge_syp' => $price - $discount,
+            'balance_syp' => $this->balance($tenant),
+        ];
+    }
+
+    public function activatePackage(
+        Tenant $tenant,
+        Plan $plan,
+        ?SubscriptionVoucher $voucher,
+        CarbonInterface $startsAt,
+        bool $renewsAutomatically,
+        PlatformAdministrator $actor,
+        ?string $ipAddress,
+        bool $trial = false,
+        int $trialDays = 0,
+    ): TenantSubscription {
+        return DB::connection('landlord')->transaction(function () use ($tenant, $plan, $voucher, $startsAt, $renewsAutomatically, $actor, $ipAddress, $trial, $trialDays): TenantSubscription {
+            $voucher = $voucher
+                ? SubscriptionVoucher::query()->lockForUpdate()->findOrFail($voucher->id)
+                : null;
+            $subscription = TenantSubscription::query()->lockForUpdate()->firstOrNew(['tenant_id' => $tenant->id]);
+            $subscription->fill([
+                'plan_id' => $plan->id,
+                'subscription_voucher_id' => $voucher?->id,
+                'status' => TenantSubscription::STATUS_PENDING,
+                'starts_at' => $startsAt,
+                'ends_at' => $trial
+                    ? Carbon::instance($startsAt)->copy()->addDays($trialDays)
+                    : $this->periodEnd($plan, Carbon::instance($startsAt)),
+                'grace_ends_at' => null,
+                'cancelled_at' => null,
+                'cancelled_by_platform_administrator_id' => null,
+                'renews_automatically' => $renewsAutomatically,
+                'changed_by_platform_administrator_id' => $actor->id,
+            ]);
+            $subscription->save();
+
+            if ($voucher && ! $voucher->isUsableFor($tenant, $subscription)) {
+                throw ValidationException::withMessages(['voucher_id' => 'This voucher is unavailable for this tenant or has reached its usage limit.']);
+            }
+
+            $quote = $this->quote($tenant, $plan, $voucher, $subscription);
+            if (! $trial && $quote['balance_syp'] < $quote['charge_syp']) {
+                throw ValidationException::withMessages([
+                    'subscription' => 'The tenant balance is too low. Record at least '.number_format($quote['charge_syp'] - $quote['balance_syp']).' SYP more before activation.',
+                ]);
+            }
+
+            if (! $trial) {
+                $charge = PlatformSubscriptionLedgerEntry::query()->create([
+                    'uuid' => (string) Str::uuid(),
+                    'tenant_id' => $tenant->id,
+                    'tenant_subscription_id' => $subscription->id,
+                    'debit_syp' => $quote['charge_syp'],
+                    'type' => PlatformSubscriptionLedgerEntry::TYPE_ACTIVATION,
+                    'currency' => 'SYP',
+                    'metadata' => [
+                        'plan_code' => $plan->code,
+                        'price_syp' => $quote['price_syp'],
+                        'discount_syp' => $quote['discount_syp'],
+                        'voucher_id' => $voucher?->id,
+                        'voucher_code' => $voucher?->code,
+                        'billing_period_days' => $plan->billing_period_days,
+                        'starts_at' => $subscription->starts_at?->toIso8601String(),
+                        'ends_at' => $subscription->ends_at?->toIso8601String(),
+                    ],
+                    'recorded_by_platform_administrator_id' => $actor->id,
+                ]);
+                $this->allocatePaymentCredits($tenant, $charge);
+                if ($voucher && $quote['discount_syp'] > 0) {
+                    SubscriptionVoucherRedemption::query()->create([
+                        'subscription_voucher_id' => $voucher->id,
+                        'tenant_id' => $tenant->id,
+                        'tenant_subscription_id' => $subscription->id,
+                        'charge_entry_id' => $charge->id,
+                        'original_price_syp' => $quote['price_syp'],
+                        'discount_syp' => $quote['discount_syp'],
+                        'final_charge_syp' => $quote['charge_syp'],
+                    ]);
+                    $voucher->increment('redemptions');
+                }
+            }
+
+            $subscription->update(['status' => $trial ? TenantSubscription::STATUS_TRIAL : TenantSubscription::STATUS_ACTIVE]);
+            $tenant->update(['status' => $trial ? Tenant::STATUS_TRIAL : Tenant::STATUS_ACTIVE, 'suspended_at' => null]);
+            $this->audit($actor, $tenant, 'tenant_subscription_updated', [
+                'subscription_id' => $subscription->id,
+                'plan' => $plan->code,
+                'status' => $subscription->status,
+                'price_syp' => $quote['price_syp'],
+                'discount_syp' => $trial ? 0 : $quote['discount_syp'],
+                'charge_syp' => $trial ? 0 : $quote['charge_syp'],
+                'billing_period_days' => $trial ? $trialDays : $plan->billing_period_days,
+                'starts_at' => $subscription->starts_at?->toIso8601String(),
+                'ends_at' => $subscription->ends_at?->toIso8601String(),
+            ], $ipAddress);
+
+            return $subscription->fresh();
+        });
+    }
+
     public function balance(Tenant $tenant): int
     {
         return (int) PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->sum(DB::raw('credit_syp - debit_syp'));
@@ -95,26 +207,27 @@ class SubscriptionBillingService
 
     public function reactivate(Tenant $tenant, PlatformAdministrator $actor, ?string $ipAddress): TenantSubscription
     {
-        return DB::connection('landlord')->transaction(function () use ($tenant, $actor, $ipAddress): TenantSubscription {
-            $subscription = TenantSubscription::query()->lockForUpdate()->where('tenant_id', $tenant->id)->firstOrFail();
-            $start = now();
+        $subscription = TenantSubscription::query()->with(['plan', 'voucher'])->where('tenant_id', $tenant->id)->firstOrFail();
+        if (! $subscription->ends_at?->isFuture()) {
+            $voucher = $subscription->voucher?->isUsableFor($tenant, $subscription)
+                ? $subscription->voucher
+                : null;
 
-            if ($subscription->period_type === TenantSubscription::PERIOD_CUSTOM) {
-                if (! $subscription->ends_at?->isFuture()) {
-                    throw ValidationException::withMessages([
-                        'subscription' => 'Set a future custom end date before reactivating.',
-                    ]);
-                }
+            return $this->activatePackage(
+                $tenant,
+                $subscription->plan,
+                $voucher,
+                now(),
+                $subscription->renews_automatically,
+                $actor,
+                $ipAddress,
+            );
+        }
 
-                $end = $subscription->ends_at;
-            } else {
-                $end = $this->periodEnd($subscription->period_type, $start);
-            }
-
+        return DB::connection('landlord')->transaction(function () use ($tenant, $subscription, $actor, $ipAddress): TenantSubscription {
+            $subscription = TenantSubscription::query()->lockForUpdate()->findOrFail($subscription->id);
             $subscription->update([
                 'status' => TenantSubscription::STATUS_ACTIVE,
-                'starts_at' => $start,
-                'ends_at' => $end,
                 'grace_ends_at' => null,
                 'cancelled_at' => null,
                 'cancelled_by_platform_administrator_id' => null,
@@ -127,8 +240,8 @@ class SubscriptionBillingService
 
             $this->audit($actor, $tenant, 'tenant_subscription_reactivated', [
                 'subscription_id' => $subscription->id,
-                'starts_at' => $start->toIso8601String(),
-                'ends_at' => $end->toIso8601String(),
+                'starts_at' => $subscription->starts_at?->toIso8601String(),
+                'ends_at' => $subscription->ends_at?->toIso8601String(),
             ], $ipAddress);
 
             return $subscription->fresh();
@@ -157,12 +270,11 @@ class SubscriptionBillingService
                 $discount = $appliedVoucher?->discountFor($price) ?? 0;
                 $charge = $price - $discount;
                 $canRenew = $locked->status !== TenantSubscription::STATUS_CANCELLED
-                    && $locked->period_type !== TenantSubscription::PERIOD_CUSTOM
                     && $locked->renews_automatically;
                 if ($canRenew && $this->balance($tenant) >= $charge) {
                     $start = max(now(), $locked->ends_at);
-                    $end = $this->periodEnd($locked->period_type, $start);
-                    $chargeEntry = PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $locked->id, 'debit_syp' => $charge, 'type' => PlatformSubscriptionLedgerEntry::TYPE_RENEWAL, 'currency' => 'SYP', 'metadata' => ['plan_code' => $plan->code, 'price_syp' => $price, 'discount_syp' => $discount, 'voucher_id' => $appliedVoucher?->id, 'voucher_code' => $appliedVoucher?->code, 'period_type' => $locked->period_type, 'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String()]]);
+                    $end = $this->periodEnd($plan, $start);
+                    $chargeEntry = PlatformSubscriptionLedgerEntry::query()->create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'tenant_subscription_id' => $locked->id, 'debit_syp' => $charge, 'type' => PlatformSubscriptionLedgerEntry::TYPE_RENEWAL, 'currency' => 'SYP', 'metadata' => ['plan_code' => $plan->code, 'price_syp' => $price, 'discount_syp' => $discount, 'voucher_id' => $appliedVoucher?->id, 'voucher_code' => $appliedVoucher?->code, 'billing_period_days' => $plan->billing_period_days, 'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String()]]);
                     $this->allocatePaymentCredits($tenant, $chargeEntry);
                     if ($appliedVoucher && $discount > 0) {
                         SubscriptionVoucherRedemption::query()->create([
@@ -208,12 +320,9 @@ class SubscriptionBillingService
         return $result;
     }
 
-    private function periodEnd(string $periodType, Carbon $start): Carbon
+    private function periodEnd(Plan $plan, Carbon $start): Carbon
     {
-        return match ($periodType) {
-            TenantSubscription::PERIOD_ANNUAL => $start->copy()->addYearNoOverflow(),
-            default => $start->copy()->addMonthNoOverflow(),
-        };
+        return $start->copy()->addDays((int) $plan->billing_period_days);
     }
 
     private function allocatePaymentCredits(Tenant $tenant, PlatformSubscriptionLedgerEntry $charge): void

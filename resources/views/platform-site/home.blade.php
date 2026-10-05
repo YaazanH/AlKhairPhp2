@@ -187,9 +187,6 @@
                             @forelse($plans as $plan)
                                 @php
                                     $isFeatured = $plans->count() > 1 && $loop->iteration === 2;
-                                    $storageLabel = $plan->storage_limit_bytes
-                                        ? rtrim(rtrim(number_format($plan->storage_limit_bytes / 1073741824, 1), '0'), '.').' GB'
-                                        : __('landing.unlimited_storage');
                                 @endphp
                                 <article class="landing-package-card {{ $isFeatured ? 'landing-package-card--featured' : '' }}">
                                     <div class="landing-package-card__topline">
@@ -211,7 +208,6 @@
                                     </div>
                                     <div class="landing-package-card__facts">
                                         <span><b>{{ $plan->features->count() }}</b>{{ trans_choice('landing.capabilities_count', $plan->features->count(), ['count' => $plan->features->count()]) }}</span>
-                                        <span><b>{{ $storageLabel }}</b>{{ __('landing.storage_included') }}</span>
                                     </div>
                                     <ul class="landing-package-card__highlights">
                                         @foreach($plan->features->take(4) as $feature)<li><span>✓</span>{{ $feature->name }}</li>@endforeach
@@ -225,7 +221,6 @@
                                             </ul>
                                             <dl>
                                                 <div><dt>{{ __('landing.billing_cycle') }}</dt><dd>{{ trans_choice('landing.days_count', $plan->billing_period_days, ['count' => $plan->billing_period_days]) }}</dd></div>
-                                                <div><dt>{{ __('landing.storage') }}</dt><dd>{{ $storageLabel }}</dd></div>
                                             </dl>
                                         </div>
                                     </details>

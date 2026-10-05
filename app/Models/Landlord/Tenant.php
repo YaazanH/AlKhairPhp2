@@ -31,12 +31,14 @@ class Tenant extends LandlordModel
         'timezone',
         'locale',
         'logo_path',
+        'storage_limit_bytes',
     ];
 
     protected function casts(): array
     {
         return [
             'suspended_at' => 'datetime',
+            'storage_limit_bytes' => 'integer',
         ];
     }
 

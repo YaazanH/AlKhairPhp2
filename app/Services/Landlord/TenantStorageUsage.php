@@ -11,7 +11,7 @@ class TenantStorageUsage
 {
     public function limit(Tenant $tenant): ?int
     {
-        return $tenant->subscription?->plan?->storage_limit_bytes;
+        return $tenant->storage_limit_bytes;
     }
 
     public function wouldExceed(Tenant $tenant, int $additionalBytes): bool
@@ -24,7 +24,11 @@ class TenantStorageUsage
     public function for(Tenant $tenant): array
     {
         $root = 'tenants/'.strtolower($tenant->uuid);
-        $files = $this->files(storage_path('app/public/'.$root)) + $this->files(storage_path('app/private/'.$root));
+        $publicFiles = $this->files(storage_path('app/public/'.$root));
+        $privateFiles = $this->files(storage_path('app/private/'.$root));
+        $files = collect($publicFiles)->mapWithKeys(
+            fn (int $bytes, string $category): array => [$category => $bytes + $privateFiles[$category]],
+        )->all();
         $backups = (int) TenantBackup::query()->where('tenant_id', $tenant->id)->where('status', TenantBackup::STATUS_COMPLETED)->sum('size_bytes');
         $database = $this->database($tenant);
 

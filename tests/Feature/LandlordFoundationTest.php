@@ -98,11 +98,10 @@ class LandlordFoundationTest extends TestCase
 
     public function test_saas_backup_metadata_and_storage_limit_are_landlord_data(): void
     {
-        $plan = Plan::query()->create([
+        Plan::query()->create([
             'code' => 'storage-limited',
             'name' => 'Storage limited',
             'is_active' => true,
-            'storage_limit_bytes' => 10 * 1024 * 1024 * 1024,
         ]);
         $tenant = Tenant::query()->create([
             'uuid' => (string) Str::uuid(),
@@ -110,6 +109,7 @@ class LandlordFoundationTest extends TestCase
             'slug' => 'al-noor',
             'database_name' => 'alkhair_tenant_'.str_repeat('b', 32),
             'status' => Tenant::STATUS_ACTIVE,
+            'storage_limit_bytes' => 10 * 1024 * 1024 * 1024,
         ]);
         $backup = TenantBackup::query()->create([
             'uuid' => (string) Str::uuid(),
@@ -125,7 +125,7 @@ class LandlordFoundationTest extends TestCase
         $settings = SaasBackupSetting::current();
 
         $this->assertSame(30, $settings->retention_count);
-        $this->assertSame(10 * 1024 * 1024 * 1024, $plan->storage_limit_bytes);
+        $this->assertSame(10 * 1024 * 1024 * 1024, $tenant->storage_limit_bytes);
         $this->assertTrue($backup->isUsable());
         $this->assertTrue($tenant->backups()->whereKey($backup)->exists());
     }
