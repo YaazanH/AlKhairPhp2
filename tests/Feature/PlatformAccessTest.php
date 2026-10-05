@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\PlatformPermission;
 use App\Models\Landlord\PlatformRole;
-use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -70,6 +69,45 @@ class PlatformAccessTest extends TestCase
         $manager->roles()->sync([$role->id]);
         $this->actingAs($manager, 'platform')->get(route('platform.access.index'))->assertOk();
         $this->actingAs($manager, 'platform')->post(route('platform.access.roles.store'), ['name' => 'Nope'])->assertForbidden();
+    }
+
+    public function test_platform_user_grid_can_filter_by_search_and_status(): void
+    {
+        $owner = $this->administrator('owner@example.test');
+        PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Inactive Finance User',
+            'email' => 'finance@example.test',
+            'password' => 'secret-password',
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($owner, 'platform')
+            ->get(route('platform.access.index', ['search' => 'Finance', 'status' => 'inactive']))
+            ->assertOk()
+            ->assertSee('data-platform-users-grid', false)
+            ->assertSee('Inactive Finance User')
+            ->assertDontSee('data-platform-user-row="'.$owner->id.'"', false)
+            ->assertDontSee('data-platform-user-card="'.$owner->id.'"', false);
+    }
+
+    public function test_delegated_user_manager_cannot_assign_platform_roles_while_creating_a_user(): void
+    {
+        $owner = $this->administrator('owner@example.test');
+        $managerRole = PlatformRole::query()->create(['name' => 'User manager']);
+        $managerRole->permissions()->sync([PlatformPermission::query()->where('code', 'manage.platform-users')->sole()->id]);
+        $manager = $this->administrator('manager@example.test');
+        $manager->roles()->sync([$managerRole->id]);
+
+        $this->actingAs($manager, 'platform')->post(route('platform.access.users.store'), [
+            'name' => 'Attempted Owner',
+            'email' => 'attempted-owner@example.test',
+            'password' => 'temporary-password',
+            'password_confirmation' => 'temporary-password',
+            'roles' => [$owner->roles()->where('is_owner', true)->sole()->id],
+        ])->assertSessionHasErrors('roles', errorBag: 'platformUserForm');
+
+        $this->assertDatabaseMissing('platform_administrators', ['email' => 'attempted-owner@example.test'], 'landlord');
     }
 
     private function administrator(string $email): PlatformAdministrator
