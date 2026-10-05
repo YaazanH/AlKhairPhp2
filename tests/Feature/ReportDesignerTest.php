@@ -59,6 +59,85 @@ class ReportDesignerTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_layout_manager_can_preview_a_report_with_one_role_and_a_representative_user_record_scope(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'role-preview-admin']);
+        $administrator->assignRole('admin');
+        $role = Role::findOrCreate('scoped-report-reviewer', 'web');
+        $representative = User::factory()->create([
+            'name' => 'Scoped Reviewer',
+            'username' => 'scoped-report-reviewer',
+        ]);
+        $representative->assignRole($role);
+        $visible = Student::query()->create([
+            'first_name' => 'Visible',
+            'last_name' => 'Student',
+            'student_number' => 'ROLE-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        Student::query()->create([
+            'first_name' => 'Hidden',
+            'last_name' => 'Student',
+            'student_number' => 'ROLE-002',
+            'birth_date' => '2014-01-02',
+            'status' => 'active',
+        ]);
+        app(AccessScopeService::class)->syncUserOverrides($representative, ['student' => [$visible->id]]);
+
+        $this->actingAs($administrator);
+
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('name', 'Role scoped students')
+            ->set('selectedFields', ['student_number', 'full_name'])
+            ->set('previewRoleId', $role->id)
+            ->assertSee('Scoped Reviewer')
+            ->set('previewUserId', $representative->id)
+            ->call('preview')
+            ->assertHasNoErrors()
+            ->assertSee('Visible Student')
+            ->assertDontSee('Hidden Student')
+            ->assertSee('data-report-role-preview-result', false);
+
+        $this->assertTrue($representative->fresh()->hasExactRoles($role));
+    }
+
+    public function test_role_preview_requires_a_valid_member_and_does_not_inherit_direct_user_permissions(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $administrator = User::factory()->create(['username' => 'role-preview-security-admin']);
+        $administrator->assignRole('admin');
+        $role = Role::findOrCreate('non-finance-reviewer', 'web');
+        $representative = User::factory()->create(['username' => 'direct-finance-reviewer']);
+        $representative->assignRole($role);
+        $representative->givePermissionTo('finance.reports.view');
+        $outsider = User::factory()->create(['username' => 'role-preview-outsider']);
+
+        $this->actingAs($administrator);
+
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('previewRoleId', $role->id)
+            ->call('preview')
+            ->assertHasErrors('previewUserId')
+            ->set('previewUserId', $outsider->id)
+            ->call('preview')
+            ->assertHasErrors('previewUserId');
+
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('dataSource', ReportDesignerCatalog::FINANCE_TRANSACTIONS)
+            ->set('previewRoleId', $role->id)
+            ->set('previewUserId', $representative->id)
+            ->call('preview')
+            ->assertHasErrors('preview')
+            ->assertSee(__('report_designer.role_preview.source_unavailable'));
+    }
+
     public function test_mysql_report_timeout_errors_are_recognized_without_hiding_other_database_errors(): void
     {
         $service = app(ReportDesignerQueryService::class);

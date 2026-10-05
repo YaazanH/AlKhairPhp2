@@ -4,6 +4,7 @@ use App\Exceptions\ReportQueryTimeoutException;
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\ReportDefinition;
 use App\Models\ReportDefinitionRevision;
+use App\Models\User;
 use App\Services\ReportDefinitionAccess;
 use App\Services\ReportDefinitionCompatibility;
 use App\Services\ReportAuditService;
@@ -63,6 +64,10 @@ new class extends Component
 
     public array $previewResult = [];
 
+    public ?int $previewRoleId = null;
+
+    public ?int $previewUserId = null;
+
     public ?int $placementDefinitionId = null;
 
     public array $placementRoleIds = [];
@@ -87,6 +92,19 @@ new class extends Component
     public function with(): array
     {
         $catalog = app(ReportDesignerCatalog::class);
+        $canTestRole = auth()->user()?->can('report-dashboard-layout.manage') ?? false;
+        $dashboardRoles = $canTestRole ? $this->availableDashboardRoles() : collect();
+        $previewRole = $this->previewRoleId
+            ? $dashboardRoles->firstWhere('id', $this->previewRoleId)
+            : null;
+        $previewUsers = $previewRole
+            ? User::query()
+                ->where('is_active', true)
+                ->whereHas('roles', fn ($query) => $query->whereKey($previewRole->id))
+                ->orderBy('name')
+                ->orderBy('username')
+                ->get(['id', 'name', 'username'])
+            : collect();
         $sourceKeys = array_keys($catalog->sources(auth()->user()));
         $definitions = app(ReportDefinitionAccess::class)->scopeManageable(ReportDefinition::query(), auth()->user())
             ->with('creator:id,name,username')
@@ -139,7 +157,15 @@ new class extends Component
                     'date_to' => $this->dateTo,
                 ],
             ], auth()->user()),
-            'dashboardRoles' => auth()->user()?->can('report-dashboard-layout.manage') ? $this->availableDashboardRoles() : collect(),
+            'dashboardRoles' => $dashboardRoles,
+            'previewRole' => $previewRole,
+            'previewUsers' => $previewUsers,
+            'previewRoleHasPlacement' => $previewRole && $this->editingId
+                ? ReportDefinition::query()
+                    ->whereKey($this->editingId)
+                    ->whereHas('dashboardRoles', fn ($query) => $query->whereKey($previewRole->id))
+                    ->exists()
+                : false,
             'historyDefinition' => $historyDefinition,
             'historyRevisions' => $historyDefinition
                 ? $historyDefinition->revisions()->with('creator:id,name,username')->latest('revision_number')->get()
@@ -166,6 +192,8 @@ new class extends Component
         $this->dateTo = '';
         $this->sortField = '';
         $this->previewResult = [];
+        $this->previewRoleId = null;
+        $this->previewUserId = null;
         $this->resetValidation();
     }
 
@@ -261,6 +289,21 @@ new class extends Component
             $definition = $this->validatedDefinition(false);
         }
 
+        $previewUser = $this->rolePreviewUser();
+        if ($this->getErrorBag()->has('previewUserId')) {
+            $this->previewResult = [];
+
+            return;
+        }
+        $previewUser ??= auth()->user();
+
+        if (! array_key_exists($definition['data_source'], app(ReportDesignerCatalog::class)->sources($previewUser))) {
+            $this->previewResult = [];
+            $this->addError('preview', __('report_designer.role_preview.source_unavailable'));
+
+            return;
+        }
+
         try {
             $this->previewResult = app(ReportDesignerQueryService::class)->preview([
                 'data_source' => $definition['data_source'],
@@ -270,7 +313,7 @@ new class extends Component
                 'filters' => $definition['filters'],
                 'sort_field' => $definition['sort_field'],
                 'sort_direction' => $definition['sort_direction'],
-            ], auth()->user());
+            ], $previewUser);
             $this->resetErrorBag('preview');
         } catch (ReportQueryTimeoutException $exception) {
             $this->previewResult = [];
@@ -641,7 +684,58 @@ new class extends Component
         $this->sortField = '';
         $this->sortDirection = 'asc';
         $this->previewResult = [];
+        $this->previewRoleId = null;
+        $this->previewUserId = null;
         $this->resetValidation();
+    }
+
+    public function updatedPreviewRoleId(): void
+    {
+        $this->previewUserId = null;
+        $this->previewResult = [];
+        $this->resetValidation(['previewRoleId', 'previewUserId', 'preview']);
+    }
+
+    public function updatedPreviewUserId(): void
+    {
+        $this->previewResult = [];
+        $this->resetValidation(['previewUserId', 'preview']);
+    }
+
+    protected function rolePreviewUser(): ?User
+    {
+        if (! $this->previewRoleId) {
+            $this->previewUserId = null;
+
+            return null;
+        }
+
+        abort_unless(auth()->user()?->can('report-dashboard-layout.manage'), 403);
+
+        $role = $this->availableDashboardRoles()->firstWhere('id', $this->previewRoleId);
+        if (! $role || ! $this->previewUserId) {
+            $this->addError('previewUserId', __('report_designer.role_preview.user_required'));
+
+            return null;
+        }
+
+        $user = User::query()
+            ->whereKey($this->previewUserId)
+            ->where('is_active', true)
+            ->whereHas('roles', fn ($query) => $query->whereKey($role->id))
+            ->first();
+
+        if (! $user) {
+            $this->addError('previewUserId', __('report_designer.role_preview.user_invalid'));
+
+            return null;
+        }
+
+        $previewUser = clone $user;
+        $previewUser->setRelation('roles', collect([$role]));
+        $previewUser->setRelation('permissions', collect());
+
+        return $previewUser;
     }
 
     protected function mayPreserveSpecializedPresentation(): bool
@@ -1059,6 +1153,52 @@ new class extends Component
                         @endif
                     </section>
 
+                    @can('report-dashboard-layout.manage')
+                        <section class="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] p-4" data-report-role-preview>
+                            <div class="eyebrow">{{ __('report_designer.role_preview.eyebrow') }}</div>
+                            <h3 class="mt-2 text-lg font-semibold text-white">{{ __('report_designer.role_preview.title') }}</h3>
+                            <p class="mt-2 text-sm leading-6 text-neutral-300">{{ __('report_designer.role_preview.help') }}</p>
+
+                            <div class="mt-4 grid gap-4 md:grid-cols-2">
+                                <label class="grid gap-2 text-sm text-neutral-200">
+                                    <span>{{ __('report_designer.role_preview.role') }}</span>
+                                    <select wire:model.live="previewRoleId" class="rounded-xl px-4 py-3">
+                                        <option value="">{{ __('report_designer.role_preview.my_access') }}</option>
+                                        @foreach($dashboardRoles as $role)
+                                            <option value="{{ $role->id }}">{{ $role->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+
+                                <label class="grid gap-2 text-sm text-neutral-200">
+                                    <span>{{ __('report_designer.role_preview.representative_user') }}</span>
+                                    <select wire:model.live="previewUserId" class="rounded-xl px-4 py-3" @disabled(! $previewRoleId)>
+                                        <option value="">{{ $previewRoleId ? __('report_designer.role_preview.choose_user') : __('report_designer.role_preview.choose_role_first') }}</option>
+                                        @foreach($previewUsers as $previewUser)
+                                            <option value="{{ $previewUser->id }}">{{ $previewUser->name ?: $previewUser->username }}@if($previewUser->name && $previewUser->username) ({{ $previewUser->username }})@endif</option>
+                                        @endforeach
+                                    </select>
+                                    @error('previewUserId') <span class="text-xs text-red-300">{{ $message }}</span> @enderror
+                                </label>
+                            </div>
+
+                            @if($previewRole)
+                                <div class="mt-4 rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-xs leading-5 text-neutral-300">
+                                    <p>{{ __('report_designer.role_preview.scope_help', ['role' => $previewRole->name]) }}</p>
+                                    @if($editingId)
+                                        <p @class(['mt-2 font-semibold', 'text-emerald-200' => $previewRoleHasPlacement, 'text-amber-200' => ! $previewRoleHasPlacement])>
+                                            {{ $previewRoleHasPlacement
+                                                ? __('report_designer.role_preview.visible_on_dashboard')
+                                                : __('report_designer.role_preview.not_visible_on_dashboard') }}
+                                        </p>
+                                    @else
+                                        <p class="mt-2 font-semibold text-amber-200">{{ __('report_designer.role_preview.unsaved_visibility') }}</p>
+                                    @endif
+                                </div>
+                            @endif
+                        </section>
+                    @endcan
+
                     @error('preview')
                         <div class="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-100" data-report-timeout-error>{{ $message }}</div>
                     @enderror
@@ -1078,6 +1218,17 @@ new class extends Component
                         <div>
                             <div class="admin-grid-meta__title">{{ __('report_designer.preview.title') }}</div>
                             <div class="mt-1 text-xs text-neutral-400">{{ __('report_designer.preview.summary', ['shown' => count($previewResult['rows']), 'total' => $previewResult['total']]) }}</div>
+                            @if($previewRole && $previewUserId)
+                                @php($testedUser = $previewUsers->firstWhere('id', $previewUserId))
+                                @if($testedUser)
+                                    <div class="mt-2 inline-flex rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-100" data-report-role-preview-result>
+                                        {{ __('report_designer.role_preview.result_context', [
+                                            'role' => $previewRole->name,
+                                            'user' => $testedUser->name ?: $testedUser->username,
+                                        ]) }}
+                                    </div>
+                                @endif
+                            @endif
                         </div>
                     </div>
                     @if (($previewResult['calculations'] ?? []) !== [])
