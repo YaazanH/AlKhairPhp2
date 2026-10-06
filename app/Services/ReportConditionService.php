@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
@@ -12,7 +13,10 @@ class ReportConditionService
 
     public const CONDITION_LIMIT = 20;
 
-    public function __construct(private readonly ReportDesignerCatalog $catalog) {}
+    public function __construct(
+        private readonly ReportDesignerCatalog $catalog,
+        private readonly AccessScopeService $accessScopes,
+    ) {}
 
     public function emptyTree(): array
     {
@@ -34,13 +38,14 @@ class ReportConditionService
         ];
     }
 
-    public function fields(string $source): array
+    public function fields(string $source, array $relationships = []): array
     {
         $definitions = $this->definitions()[$source] ?? [];
         $fields = $this->catalog->fields($source);
 
         return collect($definitions)
-            ->filter(fn (array $definition, string $key): bool => isset($fields[$key]))
+            ->filter(fn (array $definition, string $key): bool => isset($fields[$key])
+                && (! isset($definition['relationship']) || in_array($definition['relationship'], $relationships, true)))
             ->mapWithKeys(function (array $definition, string $key) use ($fields, $source): array {
                 $type = $fields[$key]['type'];
                 $options = $definition['options'] ?? $this->statusOptions($source, $type);
@@ -94,10 +99,10 @@ class ReportConditionService
         };
     }
 
-    public function validate(string $source, mixed $tree): array
+    public function validate(string $source, mixed $tree, array $relationships = []): array
     {
         $tree = $this->editorTree($tree);
-        $fields = $this->fields($source);
+        $fields = $this->fields($source, $relationships);
         $groups = $tree['groups'];
 
         if (count($groups) > self::GROUP_LIMIT || collect($groups)->sum(fn (array $group): int => count($group['conditions'])) > self::CONDITION_LIMIT) {
@@ -150,35 +155,36 @@ class ReportConditionService
         return ['operator' => $tree['operator'], 'groups' => $normalizedGroups];
     }
 
-    public function apply(Builder $query, string $source, mixed $tree): void
+    public function apply(Builder $query, string $source, mixed $tree, array $relationships = [], ?User $user = null): void
     {
-        $tree = $this->validate($source, $tree);
+        $tree = $this->validate($source, $tree, $relationships);
         if ($tree['groups'] === []) {
             return;
         }
 
-        $fieldCatalog = $this->fields($source);
+        $fieldCatalog = $this->fields($source, $relationships);
         $definitions = collect($this->definitions()[$source])
+            ->only(array_keys($fieldCatalog))
             ->mapWithKeys(fn (array $definition, string $field): array => [
                 $field => $definition + ['type' => $fieldCatalog[$field]['type']],
             ])->all();
-        $query->where(function (Builder $root) use ($tree, $definitions): void {
+        $query->where(function (Builder $root) use ($tree, $definitions, $user): void {
             foreach ($tree['groups'] as $groupIndex => $group) {
                 $rootMethod = $groupIndex === 0 || $tree['operator'] === 'and' ? 'where' : 'orWhere';
-                $root->{$rootMethod}(function (Builder $nested) use ($group, $definitions): void {
+                $root->{$rootMethod}(function (Builder $nested) use ($group, $definitions, $user): void {
                     foreach ($group['conditions'] as $conditionIndex => $condition) {
                         $method = $conditionIndex === 0 || $group['operator'] === 'and' ? 'where' : 'orWhere';
-                        $nested->{$method}(fn (Builder $leaf) => $this->applyLeaf($leaf, $definitions[$condition['field']], $condition));
+                        $nested->{$method}(fn (Builder $leaf) => $this->applyLeaf($leaf, $definitions[$condition['field']], $condition, $user));
                     }
                 });
             }
         });
     }
 
-    public function describe(string $source, mixed $tree): ?string
+    public function describe(string $source, mixed $tree, array $relationships = []): ?string
     {
         try {
-            $tree = $this->validate($source, $tree);
+            $tree = $this->validate($source, $tree, $relationships);
         } catch (ValidationException) {
             return __('report_designer.conditions.incomplete');
         }
@@ -187,7 +193,7 @@ class ReportConditionService
             return null;
         }
 
-        $fields = $this->fields($source);
+        $fields = $this->fields($source, $relationships);
         $groups = collect($tree['groups'])->map(function (array $group) use ($fields): string {
             $parts = collect($group['conditions'])->map(function (array $condition) use ($fields): string {
                 $field = $fields[$condition['field']];
@@ -247,8 +253,14 @@ class ReportConditionService
         return $value;
     }
 
-    private function applyLeaf(Builder $query, array $definition, array $condition): void
+    private function applyLeaf(Builder $query, array $definition, array $condition, ?User $user = null): void
     {
+        if (isset($definition['relation']) || isset($definition['relations'])) {
+            $this->applyRelationshipLeaf($query, $definition, $condition, $user);
+
+            return;
+        }
+
         $column = $definition['column'];
         $operator = $condition['operator'];
         $value = $this->databaseValue($definition, $condition['value']);
@@ -290,6 +302,46 @@ class ReportConditionService
             'is_empty' => $query->where(fn (Builder $empty) => $empty->whereNull($column)->orWhere($column, '')),
             'is_not_empty' => $query->whereNotNull($column)->where($column, '!=', ''),
         };
+    }
+
+    private function applyRelationshipLeaf(Builder $query, array $definition, array $condition, ?User $user): void
+    {
+        $relations = array_values(array_filter((array) ($definition['relations'] ?? $definition['relation'] ?? [])));
+        $innerDefinition = Arr::except($definition, ['relationship', 'relation', 'relations', 'scope']);
+        $operator = $condition['operator'];
+
+        if ($operator === 'not_equals' || $operator === 'is_empty') {
+            $inverse = $condition;
+            $inverse['operator'] = $operator === 'not_equals' ? 'equals' : 'is_not_empty';
+
+            foreach ($relations as $relation) {
+                $query->whereDoesntHave($relation, function (Builder $related) use ($definition, $innerDefinition, $inverse, $user): void {
+                    $this->applyRelationshipScope($related, $definition, $user);
+                    $this->applyLeaf($related, $innerDefinition, $inverse, $user);
+                });
+            }
+
+            return;
+        }
+
+        $query->where(function (Builder $matches) use ($relations, $definition, $innerDefinition, $condition, $user): void {
+            foreach ($relations as $index => $relation) {
+                $method = $index === 0 ? 'whereHas' : 'orWhereHas';
+                $matches->{$method}($relation, function (Builder $related) use ($definition, $innerDefinition, $condition, $user): void {
+                    $this->applyRelationshipScope($related, $definition, $user);
+                    $this->applyLeaf($related, $innerDefinition, $condition, $user);
+                });
+            }
+        });
+    }
+
+    private function applyRelationshipScope(Builder $query, array $definition, ?User $user): void
+    {
+        if (($definition['scope'] ?? null) !== 'groups' || $this->accessScopes->isUnrestricted($user)) {
+            return;
+        }
+
+        $query->whereIn($query->qualifyColumn('id'), $this->accessScopes->accessibleGroupIds($user));
     }
 
     private function applyRawOperator(Builder $query, string $expression, string $operator, mixed $value): void
@@ -383,6 +435,17 @@ class ReportConditionService
             ],
             ReportDesignerCatalog::ASSESSMENTS => [
                 'assessment_title' => ['column' => 'title'],
+                'assessment_type' => [
+                    'column' => 'name',
+                    'relation' => 'type',
+                    'relationship' => 'assessment_type',
+                ],
+                'assessment_groups' => [
+                    'column' => 'name',
+                    'relations' => ['group', 'groups'],
+                    'relationship' => 'assessment_groups',
+                    'scope' => 'groups',
+                ],
                 'scheduled_at' => ['column' => 'scheduled_at'],
                 'due_at' => ['column' => 'due_at'],
                 'total_mark' => ['column' => 'total_mark'],

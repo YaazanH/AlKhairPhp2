@@ -397,7 +397,7 @@ return [
     ],
     'conditions' => [
         'title' => 'Advanced conditions',
-        'help' => 'Build permanent report rules with approved fields. Conditions inside a group and separate groups can independently match all (AND) or any (OR). Existing status, search, and date filters are also applied.',
+        'help' => 'Build permanent report rules with approved fields. Related fields become available after you connect their approved relationship above. Conditions inside a group and separate groups can independently match all (AND) or any (OR). Existing status, search, and date filters are also applied.',
         'add_group' => 'Add condition group',
         'add_condition' => 'Add condition',
         'remove_group' => 'Remove condition group',

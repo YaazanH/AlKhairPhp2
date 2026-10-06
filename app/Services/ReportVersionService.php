@@ -103,11 +103,15 @@ class ReportVersionService
         );
 
         $filters = (array) ($snapshot['filters'] ?? []);
-        $filters['condition_tree'] = $this->conditions->validate($source, $filters['condition_tree'] ?? []);
         $relationships = $this->relationships->resolve(
             $source,
             $snapshot['relationships'] ?? null,
-            $this->relationships->usedFields($snapshot + ['filters' => $filters]),
+            $this->relationships->usedFields($snapshot),
+        );
+        $filters['condition_tree'] = $this->conditions->validate(
+            $source,
+            $filters['condition_tree'] ?? [],
+            $relationships,
         );
         $relationshipModes = $this->relationships->validateModes(
             $source,

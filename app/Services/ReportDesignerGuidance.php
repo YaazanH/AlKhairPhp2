@@ -76,7 +76,7 @@ class ReportDesignerGuidance
             ->values()
             ->all();
         $conditionTree = $filters['condition_tree'] ?? [];
-        $conditionSummary = $this->conditions->describe($source, $conditionTree);
+        $conditionSummary = $this->conditions->describe($source, $conditionTree, $relationshipKeys);
         $filterSummary = $this->filterSummary($source, $status, $search, $dateFrom, $dateTo, $conditionSummary);
         $groupLabel = $groupBy !== null
             ? (string) data_get($this->catalog->groupableFields($source), $groupBy.'.label', $groupBy)

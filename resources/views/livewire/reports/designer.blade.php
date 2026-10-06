@@ -175,7 +175,7 @@ new class extends Component
             'calculationOperations' => $catalog->calculationOperations(),
             'calculableFields' => collect($catalog->calculableFields($this->dataSource))->only($queryFieldKeys)->all(),
             'groupableFields' => collect($catalog->groupableFields($this->dataSource))->only($queryFieldKeys)->all(),
-            'conditionFields' => collect(app(ReportConditionService::class)->fields($this->dataSource))->only($queryFieldKeys)->all(),
+            'conditionFields' => collect(app(ReportConditionService::class)->fields($this->dataSource, $this->relationships))->only($queryFieldKeys)->all(),
             'presentationTypes' => $presentationTypes,
             'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
@@ -782,11 +782,26 @@ new class extends Component
             $validated['sortField'],
             $validated['sortDirection'],
         );
-        $conditionTree = app(ReportConditionService::class)->validate($validated['dataSource'], $validated['conditionTree']);
-        $relationships = app(ReportRelationshipCatalog::class)->validate(
+        $relationshipCatalog = app(ReportRelationshipCatalog::class);
+        $relationships = $relationshipCatalog->validate(
             $validated['dataSource'],
             $validated['relationships'],
-            app(ReportRelationshipCatalog::class)->usedFields([
+            $relationshipCatalog->usedFields([
+                'selected_fields' => $fields,
+                'calculations' => $calculations,
+                'group_by' => $groupBy,
+                'sort_field' => $sortField,
+            ]),
+        );
+        $conditionTree = app(ReportConditionService::class)->validate(
+            $validated['dataSource'],
+            $validated['conditionTree'],
+            $relationships,
+        );
+        $relationships = $relationshipCatalog->validate(
+            $validated['dataSource'],
+            $relationships,
+            $relationshipCatalog->usedFields([
                 'selected_fields' => $fields,
                 'calculations' => $calculations,
                 'group_by' => $groupBy,
@@ -794,7 +809,7 @@ new class extends Component
                 'filters' => ['condition_tree' => $conditionTree],
             ]),
         );
-        $relationshipModes = app(ReportRelationshipCatalog::class)->validateModes(
+        $relationshipModes = $relationshipCatalog->validateModes(
             $validated['dataSource'],
             $relationships,
             $validated['relationshipModes'],
@@ -979,7 +994,7 @@ new class extends Component
         abort_if($this->readOnly || ! $this->editorOpen, 403);
 
         $currentCount = collect($this->conditionTree['groups'] ?? [])->sum(fn (array $group): int => count($group['conditions'] ?? []));
-        $fields = app(ReportConditionService::class)->fields($this->dataSource);
+        $fields = app(ReportConditionService::class)->fields($this->dataSource, $this->relationships);
         if ($currentCount >= ReportConditionService::CONDITION_LIMIT || $fields === [] || ! isset($this->conditionTree['groups'][$groupIndex])) {
             return;
         }
@@ -1008,7 +1023,7 @@ new class extends Component
             $groupIndex = (int) $parts[1];
             $conditionIndex = (int) $parts[3];
             $condition = &$this->conditionTree['groups'][$groupIndex]['conditions'][$conditionIndex];
-            $fields = app(ReportConditionService::class)->fields($this->dataSource);
+            $fields = app(ReportConditionService::class)->fields($this->dataSource, $this->relationships);
 
             if (isset($condition, $fields[$condition['field'] ?? ''])) {
                 $field = $fields[$condition['field']];

@@ -48,10 +48,6 @@ class ReportDefinitionCompatibility
                 $definition->data_source,
                 $calculations,
             );
-            $this->conditions->validate(
-                $definition->data_source,
-                data_get($definition->filters, 'condition_tree', []),
-            );
             $snapshot = $definition->only(ReportVersionService::VERSIONED_FIELDS);
             $relationships = $this->relationships->resolve(
                 $definition->data_source,
@@ -62,6 +58,11 @@ class ReportDefinitionCompatibility
                 $definition->data_source,
                 $relationships,
                 $definition->relationship_modes,
+            );
+            $this->conditions->validate(
+                $definition->data_source,
+                data_get($definition->filters, 'condition_tree', []),
+                $relationships,
             );
 
         } catch (ValidationException) {

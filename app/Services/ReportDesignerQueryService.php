@@ -44,6 +44,8 @@ class ReportDesignerQueryService
 
     protected array $activeRelationshipModes = [];
 
+    protected array $activeRelationships = [];
+
     protected array $curriculumSummaries = [];
 
     protected int $rowLimit = self::PREVIEW_LIMIT;
@@ -124,6 +126,7 @@ class ReportDesignerQueryService
             $definition['relationships'] ?? null,
             $this->relationships->usedFields($definition),
         );
+        $this->activeRelationships = $relationships;
         $this->activeRelationshipModes = $this->relationships->validateModes(
             $source,
             $relationships,
@@ -268,7 +271,7 @@ class ReportDesignerQueryService
         $joinedTo = (string) ($filters['date_to'] ?? $filters['joined_to'] ?? '');
         $query->when($joinedFrom !== '', fn (Builder $builder) => $builder->whereDate('joined_at', '>=', $joinedFrom));
         $query->when($joinedTo !== '', fn (Builder $builder) => $builder->whereDate('joined_at', '<=', $joinedTo));
-        $this->conditions->apply($query, ReportDesignerCatalog::STUDENTS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::STUDENTS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::STUDENTS, $query, $this->studentValue(...));
@@ -314,7 +317,7 @@ class ReportDesignerQueryService
         }
 
         $this->applyCommonFilters($query, $filters, ['name'], 'starts_on');
-        $this->conditions->apply($query, ReportDesignerCatalog::COURSES, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::COURSES, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::COURSES, $query, $this->courseValue(...));
         $this->applyCourseSort($query, $sortField, $sortDirection);
@@ -363,7 +366,7 @@ class ReportDesignerQueryService
                     ->where('first_name', 'like', '%'.$search.'%')
                     ->orWhere('last_name', 'like', '%'.$search.'%'));
         });
-        $this->conditions->apply($query, ReportDesignerCatalog::GROUPS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::GROUPS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::GROUPS, $query, $this->groupValue(...));
         $this->applyGroupSort($query, $sortField, $sortDirection);
@@ -418,7 +421,7 @@ class ReportDesignerQueryService
                     ->orWhereHas('attendanceDay', fn (Builder $day) => $this->applyDateBounds($day, 'attendance_date', $dateFrom, $dateTo));
             });
         }
-        $this->conditions->apply($query, ReportDesignerCatalog::STUDENT_ATTENDANCE, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::STUDENT_ATTENDANCE, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::STUDENT_ATTENDANCE, $query, $this->studentAttendanceValue(...));
@@ -456,7 +459,7 @@ class ReportDesignerQueryService
             (string) ($filters['date_from'] ?? ''),
             (string) ($filters['date_to'] ?? ''),
         );
-        $this->conditions->apply($query, ReportDesignerCatalog::MEMORIZATION_SESSIONS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::MEMORIZATION_SESSIONS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::MEMORIZATION_SESSIONS, $query, $this->memorizationValue(...));
@@ -496,7 +499,7 @@ class ReportDesignerQueryService
             (string) ($filters['date_from'] ?? ''),
             (string) ($filters['date_to'] ?? ''),
         );
-        $this->conditions->apply($query, ReportDesignerCatalog::QURAN_TESTS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::QURAN_TESTS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_TESTS, $query, $this->quranTestValue(...));
@@ -524,7 +527,7 @@ class ReportDesignerQueryService
         );
 
         $this->applyQuranWorkflowFilters($query, $filters, 'parts.attempts');
-        $this->conditions->apply($query, ReportDesignerCatalog::QURAN_PARTIAL_TESTS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::QURAN_PARTIAL_TESTS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_PARTIAL_TESTS, $query, $this->quranPartialTestValue(...));
         $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
@@ -551,7 +554,7 @@ class ReportDesignerQueryService
         );
 
         $this->applyQuranWorkflowFilters($query, $filters, 'attempts');
-        $this->conditions->apply($query, ReportDesignerCatalog::QURAN_FINAL_TESTS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::QURAN_FINAL_TESTS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::QURAN_FINAL_TESTS, $query, $this->quranFinalTestValue(...));
         $this->applyQuranWorkflowSort($query, $sortField, $sortDirection);
@@ -607,7 +610,7 @@ class ReportDesignerQueryService
                 ->orWhereHas('type', fn (Builder $relation) => $relation->where('name', 'like', '%'.$search.'%'))
                 ->orWhereHas('groups', fn (Builder $relation) => $relation->where('name', 'like', '%'.$search.'%'));
         });
-        $this->conditions->apply($query, ReportDesignerCatalog::ASSESSMENTS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::ASSESSMENTS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
         $this->applyAssessmentSort($query, $sortField, $sortDirection);
 
         if ($this->relationships->hasDetailedMode($this->activeRelationshipModes, 'assessment_groups')) {
@@ -670,7 +673,7 @@ class ReportDesignerQueryService
         if ($dateFrom !== '' || $dateTo !== '') {
             $query->whereHas('assessment', fn (Builder $assessment) => $this->applyDateBounds($assessment, 'due_at', $dateFrom, $dateTo));
         }
-        $this->conditions->apply($query, ReportDesignerCatalog::ASSESSMENT_RESULTS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::ASSESSMENT_RESULTS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::ASSESSMENT_RESULTS, $query, $this->assessmentResultValue(...));
@@ -723,7 +726,7 @@ class ReportDesignerQueryService
         $dateFrom = (string) ($filters['date_from'] ?? '');
         $dateTo = (string) ($filters['date_to'] ?? '');
         $this->applyDateBounds($query, 'hired_at', $dateFrom, $dateTo);
-        $this->conditions->apply($query, ReportDesignerCatalog::TEACHERS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::TEACHERS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::TEACHERS, $query, $this->teacherValue(...));
@@ -781,7 +784,7 @@ class ReportDesignerQueryService
             (string) ($filters['date_from'] ?? ''),
             (string) ($filters['date_to'] ?? ''),
         );
-        $this->conditions->apply($query, ReportDesignerCatalog::FINANCE_TRANSACTIONS, $filters['condition_tree'] ?? []);
+        $this->conditions->apply($query, ReportDesignerCatalog::FINANCE_TRANSACTIONS, $filters['condition_tree'] ?? [], $this->activeRelationships, $user);
 
         $total = (clone $query)->count();
         $this->calculationValues = $this->financeCalculationValues($query);

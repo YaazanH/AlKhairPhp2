@@ -2138,6 +2138,29 @@ class ReportDesignerTest extends TestCase
         app(AccessScopeService::class)->syncUserOverrides($user, ['group' => [$visibleGroup->id]]);
 
         $service = app(ReportDesignerQueryService::class);
+        $conditions = app(ReportConditionService::class);
+        $this->assertArrayNotHasKey('assessment_groups', $conditions->fields(ReportDesignerCatalog::ASSESSMENTS));
+        $this->assertArrayHasKey('assessment_groups', $conditions->fields(ReportDesignerCatalog::ASSESSMENTS, ['assessment_groups']));
+        $this->assertArrayHasKey('assessment_type', $conditions->fields(ReportDesignerCatalog::ASSESSMENTS, ['assessment_type']));
+        $relatedGroupCondition = [
+            'operator' => 'and',
+            'groups' => [[
+                'operator' => 'and',
+                'conditions' => [[
+                    'field' => 'assessment_groups',
+                    'operator' => 'equals',
+                    'value' => 'Visible Assessment Group',
+                    'value_to' => '',
+                ]],
+            ]],
+        ];
+        try {
+            $conditions->validate(ReportDesignerCatalog::ASSESSMENTS, $relatedGroupCondition);
+            $this->fail('A related condition must require its approved relationship.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('conditionTree.groups.0.conditions.0', $exception->errors());
+        }
+
         $assessments = $service->preview([
             'data_source' => 'assessments',
             'selected_fields' => ['assessment_title', 'assessment_groups', 'results_count', 'passed_results_count', 'failed_results_count', 'average_score'],
@@ -2160,6 +2183,41 @@ class ReportDesignerTest extends TestCase
             'filters' => ['status' => 'passed', 'date_from' => '2026-10-07', 'date_to' => '2026-10-07'],
             'sort_direction' => 'asc',
         ], $user);
+        $visibleRelatedConditions = [
+            'operator' => 'and',
+            'groups' => [[
+                'operator' => 'and',
+                'conditions' => [
+                    ['field' => 'assessment_type', 'operator' => 'equals', 'value' => 'Quiz', 'value_to' => ''],
+                    ['field' => 'assessment_groups', 'operator' => 'equals', 'value' => 'Visible Assessment Group', 'value_to' => ''],
+                ],
+            ]],
+        ];
+        $visibleRelatedMatch = $service->preview([
+            'data_source' => 'assessments',
+            'relationships' => ['assessment_type', 'assessment_groups'],
+            'selected_fields' => ['assessment_title'],
+            'filters' => ['status' => 'active', 'condition_tree' => $visibleRelatedConditions],
+            'sort_direction' => 'asc',
+        ], $user);
+        $hiddenRelatedMatch = $service->preview([
+            'data_source' => 'assessments',
+            'relationships' => ['assessment_groups'],
+            'selected_fields' => ['assessment_title'],
+            'filters' => ['status' => 'active', 'condition_tree' => [
+                'operator' => 'and',
+                'groups' => [[
+                    'operator' => 'and',
+                    'conditions' => [[
+                        'field' => 'assessment_groups',
+                        'operator' => 'equals',
+                        'value' => 'Hidden Assessment Group',
+                        'value_to' => '',
+                    ]],
+                ]],
+            ]],
+            'sort_direction' => 'asc',
+        ], $user);
 
         $this->assertSame([[
             'assessment_title' => 'Shared Monthly Quiz',
@@ -2172,6 +2230,16 @@ class ReportDesignerTest extends TestCase
         $this->assertSame(1, $detailedAssessments['total']);
         $this->assertSame('Visible Assessment Group', $detailedAssessments['rows'][0]['assessment_groups']);
         $this->assertSame(1, $detailedAssessments['calculations'][0]['value']);
+        $this->assertSame(1, $visibleRelatedMatch['total']);
+        $this->assertSame('Shared Monthly Quiz', $visibleRelatedMatch['rows'][0]['assessment_title']);
+        $this->assertSame(0, $hiddenRelatedMatch['total']);
+        $conditionDescription = $conditions->describe(
+            ReportDesignerCatalog::ASSESSMENTS,
+            $visibleRelatedConditions,
+            ['assessment_type', 'assessment_groups'],
+        );
+        $this->assertStringContainsString(__('report_designer.fields.assessment_type'), $conditionDescription);
+        $this->assertStringContainsString(__('report_designer.fields.assessment_groups'), $conditionDescription);
         $this->assertSame([[
             'due_at' => '2026-10-07 10:00',
             'assessment_title' => 'Shared Monthly Quiz',

@@ -93,11 +93,15 @@ class ReportLibraryInstaller
         );
 
         $filters = (array) data_get($definition, 'filters', []);
-        $filters['condition_tree'] = $this->conditions->validate($source, $filters['condition_tree'] ?? []);
         $relationships = $this->relationships->resolve(
             $source,
             data_get($definition, 'relationships'),
-            $this->relationships->usedFields($definition + ['filters' => $filters]),
+            $this->relationships->usedFields($definition),
+        );
+        $filters['condition_tree'] = $this->conditions->validate(
+            $source,
+            $filters['condition_tree'] ?? [],
+            $relationships,
         );
         $relationshipModes = $this->relationships->validateModes(
             $source,
