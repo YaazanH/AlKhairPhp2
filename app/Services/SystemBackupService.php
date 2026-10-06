@@ -666,9 +666,22 @@ class SystemBackupService
      */
     private function databaseTableNames(string $connectionName): array
     {
-        $tables = DB::connection($connectionName)
-            ->getSchemaBuilder()
-            ->getTableListing(schemaQualified: false);
+        $connection = DB::connection($connectionName);
+        $driver = $connection->getDriverName();
+
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            $tables = array_map(
+                static fn (object $row): string => (string) $row->name,
+                $connection->select(
+                    'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = ? AND table_type = ?',
+                    [$connection->getDatabaseName(), 'BASE TABLE'],
+                ),
+            );
+        } else {
+            $tables = $connection
+                ->getSchemaBuilder()
+                ->getTableListing(schemaQualified: false);
+        }
 
         sort($tables, SORT_STRING);
 

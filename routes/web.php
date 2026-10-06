@@ -269,6 +269,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/system-backups', 'settings.backups')->middleware(['permission:backups.manage', 'no-tenant'])->name('settings.system-backups');
     Route::get('settings/backups/{systemBackup}/download', SystemBackupDownloadController::class)->middleware(['permission:backups.manage', 'no-tenant'])->name('settings.backups.download');
     Route::get('settings/tenant-backups', [TenantBackupController::class, 'index'])->middleware('permission:backups.manage')->name('settings.tenant-backups');
+    Route::post('settings/tenant-backups', [TenantBackupController::class, 'create'])->middleware('permission:backups.manage')->name('settings.tenant-backups.create');
     Route::get('settings/tenant-backups/{tenantBackup}/download', [TenantBackupController::class, 'download'])->middleware('permission:backups.manage')->name('settings.tenant-backups.download');
     Route::post('settings/tenant-backups/{tenantBackup}/restore', [TenantBackupController::class, 'restore'])->middleware('permission:backups.manage')->name('settings.tenant-backups.restore');
     Route::get('settings/storage', TenantStorageUsageController::class)->middleware('permission:storage.view')->name('settings.storage');

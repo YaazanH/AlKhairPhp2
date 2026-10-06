@@ -50,6 +50,11 @@ class TenantStorageUsage
         }
 
         foreach (File::allFiles($path) as $file) {
+            $relativePath = str_replace('\\', '/', $file->getRelativePathname());
+            if (str_starts_with($relativePath, 'saas-backups/')) {
+                continue;
+            }
+
             $extension = strtolower($file->getExtension());
             $key = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp4', 'webm'], true)
                 ? 'media'
