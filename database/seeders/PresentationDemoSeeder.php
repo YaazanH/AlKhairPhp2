@@ -15,6 +15,10 @@ use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\ExpenseCategory;
+use App\Models\FinanceCashBox;
+use App\Models\FinanceCategory;
+use App\Models\FinanceCurrency;
+use App\Models\FinanceTransaction;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
@@ -43,6 +47,7 @@ use App\Services\FinanceService;
 use App\Services\MemorizationService;
 use App\Services\PointLedgerService;
 use App\Services\StudentAttendanceDayService;
+use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 
@@ -104,7 +109,7 @@ class PresentationDemoSeeder extends Seeder
 
         $teachers = [
             'Ahmad Al Hadi' => Teacher::query()->updateOrCreate(
-                ['phone' => '0998222001'],
+                ['phone' => PhoneNumberFormatter::normalizeOrOriginal('0998222001')],
                 [
                     'user_id' => $teacherUser->id,
                     'first_name' => 'Ahmad',
@@ -116,7 +121,7 @@ class PresentationDemoSeeder extends Seeder
                 ],
             ),
             'Fatimah Noor' => Teacher::query()->updateOrCreate(
-                ['phone' => '0998222002'],
+                ['phone' => PhoneNumberFormatter::normalizeOrOriginal('0998222002')],
                 [
                     'first_name' => 'Fatimah',
                     'last_name' => 'Noor',
@@ -127,7 +132,7 @@ class PresentationDemoSeeder extends Seeder
                 ],
             ),
             'Yusuf Kareem' => Teacher::query()->updateOrCreate(
-                ['phone' => '0998222003'],
+                ['phone' => PhoneNumberFormatter::normalizeOrOriginal('0998222003')],
                 [
                     'first_name' => 'Yusuf',
                     'last_name' => 'Kareem',
@@ -206,7 +211,7 @@ class PresentationDemoSeeder extends Seeder
 
         $parents = [
             'Hamdan Family' => ParentProfile::query()->updateOrCreate(
-                ['father_phone' => '0998333001'],
+                ['father_phone' => PhoneNumberFormatter::normalizeOrOriginal('0998333001')],
                 [
                     'user_id' => $parentUser->id,
                     'father_name' => 'Samer Hamdan',
@@ -220,7 +225,7 @@ class PresentationDemoSeeder extends Seeder
                 ],
             ),
             'Sakr Family' => ParentProfile::query()->updateOrCreate(
-                ['father_phone' => '0998333003'],
+                ['father_phone' => PhoneNumberFormatter::normalizeOrOriginal('0998333003')],
                 [
                     'father_name' => 'Maher Sakr',
                     'father_work' => 'Teacher',
@@ -233,7 +238,7 @@ class PresentationDemoSeeder extends Seeder
                 ],
             ),
             'Darwish Family' => ParentProfile::query()->updateOrCreate(
-                ['father_phone' => '0998333005'],
+                ['father_phone' => PhoneNumberFormatter::normalizeOrOriginal('0998333005')],
                 [
                     'father_name' => 'Bilal Darwish',
                     'father_work' => 'Accountant',
@@ -246,7 +251,7 @@ class PresentationDemoSeeder extends Seeder
                 ],
             ),
             'Qudsi Family' => ParentProfile::query()->updateOrCreate(
-                ['father_phone' => '0998333007'],
+                ['father_phone' => PhoneNumberFormatter::normalizeOrOriginal('0998333007')],
                 [
                     'father_name' => 'Omar Qudsi',
                     'father_work' => 'Merchant',
@@ -291,6 +296,7 @@ class PresentationDemoSeeder extends Seeder
         $this->seedManualPoints($enrollments, $pointTypes, app(PointLedgerService::class), $admin);
         $this->seedActivities($groups, $enrollments, $paymentMethods, $expenseCategories, $admin);
         $this->seedInvoices($parents, $enrollments, $paymentMethods, $admin);
+        $this->seedFinanceLedger($admin);
     }
 
     protected function seedSchedules(array $groups): void
@@ -857,6 +863,63 @@ class PresentationDemoSeeder extends Seeder
 
         foreach ($invoices as $invoice) {
             $finance->syncInvoiceTotals($invoice->fresh());
+        }
+    }
+
+    protected function seedFinanceLedger(User $admin): void
+    {
+        $finance = app(FinanceService::class);
+        $cashBox = FinanceCashBox::query()->where('code', 'main')->firstOrFail();
+        $currency = FinanceCurrency::query()->where('is_local', true)->firstOrFail();
+        $cashBox->currencies()->syncWithoutDetaching([$currency->id]);
+        $cashBox->assignedUsers()->syncWithoutDetaching([$admin->id]);
+
+        $categories = [
+            'revenue' => FinanceCategory::query()->firstOrCreate(
+                ['code' => 'general_revenue'],
+                ['name' => 'General revenue', 'type' => 'revenue', 'mode' => 'income', 'is_active' => true],
+            ),
+            'donations' => FinanceCategory::query()->firstOrCreate(
+                ['code' => 'demo_donations'],
+                ['name' => 'Community donations', 'type' => 'revenue', 'mode' => 'donation', 'is_donation' => true, 'is_active' => true],
+            ),
+            'supplies' => FinanceCategory::query()->firstOrCreate(
+                ['code' => 'demo_supplies'],
+                ['name' => 'Learning supplies', 'type' => 'expense', 'mode' => 'count', 'is_active' => true],
+            ),
+            'facilities' => FinanceCategory::query()->firstOrCreate(
+                ['code' => 'demo_facilities'],
+                ['name' => 'Facilities and utilities', 'type' => 'expense', 'mode' => 'count', 'is_active' => true],
+            ),
+        ];
+
+        $transactions = [
+            ['number' => 'DEMO-FIN-001', 'days' => 150, 'direction' => 'in', 'amount' => 2500000, 'category' => 'revenue', 'description' => 'First-term programme income'],
+            ['number' => 'DEMO-FIN-002', 'days' => 135, 'direction' => 'out', 'amount' => 400000, 'category' => 'supplies', 'description' => 'Quran copies and classroom materials'],
+            ['number' => 'DEMO-FIN-003', 'days' => 90, 'direction' => 'in', 'amount' => 3000000, 'category' => 'revenue', 'description' => 'Second-term programme income'],
+            ['number' => 'DEMO-FIN-004', 'days' => 75, 'direction' => 'out', 'amount' => 650000, 'category' => 'facilities', 'description' => 'Classroom maintenance and utilities'],
+            ['number' => 'DEMO-FIN-005', 'days' => 30, 'direction' => 'in', 'amount' => 1750000, 'category' => 'donations', 'description' => 'Community education donation'],
+            ['number' => 'DEMO-FIN-006', 'days' => 10, 'direction' => 'out', 'amount' => 500000, 'category' => 'supplies', 'description' => 'Assessment printing and student materials'],
+        ];
+
+        foreach ($transactions as $row) {
+            if (FinanceTransaction::query()->withTrashed()->where('transaction_no', $row['number'])->exists()) {
+                continue;
+            }
+
+            $finance->postTransaction([
+                'transaction_no' => $row['number'],
+                'cash_box_id' => $cashBox->id,
+                'currency_id' => $currency->id,
+                'finance_category_id' => $categories[$row['category']]->id,
+                'type' => $row['direction'] === 'out' ? 'expense' : 'income',
+                'direction' => $row['direction'],
+                'amount' => $row['amount'],
+                'transaction_date' => now()->subDays($row['days'])->toDateString(),
+                'description' => $row['description'],
+                'entered_by' => $admin->id,
+                'metadata' => ['demo' => true],
+            ]);
         }
     }
 
