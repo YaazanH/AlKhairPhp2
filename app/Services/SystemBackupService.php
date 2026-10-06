@@ -1317,7 +1317,63 @@ class SystemBackupService
     private function runProcess(Process $process): void
     {
         $process->setTimeout(max(60, (int) config('backups.process_timeout_seconds', 3600)));
+
+        if (PHP_OS_FAMILY === 'Windows' && PHP_SAPI === 'cli-server') {
+            $this->runProcessThroughWindowsShell($process);
+
+            return;
+        }
+
         $process->mustRun();
+    }
+
+    /**
+     * MySQL clients launched through proc_open can fail to initialise Winsock
+     * under PHP's Windows development server. The command shell avoids that
+     * development-server limitation.
+     */
+    private function runProcessThroughWindowsShell(Process $process): void
+    {
+        if (! function_exists('exec')) {
+            $process->mustRun();
+
+            return;
+        }
+
+        $command = $process->getCommandLine();
+        $input = $process->getInput();
+        if (is_resource($input)) {
+            $metadata = stream_get_meta_data($input);
+            $inputPath = $metadata['uri'] ?? null;
+            if (! is_string($inputPath) || ! is_file($inputPath)) {
+                throw new RuntimeException('The database process input file is unavailable.');
+            }
+            $command .= ' < '.escapeshellarg($inputPath);
+        } elseif ($input !== null) {
+            throw new RuntimeException('The Windows database process requires file-backed input.');
+        }
+
+        $previousEnvironment = [];
+        foreach ($process->getEnv() as $name => $value) {
+            $previousEnvironment[$name] = getenv($name);
+            $value === false ? putenv($name) : putenv($name.'='.$value);
+        }
+
+        try {
+            $output = [];
+            $exitCode = 0;
+            exec($command.' 2>&1', $output, $exitCode);
+        } finally {
+            foreach ($previousEnvironment as $name => $value) {
+                $value === false ? putenv($name) : putenv($name.'='.$value);
+            }
+        }
+
+        if ($exitCode !== 0) {
+            throw new RuntimeException(
+                'The database process failed with exit code '.$exitCode.'. '.Str::limit(implode("\n", $output), 2000),
+            );
+        }
     }
 
     private function writeToStream(mixed $stream, string $contents): void
