@@ -8,7 +8,10 @@ use Throwable;
 
 class ReportDesignerGuidance
 {
-    public function __construct(protected ReportDesignerCatalog $catalog) {}
+    public function __construct(
+        protected ReportDesignerCatalog $catalog,
+        protected ReportConditionService $conditions,
+    ) {}
 
     /**
      * @return array{
@@ -50,7 +53,9 @@ class ReportDesignerGuidance
         $groupBy = filled($definition['group_by'] ?? null) ? (string) $definition['group_by'] : null;
         $presentation = (string) data_get($definition, 'presentation.type', ReportDesignerCatalog::PRESENTATION_TABLE);
         $calculations = collect($definition['calculations'] ?? []);
-        $filterSummary = $this->filterSummary($source, $status, $search, $dateFrom, $dateTo);
+        $conditionTree = $filters['condition_tree'] ?? [];
+        $conditionSummary = $this->conditions->describe($source, $conditionTree);
+        $filterSummary = $this->filterSummary($source, $status, $search, $dateFrom, $dateTo, $conditionSummary);
         $groupLabel = $groupBy !== null
             ? (string) data_get($this->catalog->groupableFields($source), $groupBy.'.label', $groupBy)
             : __('report_designer.guidance.values.no_grouping');
@@ -166,6 +171,7 @@ class ReportDesignerGuidance
                 $groupBy,
                 $presentation,
                 $calculations->all(),
+                $conditionSummary !== null,
             ),
         ];
     }
@@ -200,7 +206,7 @@ class ReportDesignerGuidance
         ]);
     }
 
-    protected function filterSummary(string $source, string $status, string $search, string $dateFrom, string $dateTo): string
+    protected function filterSummary(string $source, string $status, string $search, string $dateFrom, string $dateTo, ?string $conditionSummary): string
     {
         $parts = [];
         $statuses = $this->catalog->statusFilters($source);
@@ -216,6 +222,9 @@ class ReportDesignerGuidance
             $parts[] = __('report_designer.guidance.values.date_from', ['from' => $dateFrom]);
         } elseif ($dateTo !== '') {
             $parts[] = __('report_designer.guidance.values.date_to', ['to' => $dateTo]);
+        }
+        if ($conditionSummary !== null) {
+            $parts[] = $conditionSummary;
         }
 
         return $parts === []
@@ -233,6 +242,7 @@ class ReportDesignerGuidance
         ?string $groupBy,
         string $presentation,
         array $calculations,
+        bool $hasConditions,
     ): array {
         $warnings = [];
         $activitySources = [
@@ -248,7 +258,7 @@ class ReportDesignerGuidance
 
         if ($dateFrom === '' && $dateTo === '' && in_array($source, $activitySources, true)) {
             $warnings[] = __('report_designer.guidance.warnings.no_date_range');
-        } elseif ($status === 'all' && $search === '' && $dateFrom === '' && $dateTo === '') {
+        } elseif ($status === 'all' && $search === '' && $dateFrom === '' && $dateTo === '' && ! $hasConditions) {
             $warnings[] = __('report_designer.guidance.warnings.no_filters');
         }
 

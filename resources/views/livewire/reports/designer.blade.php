@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ReportDefinitionAccess;
 use App\Services\ReportDefinitionCompatibility;
 use App\Services\ReportAuditService;
+use App\Services\ReportConditionService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerGuidance;
 use App\Services\ReportDesignerQueryService;
@@ -58,6 +59,8 @@ new class extends Component
 
     public string $dateTo = '';
 
+    public array $conditionTree = [];
+
     public string $sortField = '';
 
     public string $sortDirection = 'asc';
@@ -87,6 +90,7 @@ new class extends Component
         $this->authorizeDesignerViewer();
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
+        $this->conditionTree = app(ReportConditionService::class)->emptyTree();
     }
 
     public function with(): array
@@ -157,6 +161,7 @@ new class extends Component
             'calculationOperations' => $catalog->calculationOperations(),
             'calculableFields' => $catalog->calculableFields($this->dataSource),
             'groupableFields' => $catalog->groupableFields($this->dataSource),
+            'conditionFields' => app(ReportConditionService::class)->fields($this->dataSource),
             'presentationTypes' => $presentationTypes,
             'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
@@ -171,6 +176,7 @@ new class extends Component
                     'search' => $this->searchFilter,
                     'date_from' => $this->dateFrom,
                     'date_to' => $this->dateTo,
+                    'condition_tree' => $this->conditionTree,
                 ],
                 'sort_field' => $this->sortField,
                 'sort_direction' => $this->sortDirection,
@@ -208,6 +214,7 @@ new class extends Component
         $this->searchFilter = '';
         $this->dateFrom = '';
         $this->dateTo = '';
+        $this->conditionTree = app(ReportConditionService::class)->emptyTree();
         $this->sortField = '';
         $this->previewResult = [];
         $this->previewRoleId = null;
@@ -260,6 +267,7 @@ new class extends Component
         $this->searchFilter = (string) ($filters['search'] ?? '');
         $this->dateFrom = (string) ($filters['date_from'] ?? $filters['joined_from'] ?? '');
         $this->dateTo = (string) ($filters['date_to'] ?? $filters['joined_to'] ?? '');
+        $this->conditionTree = app(ReportConditionService::class)->editorTree($filters['condition_tree'] ?? []);
         $this->sortField = $definition->sort_field ?? '';
         $this->sortDirection = $definition->sort_direction;
         $this->previewResult = [];
@@ -640,6 +648,15 @@ new class extends Component
             'searchFilter' => ['nullable', 'string', 'max:100'],
             'dateFrom' => ['nullable', 'date'],
             'dateTo' => ['nullable', 'date', 'after_or_equal:dateFrom'],
+            'conditionTree' => ['array'],
+            'conditionTree.operator' => ['required', Rule::in(['and', 'or'])],
+            'conditionTree.groups' => ['array', 'max:'.ReportConditionService::GROUP_LIMIT],
+            'conditionTree.groups.*.operator' => ['required', Rule::in(['and', 'or'])],
+            'conditionTree.groups.*.conditions' => ['array'],
+            'conditionTree.groups.*.conditions.*.field' => ['required', 'string'],
+            'conditionTree.groups.*.conditions.*.operator' => ['required', 'string'],
+            'conditionTree.groups.*.conditions.*.value' => ['nullable'],
+            'conditionTree.groups.*.conditions.*.value_to' => ['nullable'],
             'sortField' => ['nullable', 'string'],
             'sortDirection' => ['required', Rule::in(['asc', 'desc'])],
         ]);
@@ -659,6 +676,7 @@ new class extends Component
             $validated['sortField'],
             $validated['sortDirection'],
         );
+        $conditionTree = app(ReportConditionService::class)->validate($validated['dataSource'], $validated['conditionTree']);
 
         return [
             'name' => trim($validated['name'] ?? ''),
@@ -673,6 +691,7 @@ new class extends Component
                 'search' => trim($validated['searchFilter'] ?? ''),
                 'date_from' => $validated['dateFrom'] ?? '',
                 'date_to' => $validated['dateTo'] ?? '',
+                'condition_tree' => $conditionTree,
             ],
             'sort_field' => $sortField,
             'sort_direction' => $sortDirection,
@@ -699,6 +718,7 @@ new class extends Component
         $this->searchFilter = '';
         $this->dateFrom = '';
         $this->dateTo = '';
+        $this->conditionTree = app(ReportConditionService::class)->emptyTree();
         $this->sortField = '';
         $this->sortDirection = 'asc';
         $this->previewResult = [];
@@ -801,6 +821,84 @@ new class extends Component
                 ->whereNotIn('name', [RoleRegistry::PARENT, RoleRegistry::STUDENT])
                 ->get(),
         );
+    }
+
+    public function addConditionGroup(): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        if (count($this->conditionTree['groups'] ?? []) >= ReportConditionService::GROUP_LIMIT) {
+            return;
+        }
+
+        $this->conditionTree['groups'][] = ['operator' => 'and', 'conditions' => []];
+        $this->previewResult = [];
+    }
+
+    public function removeConditionGroup(int $groupIndex): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        unset($this->conditionTree['groups'][$groupIndex]);
+        $this->conditionTree['groups'] = array_values($this->conditionTree['groups']);
+        if ($this->conditionTree['groups'] === []) {
+            $this->conditionTree = app(ReportConditionService::class)->emptyTree();
+        }
+        $this->previewResult = [];
+        $this->resetValidation('conditionTree');
+    }
+
+    public function addCondition(int $groupIndex): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        $currentCount = collect($this->conditionTree['groups'] ?? [])->sum(fn (array $group): int => count($group['conditions'] ?? []));
+        $fields = app(ReportConditionService::class)->fields($this->dataSource);
+        if ($currentCount >= ReportConditionService::CONDITION_LIMIT || $fields === [] || ! isset($this->conditionTree['groups'][$groupIndex])) {
+            return;
+        }
+
+        $field = (string) array_key_first($fields);
+        $operator = (string) array_key_first($fields[$field]['operators']);
+        $value = $fields[$field]['options'] === [] ? '' : (string) array_key_first($fields[$field]['options']);
+        $this->conditionTree['groups'][$groupIndex]['conditions'][] = compact('field', 'operator', 'value') + ['value_to' => ''];
+        $this->previewResult = [];
+    }
+
+    public function removeCondition(int $groupIndex, int $conditionIndex): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        unset($this->conditionTree['groups'][$groupIndex]['conditions'][$conditionIndex]);
+        $this->conditionTree['groups'][$groupIndex]['conditions'] = array_values($this->conditionTree['groups'][$groupIndex]['conditions']);
+        $this->previewResult = [];
+        $this->resetValidation('conditionTree');
+    }
+
+    public function updatedConditionTree(mixed $value, string $key): void
+    {
+        $parts = explode('.', $key);
+        if (count($parts) === 5 && $parts[0] === 'groups' && $parts[2] === 'conditions') {
+            $groupIndex = (int) $parts[1];
+            $conditionIndex = (int) $parts[3];
+            $condition = &$this->conditionTree['groups'][$groupIndex]['conditions'][$conditionIndex];
+            $fields = app(ReportConditionService::class)->fields($this->dataSource);
+
+            if (isset($condition, $fields[$condition['field'] ?? ''])) {
+                $field = $fields[$condition['field']];
+                if (! array_key_exists((string) ($condition['operator'] ?? ''), $field['operators'])) {
+                    $condition['operator'] = (string) array_key_first($field['operators']);
+                }
+                if ($field['options'] !== [] && ! array_key_exists((string) ($condition['value'] ?? ''), $field['options'])) {
+                    $condition['value'] = (string) array_key_first($field['options']);
+                }
+                $condition['value_to'] ??= '';
+            }
+            unset($condition);
+        }
+
+        $this->previewResult = [];
+        $this->resetValidation('conditionTree');
     }
 
     public function addCalculation(): void
@@ -1132,6 +1230,105 @@ new class extends Component
                             <input wire:model.live="dateTo" type="date" class="rounded-xl px-4 py-3" @disabled($readOnly)>
                         </label>
                     </div>
+
+                    <section class="rounded-2xl border border-violet-300/20 bg-violet-400/[0.05] p-4" data-report-condition-builder>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-white">{{ __('report_designer.conditions.title') }}</div>
+                                <p class="mt-1 max-w-3xl text-xs leading-5 text-neutral-400">{{ __('report_designer.conditions.help') }}</p>
+                            </div>
+                            @if(! $readOnly && count($conditionTree['groups'] ?? []) < \App\Services\ReportConditionService::GROUP_LIMIT)
+                                <button type="button" wire:click="addConditionGroup" class="pill-link">{{ __('report_designer.conditions.add_group') }}</button>
+                            @endif
+                        </div>
+
+                        @if(count($conditionTree['groups'] ?? []) > 1)
+                            <label class="mt-4 flex flex-wrap items-center gap-3 text-sm text-neutral-200">
+                                <span>{{ __('report_designer.conditions.match_groups') }}</span>
+                                <select wire:model.live="conditionTree.operator" class="rounded-xl px-3 py-2" @disabled($readOnly)>
+                                    <option value="and">{{ __('report_designer.conditions.logic.and') }}</option>
+                                    <option value="or">{{ __('report_designer.conditions.logic.or') }}</option>
+                                </select>
+                            </label>
+                        @endif
+
+                        <div class="mt-4 grid gap-4">
+                            @foreach($conditionTree['groups'] ?? [] as $groupIndex => $conditionGroup)
+                                <article class="rounded-xl border border-white/10 bg-black/10 p-4" wire:key="report-condition-group-{{ $groupIndex }}">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <label class="flex items-center gap-3 text-sm text-neutral-200">
+                                            <span>{{ __('report_designer.conditions.match_conditions') }}</span>
+                                            <select wire:model.live="conditionTree.groups.{{ $groupIndex }}.operator" class="rounded-xl px-3 py-2" @disabled($readOnly)>
+                                                <option value="and">{{ __('report_designer.conditions.logic.and') }}</option>
+                                                <option value="or">{{ __('report_designer.conditions.logic.or') }}</option>
+                                            </select>
+                                        </label>
+                                        <div class="flex gap-2">
+                                            @if(! $readOnly && $conditionFields !== [])
+                                                <button type="button" wire:click="addCondition({{ $groupIndex }})" class="pill-link text-xs">{{ __('report_designer.conditions.add_condition') }}</button>
+                                            @endif
+                                            @if(! $readOnly && count($conditionTree['groups'] ?? []) > 1)
+                                                <button type="button" wire:click="removeConditionGroup({{ $groupIndex }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('report_designer.conditions.remove_group') }}"><x-admin-action-icon name="delete" /></button>
+                                            @endif
+                                        </div>
+                                    </div>
+
+                                    @if(($conditionGroup['conditions'] ?? []) === [])
+                                        <div class="mt-3 rounded-lg border border-dashed border-white/10 px-3 py-4 text-center text-xs text-neutral-500">{{ __('report_designer.conditions.empty_group') }}</div>
+                                    @else
+                                        <div class="mt-3 grid gap-3">
+                                            @foreach($conditionGroup['conditions'] as $conditionIndex => $condition)
+                                                @php($conditionField = $conditionFields[$condition['field'] ?? ''] ?? null)
+                                                <div class="grid gap-3 rounded-lg border border-white/8 bg-white/[0.025] p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto] lg:items-end" wire:key="report-condition-{{ $groupIndex }}-{{ $conditionIndex }}">
+                                                    <label class="grid gap-2 text-xs text-neutral-300">
+                                                        <span>{{ __('report_designer.conditions.field') }}</span>
+                                                        <select wire:model.live="conditionTree.groups.{{ $groupIndex }}.conditions.{{ $conditionIndex }}.field" class="rounded-xl px-3 py-2" @disabled($readOnly)>
+                                                            @foreach($conditionFields as $fieldKey => $field)
+                                                                <option value="{{ $fieldKey }}">{{ $field['label'] }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </label>
+                                                    <label class="grid gap-2 text-xs text-neutral-300">
+                                                        <span>{{ __('report_designer.conditions.operator') }}</span>
+                                                        <select wire:model.live="conditionTree.groups.{{ $groupIndex }}.conditions.{{ $conditionIndex }}.operator" class="rounded-xl px-3 py-2" @disabled($readOnly)>
+                                                            @foreach(($conditionField['operators'] ?? []) as $operatorKey => $operatorLabel)
+                                                                <option value="{{ $operatorKey }}">{{ $operatorLabel }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </label>
+                                                    <div class="grid gap-2 text-xs text-neutral-300">
+                                                        <span>{{ __('report_designer.conditions.value') }}</span>
+                                                        @if(in_array($condition['operator'] ?? '', ['is_empty', 'is_not_empty'], true))
+                                                            <div class="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-neutral-500">{{ __('report_designer.conditions.no_value') }}</div>
+                                                        @elseif(($conditionField['options'] ?? []) !== [])
+                                                            <select wire:model.live="conditionTree.groups.{{ $groupIndex }}.conditions.{{ $conditionIndex }}.value" class="rounded-xl px-3 py-2" @disabled($readOnly)>
+                                                                @foreach($conditionField['options'] as $optionKey => $optionLabel)
+                                                                    <option value="{{ $optionKey }}">{{ $optionLabel }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        @else
+                                                            <div class="grid gap-2 sm:grid-cols-2">
+                                                                <input wire:model.live.debounce.400ms="conditionTree.groups.{{ $groupIndex }}.conditions.{{ $conditionIndex }}.value" type="{{ ($conditionField['type'] ?? '') === 'date' ? 'date' : (($conditionField['type'] ?? '') === 'number' ? 'number' : 'text') }}" step="any" class="rounded-xl px-3 py-2" @disabled($readOnly)>
+                                                                @if(($condition['operator'] ?? '') === 'between')
+                                                                    <input wire:model.live.debounce.400ms="conditionTree.groups.{{ $groupIndex }}.conditions.{{ $conditionIndex }}.value_to" type="{{ ($conditionField['type'] ?? '') === 'date' ? 'date' : 'number' }}" step="any" class="rounded-xl px-3 py-2" aria-label="{{ __('report_designer.conditions.second_value') }}" @disabled($readOnly)>
+                                                                @endif
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                    @if(! $readOnly)
+                                                        <button type="button" wire:click="removeCondition({{ $groupIndex }}, {{ $conditionIndex }})" class="admin-icon-button admin-icon-button--danger" title="{{ __('report_designer.conditions.remove_condition') }}"><x-admin-action-icon name="delete" /></button>
+                                                    @endif
+                                                    @error("conditionTree.groups.$groupIndex.conditions.$conditionIndex") <span class="text-xs text-red-300 lg:col-span-4">{{ $message }}</span> @enderror
+                                                    @error("conditionTree.groups.$groupIndex.conditions.$conditionIndex.value") <span class="text-xs text-red-300 lg:col-span-4">{{ $message }}</span> @enderror
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </article>
+                            @endforeach
+                        </div>
+                        @error('conditionTree') <span class="mt-3 block text-xs text-red-300">{{ $message }}</span> @enderror
+                    </section>
 
                     <div class="grid gap-4 md:grid-cols-2">
                         <label class="grid gap-2 text-sm text-neutral-200">

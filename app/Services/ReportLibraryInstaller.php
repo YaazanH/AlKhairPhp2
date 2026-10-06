@@ -14,6 +14,7 @@ class ReportLibraryInstaller
 {
     public function __construct(
         private readonly ReportDesignerCatalog $catalog,
+        private readonly ReportConditionService $conditions,
         private readonly CurrentModuleAccess $modules,
     ) {}
 
@@ -90,13 +91,16 @@ class ReportLibraryInstaller
             (string) data_get($definition, 'sort_direction', 'asc'),
         );
 
+        $filters = (array) data_get($definition, 'filters', []);
+        $filters['condition_tree'] = $this->conditions->validate($source, $filters['condition_tree'] ?? []);
+
         return [
             'data_source' => $source,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,
             'presentation' => $this->catalog->validatePresentation((array) data_get($definition, 'presentation', []), $groupBy, true, $source, $calculations),
-            'filters' => (array) data_get($definition, 'filters', []),
+            'filters' => $filters,
             'sort_field' => $sortField,
             'sort_direction' => $sortDirection,
         ];

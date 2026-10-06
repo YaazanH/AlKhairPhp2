@@ -38,6 +38,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\ReportConditionService;
 use App\Services\ReportDashboardService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerGuidance;
@@ -58,6 +59,96 @@ use Tests\TestCase;
 class ReportDesignerTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_nested_and_or_conditions_filter_the_real_report_query_and_are_explained(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $this->app->setLocale('en');
+        $administrator = User::factory()->create(['username' => 'condition-builder-admin']);
+        $administrator->assignRole('admin');
+
+        Student::query()->create([
+            'first_name' => 'Amina',
+            'last_name' => 'Accepted',
+            'student_number' => 'STD-001',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        Student::query()->create([
+            'first_name' => 'Yousef',
+            'last_name' => 'Voucher',
+            'student_number' => 'VIP-002',
+            'birth_date' => '2013-01-01',
+            'status' => 'inactive',
+        ]);
+        Student::query()->create([
+            'first_name' => 'Late',
+            'last_name' => 'Student',
+            'student_number' => 'STD-003',
+            'birth_date' => '2018-01-01',
+            'status' => 'active',
+        ]);
+        Student::query()->create([
+            'first_name' => 'Excluded',
+            'last_name' => 'Student',
+            'student_number' => 'STD-004',
+            'birth_date' => '2012-01-01',
+            'status' => 'inactive',
+        ]);
+
+        $tree = [
+            'operator' => 'and',
+            'groups' => [
+                [
+                    'operator' => 'or',
+                    'conditions' => [
+                        ['field' => 'status', 'operator' => 'equals', 'value' => 'active'],
+                        ['field' => 'full_name', 'operator' => 'starts_with', 'value' => 'Yousef'],
+                    ],
+                ],
+                [
+                    'operator' => 'and',
+                    'conditions' => [
+                        ['field' => 'birth_date', 'operator' => 'before', 'value' => '2015-01-01'],
+                    ],
+                ],
+            ],
+        ];
+
+        $preview = app(ReportDesignerQueryService::class)->preview([
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'selected_fields' => ['student_number', 'full_name', 'status'],
+            'calculations' => [['operation' => 'count', 'field' => null]],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => '', 'condition_tree' => $tree],
+            'sort_field' => 'student_number',
+            'sort_direction' => 'asc',
+        ], $administrator);
+
+        $this->assertSame(['Amina Accepted', 'Yousef Voucher'], collect($preview['rows'])->pluck('full_name')->all());
+        $this->assertSame(2, $preview['total']);
+        $this->assertSame(2, $preview['calculations'][0]['value']);
+
+        $description = app(ReportConditionService::class)->describe(ReportDesignerCatalog::STUDENTS, $tree);
+        $this->assertStringContainsString('AND', $description);
+        $this->assertStringContainsString('OR', $description);
+        $this->assertStringContainsString('Full name', $description);
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('create')
+            ->assertSee('data-report-condition-builder', false)
+            ->set('name', 'Students named Amina')
+            ->call('addCondition', 0)
+            ->set('conditionTree.groups.0.conditions.0.field', 'full_name')
+            ->set('conditionTree.groups.0.conditions.0.operator', 'contains')
+            ->set('conditionTree.groups.0.conditions.0.value', 'Amina')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $savedTree = ReportDefinition::query()->where('name', 'Students named Amina')->firstOrFail()->filters['condition_tree'];
+        $this->assertSame('full_name', $savedTree['groups'][0]['conditions'][0]['field']);
+        $this->assertSame('contains', $savedTree['groups'][0]['conditions'][0]['operator']);
+    }
 
     public function test_layout_manager_can_preview_a_report_with_one_role_and_a_representative_user_record_scope(): void
     {

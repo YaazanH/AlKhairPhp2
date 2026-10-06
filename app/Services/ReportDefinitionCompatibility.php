@@ -8,7 +8,10 @@ use Illuminate\Validation\ValidationException;
 
 class ReportDefinitionCompatibility
 {
-    public function __construct(protected ReportDesignerCatalog $catalog) {}
+    public function __construct(
+        protected ReportDesignerCatalog $catalog,
+        protected ReportConditionService $conditions,
+    ) {}
 
     /**
      * @return array{compatible: bool, visible: bool, reason: ?string}
@@ -43,6 +46,10 @@ class ReportDefinitionCompatibility
                 true,
                 $definition->data_source,
                 $calculations,
+            );
+            $this->conditions->validate(
+                $definition->data_source,
+                data_get($definition->filters, 'condition_tree', []),
             );
 
         } catch (ValidationException) {

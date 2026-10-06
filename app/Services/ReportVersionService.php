@@ -25,7 +25,10 @@ class ReportVersionService
         'sort_direction',
     ];
 
-    public function __construct(private readonly ReportDesignerCatalog $catalog) {}
+    public function __construct(
+        private readonly ReportDesignerCatalog $catalog,
+        private readonly ReportConditionService $conditions,
+    ) {}
 
     public function capture(
         ReportDefinition $definition,
@@ -96,6 +99,9 @@ class ReportVersionService
             (string) ($snapshot['sort_direction'] ?? 'asc'),
         );
 
+        $filters = (array) ($snapshot['filters'] ?? []);
+        $filters['condition_tree'] = $this->conditions->validate($source, $filters['condition_tree'] ?? []);
+
         return [
             'name' => (string) ($snapshot['name'] ?? ''),
             'description' => filled($snapshot['description'] ?? null) ? (string) $snapshot['description'] : null,
@@ -110,7 +116,7 @@ class ReportVersionService
                 $source,
                 $calculations,
             ),
-            'filters' => (array) ($snapshot['filters'] ?? []),
+            'filters' => $filters,
             'sort_field' => $sortField,
             'sort_direction' => $sortDirection,
         ];
