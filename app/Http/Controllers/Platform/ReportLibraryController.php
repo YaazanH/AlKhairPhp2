@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformReportLibraryItem;
 use App\Services\ReportDesignerCatalog;
+use App\Services\ReportRelationshipCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,10 @@ use Illuminate\View\View;
 
 class ReportLibraryController extends Controller
 {
-    public function __construct(private readonly ReportDesignerCatalog $catalog) {}
+    public function __construct(
+        private readonly ReportDesignerCatalog $catalog,
+        private readonly ReportRelationshipCatalog $relationships,
+    ) {}
 
     public function index(): View
     {
@@ -139,6 +143,13 @@ class ReportLibraryController extends Controller
             'type' => $data['presentation_type'],
             'density' => $data['table_density'],
         ], $groupBy, false, $source, $calculations);
+        $definitionFields = [
+            ...$fields,
+            ...array_column($calculations, 'field'),
+            $groupBy,
+            $sortField,
+        ];
+        $relationships = $this->relationships->infer($source, array_values(array_filter($definitionFields)));
 
         return [
             'kind' => $data['kind'],
@@ -146,6 +157,7 @@ class ReportLibraryController extends Controller
             'description' => array_filter($data['description'] ?? [], fn (?string $value): bool => filled($value)),
             'draft_definition' => [
                 'data_source' => $source,
+                'relationships' => $relationships,
                 'selected_fields' => $fields,
                 'calculations' => $calculations,
                 'group_by' => $groupBy,
@@ -155,9 +167,7 @@ class ReportLibraryController extends Controller
                 'sort_direction' => $sortDirection,
             ],
             'required_modules' => $this->catalog->requiredModulesForDefinition($source, [
-                ...$fields,
-                ...array_column($calculations, 'field'),
-                $groupBy,
+                ...$definitionFields,
             ]),
         ];
     }

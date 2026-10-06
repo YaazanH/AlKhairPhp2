@@ -43,6 +43,7 @@ use App\Services\ReportDashboardService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerGuidance;
 use App\Services\ReportDesignerQueryService;
+use App\Services\ReportRelationshipCatalog;
 use App\Services\SidebarNavigationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Database\QueryException;
@@ -148,6 +149,67 @@ class ReportDesignerTest extends TestCase
         $savedTree = ReportDefinition::query()->where('name', 'Students named Amina')->firstOrFail()->filters['condition_tree'];
         $this->assertSame('full_name', $savedTree['groups'][0]['conditions'][0]['field']);
         $this->assertSame('contains', $savedTree['groups'][0]['conditions'][0]['operator']);
+    }
+
+    public function test_approved_relationships_control_related_fields_and_remain_compatible_with_legacy_reports(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $this->app->setLocale('en');
+        $administrator = User::factory()->create(['username' => 'relationship-catalog-admin']);
+        $administrator->assignRole('admin');
+        $relationships = app(ReportRelationshipCatalog::class);
+
+        $this->assertSame(
+            ['student_active_enrollment'],
+            $relationships->infer(ReportDesignerCatalog::STUDENTS, ['student_number', 'current_group']),
+        );
+        $this->assertArrayNotHasKey('current_group', $relationships->fields(ReportDesignerCatalog::STUDENTS, []));
+        $this->assertArrayHasKey(
+            'current_group',
+            $relationships->fields(ReportDesignerCatalog::STUDENTS, ['student_active_enrollment']),
+        );
+        $this->assertNotContains(
+            'current_group',
+            $relationships->queryFieldKeys(ReportDesignerCatalog::STUDENTS, []),
+        );
+        $this->assertContains(
+            'transaction_quarter',
+            $relationships->queryFieldKeys(ReportDesignerCatalog::FINANCE_TRANSACTIONS, []),
+        );
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('create')
+            ->assertSee('data-report-relationships', false)
+            ->assertSet('relationships', ['student_active_enrollment'])
+            ->set('relationships', [])
+            ->assertSet('selectedFields', ['student_number', 'full_name', 'status'])
+            ->set('relationships', ['student_active_enrollment'])
+            ->set('selectedFields', ['student_number', 'full_name', 'current_group'])
+            ->set('name', 'Students and current groups')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $saved = ReportDefinition::query()->where('name', 'Students and current groups')->firstOrFail();
+        $this->assertSame(['student_active_enrollment'], $saved->relationships);
+
+        $legacy = ReportDefinition::query()->create([
+            'name' => 'Legacy students and groups',
+            'data_source' => ReportDesignerCatalog::STUDENTS,
+            'relationships' => null,
+            'selected_fields' => ['student_number', 'current_group'],
+            'calculations' => [],
+            'filters' => ['status' => 'all', 'search' => '', 'date_from' => '', 'date_to' => ''],
+            'sort_direction' => 'asc',
+            'status' => ReportDefinition::STATUS_DRAFT,
+            'created_by' => $administrator->id,
+            'updated_by' => $administrator->id,
+        ]);
+
+        Volt::test('reports.designer')
+            ->call('edit', $legacy->id)
+            ->assertSet('relationships', ['student_active_enrollment'])
+            ->assertSet('selectedFields', ['student_number', 'current_group']);
     }
 
     public function test_layout_manager_can_preview_a_report_with_one_role_and_a_representative_user_record_scope(): void
@@ -284,7 +346,14 @@ class ReportDesignerTest extends TestCase
         $this->assertStringContainsString('Students', $studentDesign['summary']);
         $this->assertStringContainsString('One result row represents', $studentDesign['sentence']);
         $this->assertSame(__('report_designer.guidance.flow.row_basis'), $studentDesign['flow'][0]['label']);
-        $this->assertSame(__('report_designer.guidance.flow.output'), $studentDesign['flow'][2]['label']);
+        $this->assertContains(
+            __('report_designer.guidance.flow.output'),
+            collect($studentDesign['flow'])->pluck('label')->all(),
+        );
+        $this->assertContains(
+            __('report_designer.guidance.flow.relationships'),
+            collect($studentDesign['flow'])->pluck('label')->all(),
+        );
         $this->assertContains(__('report_designer.presentation.types.table'), $studentDesign['badges']);
         $this->assertSame(__('report_designer.guidance.values.default_sort'), collect($studentDesign['facts'])->firstWhere(
             'label',

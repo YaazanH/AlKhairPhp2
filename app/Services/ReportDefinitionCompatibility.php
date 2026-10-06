@@ -11,6 +11,7 @@ class ReportDefinitionCompatibility
     public function __construct(
         protected ReportDesignerCatalog $catalog,
         protected ReportConditionService $conditions,
+        protected ReportRelationshipCatalog $relationships,
     ) {}
 
     /**
@@ -50,6 +51,12 @@ class ReportDefinitionCompatibility
             $this->conditions->validate(
                 $definition->data_source,
                 data_get($definition->filters, 'condition_tree', []),
+            );
+            $snapshot = $definition->only(ReportVersionService::VERSIONED_FIELDS);
+            $this->relationships->resolve(
+                $definition->data_source,
+                $definition->relationships,
+                $this->relationships->usedFields($snapshot),
             );
 
         } catch (ValidationException) {

@@ -16,6 +16,7 @@ class ReportVersionService
         'name',
         'description',
         'data_source',
+        'relationships',
         'selected_fields',
         'calculations',
         'group_by',
@@ -28,6 +29,7 @@ class ReportVersionService
     public function __construct(
         private readonly ReportDesignerCatalog $catalog,
         private readonly ReportConditionService $conditions,
+        private readonly ReportRelationshipCatalog $relationships,
     ) {}
 
     public function capture(
@@ -101,11 +103,17 @@ class ReportVersionService
 
         $filters = (array) ($snapshot['filters'] ?? []);
         $filters['condition_tree'] = $this->conditions->validate($source, $filters['condition_tree'] ?? []);
+        $relationships = $this->relationships->resolve(
+            $source,
+            $snapshot['relationships'] ?? null,
+            $this->relationships->usedFields($snapshot + ['filters' => $filters]),
+        );
 
         return [
             'name' => (string) ($snapshot['name'] ?? ''),
             'description' => filled($snapshot['description'] ?? null) ? (string) $snapshot['description'] : null,
             'data_source' => $source,
+            'relationships' => $relationships,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,

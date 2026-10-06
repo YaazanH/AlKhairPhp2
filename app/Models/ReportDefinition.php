@@ -21,6 +21,7 @@ class ReportDefinition extends Model
         'name',
         'description',
         'data_source',
+        'relationships',
         'selected_fields',
         'calculations',
         'group_by',
@@ -39,6 +40,7 @@ class ReportDefinition extends Model
     {
         return [
             'selected_fields' => 'array',
+            'relationships' => 'array',
             'calculations' => 'array',
             'presentation' => 'array',
             'filters' => 'array',

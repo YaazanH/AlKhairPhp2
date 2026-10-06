@@ -6,6 +6,7 @@ use App\Models\Landlord\PlatformReportLibraryItem;
 use App\Models\ReportDefinition;
 use App\Models\User;
 use App\Services\ReportDesignerCatalog;
+use App\Services\ReportLibraryInstaller;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +109,13 @@ class ReportLibraryInstallationTest extends TestCase
         ])->map(fn (string $permission): Permission => Permission::findOrCreate($permission, 'web')));
 
         $response = $this->actingAs($user)->get(route('reports.library.index'))->assertOk();
+        foreach (PlatformReportLibraryItem::query()->where('is_system', true)->with('publishedRevision')->get() as $libraryItem) {
+            $compatibility = app(ReportLibraryInstaller::class)->compatibility($libraryItem, $user);
+            $this->assertTrue(
+                $compatibility['compatible'],
+                $libraryItem->system_key.': '.($compatibility['reason'] ?? 'unknown compatibility error'),
+            );
+        }
         foreach (['الطلاب حسب المجموعة', 'مخاطر حضور الطلاب', 'نتائج اختبارات القرآن', 'أداء التقييمات', 'عبء عمل المعلمين', 'نظرة عامة على إنجاز الدورات', 'ملخص الحركات المالية', 'اتجاه نشاط الحضور', 'الطلاب حسب الصف الدراسي', 'المصروفات حسب التصنيف', 'اتجاه المصروفات ربع السنوي', 'تقدم المنهاج حسب المجموعة', 'خريطة أداء الطلاب', 'لوحة ترتيب الطلاب في الحفظ', 'ترتيب المجموعات في الحفظ'] as $name) {
             $response->assertSee($name);
         }

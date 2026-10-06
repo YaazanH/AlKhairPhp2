@@ -12,6 +12,7 @@ use App\Services\ReportConditionService;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportDesignerGuidance;
 use App\Services\ReportDesignerQueryService;
+use App\Services\ReportRelationshipCatalog;
 use App\Services\ReportVersionService;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,8 @@ new class extends Component
     public string $dataSource = '';
 
     public array $selectedFields = [];
+
+    public array $relationships = [];
 
     public array $calculations = [];
 
@@ -90,12 +93,16 @@ new class extends Component
         $this->authorizeDesignerViewer();
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
+        $this->relationships = app(ReportRelationshipCatalog::class)->infer($this->dataSource, $this->selectedFields);
         $this->conditionTree = app(ReportConditionService::class)->emptyTree();
     }
 
     public function with(): array
     {
         $catalog = app(ReportDesignerCatalog::class);
+        $relationshipCatalog = app(ReportRelationshipCatalog::class);
+        $relationshipFields = $relationshipCatalog->fields($this->dataSource, $this->relationships);
+        $queryFieldKeys = $relationshipCatalog->queryFieldKeys($this->dataSource, $this->relationships);
         $canTestRole = auth()->user()?->can('report-dashboard-layout.manage') ?? false;
         $dashboardRoles = $canTestRole ? $this->availableDashboardRoles() : collect();
         $previewRole = $this->previewRoleId
@@ -128,6 +135,7 @@ new class extends Component
             fn (ReportDefinition $definition): array => [
                 $definition->id => $guidance->build([
                     'data_source' => $definition->data_source,
+                    'relationships' => $definition->relationships,
                     'selected_fields' => $definition->selected_fields,
                     'calculations' => $definition->calculations ?? [],
                     'group_by' => $definition->group_by,
@@ -155,19 +163,22 @@ new class extends Component
             'definitionGuidance' => $definitionGuidance,
             'sources' => $catalog->sources(auth()->user()),
             'allSources' => $catalog->librarySources(),
-            'availableFields' => $catalog->fields($this->dataSource),
-            'sortableFields' => $catalog->sortableFields($this->dataSource),
+            'availableRelationships' => $relationshipCatalog->available($this->dataSource),
+            'fieldGroups' => $relationshipCatalog->fieldGroups($this->dataSource, $this->relationships),
+            'availableFields' => $relationshipFields,
+            'sortableFields' => collect($catalog->sortableFields($this->dataSource))->only($queryFieldKeys)->all(),
             'statusFilters' => $catalog->statusFilters($this->dataSource),
             'calculationOperations' => $catalog->calculationOperations(),
-            'calculableFields' => $catalog->calculableFields($this->dataSource),
-            'groupableFields' => $catalog->groupableFields($this->dataSource),
-            'conditionFields' => app(ReportConditionService::class)->fields($this->dataSource),
+            'calculableFields' => collect($catalog->calculableFields($this->dataSource))->only($queryFieldKeys)->all(),
+            'groupableFields' => collect($catalog->groupableFields($this->dataSource))->only($queryFieldKeys)->all(),
+            'conditionFields' => collect(app(ReportConditionService::class)->fields($this->dataSource))->only($queryFieldKeys)->all(),
             'presentationTypes' => $presentationTypes,
             'tableDensities' => $catalog->tableDensities(),
             'canAddCalculation' => $this->nextCalculation() !== null,
             'designGuidance' => app(ReportDesignerGuidance::class)->build([
                 'data_source' => $this->dataSource,
                 'selected_fields' => $this->selectedFields,
+                'relationships' => $this->relationships,
                 'calculations' => $this->calculations,
                 'group_by' => $this->groupBy,
                 'presentation' => ['type' => $this->presentationType],
@@ -203,6 +214,7 @@ new class extends Component
         abort_unless(array_key_exists($this->dataSource, $catalog->sources(auth()->user())), 403);
 
         $this->selectedFields = $catalog->defaultFields($this->dataSource);
+        $this->relationships = app(ReportRelationshipCatalog::class)->infer($this->dataSource, $this->selectedFields);
         $this->calculations = [];
         $this->groupBy = '';
         $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
@@ -219,6 +231,54 @@ new class extends Component
         $this->previewResult = [];
         $this->previewRoleId = null;
         $this->previewUserId = null;
+        $this->resetValidation();
+    }
+
+    public function updatedRelationships(): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        $relationshipCatalog = app(ReportRelationshipCatalog::class);
+        $available = $relationshipCatalog->available($this->dataSource);
+        $this->relationships = collect($this->relationships)
+            ->filter(fn ($relationship): bool => array_key_exists((string) $relationship, $available))
+            ->map(fn ($relationship): string => (string) $relationship)
+            ->unique()
+            ->values()
+            ->all();
+        $allowedFields = array_keys($relationshipCatalog->fields($this->dataSource, $this->relationships));
+        $queryFieldKeys = $relationshipCatalog->queryFieldKeys($this->dataSource, $this->relationships);
+        $this->selectedFields = array_values(array_intersect($this->selectedFields, $allowedFields));
+        if ($this->selectedFields === []) {
+            $this->selectedFields = array_values(array_intersect(
+                app(ReportDesignerCatalog::class)->defaultFields($this->dataSource),
+                $allowedFields,
+            ));
+            if ($this->selectedFields === []) {
+                $this->selectedFields = array_slice($allowedFields, 0, 1);
+            }
+        }
+
+        $this->calculations = collect($this->calculations)
+            ->filter(fn (array $calculation): bool => blank($calculation['field'] ?? null) || in_array($calculation['field'], $queryFieldKeys, true))
+            ->values()
+            ->all();
+        if (filled($this->groupBy) && ! in_array($this->groupBy, $queryFieldKeys, true)) {
+            $this->groupBy = '';
+            $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
+        }
+        if (filled($this->sortField) && ! in_array($this->sortField, $queryFieldKeys, true)) {
+            $this->sortField = '';
+        }
+
+        foreach ($this->conditionTree['groups'] ?? [] as $groupIndex => $group) {
+            $this->conditionTree['groups'][$groupIndex]['conditions'] = collect($group['conditions'] ?? [])
+                ->filter(fn (array $condition): bool => in_array($condition['field'] ?? null, $queryFieldKeys, true))
+                ->values()
+                ->all();
+        }
+
+        $this->previewResult = [];
         $this->resetValidation();
     }
 
@@ -256,6 +316,17 @@ new class extends Component
         $this->description = $definition->description ?? '';
         $this->dataSource = $definition->data_source;
         $this->selectedFields = $definition->selected_fields;
+        $this->relationships = app(ReportRelationshipCatalog::class)->resolve(
+            $this->dataSource,
+            $definition->relationships,
+            app(ReportRelationshipCatalog::class)->usedFields([
+                'selected_fields' => $definition->selected_fields,
+                'calculations' => $definition->calculations ?? [],
+                'group_by' => $definition->group_by,
+                'sort_field' => $definition->sort_field,
+                'filters' => $filters,
+            ]),
+        );
         $this->calculations = $definition->calculations ?? [];
         $this->groupBy = $definition->group_by ?? '';
         $this->presentationType = (string) data_get($definition->presentation, 'type', ReportDesignerCatalog::PRESENTATION_TABLE);
@@ -631,6 +702,8 @@ new class extends Component
             'dataSource' => ['required', Rule::in($sourceKeys)],
             'selectedFields' => ['required', 'array', 'min:1'],
             'selectedFields.*' => ['string'],
+            'relationships' => ['array'],
+            'relationships.*' => ['string'],
             'calculations' => ['array', 'max:'.ReportDesignerCatalog::CALCULATION_LIMIT],
             'calculations.*.operation' => ['required', 'string'],
             'calculations.*.field' => ['nullable', 'string'],
@@ -677,11 +750,23 @@ new class extends Component
             $validated['sortDirection'],
         );
         $conditionTree = app(ReportConditionService::class)->validate($validated['dataSource'], $validated['conditionTree']);
+        $relationships = app(ReportRelationshipCatalog::class)->validate(
+            $validated['dataSource'],
+            $validated['relationships'],
+            app(ReportRelationshipCatalog::class)->usedFields([
+                'selected_fields' => $fields,
+                'calculations' => $calculations,
+                'group_by' => $groupBy,
+                'sort_field' => $sortField,
+                'filters' => ['condition_tree' => $conditionTree],
+            ]),
+        );
 
         return [
             'name' => trim($validated['name'] ?? ''),
             'description' => filled($validated['description']) ? trim($validated['description']) : null,
             'data_source' => $validated['dataSource'],
+            'relationships' => $relationships,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,
@@ -707,6 +792,7 @@ new class extends Component
         $this->description = '';
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
+        $this->relationships = app(ReportRelationshipCatalog::class)->infer($this->dataSource, $this->selectedFields);
         $this->calculations = [];
         $this->groupBy = '';
         $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
@@ -1096,21 +1182,57 @@ new class extends Component
                         <textarea wire:model="description" rows="2" class="rounded-xl px-4 py-3" placeholder="{{ __('report_designer.form.description_placeholder') }}" @disabled($readOnly)></textarea>
                     </label>
 
+                    @if($availableRelationships !== [])
+                        <section class="rounded-2xl border border-sky-300/20 bg-sky-400/[0.05] p-4" data-report-relationships>
+                            <div class="text-sm font-semibold text-white">{{ __('report_designer.relationships.title') }}</div>
+                            <p class="mt-1 max-w-3xl text-xs leading-5 text-neutral-400">{{ __('report_designer.relationships.help') }}</p>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                @foreach($availableRelationships as $relationshipKey => $relationship)
+                                    <label @class([
+                                        'cursor-pointer rounded-xl border p-4 transition',
+                                        'border-sky-300/35 bg-sky-300/10' => in_array($relationshipKey, $relationships, true),
+                                        'border-white/10 bg-black/10 hover:border-white/20' => ! in_array($relationshipKey, $relationships, true),
+                                    ])>
+                                        <span class="flex items-start gap-3">
+                                            <input wire:model.live="relationships" type="checkbox" value="{{ $relationshipKey }}" class="mt-1 rounded border-white/20 bg-transparent" @disabled($readOnly)>
+                                            <span class="min-w-0">
+                                                <span class="font-semibold text-white">{{ $relationship['label'] }}</span>
+                                                <span class="mt-1 block text-xs leading-5 text-neutral-400">{{ $relationship['description'] }}</span>
+                                                <span class="mt-3 flex flex-wrap gap-2">
+                                                    <span class="rounded-full bg-white/8 px-2 py-1 text-[0.65rem] text-neutral-300">{{ $relationship['cardinality'] }}</span>
+                                                    <span class="rounded-full bg-white/8 px-2 py-1 text-[0.65rem] text-neutral-300">{{ __('report_designer.relationships.fields_available', ['count' => count($relationship['fields'])]) }}</span>
+                                                </span>
+                                            </span>
+                                        </span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @error('relationships') <span class="mt-3 block text-xs text-red-300">{{ $message }}</span> @enderror
+                        </section>
+                    @endif
+
                     <div>
                         <div class="text-sm font-semibold text-white">{{ __('report_designer.form.fields') }}</div>
                         <p class="mt-1 text-xs leading-5 text-neutral-400">{{ __('report_designer.form.fields_help') }}</p>
-                        <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            @foreach ($availableFields as $fieldKey => $field)
-                                <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-neutral-200">
-                                    <input wire:model.live="selectedFields" type="checkbox" value="{{ $fieldKey }}" class="mt-1 rounded border-white/20 bg-transparent" @disabled($readOnly)>
-                                    <span class="min-w-0">
-                                        <span class="flex flex-wrap items-center gap-2">
-                                            <span class="font-medium text-white">{{ $field['label'] }}</span>
-                                            <span class="rounded-full bg-white/8 px-2 py-0.5 text-[0.65rem] text-neutral-300">{{ $field['type_label'] }}</span>
-                                        </span>
-                                        <span class="mt-1 block text-xs leading-5 text-neutral-400" data-report-field-description>{{ $field['description'] }}</span>
-                                    </span>
-                                </label>
+                        <div class="mt-3 grid gap-4">
+                            @foreach($fieldGroups as $fieldGroup)
+                                <section class="rounded-xl border border-white/8 bg-white/[0.02] p-3" data-report-field-group="{{ $fieldGroup['key'] }}">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-neutral-400">{{ $fieldGroup['label'] }}</div>
+                                    <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                        @foreach ($fieldGroup['fields'] as $fieldKey => $field)
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-neutral-200">
+                                                <input wire:model.live="selectedFields" type="checkbox" value="{{ $fieldKey }}" class="mt-1 rounded border-white/20 bg-transparent" @disabled($readOnly)>
+                                                <span class="min-w-0">
+                                                    <span class="flex flex-wrap items-center gap-2">
+                                                        <span class="font-medium text-white">{{ $field['label'] }}</span>
+                                                        <span class="rounded-full bg-white/8 px-2 py-0.5 text-[0.65rem] text-neutral-300">{{ $field['type_label'] }}</span>
+                                                    </span>
+                                                    <span class="mt-1 block text-xs leading-5 text-neutral-400" data-report-field-description>{{ $field['description'] }}</span>
+                                                </span>
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </section>
                             @endforeach
                         </div>
                         @error('selectedFields') <span class="mt-2 block text-xs text-red-300">{{ $message }}</span> @enderror

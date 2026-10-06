@@ -15,6 +15,7 @@ class ReportLibraryInstaller
     public function __construct(
         private readonly ReportDesignerCatalog $catalog,
         private readonly ReportConditionService $conditions,
+        private readonly ReportRelationshipCatalog $relationships,
         private readonly CurrentModuleAccess $modules,
     ) {}
 
@@ -93,9 +94,15 @@ class ReportLibraryInstaller
 
         $filters = (array) data_get($definition, 'filters', []);
         $filters['condition_tree'] = $this->conditions->validate($source, $filters['condition_tree'] ?? []);
+        $relationships = $this->relationships->resolve(
+            $source,
+            data_get($definition, 'relationships'),
+            $this->relationships->usedFields($definition + ['filters' => $filters]),
+        );
 
         return [
             'data_source' => $source,
+            'relationships' => $relationships,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,
