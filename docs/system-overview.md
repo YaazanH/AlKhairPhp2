@@ -392,4 +392,3 @@ Tenant and Platform workspaces show counters for items that need attention. Emai
 The core tenant application, SaaS tenant management, subscriptions, offline payment ledger, vouchers, support flows, learning progression, tenant branding, public landing page, Platform roles, and Report & Widget Designer are implemented on the SaaS feature branch.
 
 The primary area still marked as in progress is the complete standalone-to-SaaS migration and restoration workflow for every legacy-data edge case. Standard SaaS tenant backup, download, storage accounting, and controlled restore capabilities are already present.
-
