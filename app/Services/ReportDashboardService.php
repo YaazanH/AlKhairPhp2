@@ -100,6 +100,8 @@ class ReportDashboardService
     {
         return [
             'data_source' => $report->data_source,
+            'relationships' => $report->relationships,
+            'relationship_modes' => $report->relationship_modes,
             'selected_fields' => $report->selected_fields,
             'calculations' => $report->calculations ?? [],
             'group_by' => $report->group_by,

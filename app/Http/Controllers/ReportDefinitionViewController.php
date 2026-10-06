@@ -19,6 +19,8 @@ class ReportDefinitionViewController extends Controller
         try {
             $result = app(ReportDesignerQueryService::class)->preview([
                 'data_source' => $reportDefinition->data_source,
+                'relationships' => $reportDefinition->relationships,
+                'relationship_modes' => $reportDefinition->relationship_modes,
                 'selected_fields' => $reportDefinition->selected_fields,
                 'calculations' => $reportDefinition->calculations ?? [],
                 'group_by' => $reportDefinition->group_by,

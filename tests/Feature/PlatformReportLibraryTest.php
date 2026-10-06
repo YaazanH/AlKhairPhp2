@@ -94,6 +94,29 @@ class PlatformReportLibraryTest extends TestCase
             ->assertRedirect();
     }
 
+    public function test_platform_library_can_store_detailed_relationship_rows(): void
+    {
+        $owner = $this->administrator('relationship-owner@example.test');
+        $payload = $this->payload([
+            'data_source' => 'assessments',
+            'selected_fields' => ['assessment_title', 'assessment_groups', 'status'],
+            'relationship_modes' => ['assessment_groups' => 'detailed'],
+            'group_by' => 'assessment_groups',
+            'sort_field' => null,
+        ]);
+
+        $this->actingAs($owner, 'platform')
+            ->post(route('platform.report-library.store'), $payload)
+            ->assertRedirect();
+
+        $item = PlatformReportLibraryItem::query()->where('is_system', false)->sole();
+        $this->assertSame(['assessment_groups'], data_get($item->draft_definition, 'relationships'));
+        $this->assertSame(
+            ['assessment_groups' => 'detailed'],
+            data_get($item->draft_definition, 'relationship_modes'),
+        );
+    }
+
     public function test_predefined_templates_are_published_and_cannot_be_modified_from_platform_management(): void
     {
         $owner = $this->administrator('owner@example.test');

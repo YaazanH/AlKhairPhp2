@@ -42,6 +42,8 @@ class ReportDesignerQueryService
 
     protected array $activePresentation = [];
 
+    protected array $activeRelationshipModes = [];
+
     protected array $curriculumSummaries = [];
 
     protected int $rowLimit = self::PREVIEW_LIMIT;
@@ -52,6 +54,7 @@ class ReportDesignerQueryService
         protected AccessScopeService $accessScopes,
         protected ReportDesignerCatalog $catalog,
         protected ReportConditionService $conditions,
+        protected ReportRelationshipCatalog $relationships,
         protected FinanceService $finance,
         protected CurrentModuleAccess $modules,
     ) {}
@@ -116,6 +119,16 @@ class ReportDesignerQueryService
         $source = (string) ($definition['data_source'] ?? '');
         abort_unless(array_key_exists($source, $this->catalog->sources($user)), 403);
         $fields = $this->catalog->validateFields($source, (array) ($definition['selected_fields'] ?? []));
+        $relationships = $this->relationships->resolve(
+            $source,
+            $definition['relationships'] ?? null,
+            $this->relationships->usedFields($definition),
+        );
+        $this->activeRelationshipModes = $this->relationships->validateModes(
+            $source,
+            $relationships,
+            $definition['relationship_modes'] ?? null,
+        );
         $this->activeCalculations = $this->catalog->validateCalculations($source, (array) ($definition['calculations'] ?? []));
         $this->activeGroupBy = $this->catalog->validateGrouping($source, $definition['group_by'] ?? null);
         $this->activePresentation = $this->catalog->validatePresentation(
@@ -595,9 +608,27 @@ class ReportDesignerQueryService
                 ->orWhereHas('groups', fn (Builder $relation) => $relation->where('name', 'like', '%'.$search.'%'));
         });
         $this->conditions->apply($query, ReportDesignerCatalog::ASSESSMENTS, $filters['condition_tree'] ?? []);
+        $this->applyAssessmentSort($query, $sortField, $sortDirection);
+
+        if ($this->relationships->hasDetailedMode($this->activeRelationshipModes, 'assessment_groups')) {
+            $total = $this->prepareDetailedAssessmentSummaries($query);
+            $rows = $query->limit($this->rowLimit)->get()
+                ->flatMap(function (Assessment $assessment) use ($fields): array {
+                    return $this->assessmentGroups($assessment)
+                        ->map(fn ($group): array => collect($fields)->mapWithKeys(fn (string $field) => [
+                            $field => $this->detailedAssessmentValue($assessment, $group, $field),
+                        ])->all())
+                        ->all();
+                })
+                ->take($this->rowLimit)
+                ->values()
+                ->all();
+
+            return $this->result(ReportDesignerCatalog::ASSESSMENTS, $fields, $rows, $total);
+        }
+
         $total = (clone $query)->count();
         $this->prepareOperationalSummaries(ReportDesignerCatalog::ASSESSMENTS, $query, $this->assessmentValue(...));
-        $this->applyAssessmentSort($query, $sortField, $sortDirection);
 
         $rows = $query->limit($this->rowLimit)->get()->map(function (Assessment $assessment) use ($fields): array {
             return collect($fields)->mapWithKeys(fn (string $field) => [
@@ -1090,6 +1121,82 @@ class ReportDesignerQueryService
             'average_score' => $assessment->average_score !== null ? round((float) $assessment->average_score, 2) : null,
             'description' => $assessment->description,
         };
+    }
+
+    protected function detailedAssessmentValue(Assessment $assessment, mixed $group, string $field): mixed
+    {
+        return $field === 'assessment_groups'
+            ? $group?->name
+            : $this->assessmentValue($assessment, $field);
+    }
+
+    protected function assessmentGroups(Assessment $assessment)
+    {
+        $groups = $assessment->groups
+            ->when($assessment->group, fn ($items) => $items->prepend($assessment->group))
+            ->unique('id')
+            ->values();
+
+        return $groups->isEmpty() ? collect([null]) : $groups;
+    }
+
+    protected function prepareDetailedAssessmentSummaries(Builder $query): int
+    {
+        $calculations = collect($this->activeCalculations)
+            ->reject(fn (array $calculation) => $calculation['operation'] === 'count')
+            ->values()
+            ->all();
+        $calculationStates = [];
+        $groupStates = [];
+        $total = 0;
+
+        (clone $query)->reorder()->chunkById(250, function ($assessments) use (&$calculationStates, &$groupStates, &$total, $calculations): void {
+            foreach ($assessments as $assessment) {
+                foreach ($this->assessmentGroups($assessment) as $group) {
+                    $total++;
+
+                    foreach ($calculations as $calculation) {
+                        $key = $this->calculationKey($calculation['operation'], $calculation['field']);
+                        $this->accumulateCalculation(
+                            $calculationStates[$key],
+                            $calculation['operation'],
+                            $this->detailedAssessmentValue($assessment, $group, $calculation['field']),
+                        );
+                    }
+
+                    if ($this->activeGroupBy === null) {
+                        continue;
+                    }
+
+                    $label = $this->detailedAssessmentValue($assessment, $group, $this->activeGroupBy);
+                    $label = filled($label) ? (string) $label : __('report_designer.grouping.unknown');
+                    $groupStates[$label] ??= ['record_count' => 0, 'calculations' => []];
+                    $groupStates[$label]['record_count']++;
+
+                    foreach ($calculations as $calculation) {
+                        $key = $this->calculationKey($calculation['operation'], $calculation['field']);
+                        $this->accumulateCalculation(
+                            $groupStates[$label]['calculations'][$key],
+                            $calculation['operation'],
+                            $this->detailedAssessmentValue($assessment, $group, $calculation['field']),
+                        );
+                    }
+                }
+            }
+        });
+
+        $this->calculationValues = collect($calculationStates)
+            ->map(fn (array $state) => $this->finalizeCalculation($state))
+            ->all();
+        if ($this->activeGroupBy !== null) {
+            $this->groupingResult = $this->operationalGroupingResult(
+                ReportDesignerCatalog::ASSESSMENTS,
+                $groupStates,
+                $calculations,
+            );
+        }
+
+        return $total;
     }
 
     protected function assessmentResultValue(AssessmentResult $result, string $field): mixed

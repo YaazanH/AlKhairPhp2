@@ -58,10 +58,23 @@ class ReportDesignerGuidance
         $usedFields = $this->relationships->usedFields($definition);
         try {
             $relationshipKeys = $this->relationships->resolve($source, $definition['relationships'] ?? null, $usedFields);
+            $relationshipModes = $this->relationships->validateModes(
+                $source,
+                $relationshipKeys,
+                $definition['relationship_modes'] ?? null,
+            );
         } catch (ValidationException) {
             $relationshipKeys = $this->relationships->infer($source, $usedFields);
+            $relationshipModes = $this->relationships->validateModes($source, $relationshipKeys, null);
         }
-        $relationshipLabels = $this->relationships->labels($source, $relationshipKeys);
+        $relationshipLabels = $this->relationships->labels($source, $relationshipKeys, $relationshipModes);
+        $detailedRelationshipLabels = collect($relationshipModes)
+            ->filter(fn (string $mode): bool => $mode === ReportRelationshipCatalog::MODE_DETAILED)
+            ->keys()
+            ->map(fn (string $relationship): ?string => data_get($this->relationships->available($source), $relationship.'.label'))
+            ->filter()
+            ->values()
+            ->all();
         $conditionTree = $filters['condition_tree'] ?? [];
         $conditionSummary = $this->conditions->describe($source, $conditionTree);
         $filterSummary = $this->filterSummary($source, $status, $search, $dateFrom, $dateTo, $conditionSummary);
@@ -127,7 +140,12 @@ class ReportDesignerGuidance
         $flow = [
             [
                 'label' => __('report_designer.guidance.flow.row_basis'),
-                'value' => __('report_designer.guidance.values.one_row_per', ['source' => $sourceDetails['label']]),
+                'value' => $detailedRelationshipLabels === []
+                    ? __('report_designer.guidance.values.one_row_per', ['source' => $sourceDetails['label']])
+                    : __('report_designer.guidance.values.one_row_per_related', [
+                        'source' => $sourceDetails['label'],
+                        'relationship' => $this->joinedLabels($detailedRelationshipLabels),
+                    ]),
             ],
         ];
 
@@ -167,8 +185,9 @@ class ReportDesignerGuidance
                     'count' => $selectedFields->count(),
                 ]),
             ]),
-            'sentence' => __('report_designer.guidance.sentence', [
+            'sentence' => __('report_designer.guidance.'.($detailedRelationshipLabels === [] ? 'sentence' : 'sentence_detailed'), [
                 'source' => $sourceDetails['label'],
+                'relationship' => $this->joinedLabels($detailedRelationshipLabels),
                 'fields' => $fieldLabels === []
                     ? __('report_designer.guidance.values.no_fields')
                     : $this->joinedLabels($fieldLabels),
@@ -196,6 +215,7 @@ class ReportDesignerGuidance
                 $presentation,
                 $calculations->all(),
                 $conditionSummary !== null,
+                $detailedRelationshipLabels !== [],
             ),
         ];
     }
@@ -267,6 +287,7 @@ class ReportDesignerGuidance
         string $presentation,
         array $calculations,
         bool $hasConditions,
+        bool $hasDetailedRelationship,
     ): array {
         $warnings = [];
         $activitySources = [
@@ -308,6 +329,9 @@ class ReportDesignerGuidance
         }
         if ($presentation !== ReportDesignerCatalog::PRESENTATION_TABLE && $groupBy === null) {
             $warnings[] = __('report_designer.guidance.warnings.chart_without_grouping');
+        }
+        if ($hasDetailedRelationship && $calculations !== []) {
+            $warnings[] = __('report_designer.guidance.warnings.detailed_relationship_calculations');
         }
 
         return array_values(array_unique($warnings));

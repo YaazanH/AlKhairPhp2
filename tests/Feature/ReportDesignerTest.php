@@ -212,6 +212,97 @@ class ReportDesignerTest extends TestCase
             ->assertSet('selectedFields', ['student_number', 'current_group']);
     }
 
+    public function test_detailed_assessment_groups_create_one_scoped_result_row_per_group(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $this->app->setLocale('en');
+        $administrator = User::factory()->create(['username' => 'detailed-relationship-admin']);
+        $administrator->assignRole('admin');
+        $year = AcademicYear::query()->create([
+            'name' => 'Detailed relationship year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-08-31',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::query()->create([
+            'first_name' => 'Detailed',
+            'last_name' => 'Teacher',
+            'phone' => '0900000098',
+            'status' => 'active',
+        ]);
+        $course = Course::query()->create([
+            'academic_year_id' => $year->id,
+            'name' => 'Detailed relationship course',
+            'is_active' => true,
+        ]);
+        $groupAttributes = [
+            'course_id' => $course->id,
+            'academic_year_id' => $year->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 10,
+            'is_active' => true,
+        ];
+        $firstGroup = Group::query()->create($groupAttributes + ['name' => 'First assessment group']);
+        $secondGroup = Group::query()->create($groupAttributes + ['name' => 'Second assessment group']);
+        $type = AssessmentType::query()->create([
+            'name' => 'Detailed quiz',
+            'code' => 'detailed-quiz',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+        $assessment = Assessment::query()->create([
+            'group_id' => $firstGroup->id,
+            'group_scope' => 'multiple',
+            'assessment_type_id' => $type->id,
+            'title' => 'Shared detailed quiz',
+            'due_at' => '2026-10-08 10:00:00',
+            'total_mark' => 100,
+            'pass_mark' => 60,
+            'is_active' => true,
+            'created_by' => $administrator->id,
+        ]);
+        $assessment->groups()->sync([$firstGroup->id, $secondGroup->id]);
+
+        $this->actingAs($administrator);
+        Volt::test('reports.designer')
+            ->call('create')
+            ->set('dataSource', ReportDesignerCatalog::ASSESSMENTS)
+            ->assertSet('relationshipModes.assessment_groups', ReportRelationshipCatalog::MODE_SUMMARY)
+            ->set('relationshipModes.assessment_groups', ReportRelationshipCatalog::MODE_DETAILED)
+            ->assertSee('data-report-relationship-mode="assessment_groups"', false)
+            ->set('name', 'Assessments by individual group')
+            ->set('selectedFields', ['assessment_title', 'assessment_groups'])
+            ->set('groupBy', 'assessment_groups')
+            ->call('addCalculation')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $definition = ReportDefinition::query()->where('name', 'Assessments by individual group')->firstOrFail();
+        $this->assertSame(
+            ['assessment_groups' => ReportRelationshipCatalog::MODE_DETAILED],
+            $definition->relationship_modes,
+        );
+
+        $result = app(ReportDesignerQueryService::class)->preview($definition->toArray(), $administrator);
+        $this->assertSame(2, $result['total']);
+        $this->assertSame(
+            ['First assessment group', 'Second assessment group'],
+            collect($result['rows'])->pluck('assessment_groups')->all(),
+        );
+        $this->assertSame(2, $result['calculations'][0]['value']);
+        $this->assertSame(
+            ['First assessment group', 'Second assessment group'],
+            collect($result['grouping']['rows'])->pluck('group')->sort()->values()->all(),
+        );
+
+        $guidance = app(ReportDesignerGuidance::class)->build($definition->toArray(), $administrator);
+        $this->assertStringContainsString('for each related Assessment groups', $guidance['sentence']);
+        $this->assertContains(
+            __('report_designer.guidance.warnings.detailed_relationship_calculations'),
+            $guidance['warnings'],
+        );
+    }
+
     public function test_layout_manager_can_preview_a_report_with_one_role_and_a_representative_user_record_scope(): void
     {
         $this->seed(RoleSeeder::class);
@@ -2053,6 +2144,16 @@ class ReportDesignerTest extends TestCase
             'filters' => ['status' => 'active', 'date_from' => '2026-10-07', 'date_to' => '2026-10-07'],
             'sort_direction' => 'asc',
         ], $user);
+        $detailedAssessments = $service->preview([
+            'data_source' => 'assessments',
+            'relationships' => ['assessment_groups'],
+            'relationship_modes' => ['assessment_groups' => ReportRelationshipCatalog::MODE_DETAILED],
+            'selected_fields' => ['assessment_title', 'assessment_groups'],
+            'calculations' => [['operation' => 'count', 'field' => null]],
+            'group_by' => 'assessment_groups',
+            'filters' => ['status' => 'active', 'date_from' => '2026-10-07', 'date_to' => '2026-10-07'],
+            'sort_direction' => 'asc',
+        ], $user);
         $results = $service->preview([
             'data_source' => 'assessment_results',
             'selected_fields' => ['due_at', 'assessment_title', 'full_name', 'score', 'result_status', 'group_name'],
@@ -2068,6 +2169,9 @@ class ReportDesignerTest extends TestCase
             'failed_results_count' => 0,
             'average_score' => 85.0,
         ]], $assessments['rows']);
+        $this->assertSame(1, $detailedAssessments['total']);
+        $this->assertSame('Visible Assessment Group', $detailedAssessments['rows'][0]['assessment_groups']);
+        $this->assertSame(1, $detailedAssessments['calculations'][0]['value']);
         $this->assertSame([[
             'due_at' => '2026-10-07 10:00',
             'assessment_title' => 'Shared Monthly Quiz',

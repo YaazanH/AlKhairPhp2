@@ -40,6 +40,8 @@ new class extends Component
 
     public array $relationships = [];
 
+    public array $relationshipModes = [];
+
     public array $calculations = [];
 
     public string $groupBy = '';
@@ -94,6 +96,7 @@ new class extends Component
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
         $this->relationships = app(ReportRelationshipCatalog::class)->infer($this->dataSource, $this->selectedFields);
+        $this->relationshipModes = app(ReportRelationshipCatalog::class)->validateModes($this->dataSource, $this->relationships, null);
         $this->conditionTree = app(ReportConditionService::class)->emptyTree();
     }
 
@@ -136,6 +139,7 @@ new class extends Component
                 $definition->id => $guidance->build([
                     'data_source' => $definition->data_source,
                     'relationships' => $definition->relationships,
+                    'relationship_modes' => $definition->relationship_modes,
                     'selected_fields' => $definition->selected_fields,
                     'calculations' => $definition->calculations ?? [],
                     'group_by' => $definition->group_by,
@@ -179,6 +183,7 @@ new class extends Component
                 'data_source' => $this->dataSource,
                 'selected_fields' => $this->selectedFields,
                 'relationships' => $this->relationships,
+                'relationship_modes' => $this->relationshipModes,
                 'calculations' => $this->calculations,
                 'group_by' => $this->groupBy,
                 'presentation' => ['type' => $this->presentationType],
@@ -215,6 +220,7 @@ new class extends Component
 
         $this->selectedFields = $catalog->defaultFields($this->dataSource);
         $this->relationships = app(ReportRelationshipCatalog::class)->infer($this->dataSource, $this->selectedFields);
+        $this->relationshipModes = app(ReportRelationshipCatalog::class)->validateModes($this->dataSource, $this->relationships, null);
         $this->calculations = [];
         $this->groupBy = '';
         $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
@@ -246,6 +252,11 @@ new class extends Component
             ->unique()
             ->values()
             ->all();
+        $this->relationshipModes = $relationshipCatalog->validateModes(
+            $this->dataSource,
+            $this->relationships,
+            collect($this->relationshipModes)->only($this->relationships)->all(),
+        );
         $allowedFields = array_keys($relationshipCatalog->fields($this->dataSource, $this->relationships));
         $queryFieldKeys = $relationshipCatalog->queryFieldKeys($this->dataSource, $this->relationships);
         $this->selectedFields = array_values(array_intersect($this->selectedFields, $allowedFields));
@@ -280,6 +291,19 @@ new class extends Component
 
         $this->previewResult = [];
         $this->resetValidation();
+    }
+
+    public function updatedRelationshipModes(): void
+    {
+        abort_if($this->readOnly || ! $this->editorOpen, 403);
+
+        $this->relationshipModes = app(ReportRelationshipCatalog::class)->validateModes(
+            $this->dataSource,
+            $this->relationships,
+            $this->relationshipModes,
+        );
+        $this->previewResult = [];
+        $this->resetValidation('relationshipModes');
     }
 
     public function create(): void
@@ -326,6 +350,11 @@ new class extends Component
                 'sort_field' => $definition->sort_field,
                 'filters' => $filters,
             ]),
+        );
+        $this->relationshipModes = app(ReportRelationshipCatalog::class)->validateModes(
+            $this->dataSource,
+            $this->relationships,
+            $definition->relationship_modes,
         );
         $this->calculations = $definition->calculations ?? [];
         $this->groupBy = $definition->group_by ?? '';
@@ -404,6 +433,8 @@ new class extends Component
         try {
             $this->previewResult = app(ReportDesignerQueryService::class)->preview([
                 'data_source' => $definition['data_source'],
+                'relationships' => $definition['relationships'],
+                'relationship_modes' => $definition['relationship_modes'],
                 'selected_fields' => $definition['selected_fields'],
                 'calculations' => $definition['calculations'],
                 'group_by' => $definition['group_by'],
@@ -704,6 +735,8 @@ new class extends Component
             'selectedFields.*' => ['string'],
             'relationships' => ['array'],
             'relationships.*' => ['string'],
+            'relationshipModes' => ['array'],
+            'relationshipModes.*' => ['string'],
             'calculations' => ['array', 'max:'.ReportDesignerCatalog::CALCULATION_LIMIT],
             'calculations.*.operation' => ['required', 'string'],
             'calculations.*.field' => ['nullable', 'string'],
@@ -761,12 +794,18 @@ new class extends Component
                 'filters' => ['condition_tree' => $conditionTree],
             ]),
         );
+        $relationshipModes = app(ReportRelationshipCatalog::class)->validateModes(
+            $validated['dataSource'],
+            $relationships,
+            $validated['relationshipModes'],
+        );
 
         return [
             'name' => trim($validated['name'] ?? ''),
             'description' => filled($validated['description']) ? trim($validated['description']) : null,
             'data_source' => $validated['dataSource'],
             'relationships' => $relationships,
+            'relationship_modes' => $relationshipModes,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,
@@ -793,6 +832,7 @@ new class extends Component
         $this->dataSource = $this->defaultSource();
         $this->selectedFields = app(ReportDesignerCatalog::class)->defaultFields($this->dataSource);
         $this->relationships = app(ReportRelationshipCatalog::class)->infer($this->dataSource, $this->selectedFields);
+        $this->relationshipModes = app(ReportRelationshipCatalog::class)->validateModes($this->dataSource, $this->relationships, null);
         $this->calculations = [];
         $this->groupBy = '';
         $this->presentationType = ReportDesignerCatalog::PRESENTATION_TABLE;
@@ -1188,12 +1228,12 @@ new class extends Component
                             <p class="mt-1 max-w-3xl text-xs leading-5 text-neutral-400">{{ __('report_designer.relationships.help') }}</p>
                             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                                 @foreach($availableRelationships as $relationshipKey => $relationship)
-                                    <label @class([
-                                        'cursor-pointer rounded-xl border p-4 transition',
+                                    <div @class([
+                                        'rounded-xl border p-4 transition',
                                         'border-sky-300/35 bg-sky-300/10' => in_array($relationshipKey, $relationships, true),
                                         'border-white/10 bg-black/10 hover:border-white/20' => ! in_array($relationshipKey, $relationships, true),
                                     ])>
-                                        <span class="flex items-start gap-3">
+                                        <label class="flex cursor-pointer items-start gap-3">
                                             <input wire:model.live="relationships" type="checkbox" value="{{ $relationshipKey }}" class="mt-1 rounded border-white/20 bg-transparent" @disabled($readOnly)>
                                             <span class="min-w-0">
                                                 <span class="font-semibold text-white">{{ $relationship['label'] }}</span>
@@ -1203,11 +1243,26 @@ new class extends Component
                                                     <span class="rounded-full bg-white/8 px-2 py-1 text-[0.65rem] text-neutral-300">{{ __('report_designer.relationships.fields_available', ['count' => count($relationship['fields'])]) }}</span>
                                                 </span>
                                             </span>
-                                        </span>
-                                    </label>
+                                        </label>
+                                        @if($relationship['cardinality_key'] === 'many' && in_array($relationshipKey, $relationships, true))
+                                            <div class="mt-4 grid gap-2 border-t border-white/10 pt-4" data-report-relationship-mode="{{ $relationshipKey }}">
+                                                <div class="text-xs font-semibold text-neutral-300">{{ __('report_designer.relationships.modes.title') }}</div>
+                                                @foreach([\App\Services\ReportRelationshipCatalog::MODE_SUMMARY, \App\Services\ReportRelationshipCatalog::MODE_DETAILED] as $mode)
+                                                    <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/10 p-3">
+                                                        <input wire:model.live="relationshipModes.{{ $relationshipKey }}" type="radio" value="{{ $mode }}" class="mt-1 border-white/20 bg-transparent" @disabled($readOnly)>
+                                                        <span>
+                                                            <span class="block text-xs font-semibold text-white">{{ __('report_designer.relationships.modes.'.$mode.'.label') }}</span>
+                                                            <span class="mt-1 block text-xs leading-5 text-neutral-400">{{ __('report_designer.relationships.modes.'.$mode.'.help') }}</span>
+                                                        </span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </div>
                                 @endforeach
                             </div>
                             @error('relationships') <span class="mt-3 block text-xs text-red-300">{{ $message }}</span> @enderror
+                            @error('relationshipModes') <span class="mt-3 block text-xs text-red-300">{{ $message }}</span> @enderror
                         </section>
                     @endif
 

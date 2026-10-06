@@ -99,10 +99,16 @@ class ReportLibraryInstaller
             data_get($definition, 'relationships'),
             $this->relationships->usedFields($definition + ['filters' => $filters]),
         );
+        $relationshipModes = $this->relationships->validateModes(
+            $source,
+            $relationships,
+            data_get($definition, 'relationship_modes'),
+        );
 
         return [
             'data_source' => $source,
             'relationships' => $relationships,
+            'relationship_modes' => $relationshipModes,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,

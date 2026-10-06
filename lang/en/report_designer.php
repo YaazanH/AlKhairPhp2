@@ -322,9 +322,10 @@ return [
     ],
     'relationships' => [
         'title' => 'Related data',
-        'help' => 'Connect approved business data without choosing database keys. These relationships keep one primary result row or add a safe summary.',
+        'help' => 'Connect approved business data without choosing database keys. For relationships with several records, choose whether to combine them or show one result row for each related record.',
         'primary_fields' => 'Primary source fields',
         'fields_available' => ':count fields available',
+        'label_with_mode' => ':relationship — :mode',
         'cardinality' => [
             'one' => 'One related record',
             'many' => 'Several related records shown safely',
@@ -333,6 +334,21 @@ return [
         'validation' => [
             'invalid' => 'Choose only approved relationships for this data source.',
             'missing' => 'Add the related data source required by one or more selected fields.',
+            'invalid_mode' => 'Choose an approved row behavior for each relationship with several records.',
+            'one_detailed' => 'A report can expand one related data source into detailed rows at a time.',
+        ],
+        'modes' => [
+            'title' => 'How should several related records appear?',
+            'summary' => [
+                'label' => 'Combined summary',
+                'short' => 'combined',
+                'help' => 'Keep one row for the assessment and combine its related groups in one field.',
+            ],
+            'detailed' => [
+                'label' => 'One row per related record',
+                'short' => 'one row each',
+                'help' => 'Repeat the assessment once for every related group so each group can be counted and grouped separately.',
+            ],
         ],
         'items' => [
             'student_grade' => ['label' => 'Grade level', 'description' => 'The student’s assigned grade level.'],
@@ -365,7 +381,7 @@ return [
             'final_workflow_attempts' => ['label' => 'Attempt summary', 'description' => 'Calculated totals and latest details from final-test attempts.'],
             'final_workflow_group' => ['label' => 'Course and group', 'description' => 'The student enrollment context for the workflow.'],
             'assessment_type' => ['label' => 'Assessment type', 'description' => 'The approved type assigned to the assessment.'],
-            'assessment_groups' => ['label' => 'Assessment groups', 'description' => 'The groups assigned to the assessment, combined safely in one field.'],
+            'assessment_groups' => ['label' => 'Assessment groups', 'description' => 'The groups assigned to the assessment. They can remain combined or create one result row per group.'],
             'assessment_results_summary' => ['label' => 'Results summary', 'description' => 'Scoped result counts, pass/fail counts, and average score.'],
             'result_assessment' => ['label' => 'Assessment', 'description' => 'The assessment connected to the student result.'],
             'result_student' => ['label' => 'Student', 'description' => 'The student connected to the result.'],
@@ -429,6 +445,7 @@ return [
         'title' => 'Confirm what this report will show',
         'summary' => 'This report reads :source and shows :count. Review its scope before previewing or saving.',
         'sentence' => 'One result row represents a :source record. Show :fields. Include :scope. Sort using :sort.',
+        'sentence_detailed' => 'One result row represents a :source record for each related :relationship. Show :fields. Include :scope. Sort using :sort.',
         'check_title' => 'Check these choices',
         'ready' => 'These choices do not show any common reporting mistakes.',
         'flow' => [
@@ -461,6 +478,7 @@ return [
             'date_from' => 'From :from onward',
             'date_to' => 'Up to :to',
             'one_row_per' => 'One :source record',
+            'one_row_per_related' => 'One :source record for each :relationship',
             'group_and_calculate' => 'Group by :group, then calculate :calculations',
             'group_only' => 'Group by :group and count matching records',
             'calculate_only' => 'Calculate :calculations across all matching records',
@@ -477,6 +495,7 @@ return [
             'incomplete_calculation' => 'One or more calculations still need a numeric field.',
             'mixed_currency' => 'A calculation uses the original transaction amount and may combine currencies. Use Local amount for a comparable tenant-currency total.',
             'chart_without_grouping' => 'Charts need a grouping field. Choose a grouping or use the table presentation.',
+            'detailed_relationship_calculations' => 'Detailed related rows repeat primary values once for each related record. Review totals and averages to confirm that this is the result you intend.',
         ],
     ],
     'preview' => [

@@ -5,6 +5,7 @@
     $storedDefinition = $editing && data_get($item->draft_definition, 'data_source') === $source ? $item->draft_definition : [];
     $selectedFields = old('selected_fields', data_get($storedDefinition, 'selected_fields', app(\App\Services\ReportDesignerCatalog::class)->defaultFields($source)));
     $selectedCalculations = old('calculations', collect(data_get($storedDefinition, 'calculations', [['operation' => 'count', 'field' => null]]))->map(fn ($calculation) => $calculation['operation'].($calculation['field'] ? ':'.$calculation['field'] : ''))->all());
+    $relationshipModes = old('relationship_modes', data_get($storedDefinition, 'relationship_modes', []));
 @endphp
 <x-platform-layout :title="$editing ? 'Edit library item' : 'Create library item'">
     <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -88,6 +89,19 @@
                 @endforeach
             </div>
             <p class="mt-3 text-xs text-zinc-500">A template can include up to five calculations.</p>
+            @foreach($availableRelationships as $relationshipKey => $relationship)
+                @if($relationship['cardinality_key'] === 'many')
+                    <div class="mt-6 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                        <label class="text-sm font-semibold text-sky-950" for="relationship-mode-{{ $relationshipKey }}">{{ $relationship['label'] }} row behavior</label>
+                        <select id="relationship-mode-{{ $relationshipKey }}" name="relationship_modes[{{ $relationshipKey }}]" class="mt-2 w-full rounded-xl border-sky-200 sm:max-w-xl" @disabled(!$canManage)>
+                            @foreach([\App\Services\ReportRelationshipCatalog::MODE_SUMMARY => 'Combined in one primary row', \App\Services\ReportRelationshipCatalog::MODE_DETAILED => 'One result row per related record'] as $mode => $label)
+                                <option value="{{ $mode }}" @selected(($relationshipModes[$relationshipKey] ?? \App\Services\ReportRelationshipCatalog::MODE_SUMMARY) === $mode)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-2 text-xs leading-5 text-sky-800">This setting applies when the template includes a field from this relationship.</p>
+                    </div>
+                @endif
+            @endforeach
         </section>
 
         <section class="grid gap-5 rounded-3xl border bg-white p-6 shadow-sm md:grid-cols-2 xl:grid-cols-4">

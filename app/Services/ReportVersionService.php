@@ -17,6 +17,7 @@ class ReportVersionService
         'description',
         'data_source',
         'relationships',
+        'relationship_modes',
         'selected_fields',
         'calculations',
         'group_by',
@@ -108,12 +109,18 @@ class ReportVersionService
             $snapshot['relationships'] ?? null,
             $this->relationships->usedFields($snapshot + ['filters' => $filters]),
         );
+        $relationshipModes = $this->relationships->validateModes(
+            $source,
+            $relationships,
+            $snapshot['relationship_modes'] ?? null,
+        );
 
         return [
             'name' => (string) ($snapshot['name'] ?? ''),
             'description' => filled($snapshot['description'] ?? null) ? (string) $snapshot['description'] : null,
             'data_source' => $source,
             'relationships' => $relationships,
+            'relationship_modes' => $relationshipModes,
             'selected_fields' => $fields,
             'calculations' => $calculations,
             'group_by' => $groupBy,

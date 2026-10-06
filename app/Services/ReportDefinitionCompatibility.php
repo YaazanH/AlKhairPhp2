@@ -53,10 +53,15 @@ class ReportDefinitionCompatibility
                 data_get($definition->filters, 'condition_tree', []),
             );
             $snapshot = $definition->only(ReportVersionService::VERSIONED_FIELDS);
-            $this->relationships->resolve(
+            $relationships = $this->relationships->resolve(
                 $definition->data_source,
                 $definition->relationships,
                 $this->relationships->usedFields($snapshot),
+            );
+            $this->relationships->validateModes(
+                $definition->data_source,
+                $relationships,
+                $definition->relationship_modes,
             );
 
         } catch (ValidationException) {

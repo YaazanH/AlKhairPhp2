@@ -6,9 +6,13 @@ use Illuminate\Validation\ValidationException;
 
 class ReportRelationshipCatalog
 {
+    public const MODE_SUMMARY = 'summary';
+
+    public const MODE_DETAILED = 'detailed';
+
     public function __construct(private readonly ReportDesignerCatalog $catalog) {}
 
-    /** @return array<string, array{label: string, description: string, cardinality: string, fields: string[]}> */
+    /** @return array<string, array{label: string, description: string, cardinality: string, cardinality_key: string, fields: string[]}> */
     public function available(string $source): array
     {
         $availableFields = array_keys($this->catalog->fields($source));
@@ -21,6 +25,7 @@ class ReportRelationshipCatalog
                     'label' => __('report_designer.relationships.items.'.$key.'.label'),
                     'description' => __('report_designer.relationships.items.'.$key.'.description'),
                     'cardinality' => __('report_designer.relationships.cardinality.'.$relationship['cardinality']),
+                    'cardinality_key' => $relationship['cardinality'],
                     'fields' => $fields,
                 ];
             })
@@ -67,6 +72,41 @@ class ReportRelationshipCatalog
         $relationships ??= $this->infer($source, $selectedFields);
 
         return $this->validate($source, $relationships, $selectedFields);
+    }
+
+    public function validateModes(string $source, array $relationships, mixed $modes): array
+    {
+        $available = $this->available($source);
+        $manyRelationships = collect($relationships)
+            ->filter(fn (string $relationship): bool => data_get($available, $relationship.'.cardinality_key') === 'many')
+            ->values();
+        $normalized = collect(is_array($modes) ? $modes : [])
+            ->mapWithKeys(fn ($mode, $relationship): array => [(string) $relationship => (string) $mode]);
+
+        if ($normalized->keys()->contains(fn (string $relationship): bool => ! $manyRelationships->contains($relationship))
+            || $normalized->contains(fn (string $mode): bool => ! in_array($mode, [self::MODE_SUMMARY, self::MODE_DETAILED], true))) {
+            throw ValidationException::withMessages([
+                'relationshipModes' => __('report_designer.relationships.validation.invalid_mode'),
+            ]);
+        }
+
+        $resolved = $manyRelationships
+            ->mapWithKeys(fn (string $relationship): array => [
+                $relationship => $normalized->get($relationship, self::MODE_SUMMARY),
+            ]);
+
+        if ($resolved->where(fn (string $mode): bool => $mode === self::MODE_DETAILED)->count() > 1) {
+            throw ValidationException::withMessages([
+                'relationshipModes' => __('report_designer.relationships.validation.one_detailed'),
+            ]);
+        }
+
+        return $resolved->all();
+    }
+
+    public function hasDetailedMode(array $modes, string $relationship): bool
+    {
+        return ($modes[$relationship] ?? self::MODE_SUMMARY) === self::MODE_DETAILED;
     }
 
     public function fields(string $source, array $relationships): array
@@ -120,12 +160,22 @@ class ReportRelationshipCatalog
         return $groups;
     }
 
-    public function labels(string $source, array $relationships): array
+    public function labels(string $source, array $relationships, array $modes = []): array
     {
         $available = $this->available($source);
 
         return collect($relationships)
-            ->map(fn (string $relationship): ?string => $available[$relationship]['label'] ?? null)
+            ->map(function (string $relationship) use ($available, $modes): ?string {
+                $label = $available[$relationship]['label'] ?? null;
+                if ($label === null || data_get($available, $relationship.'.cardinality_key') !== 'many') {
+                    return $label;
+                }
+
+                return __('report_designer.relationships.label_with_mode', [
+                    'relationship' => $label,
+                    'mode' => __('report_designer.relationships.modes.'.($modes[$relationship] ?? self::MODE_SUMMARY).'.short'),
+                ]);
+            })
             ->filter()
             ->values()
             ->all();

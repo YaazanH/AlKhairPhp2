@@ -85,6 +85,8 @@ class ReportDesignerExportController extends Controller
         try {
             $result = app(ReportDesignerQueryService::class)->export([
                 'data_source' => $definition->data_source,
+                'relationships' => $definition->relationships,
+                'relationship_modes' => $definition->relationship_modes,
                 'selected_fields' => $definition->selected_fields,
                 'calculations' => $definition->calculations ?? [],
                 'group_by' => $definition->group_by,

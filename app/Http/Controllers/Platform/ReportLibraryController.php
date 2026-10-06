@@ -125,6 +125,11 @@ class ReportLibraryController extends Controller
             'data_source' => ['required', Rule::in(array_keys($sources))],
             'selected_fields' => ['required', 'array', 'min:1'],
             'selected_fields.*' => ['string'],
+            'relationship_modes' => ['nullable', 'array'],
+            'relationship_modes.*' => ['string', Rule::in([
+                ReportRelationshipCatalog::MODE_SUMMARY,
+                ReportRelationshipCatalog::MODE_DETAILED,
+            ])],
             'calculations' => ['nullable', 'array', 'max:5'],
             'calculations.*' => ['string'],
             'group_by' => ['nullable', 'string'],
@@ -150,6 +155,11 @@ class ReportLibraryController extends Controller
             $sortField,
         ];
         $relationships = $this->relationships->infer($source, array_values(array_filter($definitionFields)));
+        $relationshipModes = $this->relationships->validateModes(
+            $source,
+            $relationships,
+            collect($data['relationship_modes'] ?? [])->only($relationships)->all(),
+        );
 
         return [
             'kind' => $data['kind'],
@@ -158,6 +168,7 @@ class ReportLibraryController extends Controller
             'draft_definition' => [
                 'data_source' => $source,
                 'relationships' => $relationships,
+                'relationship_modes' => $relationshipModes,
                 'selected_fields' => $fields,
                 'calculations' => $calculations,
                 'group_by' => $groupBy,
@@ -198,6 +209,7 @@ class ReportLibraryController extends Controller
             'source' => $source,
             'sources' => $this->catalog->librarySources(),
             'fields' => $this->catalog->fields($source),
+            'availableRelationships' => $this->relationships->available($source),
             'groupableFields' => $this->catalog->groupableFields($source),
             'sortableFields' => $this->catalog->sortableFields($source),
             'calculableFields' => $this->catalog->calculableFields($source),

@@ -80,6 +80,25 @@ class ReportLibraryInstallationTest extends TestCase
         $this->assertDatabaseCount('report_definitions', 0);
     }
 
+    public function test_detailed_relationship_mode_is_preserved_when_a_library_item_is_installed(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('report-library.install', 'web'));
+        $item = $this->publishedItem('assessments', [
+            'relationships' => ['assessment_groups'],
+            'relationship_modes' => ['assessment_groups' => 'detailed'],
+            'selected_fields' => ['assessment_title', 'assessment_groups', 'status'],
+            'group_by' => 'assessment_groups',
+            'sort_field' => null,
+        ], ['assessments']);
+
+        $this->actingAs($user)->post(route('reports.library.install', $item))->assertRedirect();
+
+        $copy = ReportDefinition::query()->sole();
+        $this->assertSame(['assessment_groups'], $copy->relationships);
+        $this->assertSame(['assessment_groups' => 'detailed'], $copy->relationship_modes);
+    }
+
     public function test_template_is_blocked_when_the_user_cannot_access_its_data_source(): void
     {
         $user = User::factory()->create();
