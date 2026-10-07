@@ -359,16 +359,16 @@ new class extends Component
             })
             ->values();
 
-        $assessmentResults = $this->canViewProgressSection('assessment-results.view')
+        $allAssessmentResults = $this->canViewProgressSection('assessment-results.view')
             ? $this->scopeProgressDataQuery(
                 'scopeAssessmentResultsQuery',
                 AssessmentResult::query()
                     ->with(['assessment.type', 'enrollment.group.course'])
                     ->where('student_id', $studentRecord->id)
-                    ->when($highlightEnrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $highlightEnrollmentIds))
+                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->latest('id')->get()
             : collect();
-        $finalAssessmentResults = $assessmentResults
+        $finalAssessmentResults = $allAssessmentResults
             ->filter(function (AssessmentResult $result): bool {
                 $assessment = $result->assessment;
                 $code = Str::lower((string) $assessment?->type?->code);
@@ -378,8 +378,9 @@ new class extends Component
                     || Str::contains($name, ['final exam', 'final assessment', 'نهائي']);
             })
             ->values();
-        $nonFinalAssessmentResults = $assessmentResults
+        $nonFinalAssessmentResults = $allAssessmentResults
             ->reject(fn (AssessmentResult $result): bool => $finalAssessmentResults->contains('id', $result->id))
+            ->filter(fn (AssessmentResult $result): bool => in_array((int) $result->enrollment_id, $highlightEnrollmentIds, true))
             ->values();
 
         $awqafTests = $this->canViewProgressSection('quran-awqaf-tests.view') || $this->canViewProgressSection('quran-tests.view')

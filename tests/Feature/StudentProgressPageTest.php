@@ -241,7 +241,7 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText('Weekly Quiz · Quran Track');
     }
 
-    public function test_student_progress_limits_assessments_and_highlights_to_default_course_but_keeps_other_history_general(): void
+    public function test_student_progress_limits_regular_assessments_to_default_course_but_keeps_final_exam_history(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -258,7 +258,7 @@ class StudentProgressPageTest extends TestCase
 
         $secondaryCourse = Course::create([
             'name' => 'Revision Track',
-            'is_active' => true,
+            'is_active' => false,
         ]);
 
         $academicYear = AcademicYear::query()->where('is_current', true)->firstOrFail();
@@ -379,12 +379,12 @@ class StudentProgressPageTest extends TestCase
         $component = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertViewHas('stats', fn (array $stats) => $stats['points'] === 12)
             ->assertViewHas('assessmentResults', fn ($results) => $results->pluck('assessment.title')->all() === ['Weekly Quiz'])
-            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->isEmpty())
+            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->pluck('assessment.title')->all() === ['Secondary Course Final Exam'])
             ->assertDontSeeText('Parent Group')
             ->assertSeeText('Quiz Reward')
             ->assertSeeText('Parent Secondary Group')
             ->assertDontSeeText('Course Filter Quiz')
-            ->assertDontSeeText('Secondary Course Final Exam')
+            ->assertSeeText('Secondary Course Final Exam')
             ->assertDontSeeText('Secondary Bonus')
             ->assertSeeText('Second Course Note');
 
@@ -393,7 +393,7 @@ class StudentProgressPageTest extends TestCase
             ->assertSeeText('Weekly Quiz')
             ->assertDontSeeText('Course Filter Quiz')
             ->call('showDetails', 'final-assessments')
-            ->assertDontSeeText('Secondary Course Final Exam');
+            ->assertSeeText('Secondary Course Final Exam');
 
         $parentDetails = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertDontSeeText(__('workflow.student_progress.selection.change_student'))
