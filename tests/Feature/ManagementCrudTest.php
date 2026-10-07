@@ -2723,17 +2723,10 @@ class ManagementCrudTest extends TestCase
             ->assertDontSee('Numbered Student');
     }
 
-    public function test_creating_a_student_with_the_same_name_and_birth_year_updates_the_inactive_record(): void
+    public function test_creating_a_student_matching_an_inactive_record_requires_a_choice_without_overwriting_it(): void
     {
         $this->signIn();
-
-        $oldParent = ParentProfile::create([
-            'father_name' => 'Old Parent',
-            'is_active' => true,
-        ]);
-
         $existingStudent = Student::create([
-            'parent_id' => $oldParent->id,
             'first_name' => 'Ahmad',
             'last_name' => 'Same Student',
             'birth_date' => '2014-08-20',
@@ -2742,37 +2735,24 @@ class ManagementCrudTest extends TestCase
             'notes' => 'Old notes',
         ]);
 
-        $component = Volt::test('students.index')
-            ->call('openCreateModal')
-            ->set('first_name', 'Ahmad')
-            ->set('last_name', 'Same Student')
-            ->set('birth_date', '2014')
-            ->set('school_name', 'New School')
-            ->set('notes', 'Updated notes')
-            ->call('openQuickParentForm')
-            ->set('quick_parent_father_name', 'New Parent')
-            ->set('quick_parent_father_phone', '0944555010')
-            ->call('saveQuickParent')
-            ->assertHasNoErrors();
+        Volt::test('students.index')->call('openCreateModal')
+            ->set('first_name', 'Ahmad')->set('last_name', 'Same Student')
+            ->set('birth_date', '2014')->set('school_name', 'New School')->set('notes', 'Draft notes')
+            ->call('save')->assertSet('showDuplicateStudentModal', true)
+            ->assertSet('duplicateStudentId', $existingStudent->id)
+            ->call('useReviewedDuplicate')
+            ->assertSet('showFormModal', true)
+            ->assertSet('editingId', $existingStudent->id)
+            ->assertSet('school_name', 'Old School');
 
-        $newParent = ParentProfile::query()->where('father_name', 'New Parent')->firstOrFail();
-
-        $component
-            ->assertSet('parent_id', $newParent->id)
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $this->assertSame(1, Student::query()->count());
+        $this->assertSame(1, Student::count());
         $this->assertDatabaseHas('students', [
             'id' => $existingStudent->id,
-            'parent_id' => $newParent->id,
-            'first_name' => 'Ahmad',
-            'last_name' => 'Same Student',
-            'school_name' => 'New School',
-            'notes' => 'Updated notes',
+            'school_name' => 'Old School',
+            'notes' => 'Old notes',
+            'status' => 'inactive',
         ]);
-        $this->assertSame('2014-01-01', $existingStudent->fresh()->birth_date?->format('Y-m-d'));
-        $this->assertSame('active', $existingStudent->fresh()->status);
+        $this->assertSame('2014-08-20', $existingStudent->fresh()->birth_date?->format('Y-m-d'));
     }
 
     public function test_creating_a_student_matching_an_active_student_shows_details_without_changing_data(): void
@@ -2816,7 +2796,7 @@ class ManagementCrudTest extends TestCase
             ->assertSet('duplicateStudentId', $existingStudent->id)
             ->assertSet('showFormModal', true)
             ->assertSee('Original School')
-            ->assertSee('Original notes');
+            ->assertDontSee('Original notes');
 
         $this->assertSame(1, Student::query()->count());
         $this->assertDatabaseHas('students', [

@@ -198,7 +198,7 @@ class QuranWorkflowTest extends TestCase
             ->assertDontSee(__('workflow.teacher_attendance.day_details.stats.scheduled'));
         $openDayHtml = $openDayComponent->html();
         $this->assertLessThan(strpos($openDayHtml, 'wire:click="openManualTeacherModal"'), strpos($openDayHtml, 'wire:click="toggleDayStatus"'));
-        $this->assertLessThan(strpos($openDayHtml, 'wire:click="deleteDay"'), strpos($openDayHtml, 'wire:click="openManualTeacherModal"'));
+        $this->assertLessThan(strpos($openDayHtml, 'wire:click="openManualTeacherModal"'), strpos($openDayHtml, 'wire:click="deleteDay"'));
 
         $openDayComponent
             ->call('openManualTeacherModal')

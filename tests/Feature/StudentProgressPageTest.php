@@ -227,18 +227,21 @@ class StudentProgressPageTest extends TestCase
             ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
             ->call('showDetails', 'final-assessments')
             ->assertSee('data-student-progress-generic-table', false)
-            ->assertSee('w-[65%]', false)
-            ->assertSee('w-28 min-w-28', false)
+            ->assertSee('data-student-progress-assessments', false)
+            ->assertSee('table-content text-sm', false)
+            ->assertDontSee('w-[65%]', false)
+            ->assertDontSee('w-28 min-w-28', false)
             ->assertSeeText('Course Final Exam')
             ->assertDontSeeText('Course Final Exam · Quran Track');
 
         $component
             ->call('showDetails', 'assessments')
+            ->assertSee('data-student-progress-assessments', false)
             ->assertSeeText('Weekly Quiz')
             ->assertDontSeeText('Weekly Quiz · Quran Track');
     }
 
-    public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
+    public function test_student_progress_limits_regular_assessments_to_default_course_but_keeps_final_exam_history(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -255,7 +258,7 @@ class StudentProgressPageTest extends TestCase
 
         $secondaryCourse = Course::create([
             'name' => 'Revision Track',
-            'is_active' => true,
+            'is_active' => false,
         ]);
 
         $academicYear = AcademicYear::query()->where('is_current', true)->firstOrFail();
@@ -285,6 +288,13 @@ class StudentProgressPageTest extends TestCase
             'is_active' => true,
         ]);
 
+        $secondaryFinalType = AssessmentType::create([
+            'name' => 'Secondary Final Exam',
+            'code' => 'secondary_final_exam',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+
         $secondaryAssessment = Assessment::create([
             'group_id' => $secondaryGroup->id,
             'assessment_type_id' => $secondaryQuizType->id,
@@ -300,6 +310,25 @@ class StudentProgressPageTest extends TestCase
             'student_id' => $ownStudent->id,
             'teacher_id' => $secondaryTeacher->id,
             'score' => 73,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        $secondaryFinalAssessment = Assessment::create([
+            'group_id' => $secondaryGroup->id,
+            'assessment_type_id' => $secondaryFinalType->id,
+            'title' => 'Secondary Course Final Exam',
+            'total_mark' => 100,
+            'pass_mark' => 50,
+            'is_active' => true,
+        ]);
+
+        AssessmentResult::create([
+            'assessment_id' => $secondaryFinalAssessment->id,
+            'enrollment_id' => $secondaryEnrollment->id,
+            'student_id' => $ownStudent->id,
+            'teacher_id' => $secondaryTeacher->id,
+            'score' => 81,
             'status' => 'passed',
             'attempt_no' => 1,
         ]);
@@ -347,14 +376,24 @@ class StudentProgressPageTest extends TestCase
             'noted_at' => now(),
         ]);
 
-        Volt::test('students.progress', ['student' => $ownStudent])
+        $component = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertViewHas('stats', fn (array $stats) => $stats['points'] === 12)
-            ->assertSeeText('Parent Group')
+            ->assertViewHas('assessmentResults', fn ($results) => $results->pluck('assessment.title')->all() === ['Weekly Quiz'])
+            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->pluck('assessment.title')->all() === ['Secondary Course Final Exam'])
+            ->assertDontSeeText('Parent Group')
             ->assertSeeText('Quiz Reward')
             ->assertSeeText('Parent Secondary Group')
-            ->assertSeeText('Course Filter Quiz')
+            ->assertDontSeeText('Course Filter Quiz')
+            ->assertSeeText('Secondary Course Final Exam')
             ->assertDontSeeText('Secondary Bonus')
             ->assertSeeText('Second Course Note');
+
+        $component
+            ->call('showDetails', 'assessments')
+            ->assertSeeText('Weekly Quiz')
+            ->assertDontSeeText('Course Filter Quiz')
+            ->call('showDetails', 'final-assessments')
+            ->assertSeeText('Secondary Course Final Exam');
 
         $parentDetails = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertDontSeeText(__('workflow.student_progress.selection.change_student'))
@@ -481,8 +520,9 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 400)
-            ->assertSee(__('workflow.student_progress.enrollments.headers.total_points'))
+            ->assertDontSee(__('workflow.student_progress.enrollments.headers.total_points'))
             ->call('showDetails', 'enrollments')
+            ->assertSee(__('workflow.student_progress.enrollments.headers.total_points'))
             ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 400);
 
         AppSetting::storeValue('course_completion', 'required_memorized_pages', 0, 'integer');
@@ -513,7 +553,7 @@ class StudentProgressPageTest extends TestCase
         $course = $activeEnrollment->group->course;
 
         $completedGroup = Group::create([
-            'course_id' => Course::create(['name' => 'Completed Progress Course', 'is_active' => true])->id,
+            'course_id' => Course::create(['name' => 'Completed Progress Course', 'is_active' => false])->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $teacher->id,
             'name' => 'Completed Progress Group',
@@ -529,7 +569,7 @@ class StudentProgressPageTest extends TestCase
             'is_active' => false,
         ]);
 
-        Enrollment::create([
+        $completedEnrollment = Enrollment::create([
             'student_id' => $student->id,
             'group_id' => $completedGroup->id,
             'enrolled_at' => '2026-08-01',
@@ -548,9 +588,14 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('enrollments', fn ($enrollments) => $enrollments->pluck('status')->sort()->values()->all() === ['active', 'completed'])
+            ->assertDontSee('data-student-progress-enrollment-row="'.$activeEnrollment->id.'"', false)
+            ->assertSee('data-student-progress-enrollment-row="'.$completedEnrollment->id.'"', false)
             ->assertSeeText('Completed Progress Group')
             ->assertDontSeeText('Cancelled Progress Group')
             ->call('showDetails', 'enrollments')
+            ->assertSee('data-student-progress-enrollment-row="'.$activeEnrollment->id.'"', false)
+            ->assertSee('data-enrollment-status="active"', false)
+            ->assertSeeText(__('crud.common.status_options.active'))
             ->assertSeeText('Completed Progress Group')
             ->assertDontSeeText('Cancelled Progress Group');
     }
@@ -585,7 +630,11 @@ class StudentProgressPageTest extends TestCase
 
         $component = Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'missing')
-            ->assertSeeText(__('workflow.student_progress.juz_progress.show_missing'))
+            ->assertSee('wire:click="showMissingPages('.$juz->id.')"', false)
+            ->assertDontSee('data-juz-progress-actions-heading', false)
+            ->call('showMissingPages', $juz->id)
+            ->assertSee('data-student-progress-missing-pages', false)
+            ->call('closeMissingPages')
             ->assertDontSee('wire:click="openAwqafTest(', false);
 
         $finalTest->update(['status' => 'passed', 'passed_on' => '2026-09-16']);
@@ -594,7 +643,7 @@ class StudentProgressPageTest extends TestCase
 
         $component
             ->call('$refresh')
-            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
@@ -628,8 +677,8 @@ class StudentProgressPageTest extends TestCase
         $component
             ->call('$refresh')
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'finished')
-            ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
-            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->assertDontSee('wire:click="showMissingPages(', false)
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
             ->assertDontSee('wire:click="closeAwqafTest" class="pill-link"', false)
@@ -641,7 +690,7 @@ class StudentProgressPageTest extends TestCase
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
-            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->set('awqafTestedOn', '2026-09-17')
             ->set('awqafScore', '88')
@@ -727,6 +776,8 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSee('Hidden Quiz')->assertDontSee('Other Shared Note')
             ->assertViewHas('enrollments', fn ($rows) => $rows->count() === 2)
             ->assertViewHas('memorizationRows', fn ($rows) => $rows->pluck('page')->all() === [581, 582, 583])
+            ->assertViewHas('lastRecitedPage', 583)
+            ->assertSee('data-student-progress-last-recitation', false)
             ->assertViewHas('stats', fn ($stats) => $stats['attendance_days'] === 1 && $stats['quran_partial_tests'] === 1 && $stats['quran_final_tests'] === 1)
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()->passed_parts === 1 && $rows->first()->final_passed && $rows->first()->awqaf_passed)
             ->call('showDetails', 'memorization')

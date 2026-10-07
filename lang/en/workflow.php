@@ -1295,6 +1295,7 @@ return [
             'student_name' => 'Student name',
             'student_no' => 'Student no',
             'current_juz' => 'Current juz',
+            'last_recitation' => 'Last recitation',
             'joined_at' => 'Joined',
             'notes' => 'Student notes',
         ],

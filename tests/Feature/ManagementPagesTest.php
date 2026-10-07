@@ -299,7 +299,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('data-teacher-attendance-day-date-metric', $teacherAttendance);
         $this->assertStringContainsString("__('workflow.teacher_attendance.form.attendance_date')", $teacherAttendance);
         $this->assertSame(2, substr_count($studentAttendance.$teacherAttendance, "attendance_date?->format('d-m-Y')"));
-        $this->assertSame(2, substr_count($studentAttendance.$teacherAttendance, 'shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner'));
+        $this->assertSame(4, substr_count($studentAttendance.$teacherAttendance, 'shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner'));
         $this->assertStringNotContainsString('@case(\'scan-barcode\')', $icons);
         $this->assertStringContainsString('@case(\'lock\')', $icons);
         $this->assertStringContainsString('@case(\'unlock\')', $icons);
@@ -503,6 +503,19 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("'status-text--rose' => \$session->entry_type === 'correction'", $memorization);
         $this->assertStringContainsString('data-memorization-entry-type=', $memorization);
         $this->assertStringNotContainsString('status-chip status-chip--slate', $memorization);
+    }
+
+    public function test_completed_status_pills_use_the_blue_tone_everywhere(): void
+    {
+        $enrollments = file_get_contents(resource_path('views/livewire/enrollments/index.blade.php'));
+        $groups = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $studentProgress = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
+
+        $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $enrollments);
+        $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $groups);
+        $this->assertStringContainsString("'finished', 'completed' => 'status-chip--blue'", $studentProgress);
+        $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $enrollments);
+        $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $groups);
     }
 
     public function test_memorization_form_modal_uses_the_compact_three_column_layout(): void
@@ -1660,20 +1673,32 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('surface-table standard-mobile-table student-juz-progress-table', $studentProgressView);
         $this->assertStringContainsString('data-juz-progress-status-heading', $studentProgressView);
         $this->assertStringContainsString('data-juz-progress-status-cell', $studentProgressView);
-        $this->assertStringContainsString('data-juz-progress-actions-heading', $studentProgressView);
-        $this->assertStringContainsString('data-juz-progress-actions-cell', $studentProgressView);
-        $this->assertStringContainsString('data-juz-progress-empty-action', $studentProgressView);
+        $this->assertStringNotContainsString('data-juz-progress-actions-heading', $studentProgressView);
+        $this->assertStringNotContainsString('data-juz-progress-actions-cell', $studentProgressView);
+        $this->assertStringNotContainsString('data-juz-progress-empty-action', $studentProgressView);
         $this->assertStringContainsString('data-student-progress-awqaf-save-action', $studentProgressView);
-        $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-action]', $styles);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-status]', $styles);
+        $this->assertStringNotContainsString('table:not([data-student-progress-juz-table])', $styles);
+        $this->assertStringContainsString('[data-student-progress-enrollments] :is([data-enrollment-group-name], [data-enrollment-teacher-name])', $styles);
+        $this->assertStringContainsString('[data-student-progress-enrollments] .status-chip {', $styles);
+        $this->assertStringContainsString('white-space: nowrap !important;', $styles);
+        $this->assertStringContainsString('[data-student-progress-enrollments] > [data-table-scroll-region] {', $styles);
+        $this->assertStringContainsString('overflow-x: hidden !important;', $styles);
+        $this->assertStringContainsString("[data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {", $styles);
+        $this->assertStringContainsString('.student-progress-data-table > [data-table-scroll-region] {', $styles);
+        $this->assertStringContainsString('border-bottom-left-radius: 0;', $styles);
+        $this->assertStringContainsString('border-bottom-right-radius: 0;', $styles);
+        $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {', $styles);
+        $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {', $styles);
+        $this->assertStringContainsString('[data-student-progress-assessments] table.table-content :is(th, td) {', $styles);
         $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
         $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);
         $this->assertStringNotContainsString('mobile-record-card', $studentProgressView);
         $this->assertStringContainsString('flex: 0 0 0.45rem;', $styles);
         $this->assertStringContainsString('data-student-progress-missing-pages', $studentProgressView);
-        $this->assertStringContainsString('student-progress-missing-pages__table', $studentProgressView);
-        $this->assertStringContainsString('missing_pages->values()->chunk(5)', $studentProgressView);
-        $this->assertStringContainsString('.student-progress-missing-pages__table td {', $styles);
+        $this->assertStringContainsString('student-progress-missing-pages__grid', $studentProgressView);
+        $this->assertStringContainsString('missing_pages->values()', $studentProgressView);
+        $this->assertStringContainsString('.student-progress-missing-pages__grid > li {', $styles);
 
         foreach (['memorization', 'quran-partial-tests', 'quran-final-tests', 'quran-tests'] as $page) {
             $view = file_get_contents(resource_path("views/livewire/{$page}/index.blade.php"));
@@ -1707,7 +1732,6 @@ class ManagementPagesTest extends TestCase
             'curricula' => 'books-leaning',
             'enrollments' => 'enrollment-add',
             'student_attendance' => 'clipboard-student',
-            'teacher_attendance' => 'clipboard-person',
             'memorization' => 'quran-stand',
             'enter_memorize' => 'pencil-square',
             'quran_tests_quick_entry' => 'book-open-pencil',
@@ -2427,7 +2451,6 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('tr:only-child:has(> td:only-child[colspan]):hover', $styles);
         $this->assertStringContainsString('tr:last-child:not(:has(> td:only-child[colspan])):hover', $styles);
         $this->assertStringContainsString('background-size: 100% 100%;', $styles);
-        $this->assertStringNotContainsString('background-size: calc(100% - 3rem) 100%;', $styles);
         $this->assertStringContainsString('table > tbody > tr[data-single-row-action] .single-row-action__control', $styles);
         $this->assertStringContainsString('table.table--single-row-actions :is(.single-row-action__header, .single-row-action__cell)', $styles);
         $this->assertStringContainsString('table.table--single-row-actions > colgroup > col.single-row-action__column', $styles);

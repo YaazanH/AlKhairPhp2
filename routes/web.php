@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AddressSuggestionController;
 use App\Http\Controllers\AdminExportController;
 use App\Http\Controllers\AssessmentResultPdfController;
 use App\Http\Controllers\BarcodeActionPrintController;
@@ -63,6 +64,9 @@ Volt::route('dashboard', 'dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('address-suggestions', AddressSuggestionController::class)
+        ->middleware(['permission:parents.create|parents.update|students.create|students.update', 'throttle:30,1'])
+        ->name('address-suggestions');
     Volt::route('reports', 'reports.index')->middleware('permission:reports.view')->name('reports.index');
     Volt::route('reports/student-activity-summary', 'reports.student-activity-summary')->middleware('permission:reports.view')->name('reports.student-activity-summary');
     Route::redirect('reports/student-quran-tests', '/reports/student-activity-summary')
@@ -123,6 +127,8 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('data-audit', 'data-audit.index')->middleware('permission:data-audit.view')->name('data-audit.index');
     Volt::route('parents', 'parents.index')->middleware('permission:parents.view')->name('parents.index');
     Route::get('parents/export', [AdminExportController::class, 'parents'])->middleware('permission:parents.view')->name('parents.export');
+    Volt::route('attendance', 'attendance.index')->middleware('permission:attendance.student.view|attendance.teacher.view')->name('attendance.index');
+    Volt::route('attendance/days/{type}/{day}', 'attendance.show')->middleware('permission:attendance.student.view|attendance.teacher.view')->name('attendance.show');
     Volt::route('teacher-attendance', 'teachers.attendance')->middleware('permission:attendance.teacher.view')->name('teacher-attendance.index');
     Route::get('teacher-attendance/export/pdf', TeacherAttendanceExportController::class)->middleware('permission:attendance.teacher.view')->name('teacher-attendance.export');
     Route::get('student-attendance/export/pdf', StudentAttendanceExportController::class)->middleware('permission:attendance.student.view')->name('student-attendance.export');

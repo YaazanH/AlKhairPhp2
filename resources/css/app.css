@@ -2257,7 +2257,7 @@ html:not(.dark) .teacher-curriculum-book__header {
     min-width: 0;
 }
 
-html[dir='rtl'] .student-progress-profile__birth-year {
+html[dir='rtl'] :is(.student-progress-profile__birth-year, .student-progress-profile__last-recitation) {
     padding-inline-start: 1.25rem;
 }
 
@@ -2697,6 +2697,21 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
     html:not(.dark) .app-main table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
         background-image: linear-gradient(rgba(22, 104, 57, 0.09), rgba(22, 104, 57, 0.09));
     }
+
+    /* Paint the final progress-row highlight on its cells so it reaches both
+       table edges while the two outer corners follow the card border. */
+    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
+        background-image: none;
+    }
+
+    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {
+        background-color: rgba(151, 219, 174, 0.09);
+    }
+
+    html:not(.dark) .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {
+        background-color: rgba(22, 104, 57, 0.09);
+    }
+
 }
 
 .admin-icon-button {
@@ -2961,6 +2976,18 @@ html:not(.dark) [data-course-report-filter-toggle][aria-pressed='true'] {
 :is(.settings-record-table, [data-student-progress-generic-table]) table {
     border-collapse: separate;
     border-spacing: 0;
+}
+
+[data-student-progress-assessments] table.table-content {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+}
+
+[data-student-progress-assessments] table.table-content :is(th, td) {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
 }
 
 :is(.settings-record-table, [data-student-progress-generic-table]) thead {
@@ -4547,6 +4574,14 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     width: 100%;
     height: 100%;
     flex: 0 0 100%;
+}
+
+/* Keep the table viewport square at its lower edge. The outer card clips the
+   highlight only when the record actually reaches the card's rounded bottom;
+   a shorter table inside an equal-height grid card therefore stays square. */
+.student-progress-data-table > [data-table-scroll-region] {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .admin-grid-meta__summary {
@@ -8539,36 +8574,251 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     opacity: 0.9;
 }
 
-.student-juz-progress-table [data-student-progress-juz-table] {
-    table-layout: auto;
-    min-width: 44rem;
-}
-
 .student-juz-progress-table [data-student-progress-juz-table] :is(th, td) {
     white-space: nowrap;
     vertical-align: middle;
 }
 
-.student-juz-progress-table [data-juz-progress-action] {
-    width: max-content;
-    min-width: 8rem;
-    max-width: none;
-    min-height: 2.5rem;
-    flex: 0 0 auto;
-    justify-content: center;
-    text-align: center;
-    white-space: nowrap;
+[data-student-progress-row-number] > .mobile-scroll-table-value {
+    display: inline !important;
+    inline-size: auto;
+    max-inline-size: none;
+}
+
+.student-juz-status-action {
+    position: relative;
+    cursor: pointer;
+}
+
+.student-juz-status-action:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.student-juz-status-action__plus {
+    position: absolute;
+    inset-inline-start: .525rem;
+    top: 50%;
+    width: 1rem;
+    height: 1rem;
+    transform: translateY(-50%);
+    opacity: 0;
+}
+
+.student-juz-status-action--awqaf:is(:hover, :focus-visible)::before {
+    opacity: 0;
+}
+
+.student-juz-status-action--awqaf:is(:hover, :focus-visible) .student-juz-status-action__plus {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .student-juz-status-action--awqaf::before {
+        opacity: 0;
+    }
+
+    .student-juz-status-action--awqaf .student-juz-status-action__plus {
+        opacity: 1;
+    }
 }
 
 .student-juz-progress-table [data-juz-progress-status] {
-    width: max-content;
-    min-width: 8rem;
-    max-width: none;
+    position: relative;
+    width: 8.5rem;
+    min-width: 8.5rem;
+    max-width: 8.5rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    padding-inline: 1.5rem;
     text-align: center;
-    white-space: nowrap;
+    white-space: normal;
+    letter-spacing: 0;
+}
+
+.student-juz-progress-table [data-juz-progress-status]::before {
+    position: absolute;
+    inset-inline-start: .8rem;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+html[dir='rtl'] .student-juz-progress-table [data-juz-progress-status] {
+    direction: rtl;
+}
+
+.app-main [data-student-progress-enrollments] > [data-table-scroll-region] {
+    overflow-x: hidden !important;
+    overscroll-behavior-x: none;
+}
+
+.app-main [data-student-progress-enrollments] table.table-content {
+        table-layout: fixed;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .app-main [data-student-progress-enrollments] table > :is(thead, tbody) > tr > :is(th, td) {
+        min-width: 0;
+        padding-inline: .4rem !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .app-main [data-student-progress-enrollments] table:has(> thead > tr:first-child > [data-table-number-column]:first-child) > :is(thead, tbody) > tr > :first-child {
+        width: 7% !important;
+        min-width: 0;
+        max-width: none;
+        padding-inline: .2rem !important;
+    }
+
+    .app-main .surface-table[data-student-progress-enrollments] table.table-content :is(.record-course-name, .mobile-scroll-table-value) {
+        display: block;
+        width: auto;
+        inline-size: auto;
+        max-width: 100%;
+        max-inline-size: 100%;
+        overflow: visible;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        -webkit-line-clamp: unset;
+        line-clamp: unset;
+    }
+
+    .app-main [data-student-progress-enrollments] :is([data-enrollment-group-name], [data-enrollment-teacher-name]) {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+    }
+
+    .app-main [data-student-progress-enrollments] .status-chip {
+        max-width: none;
+        flex-wrap: nowrap;
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(2) {
+        width: 27%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(3) {
+        width: 18%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(4) {
+        width: 18%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(5) {
+        width: 14%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(6) {
+        width: 16%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(2) {
+        width: 32%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(3) {
+        width: 23%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(4) {
+        width: 22%;
+    }
+
+.app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {
+        width: 16%;
+}
+
+@media (max-width: 767px) {
+    .app-main [data-student-progress-enrollments] table.table-content {
+        table-layout: fixed;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .app-main [data-student-progress-enrollments] table > :is(thead, tbody) > tr > :is(th, td) {
+        min-width: 0;
+        padding-inline: .4rem !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .app-main [data-student-progress-enrollments] table:has(> thead > tr:first-child > [data-table-number-column]:first-child) > :is(thead, tbody) > tr > :first-child {
+        width: 7% !important;
+        min-width: 0;
+        max-width: none;
+        padding-inline: .2rem !important;
+    }
+
+    .app-main .surface-table[data-student-progress-enrollments] table.table-content .record-course-name {
+        display: block;
+        max-width: 100%;
+        overflow: visible;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        -webkit-line-clamp: unset;
+        line-clamp: unset;
+    }
+
+    .app-main [data-student-progress-enrollments] :is([data-enrollment-group-name], [data-enrollment-teacher-name]) {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(2) {
+        width: 25%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(3),
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(4) {
+        width: 17%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(5) {
+        width: 13%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > :nth-child(6) {
+        width: 21%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(2) {
+        width: 28%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(3),
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(4) {
+        width: 20%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {
+        width: 25%;
+    }
+
+    .app-main [data-student-progress-enrollments] table > thead > tr > th {
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+        font-size: .7rem;
+    }
+
+    .app-main [data-student-progress-enrollments] .status-chip {
+        max-width: none;
+        flex-wrap: nowrap;
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+        gap: .3rem;
+        padding: .4rem .55rem;
+        letter-spacing: 0;
+    }
 }
 
 .student-progress-missing-pages {
@@ -8580,28 +8830,29 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     padding: 1rem;
 }
 
-.student-progress-missing-pages__table {
+.student-progress-missing-pages__grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .45rem;
     width: 100%;
-    table-layout: fixed;
-    border-collapse: separate;
-    border-spacing: 0.45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-.student-progress-missing-pages__table td {
+.student-progress-missing-pages__grid > li {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
     height: 3rem;
     border: 1px solid rgba(245, 158, 11, 0.2);
     border-radius: 0.75rem;
     background: rgba(245, 158, 11, 0.075);
-    color: rgb(245 245 245);
+    color: var(--app-text);
     font-size: 0.95rem;
     font-weight: 650;
     text-align: center;
-    vertical-align: middle;
-}
-
-.student-progress-missing-pages__table td.student-progress-missing-pages__empty {
-    border-color: transparent;
-    background: transparent;
 }
 
 .awqaf-unavailable-warning {
@@ -8661,15 +8912,6 @@ html:not(.dark) .awqaf-unavailable-warning p {
 
 .settings-academic-year-table tbody tr {
     height: 4.25rem;
-}
-
-.student-juz-progress-table :is(
-    [data-juz-progress-status-heading],
-    [data-juz-progress-status-cell],
-    [data-juz-progress-actions-heading],
-    [data-juz-progress-actions-cell]
-) {
-    text-align: center !important;
 }
 
 .status-chip--gold {
@@ -11606,7 +11848,6 @@ html[dir='rtl'] .id-card-layer-card__meta {
         overflow-x: auto !important;
     }
 
-    .student-progress-data-table table,
     .report-leaderboard-table table {
         width: 100%;
         min-width: 36rem;
@@ -13276,6 +13517,7 @@ html:not(.dark) .calendar-date-popover { border-color: #90b09b; background: radi
         [contenteditable=''],
         .searchable-select__search,
         .searchable-select__search--trigger,
+        .address-completion__ghost,
         .formatted-date-input__display
     ) {
         font-size: max(16px, 1rem) !important;
@@ -13489,3 +13731,354 @@ select:is([data-record-label='course'], [data-record-label='year']) + .searchabl
         line-clamp: 2;
     }
 }
+
+.attendance-navigation {
+    align-self: center;
+    width: min(100%, 26rem);
+    margin-inline: auto;
+}
+
+.attendance-day-metrics {
+    display: flex;
+    align-items: stretch;
+    gap: .75rem;
+}
+
+.attendance-day-present-metric {
+    display: none;
+}
+
+@media (max-width: 639px) {
+    .attendance-day-metrics > div {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-inline: .5rem;
+    }
+
+    .attendance-day-present-metric {
+        display: block;
+    }
+}
+
+
+/* Keep day controls alongside the type switch, outside the title card. */
+.attendance-day-navigation-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.attendance-day-navigation-row > .attendance-navigation {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    margin: 0;
+}
+
+.attendance-day-navigation-actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: .5rem;
+}
+
+.attendance-day-navigation-actions:empty {
+    display: none;
+}
+
+.app-main table:is(.attendance-records-table, .attendance-day-groups-table, .attendance-days-table):has(> thead > tr:first-child > [data-table-number-column]:first-child) > :is(thead, tbody, tfoot) > tr > :first-child {
+    text-align: center !important;
+    padding-inline: .75rem !important;
+    direction: ltr;
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 639px) {
+    .surface-table .teacher-attendance-records-table .teacher-attendance-actions-column {
+        display: none !important;
+    }
+
+    .attendance-day-navigation-row {
+        gap: .5rem;
+    }
+
+    .attendance-day-navigation-row .quick-saber-type-switch__option {
+        padding-inline: .5rem;
+        min-width: 0;
+    }
+}
+
+.attendance-navigation.quick-saber-type-switch {
+    grid-area: auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-template-columns: none;
+    grid-template-rows: auto;
+}
+
+.attendance-navigation .quick-saber-type-switch__option {
+    min-height: 2.75rem;
+}
+
+.attendance-navigation .quick-saber-type-switch__option + .quick-saber-type-switch__option {
+    border-block-start: 0;
+    border-inline-start: 1px solid rgba(232, 244, 235, 0.28);
+}
+
+.attendance-day-navigation-row {
+    justify-content: center;
+}
+
+.attendance-day-header {
+    display: contents;
+}
+
+.attendance-export-modal :is(
+    .searchable-select__button,
+    .searchable-select__search--trigger,
+    .formatted-date-input__display,
+    input[type='date']:not(.formatted-date-input__native),
+    select,
+    .attendance-navigation
+) {
+    height: 3.125rem !important;
+    min-height: 3.125rem !important;
+    box-sizing: border-box;
+}
+
+.attendance-export-modal .attendance-navigation {
+    width: 100%;
+    max-width: none;
+}
+
+.attendance-export-modal .quick-saber-type-switch__option {
+    min-height: 0;
+}
+
+@media (min-width: 1024px) {
+    .attendance-day-header {
+        --attendance-controls-gap: .75rem;
+        --attendance-control-height: calc(5.5rem + 2px);
+        --attendance-controls-width: calc(7.5rem + var(--admin-action-button-size) + var(--attendance-controls-gap));
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+    }
+
+    .attendance-day-header > .attendance-day-hero {
+        grid-area: 1 / 1 / 2 / 3;
+        padding-inline-end: calc(2rem + var(--attendance-controls-width) + var(--attendance-controls-gap) - 1px);
+    }
+
+    .attendance-day-hero-layout {
+        flex-wrap: wrap;
+    }
+
+    .attendance-day-hero-layout > div {
+        min-width: 0;
+    }
+
+    .attendance-day-header .attendance-day-metrics > :first-child {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: var(--attendance-control-height);
+    }
+
+    .attendance-day-header > .attendance-day-navigation-row {
+        grid-area: 1 / 2;
+        z-index: 1;
+        width: var(--attendance-controls-width);
+        margin-inline-end: 2rem;
+        gap: var(--attendance-controls-gap);
+    }
+
+    .attendance-day-header .attendance-navigation.quick-saber-type-switch {
+        height: var(--attendance-control-height);
+        grid-auto-flow: row;
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(2, minmax(2.5rem, 1fr));
+    }
+
+    .attendance-day-header .quick-saber-type-switch__option + .quick-saber-type-switch__option {
+        border-inline-start: 0;
+        border-block-start: 1px solid rgba(232, 244, 235, 0.28);
+    }
+
+    .attendance-day-header .attendance-day-navigation-actions {
+        flex-direction: column;
+    }
+}
+
+/* The phone text-clamping wrapper must not pull centered row numbers left. */
+.app-main .surface-table :is(.attendance-row-number, .attendance-days-number) > .mobile-scroll-table-value {
+    display: inline !important;
+    inline-size: auto;
+    max-inline-size: none;
+}
+
+/* Group and teacher labels must fit their cell beside attendance counts. */
+@media (max-width: 1279px) {
+    .app-main .surface-table .attendance-day-groups-table .attendance-person-column > div {
+        display: block !important;
+        inline-size: 100% !important;
+        max-inline-size: 100% !important;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        -webkit-line-clamp: unset;
+        line-clamp: unset;
+    }
+}
+
+.profile-duplicate-field {
+    position: relative;
+    min-width: 0;
+}
+.profile-duplicate-field:has(.profile-duplicate-warning) > input {
+    padding-inline-end: 2.8rem;
+}
+.profile-duplicate-warning {
+    position: absolute;
+    inset-inline-end: .5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+}
+.profile-duplicate-warning__button {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: .3rem;
+    color: #f87171;
+    border-radius: .5rem;
+}
+.profile-duplicate-warning__button:hover,
+.profile-duplicate-warning__button:focus-visible {
+    background: rgb(248 113 113 / .12);
+    outline: 1px solid currentColor;
+}
+.profile-duplicate-warning__button svg { width: 1.3rem; height: 1.3rem; }
+.profile-duplicate-tooltip {
+    position: fixed;
+    z-index: 10000;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 24px));
+    border: 1px solid rgb(255 255 255 / .12);
+    border-radius: .75rem;
+    padding: .5rem .7rem;
+    background: rgb(10 10 10 / .95);
+    color: white;
+    font-size: .75rem;
+    line-height: 1.6;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgb(0 0 0 / .25);
+}
+
+.duplicate-review-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+    width: 100%;
+}
+.duplicate-review-actions > button {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.6;
+}
+.student-parent-unlink {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: .5rem;
+    padding: .35rem;
+    color: var(--app-text-muted);
+    background: transparent;
+}
+.student-parent-unlink:hover, .student-parent-unlink:focus-visible {
+    color: #fca5a5;
+    background: rgb(248 113 113 / .1);
+}
+.student-parent-unlink svg { width: 1.2rem; height: 1.2rem; }
+select[data-group-option-columns] + .searchable-select .searchable-select__option--group {
+    display: grid;
+    -webkit-line-clamp: unset;
+    grid-template-columns: repeat(var(--group-option-columns), minmax(0, 1fr));
+    gap: 1rem;
+    border: 0;
+}
+
+@media (max-width: 767px) {
+    .admin-modal .admin-modal__dialog:has([data-group-select].searchable-select--open) {
+        overflow: hidden !important;
+    }
+
+    .admin-modal .admin-modal__body:has([data-group-select].searchable-select--open) {
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
+    [data-group-select] .searchable-select__panel,
+    [data-group-select] .searchable-select__list {
+        box-sizing: border-box;
+        min-width: 0;
+        min-height: 0;
+        overflow-x: hidden;
+    }
+
+    [data-group-select] .searchable-select__list {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+.searchable-select__group-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+}
+.searchable-select__group-cell > span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Keep the inner entry and mobile add action on the same textbox row. */
+.admin-modal__body [data-memorized-juz-input] > input {
+    width: auto !important;
+    min-width: 7rem !important;
+}
+
+/* The completion shares the input's text metrics and stays inside its border. */
+.address-completion { position: relative; min-width: 0; }
+.address-completion__ghost {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    inset: 0;
+    border: 1px solid transparent;
+    pointer-events: none;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--app-text-muted);
+    opacity: .55;
+    text-align: start;
+}
+.address-completion__line { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.address-completion__typed { color: transparent; }
+.address-completion__credit { display: block; margin-top: .25rem; font-size: .65rem; color: var(--app-text-muted); }

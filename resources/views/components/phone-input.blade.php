@@ -4,6 +4,8 @@
     'placeholder' => '',
     'required' => false,
     'value' => '',
+    'live' => false,
+    'duplicate' => null,
 ])
 
 @php
@@ -14,7 +16,7 @@
 @endphp
 
 <div
-    wire:key="phone-input-{{ $inputId }}-{{ md5((string) $value) }}"
+    wire:key="phone-input-{{ $inputId }}-{{ $live ? 'live' : md5((string) $value) }}"
     class="grid grid-cols-[max-content_minmax(0,1fr)] gap-2"
     data-phone-input
     dir="ltr"
@@ -131,20 +133,24 @@
         </div>
     </div>
 
-    <input
-        id="{{ $inputId }}"
-        x-ref="nationalPhone"
-        x-model="nationalNumber"
-        x-on:input.debounce.150ms="syncPhone"
-        type="tel"
-        inputmode="tel"
-        autocomplete="tel-national"
-        dir="ltr"
-        class="w-full rounded-xl px-4 py-3 text-left text-sm"
-        style="unicode-bidi: isolate;"
-        placeholder="{{ $placeholder ?: __('phone.number_placeholder') }}"
-        @required($required)
-    >
+    <div class="profile-duplicate-field">
+        <input
+            id="{{ $inputId }}"
+            x-ref="nationalPhone"
+            x-model="nationalNumber"
+            x-on:input.debounce.150ms="syncPhone"
+            type="tel"
+            inputmode="tel"
+            autocomplete="tel-national"
+            dir="ltr"
+            class="w-full rounded-xl px-4 py-3 text-left text-sm"
+            style="unicode-bidi: isolate;"
+            placeholder="{{ $placeholder ?: __('phone.number_placeholder') }}"
+            @required($required)
+        >
 
-    <input x-ref="fullPhone" wire:model="{{ $model }}" type="hidden" value="{{ $value }}">
+        <x-profile-duplicate-warning :match="$duplicate" :field="$model" />
+    </div>
+
+    <input x-ref="fullPhone" wire:model{{ $live ? '.live.debounce.400ms' : '' }}="{{ $model }}" type="hidden" value="{{ $value }}">
 </div>

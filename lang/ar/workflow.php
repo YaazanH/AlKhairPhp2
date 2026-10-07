@@ -1295,6 +1295,7 @@ return [
             'student_name' => 'اسم الطالب',
             'student_no' => 'رقم الطالب',
             'current_juz' => 'الجزء الحالي',
+            'last_recitation' => 'التسميع الأخير',
             'joined_at' => 'تاريخ الانضمام',
             'notes' => 'ملاحظات الطالب',
         ],
