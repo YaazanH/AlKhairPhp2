@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformSuggestionGroup;
 use App\Models\Landlord\PlatformSupportCase;
+use App\Services\Landlord\SupportRequestConfiguration;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +15,7 @@ use Illuminate\View\View;
 
 class PlatformSupportCaseController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, SupportRequestConfiguration $configuration): View
     {
         $types = $this->allowedTypes($request);
         abort_if($types === [], 403);
@@ -30,6 +31,7 @@ class PlatformSupportCaseController extends Controller
             ],
             'suggestionGroups' => in_array('suggestion', $types, true) ? PlatformSuggestionGroup::query()->latest()->get() : collect(),
             'canManageSuggestions' => in_array('suggestion', $types, true),
+            'problemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS, false),
         ]);
     }
 
@@ -77,7 +79,7 @@ class PlatformSupportCaseController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return back()->with('status', 'Platform case updated.');
+        return back()->with('status', __('support.messages.platform_updated'));
     }
 
     public function storeSuggestionGroup(Request $request): RedirectResponse
@@ -97,7 +99,7 @@ class PlatformSupportCaseController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        return back()->with('status', 'Suggestion group created.');
+        return back()->with('status', __('support.messages.group_created'));
     }
 
     private function allowedTypes(Request $request): array

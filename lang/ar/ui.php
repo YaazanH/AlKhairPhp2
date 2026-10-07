@@ -95,6 +95,8 @@ return [
         'public_website_settings' => 'إعدادات الموقع',
         'data_quality' => 'تدقيق البيانات',
         'data_audit' => 'حركات البيانات',
+        'support' => 'الدعم',
+        'help_requests' => 'المساعدة والطلبات',
         'organization' => 'الهيكل',
         'tracking_rules' => 'قواعد المتابعة',
         'points' => 'النقاط',

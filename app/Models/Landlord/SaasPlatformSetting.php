@@ -6,12 +6,14 @@ class SaasPlatformSetting extends LandlordModel
 {
     protected $fillable = [
         'suspended_data_retention_months',
+        'support_request_options',
     ];
 
     protected function casts(): array
     {
         return [
             'suspended_data_retention_months' => 'integer',
+            'support_request_options' => 'array',
         ];
     }
 

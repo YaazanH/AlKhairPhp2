@@ -40,6 +40,14 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware) {
+        // The application has separate tenant and Platform guards. An already
+        // authenticated Platform administrator who follows the landing-page
+        // sign-in link must return to the landlord dashboard, never the tenant
+        // dashboard (which would then redirect them to the tenant login).
+        $middleware->redirectUsersTo(fn (Request $request): string => $request->is('platform') || $request->is('platform/*')
+            ? route('platform.dashboard')
+            : route('dashboard'));
+
         // Keep one browser-session origin in production. Serving both the www
         // and apex hosts creates separate cookies and inconsistent auth state.
         $middleware->prepend(RedirectToCanonicalHost::class);

@@ -46,7 +46,7 @@ class TenantSupportRequest extends Model
     public const BUSINESS_IMPACT_HIGH = 'high';
 
     protected $fillable = [
-        'type', 'priority', 'incident_reference', 'status', 'subject', 'message', 'expected_result', 'impact', 'desired_outcome', 'current_workaround', 'affected_users', 'business_impact', 'reported_url', 'browser_info', 'app_version',
+        'type', 'problem_reason', 'priority', 'incident_reference', 'status', 'subject', 'message', 'expected_result', 'impact', 'desired_outcome', 'current_workaround', 'affected_users', 'business_impact', 'reported_url', 'browser_info', 'app_version',
         'submitted_by_user_id', 'forwarded_by_user_id', 'forwarded_at', 'tenant_admin_note', 'decline_reason',
     ];
 
@@ -73,19 +73,33 @@ class TenantSupportRequest extends Model
     public static function impactOptions(): array
     {
         return [
-            self::IMPACT_INDIVIDUAL => 'Only me or one person',
-            self::IMPACT_SEVERAL_USERS => 'A group or several people',
-            self::IMPACT_ALL_USERS => 'Most or all users',
+            self::IMPACT_INDIVIDUAL => __('support.impacts.'.self::IMPACT_INDIVIDUAL),
+            self::IMPACT_SEVERAL_USERS => __('support.impacts.'.self::IMPACT_SEVERAL_USERS),
+            self::IMPACT_ALL_USERS => __('support.impacts.'.self::IMPACT_ALL_USERS),
         ];
     }
 
     public static function businessImpactOptions(): array
     {
         return [
-            self::BUSINESS_IMPACT_LOW => 'Low',
-            self::BUSINESS_IMPACT_MEDIUM => 'Medium',
-            self::BUSINESS_IMPACT_HIGH => 'High',
+            self::BUSINESS_IMPACT_LOW => __('support.business_impacts.'.self::BUSINESS_IMPACT_LOW),
+            self::BUSINESS_IMPACT_MEDIUM => __('support.business_impacts.'.self::BUSINESS_IMPACT_MEDIUM),
+            self::BUSINESS_IMPACT_HIGH => __('support.business_impacts.'.self::BUSINESS_IMPACT_HIGH),
         ];
+    }
+
+    public static function typeLabel(string $type): string
+    {
+        return trans()->has('support.types.'.$type)
+            ? __('support.types.'.$type)
+            : str($type)->replace('_', ' ')->title()->toString();
+    }
+
+    public static function priorityLabel(string $priority): string
+    {
+        return trans()->has('support.priorities.'.$priority)
+            ? __('support.priorities.'.$priority)
+            : str($priority)->replace('_', ' ')->title()->toString();
     }
 
     public static function newIncidentReference(): string
@@ -104,19 +118,9 @@ class TenantSupportRequest extends Model
 
     public static function statusLabel(string $status): string
     {
-        return match ($status) {
-            self::STATUS_SUBMITTED => 'New',
-            self::STATUS_UNDER_REVIEW => 'In review',
-            self::STATUS_FORWARDED => 'Forwarded to Platform',
-            self::STATUS_RESOLVED => 'Resolved',
-            self::STATUS_CLOSED => 'Closed',
-            self::STATUS_PLANNED => 'Planned',
-            self::STATUS_IN_PROGRESS => 'In progress',
-            self::STATUS_RELEASED => 'Released',
-            self::STATUS_DECLINED => 'Declined',
-            self::STATUS_IMPLEMENTED_INTERNALLY => 'Implemented internally',
-            default => str($status)->replace('_', ' ')->title()->toString(),
-        };
+        return trans()->has('support.statuses.'.$status)
+            ? __('support.statuses.'.$status)
+            : str($status)->replace('_', ' ')->title()->toString();
     }
 
     public function submittedBy(): BelongsTo

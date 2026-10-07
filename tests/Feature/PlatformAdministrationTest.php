@@ -10,6 +10,7 @@ use App\Models\Landlord\SaasPlatformSetting;
 use App\Models\Landlord\SubscriptionVoucher;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantSubscription;
+use App\Services\Landlord\PlatformTenantAccess;
 use App\Services\Landlord\TenantModuleAccess;
 use Database\Seeders\LandlordCatalogSeeder;
 use Illuminate\Console\Command;
@@ -122,10 +123,48 @@ class PlatformAdministrationTest extends TestCase
 
         $this->get(route('platform.login'))
             ->assertOk()
-            ->assertSee('<title>Platform Administration | AlKhair Platform</title>', false);
+            ->assertSee('<title>Platform Administration | AlKhair Platform</title>', false)
+            ->assertSee('data-platform-login', false)
+            ->assertSee('action="'.route('platform.login.store').'"', false)
+            ->assertSee('name="email"', false)
+            ->assertSee('href="'.route('login').'"', false);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('data-platform-login-link', false)
+            ->assertDontSee('href="'.route('platform.login').'"', false);
 
         $this->get(route('platform.dashboard'))
             ->assertRedirect(route('platform.login'));
+    }
+
+    public function test_stale_tenant_support_session_does_not_redirect_platform_login_to_tenant_login(): void
+    {
+        $this->withSession([
+            PlatformTenantAccess::SESSION_KEY => [
+                'tenant_uuid' => (string) Str::uuid(),
+                'platform_administrator_id' => 999,
+                'expires_at' => now()->subMinute()->timestamp,
+            ],
+        ])->get(route('platform.login'))
+            ->assertOk()
+            ->assertSessionMissing(PlatformTenantAccess::SESSION_KEY)
+            ->assertSee('data-platform-login', false);
+    }
+
+    public function test_authenticated_platform_administrator_following_landing_sign_in_returns_to_platform_dashboard(): void
+    {
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'platform@example.test',
+            'password' => 'secret-password',
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->get(route('platform.login'))
+            ->assertRedirect(route('platform.dashboard'))
+            ->assertLocation(route('platform.dashboard'));
     }
 
     public function test_platform_administrator_can_start_tenant_provisioning_from_the_dashboard(): void

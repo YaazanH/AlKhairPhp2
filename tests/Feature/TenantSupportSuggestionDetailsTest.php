@@ -77,6 +77,7 @@ class TenantSupportSuggestionDetailsTest extends TestCase
         $this->actingAs($reporter)
             ->post(route('support.store'), [
                 'type' => TenantSupportRequest::TYPE_PROBLEM,
+                'problem_reason' => 'technical_issue',
                 'subject' => 'Cannot save attendance',
                 'message' => 'The save button does not respond.',
                 'expected_result' => 'The attendance entry should be saved.',

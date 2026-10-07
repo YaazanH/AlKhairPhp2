@@ -1,8 +1,8 @@
-<x-platform-layout title="Problem attachments">
+<x-platform-layout :title="__('support.platform.attachments_title')">
     <header>
-        <a href="{{ route('platform.support.index') }}" class="text-sm text-emerald-700 underline">Back to support cases</a>
+        <a href="{{ route('platform.support.index') }}" class="text-sm text-emerald-700 underline">{{ __('support.platform.back') }}</a>
         <h1 class="mt-3 text-3xl font-bold">{{ $case->subject }}</h1>
-        <p class="mt-2 text-zinc-600">Tenant problem attachments are available only because this case was forwarded to Platform.</p>
+        <p class="mt-2 text-zinc-600">{{ __('support.platform.attachments_description') }}</p>
     </header>
 
     <section class="mt-6 rounded-3xl border bg-white p-6 shadow-sm">
@@ -13,7 +13,7 @@
                     <span class="text-sm text-zinc-500">{{ number_format($attachment->size_bytes / 1024, 1) }} KB</span>
                 </a>
             @empty
-                <p class="text-zinc-500">No attachments were added to this problem report.</p>
+                <p class="text-zinc-500">{{ __('support.platform.no_problem_attachments') }}</p>
             @endforelse
         </div>
     </section>

@@ -38,7 +38,7 @@ class TenantSupportAttachmentController extends Controller
             'size_bytes' => $file->getSize(),
         ]);
 
-        return back()->with('status', 'Attachment added.');
+        return back()->with('status', __('support.messages.attachment_added'));
     }
 
     public function download(Request $request, TenantSupportAttachment $attachment): StreamedResponse

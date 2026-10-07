@@ -52,6 +52,7 @@ class SupportCaseForwarderTest extends TestCase
         ]);
         $request = new TenantSupportRequest([
             'type' => TenantSupportRequest::TYPE_PROBLEM,
+            'problem_reason' => 'technical_issue',
             'incident_reference' => 'INC-20261001-ABC123',
             'subject' => 'Cannot save attendance',
             'message' => 'The save button does not respond.',
@@ -73,6 +74,7 @@ class SupportCaseForwarderTest extends TestCase
         $this->assertSame('We are checking the error.', $forwardedAgain->platform_note);
         $this->assertSame('The problem happens only for the morning group.', $forwardedAgain->message);
         $this->assertSame('INC-20261001-ABC123', $forwardedAgain->incident_reference);
+        $this->assertSame('technical_issue', $forwardedAgain->problem_reason);
         $this->assertDatabaseCount('platform_support_cases', 1, 'landlord');
     }
 

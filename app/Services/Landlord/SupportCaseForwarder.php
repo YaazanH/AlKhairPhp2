@@ -17,6 +17,7 @@ class SupportCaseForwarder
 
         $case->fill([
             'type' => $request->type,
+            'problem_reason' => $request->problem_reason,
             'incident_reference' => $request->incident_reference,
             'subject' => $request->subject,
             'message' => $request->message,

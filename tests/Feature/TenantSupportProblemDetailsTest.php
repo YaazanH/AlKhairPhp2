@@ -21,6 +21,7 @@ class TenantSupportProblemDetailsTest extends TestCase
         $this->actingAs($reporter)
             ->post(route('support.store'), [
                 'type' => TenantSupportRequest::TYPE_PROBLEM,
+                'problem_reason' => 'technical_issue',
                 'subject' => 'Cannot save attendance',
                 'message' => 'The save button does not respond.',
                 'expected_result' => 'The attendance entry should be saved.',
@@ -30,6 +31,7 @@ class TenantSupportProblemDetailsTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('tenant_support_requests', [
+            'problem_reason' => 'technical_issue',
             'expected_result' => 'The attendance entry should be saved.',
             'impact' => TenantSupportRequest::IMPACT_SEVERAL_USERS,
             'priority' => 'high',
@@ -58,6 +60,7 @@ class TenantSupportProblemDetailsTest extends TestCase
 
         $suggestion = TenantSupportRequest::query()->sole();
         $this->assertNull($suggestion->expected_result);
+        $this->assertNull($suggestion->problem_reason);
         $this->assertNull($suggestion->impact);
         $this->assertNull($suggestion->priority);
     }

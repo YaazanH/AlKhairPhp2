@@ -95,6 +95,8 @@ return [
         'public_website_settings' => 'Website Settings',
         'data_quality' => 'Database Audit',
         'data_audit' => 'Database Movements',
+        'support' => 'Support',
+        'help_requests' => 'Help & Requests',
         'organization' => 'Organisation',
         'tracking_rules' => 'Tracking Rules',
         'points' => 'Points',

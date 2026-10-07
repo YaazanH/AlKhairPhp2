@@ -7,11 +7,21 @@ return [
     ],
     'login' => [
         'title' => 'Platform Administration',
-        'description' => 'Sign in to manage SaaS tenants and subscriptions.',
+        'eyebrow' => 'Platform operations',
+        'description' => 'A dedicated workspace for managing tenants, subscriptions, support, and platform access.',
+        'restricted' => 'Restricted to authorised Platform administrators',
         'email' => 'Email address',
         'password' => 'Password',
         'remember' => 'Remember this device',
-        'submit' => 'Sign in',
+        'submit' => 'Enter Platform Administration',
+        'tenant_title' => 'Looking for your organisation?',
+        'tenant_description' => 'Tenant administrators, teachers, and staff should use the organisation sign-in page.',
+        'tenant_action' => 'Go to tenant sign in',
+        'features' => [
+            'tenants' => 'Tenant operations and access',
+            'subscriptions' => 'Packages and subscriptions',
+            'support' => 'Escalated support requests',
+        ],
     ],
     'dashboard' => [
         'eyebrow' => 'Platform operations',

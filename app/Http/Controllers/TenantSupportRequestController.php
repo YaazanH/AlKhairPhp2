@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Landlord\PlatformSupportCase;
 use App\Models\TenantSupportRequest;
 use App\Services\Landlord\SupportCaseForwarder;
+use App\Services\Landlord\SupportRequestConfiguration;
 use App\Services\Landlord\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\View\View;
 
 class TenantSupportRequestController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, SupportRequestConfiguration $configuration): View
     {
         $user = $request->user();
 
@@ -22,18 +23,28 @@ class TenantSupportRequestController extends Controller
             'canSubmitProblem' => $user->can('support.problems.submit'),
             'canSubmitSuggestion' => $user->can('support.suggestions.submit'),
             'canManage' => $user->can('support.manage'),
+            'problemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS),
+            'priorityOptions' => $configuration->options(SupportRequestConfiguration::PRIORITIES),
+            'impactOptions' => $configuration->options(SupportRequestConfiguration::IMPACTS),
+            'allProblemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS, false),
+            'allPriorityOptions' => $configuration->options(SupportRequestConfiguration::PRIORITIES, false),
+            'allImpactOptions' => $configuration->options(SupportRequestConfiguration::IMPACTS, false),
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, SupportRequestConfiguration $configuration): RedirectResponse
     {
+        $reasonOptions = $configuration->options(SupportRequestConfiguration::REASONS);
+        $priorityOptions = $configuration->options(SupportRequestConfiguration::PRIORITIES);
+        $impactOptions = $configuration->options(SupportRequestConfiguration::IMPACTS);
         $data = $request->validate([
             'type' => ['required', Rule::in([TenantSupportRequest::TYPE_PROBLEM, TenantSupportRequest::TYPE_SUGGESTION])],
+            'problem_reason' => ['nullable', Rule::in(array_keys($reasonOptions)), 'required_if:type,problem'],
             'subject' => ['required', 'string', 'max:180'],
             'message' => ['required', 'string', 'max:5000'],
             'expected_result' => ['nullable', 'string', 'max:5000', 'required_if:type,problem'],
-            'impact' => ['nullable', Rule::in(array_keys(TenantSupportRequest::impactOptions())), 'required_if:type,problem'],
-            'priority' => ['nullable', Rule::in(['normal', 'high', 'critical']), 'required_if:type,problem'],
+            'impact' => ['nullable', Rule::in(array_keys($impactOptions)), 'required_if:type,problem'],
+            'priority' => ['nullable', Rule::in(array_keys($priorityOptions)), 'required_if:type,problem'],
             'desired_outcome' => ['nullable', 'string', 'max:5000', 'required_if:type,suggestion'],
             'current_workaround' => ['nullable', 'string', 'max:5000'],
             'affected_users' => ['nullable', 'string', 'max:500', 'required_if:type,suggestion'],
@@ -57,6 +68,7 @@ class TenantSupportRequestController extends Controller
             $data['affected_users'] = null;
             $data['business_impact'] = null;
         } else {
+            $data['problem_reason'] = null;
             $data['priority'] = null;
             $data['expected_result'] = null;
             $data['impact'] = null;
@@ -64,10 +76,10 @@ class TenantSupportRequestController extends Controller
 
         TenantSupportRequest::query()->create($data + ['submitted_by_user_id' => $request->user()->id]);
 
-        return back()->with('status', 'Your request was submitted.');
+        return back()->with('status', __('support.messages.submitted'));
     }
 
-    public function manage(): View
+    public function manage(SupportRequestConfiguration $configuration): View
     {
         $tenant = app(TenantContext::class)->tenant();
         $requests = TenantSupportRequest::query()->with(['submittedBy', 'messages.sender', 'attachments'])->latest()->get();
@@ -84,6 +96,11 @@ class TenantSupportRequestController extends Controller
                 TenantSupportRequest::TYPE_SUGGESTION => TenantSupportRequest::statusesForType(TenantSupportRequest::TYPE_SUGGESTION),
             ],
             'openCount' => TenantSupportRequest::query()->whereIn('status', TenantSupportRequest::attentionStatuses())->count(),
+            'problemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS),
+            'priorityOptions' => $configuration->options(SupportRequestConfiguration::PRIORITIES),
+            'allProblemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS, false),
+            'allPriorityOptions' => $configuration->options(SupportRequestConfiguration::PRIORITIES, false),
+            'allImpactOptions' => $configuration->options(SupportRequestConfiguration::IMPACTS, false),
         ]);
     }
 
@@ -104,14 +121,15 @@ class TenantSupportRequestController extends Controller
             'message' => $data['message'],
         ]);
 
-        return back()->with('status', 'Message added.');
+        return back()->with('status', __('support.messages.message_added'));
     }
 
-    public function update(Request $request, TenantSupportRequest $supportRequest, SupportCaseForwarder $forwarder): RedirectResponse
+    public function update(Request $request, TenantSupportRequest $supportRequest, SupportCaseForwarder $forwarder, SupportRequestConfiguration $configuration): RedirectResponse
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(TenantSupportRequest::statusesForType($supportRequest->type))],
-            'priority' => ['nullable', Rule::in(['normal', 'high', 'critical'])],
+            'problem_reason' => ['nullable', Rule::in(array_keys($configuration->options(SupportRequestConfiguration::REASONS)))],
+            'priority' => ['nullable', Rule::in(array_keys($configuration->options(SupportRequestConfiguration::PRIORITIES)))],
             'tenant_admin_note' => ['nullable', 'string', 'max:5000'],
             'decline_reason' => ['nullable', 'string', 'max:5000'],
             'forward' => ['nullable', 'boolean'],
@@ -123,6 +141,7 @@ class TenantSupportRequestController extends Controller
         ]);
 
         if ($supportRequest->type === TenantSupportRequest::TYPE_PROBLEM) {
+            $supportRequest->problem_reason = $data['problem_reason'] ?? $supportRequest->problem_reason;
             $supportRequest->priority = $data['priority'] ?? $supportRequest->priority;
         }
 
@@ -146,6 +165,6 @@ class TenantSupportRequestController extends Controller
             $forwarder->forward(app(TenantContext::class)->tenant(), $supportRequest);
         }
 
-        return back()->with('status', 'Request updated.');
+        return back()->with('status', __('support.messages.updated'));
     }
 }

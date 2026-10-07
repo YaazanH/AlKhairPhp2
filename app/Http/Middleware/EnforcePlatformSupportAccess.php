@@ -27,6 +27,17 @@ class EnforcePlatformSupportAccess
             return $next($request);
         }
 
+        // Returning to the landlord portal deliberately leaves the temporary
+        // tenant-support identity. Do not treat the missing tenant context on
+        // Platform routes as an expired tenant session and redirect to the
+        // tenant login page.
+        if ($request->routeIs('platform.*') || $request->is('platform') || $request->is('platform/*')) {
+            Auth::guard('web')->logout();
+            $request->session()->forget(PlatformTenantAccess::SESSION_KEY);
+
+            return $next($request);
+        }
+
         $context = app(TenantContext::class);
         $tenant = $context->hasTenant() ? $context->tenant() : null;
         $administrator = PlatformAdministrator::query()->find($support['platform_administrator_id'] ?? null);

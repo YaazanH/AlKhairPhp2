@@ -27,7 +27,7 @@ class PlatformSupportCase extends LandlordModel
     public const STATUS_DECLINED = 'declined';
 
     protected $fillable = [
-        'tenant_id', 'tenant_support_request_id', 'type', 'platform_suggestion_group_id', 'incident_reference', 'status', 'subject', 'message',
+        'tenant_id', 'tenant_support_request_id', 'type', 'problem_reason', 'platform_suggestion_group_id', 'incident_reference', 'status', 'subject', 'message',
         'platform_note', 'platform_replied_at', 'forwarded_at',
     ];
 
@@ -58,19 +58,9 @@ class PlatformSupportCase extends LandlordModel
 
     public static function statusLabel(string $status): string
     {
-        return match ($status) {
-            self::STATUS_FORWARDED => 'New',
-            self::STATUS_UNDER_REVIEW => 'Acknowledged',
-            self::STATUS_INVESTIGATING => 'Investigating',
-            self::STATUS_WAITING_FOR_TENANT => 'Waiting for tenant',
-            self::STATUS_RESOLVED => 'Resolved',
-            self::STATUS_CLOSED => 'Closed',
-            self::STATUS_PLANNED => 'Planned',
-            self::STATUS_IN_PROGRESS => 'In progress',
-            self::STATUS_RELEASED => 'Released',
-            self::STATUS_DECLINED => 'Declined',
-            default => str($status)->replace('_', ' ')->title()->toString(),
-        };
+        return trans()->has('support.platform_statuses.'.$status)
+            ? __('support.platform_statuses.'.$status)
+            : str($status)->replace('_', ' ')->title()->toString();
     }
 
     public function tenant(): BelongsTo

@@ -26,7 +26,7 @@
             <flux:navlist.item icon="circle-stack" href="{{ route('platform.storage.index') }}" :current="request()->routeIs('platform.storage.*')">Storage</flux:navlist.item>
         @endif
         @if($platformUser->hasPlatformPermission('manage.support.problems') || $platformUser->hasPlatformPermission('manage.support.suggestions'))
-            <flux:navlist.item icon="chat-bubble-left-right" href="{{ route('platform.support.index') }}" :current="request()->routeIs('platform.support.*')">Tenant requests</flux:navlist.item>
+            <flux:navlist.item icon="chat-bubble-left-right" href="{{ route('platform.support.index') }}" :current="request()->routeIs('platform.support.*')">{{ __('support.platform.navigation') }}</flux:navlist.item>
         @endif
 
         @if($platformUser->hasPlatformPermission('manage.landing-page') || $platformUser->hasPlatformPermission('publish.landing-page'))

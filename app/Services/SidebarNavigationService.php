@@ -30,6 +30,7 @@ class SidebarNavigationService
             'academics' => ['title_key' => 'ui.nav.courses', 'sort_order' => 120],
             'people' => ['title_key' => 'ui.nav.users', 'sort_order' => 130],
             'database' => ['title_key' => 'ui.nav.database', 'sort_order' => 140],
+            'support' => ['title_key' => 'ui.nav.support', 'sort_order' => 145],
             'configuration' => ['title_key' => 'ui.nav.configuration', 'sort_order' => 150],
         ];
     }
@@ -84,6 +85,8 @@ class SidebarNavigationService
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'designs', 10, ['website.manage']),
             'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'database', 10, ['data-quality.view']),
             'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'database', 20, ['data-audit.view']),
+
+            'support' => $this->item('ui.nav.help_requests', 'chat-bubble-left-right', 'support.index', ['support.*'], 'support', 10, ['support.problems.submit', 'support.suggestions.submit', 'support.manage']),
 
             'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'designs', 20, ['print-templates.view']),
             'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 10, ['id-cards.print']),
