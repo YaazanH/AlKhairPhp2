@@ -505,6 +505,19 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('status-chip status-chip--slate', $memorization);
     }
 
+    public function test_completed_status_pills_use_the_blue_tone_everywhere(): void
+    {
+        $enrollments = file_get_contents(resource_path('views/livewire/enrollments/index.blade.php'));
+        $groups = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
+        $studentProgress = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
+
+        $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $enrollments);
+        $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $groups);
+        $this->assertStringContainsString("'finished', 'completed' => 'status-chip--blue'", $studentProgress);
+        $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $enrollments);
+        $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $groups);
+    }
+
     public function test_memorization_form_modal_uses_the_compact_three_column_layout(): void
     {
         $memorization = file_get_contents(resource_path('views/livewire/memorization/index.blade.php'));

@@ -555,7 +555,7 @@ new class extends Component
                             @php
                                 $enrollmentStatusClass = match ($enrollment->status) {
                                     'active' => 'status-chip status-chip--emerald',
-                                    'completed' => 'status-chip status-chip--gold',
+                                    'completed' => 'status-chip status-chip--blue',
                                     default => 'status-chip status-chip--slate',
                                 };
                             @endphp

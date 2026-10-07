@@ -598,7 +598,8 @@ new class extends Component
 
 @php
     $statusClass = fn (string $status) => match ($status) {
-        'passed', 'finished', 'active', 'completed' => 'status-chip--emerald',
+        'passed', 'active' => 'status-chip--emerald',
+        'finished', 'completed' => 'status-chip--blue',
         'failed', 'missing', 'withdrawn', 'cancelled' => 'status-chip--rose',
         'awaiting', 'in_progress', 'pending' => 'status-chip--amber',
         default => 'status-chip--slate',
