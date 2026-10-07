@@ -8774,6 +8774,19 @@ html[dir='rtl'] .student-juz-progress-table [data-juz-progress-status] {
         width: 21%;
     }
 
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(2) {
+        width: 28%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(3),
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(4) {
+        width: 20%;
+    }
+
+    .app-main [data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {
+        width: 25%;
+    }
+
     .app-main [data-student-progress-enrollments] table > thead > tr > th {
         overflow-wrap: normal !important;
         word-break: normal !important;
