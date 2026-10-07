@@ -1668,6 +1668,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('[data-student-progress-enrollments] :is([data-enrollment-group-name], [data-enrollment-teacher-name])', $styles);
         $this->assertStringContainsString('[data-student-progress-enrollments] .status-chip {', $styles);
         $this->assertStringContainsString('white-space: nowrap !important;', $styles);
+        $this->assertStringContainsString('[data-student-progress-enrollments] > [data-table-scroll-region] {', $styles);
+        $this->assertStringContainsString('overflow-x: hidden !important;', $styles);
         $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:not(:has(> td:only-child[colspan])):hover {', $styles);
         $this->assertStringContainsString('[data-student-progress-assessments] table.table-content :is(th, td) {', $styles);
         $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);

@@ -594,6 +594,8 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText('Cancelled Progress Group')
             ->call('showDetails', 'enrollments')
             ->assertSee('data-student-progress-enrollment-row="'.$activeEnrollment->id.'"', false)
+            ->assertSee('data-enrollment-status="active"', false)
+            ->assertSeeText(__('crud.common.status_options.active'))
             ->assertSeeText('Completed Progress Group')
             ->assertDontSeeText('Cancelled Progress Group');
     }
