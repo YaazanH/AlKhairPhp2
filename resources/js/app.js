@@ -1,5 +1,6 @@
 import { addressInput } from './address-completion';
 import jsQR from 'jsqr';
+import { attachCameraStream, prepareInlineCameraVideo, requestCameraStream } from './quick-attendance-camera';
 import { debounceSearch } from './search-debounce';
 import { groupOptionColumns, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
 
@@ -4199,6 +4200,9 @@ function initializeQuickAttendanceScanners() {
         let lastFrameScanAt = 0;
         let qrCanvas = null;
         let qrContext = null;
+        let fallbackReader = null;
+        let fallbackReaderPromise = null;
+        let lastFallbackScanAt = 0;
 
         const messageText = (key, fallback = '') => root.dataset[key] || fallback;
 
@@ -4265,24 +4269,48 @@ function initializeQuickAttendanceScanners() {
             }
         };
 
-        const decodeQrFromCanvas = () => {
+        const loadFallbackReader = () => {
+            fallbackReaderPromise ??= import('@zxing/browser')
+                .then(({ BrowserMultiFormatReader }) => {
+                    fallbackReader = new BrowserMultiFormatReader();
+
+                    return fallbackReader;
+                })
+                .catch(() => null);
+
+            return fallbackReaderPromise;
+        };
+
+        const drawVideoFrame = () => {
             if (!(video instanceof HTMLVideoElement) || !video.videoWidth || !video.videoHeight) {
-                return '';
+                return false;
             }
 
             qrCanvas ??= document.createElement('canvas');
 
-            if (qrCanvas.width !== video.videoWidth || qrCanvas.height !== video.videoHeight) {
-                qrCanvas.width = video.videoWidth;
-                qrCanvas.height = video.videoHeight;
+            const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
+            const frameWidth = Math.max(1, Math.round(video.videoWidth * scale));
+            const frameHeight = Math.max(1, Math.round(video.videoHeight * scale));
+
+            if (qrCanvas.width !== frameWidth || qrCanvas.height !== frameHeight) {
+                qrCanvas.width = frameWidth;
+                qrCanvas.height = frameHeight;
                 qrContext = qrCanvas.getContext('2d', { willReadFrequently: true });
             }
 
             if (!qrContext) {
-                return '';
+                return false;
             }
 
             qrContext.drawImage(video, 0, 0, qrCanvas.width, qrCanvas.height);
+
+            return true;
+        };
+
+        const decodeQrFromCanvas = () => {
+            if (!drawVideoFrame()) {
+                return '';
+            }
 
             const imageData = qrContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
@@ -4309,7 +4337,31 @@ function initializeQuickAttendanceScanners() {
                 }
             }
 
-            return decodeQrFromCanvas();
+            const qrValue = decodeQrFromCanvas();
+
+            if (qrValue) {
+                return qrValue;
+            }
+
+            const now = Date.now();
+
+            if (now - lastFallbackScanAt < 350 || !qrCanvas) {
+                return '';
+            }
+
+            lastFallbackScanAt = now;
+
+            const reader = fallbackReader || await loadFallbackReader();
+
+            if (!reader) {
+                return '';
+            }
+
+            try {
+                return reader.decodeFromCanvas(qrCanvas)?.getText?.() || '';
+            } catch (_error) {
+                return '';
+            }
         };
 
         const scanLoop = async () => {
@@ -4342,21 +4394,6 @@ function initializeQuickAttendanceScanners() {
             }
         };
 
-        const startCameraStream = async () => {
-            try {
-                return await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { ideal: 'environment' },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                    },
-                    audio: false,
-                });
-            } catch (_error) {
-                return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-            }
-        };
-
         startButton?.addEventListener('click', async () => {
             if (cameraDisabled || startButton.disabled || scanning) return;
 
@@ -4375,6 +4412,9 @@ function initializeQuickAttendanceScanners() {
             setCameraState('starting');
 
             try {
+                if (!(video instanceof HTMLVideoElement)) throw new Error('Camera preview is unavailable.');
+
+                prepareInlineCameraVideo(video);
                 detector = null;
 
                 if ('BarcodeDetector' in window) {
@@ -4385,24 +4425,20 @@ function initializeQuickAttendanceScanners() {
                     }
                 }
 
-                const nextStream = await startCameraStream();
+                const nextStream = await requestCameraStream(navigator.mediaDevices);
                 if (session !== cameraSession || !root.isConnected) {
                     nextStream.getTracks().forEach((track) => track.stop());
                     return;
                 }
                 stream = nextStream;
 
-                if (!(video instanceof HTMLVideoElement)) throw new Error('Camera preview is unavailable.');
-
-                video.muted = true;
-                video.playsInline = true;
-                video.srcObject = stream;
-                setCameraState('running');
-                await video.play();
+                await attachCameraStream(video, stream);
 
                 if (session !== cameraSession) return;
                 scanning = true;
+                setCameraState('running');
                 setMessage(messageText('cameraRunning'));
+                if (!detector) void loadFallbackReader();
                 requestAnimationFrame(scanLoop);
             } catch (_error) {
                 if (session !== cameraSession) return;
