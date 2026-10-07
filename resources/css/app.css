@@ -2697,6 +2697,13 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
     html:not(.dark) .app-main table:not([data-student-progress-juz-table]) > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
         background-image: linear-gradient(rgba(22, 104, 57, 0.09), rgba(22, 104, 57, 0.09));
     }
+
+    /* Progress summary rows are informational; a hover fill makes their last
+       row look like a large rounded action even though it is not clickable. */
+    .app-main .student-progress-data-table table > tbody > tr:not(:has(> td:only-child[colspan])):hover {
+        background-color: transparent !important;
+        background-image: none !important;
+    }
 }
 
 .admin-icon-button {
