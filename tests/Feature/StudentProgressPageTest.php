@@ -515,7 +515,7 @@ class StudentProgressPageTest extends TestCase
         $course = $activeEnrollment->group->course;
 
         $completedGroup = Group::create([
-            'course_id' => Course::create(['name' => 'Completed Progress Course', 'is_active' => true])->id,
+            'course_id' => Course::create(['name' => 'Completed Progress Course', 'is_active' => false])->id,
             'academic_year_id' => $academicYear->id,
             'teacher_id' => $teacher->id,
             'name' => 'Completed Progress Group',
@@ -531,7 +531,7 @@ class StudentProgressPageTest extends TestCase
             'is_active' => false,
         ]);
 
-        Enrollment::create([
+        $completedEnrollment = Enrollment::create([
             'student_id' => $student->id,
             'group_id' => $completedGroup->id,
             'enrolled_at' => '2026-08-01',
@@ -550,9 +550,12 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('enrollments', fn ($enrollments) => $enrollments->pluck('status')->sort()->values()->all() === ['active', 'completed'])
+            ->assertDontSee('data-student-progress-enrollment-row="'.$activeEnrollment->id.'"', false)
+            ->assertSee('data-student-progress-enrollment-row="'.$completedEnrollment->id.'"', false)
             ->assertSeeText('Completed Progress Group')
             ->assertDontSeeText('Cancelled Progress Group')
             ->call('showDetails', 'enrollments')
+            ->assertSee('data-student-progress-enrollment-row="'.$activeEnrollment->id.'"', false)
             ->assertSeeText('Completed Progress Group')
             ->assertDontSeeText('Cancelled Progress Group');
     }
