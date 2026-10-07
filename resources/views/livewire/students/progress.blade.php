@@ -365,7 +365,7 @@ new class extends Component
                 AssessmentResult::query()
                     ->with(['assessment.type', 'enrollment.group.course'])
                     ->where('student_id', $studentRecord->id)
-                    ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
+                    ->when($highlightEnrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $highlightEnrollmentIds))
             )->latest('id')->get()
             : collect();
         $finalAssessmentResults = $assessmentResults

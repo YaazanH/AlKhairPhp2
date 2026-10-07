@@ -241,7 +241,7 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText('Weekly Quiz · Quran Track');
     }
 
-    public function test_student_progress_limits_highlights_to_default_course_but_keeps_history_general(): void
+    public function test_student_progress_limits_assessments_and_highlights_to_default_course_but_keeps_other_history_general(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -288,6 +288,13 @@ class StudentProgressPageTest extends TestCase
             'is_active' => true,
         ]);
 
+        $secondaryFinalType = AssessmentType::create([
+            'name' => 'Secondary Final Exam',
+            'code' => 'secondary_final_exam',
+            'is_scored' => true,
+            'is_active' => true,
+        ]);
+
         $secondaryAssessment = Assessment::create([
             'group_id' => $secondaryGroup->id,
             'assessment_type_id' => $secondaryQuizType->id,
@@ -303,6 +310,25 @@ class StudentProgressPageTest extends TestCase
             'student_id' => $ownStudent->id,
             'teacher_id' => $secondaryTeacher->id,
             'score' => 73,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        $secondaryFinalAssessment = Assessment::create([
+            'group_id' => $secondaryGroup->id,
+            'assessment_type_id' => $secondaryFinalType->id,
+            'title' => 'Secondary Course Final Exam',
+            'total_mark' => 100,
+            'pass_mark' => 50,
+            'is_active' => true,
+        ]);
+
+        AssessmentResult::create([
+            'assessment_id' => $secondaryFinalAssessment->id,
+            'enrollment_id' => $secondaryEnrollment->id,
+            'student_id' => $ownStudent->id,
+            'teacher_id' => $secondaryTeacher->id,
+            'score' => 81,
             'status' => 'passed',
             'attempt_no' => 1,
         ]);
@@ -350,14 +376,24 @@ class StudentProgressPageTest extends TestCase
             'noted_at' => now(),
         ]);
 
-        Volt::test('students.progress', ['student' => $ownStudent])
+        $component = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertViewHas('stats', fn (array $stats) => $stats['points'] === 12)
+            ->assertViewHas('assessmentResults', fn ($results) => $results->pluck('assessment.title')->all() === ['Weekly Quiz'])
+            ->assertViewHas('finalAssessmentResults', fn ($results) => $results->isEmpty())
             ->assertDontSeeText('Parent Group')
             ->assertSeeText('Quiz Reward')
             ->assertSeeText('Parent Secondary Group')
-            ->assertSeeText('Course Filter Quiz')
+            ->assertDontSeeText('Course Filter Quiz')
+            ->assertDontSeeText('Secondary Course Final Exam')
             ->assertDontSeeText('Secondary Bonus')
             ->assertSeeText('Second Course Note');
+
+        $component
+            ->call('showDetails', 'assessments')
+            ->assertSeeText('Weekly Quiz')
+            ->assertDontSeeText('Course Filter Quiz')
+            ->call('showDetails', 'final-assessments')
+            ->assertDontSeeText('Secondary Course Final Exam');
 
         $parentDetails = Volt::test('students.progress', ['student' => $ownStudent])
             ->assertDontSeeText(__('workflow.student_progress.selection.change_student'))
