@@ -2698,10 +2698,26 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
         background-image: linear-gradient(rgba(22, 104, 57, 0.09), rgba(22, 104, 57, 0.09));
     }
 
-    /* Keep the progress-row highlight while preventing the card's rounded
-       lower corners from turning a single final row into a large pill. */
+    /* Paint the final progress-row highlight on its cells so it reaches both
+       table edges while the two outer corners follow the card border. */
     .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
-        background-size: calc(100% - 3rem) 100%;
+        background-image: none;
+    }
+
+    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {
+        background-color: rgba(151, 219, 174, 0.09);
+    }
+
+    html:not(.dark) .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {
+        background-color: rgba(22, 104, 57, 0.09);
+    }
+
+    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td:first-child {
+        border-end-start-radius: calc(1.5rem - 1px);
+    }
+
+    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td:last-child {
+        border-end-end-radius: calc(1.5rem - 1px);
     }
 }
 
