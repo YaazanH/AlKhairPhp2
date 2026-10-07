@@ -227,8 +227,9 @@ class StudentProgressPageTest extends TestCase
             ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
             ->call('showDetails', 'final-assessments')
             ->assertSee('data-student-progress-generic-table', false)
-            ->assertSee('w-[65%]', false)
-            ->assertSee('w-28 min-w-28', false)
+            ->assertSee('table-content text-sm', false)
+            ->assertDontSee('w-[65%]', false)
+            ->assertDontSee('w-28 min-w-28', false)
             ->assertSeeText('Course Final Exam')
             ->assertDontSeeText('Course Final Exam · Quran Track');
 
@@ -481,8 +482,9 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 400)
-            ->assertSee(__('workflow.student_progress.enrollments.headers.total_points'))
+            ->assertDontSee(__('workflow.student_progress.enrollments.headers.total_points'))
             ->call('showDetails', 'enrollments')
+            ->assertSee(__('workflow.student_progress.enrollments.headers.total_points'))
             ->assertViewHas('enrollmentTotalPoints', fn ($points) => $points[$enrollment->id] === 400);
 
         AppSetting::storeValue('course_completion', 'required_memorized_pages', 0, 'integer');
@@ -585,7 +587,11 @@ class StudentProgressPageTest extends TestCase
 
         $component = Volt::test('students.progress', ['student' => $student])
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'missing')
-            ->assertSeeText(__('workflow.student_progress.juz_progress.show_missing'))
+            ->assertSee('wire:click="showMissingPages('.$juz->id.')"', false)
+            ->assertDontSee('data-juz-progress-actions-heading', false)
+            ->call('showMissingPages', $juz->id)
+            ->assertSee('data-student-progress-missing-pages', false)
+            ->call('closeMissingPages')
             ->assertDontSee('wire:click="openAwqafTest(', false);
 
         $finalTest->update(['status' => 'passed', 'passed_on' => '2026-09-16']);
@@ -594,7 +600,7 @@ class StudentProgressPageTest extends TestCase
 
         $component
             ->call('$refresh')
-            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
@@ -628,8 +634,8 @@ class StudentProgressPageTest extends TestCase
         $component
             ->call('$refresh')
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'finished')
-            ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
-            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->assertDontSee('wire:click="showMissingPages(', false)
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
             ->assertDontSee('wire:click="closeAwqafTest" class="pill-link"', false)
@@ -641,7 +647,7 @@ class StudentProgressPageTest extends TestCase
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
-            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="pill-link pill-link--compact"', false)
+            ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->set('awqafTestedOn', '2026-09-17')
             ->set('awqafScore', '88')
@@ -727,6 +733,8 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSee('Hidden Quiz')->assertDontSee('Other Shared Note')
             ->assertViewHas('enrollments', fn ($rows) => $rows->count() === 2)
             ->assertViewHas('memorizationRows', fn ($rows) => $rows->pluck('page')->all() === [581, 582, 583])
+            ->assertViewHas('lastRecitedPage', 583)
+            ->assertSee('data-student-progress-last-recitation', false)
             ->assertViewHas('stats', fn ($stats) => $stats['attendance_days'] === 1 && $stats['quran_partial_tests'] === 1 && $stats['quran_final_tests'] === 1)
             ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()->passed_parts === 1 && $rows->first()->final_passed && $rows->first()->awqaf_passed)
             ->call('showDetails', 'memorization')

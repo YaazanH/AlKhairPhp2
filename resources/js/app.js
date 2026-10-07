@@ -1,5 +1,9 @@
+import { addressInput } from './address-completion';
 import jsQR from 'jsqr';
 import { debounceSearch } from './search-debounce';
+import { groupOptionColumns, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
+
+window.addressInput = addressInput;
 
 const delayedSearchInputs = new WeakMap();
 document.addEventListener('input', (event) => {
@@ -384,6 +388,10 @@ function restoreSearchableSelectClear(clear) {
 function selectedOptionText(select) {
     const option = select.options[select.selectedIndex];
 
+    if (option?.dataset.optionColumns && window.matchMedia('(max-width: 767px)').matches) {
+        return groupOptionColumns(option.dataset.optionColumns, true)[0] || '';
+    }
+
     return option?.textContent?.trim() || select.dataset.placeholder || '';
 }
 
@@ -402,6 +410,59 @@ function searchHintValue(select) {
 }
 
 const searchableSelectOverflowHosts = new WeakMap();
+
+function positionPhoneGroupDropdown(wrapper) {
+    if (wrapper.previousElementSibling?.matches('select[data-group-option-columns]')) wrapper.setAttribute('data-group-select', '');
+    if (!wrapper.hasAttribute('data-group-select') || !window.matchMedia('(max-width: 767px)').matches) return false;
+    const trigger = wrapper.querySelector('.searchable-select__search--trigger, .searchable-select__button');
+    const panel = wrapper.querySelector('.searchable-select__panel');
+    const list = wrapper.querySelector('.searchable-select__list');
+    const body = wrapper.closest('.admin-modal__body');
+    if (!trigger || !panel || !list || !body) return false;
+
+    const viewport = window.visualViewport;
+    const bodyRect = body.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const scale = wrapperRect.width / wrapper.offsetWidth || 1;
+    const bounds = {
+        top: Math.max(viewport?.offsetTop || 0, bodyRect.top) + 8,
+        bottom: Math.min((viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight), bodyRect.bottom) - 8,
+        left: Math.max(viewport?.offsetLeft || 0, bodyRect.left) + 8,
+        right: Math.min((viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth), bodyRect.right) - 8,
+    };
+    const placement = containedGroupMenu(triggerRect, bounds, 240 * scale);
+    // Stay inside the modal's scroll host: fixed descendants are unreliable
+    // inside WebKit's filtered surfaces, and releasing overflow resets scrolling.
+    Object.assign(panel.style, {
+        position: 'absolute',
+        left: `${(placement.left - wrapperRect.left) / scale}px`,
+        right: 'auto',
+        width: `${placement.width / scale}px`,
+        maxWidth: `${placement.width / scale}px`,
+        maxHeight: `${placement.height / scale}px`,
+        top: placement.openAbove ? 'auto' : `${(triggerRect.bottom - wrapperRect.top + placement.gap) / scale}px`,
+        bottom: placement.openAbove ? `${(wrapperRect.bottom - triggerRect.top + placement.gap) / scale}px` : 'auto',
+    });
+    list.style.maxHeight = `${Math.max(0, placement.height / scale - 2)}px`;
+    return true;
+}
+
+let phoneGroupDropdownFrame = null;
+function schedulePhoneGroupDropdownPosition(event) {
+    if (event?.target instanceof Element && event.target.closest('.searchable-select__list')) return;
+    if (phoneGroupDropdownFrame !== null) return;
+    phoneGroupDropdownFrame = requestAnimationFrame(() => {
+        phoneGroupDropdownFrame = null;
+        document.querySelectorAll('[data-group-select].searchable-select--open').forEach(wrapper => {
+            if (!positionPhoneGroupDropdown(wrapper)) resetOrganizationSettingsDropdownPosition(wrapper);
+        });
+    });
+}
+document.addEventListener('scroll', schedulePhoneGroupDropdownPosition, { capture: true, passive: true });
+window.addEventListener('resize', schedulePhoneGroupDropdownPosition, { passive: true });
+window.visualViewport?.addEventListener('resize', schedulePhoneGroupDropdownPosition, { passive: true });
+window.visualViewport?.addEventListener('scroll', schedulePhoneGroupDropdownPosition, { passive: true });
 
 function resetOrganizationSettingsDropdownPosition(wrapper) {
     const panel = wrapper.querySelector('.searchable-select__panel');
@@ -468,6 +529,11 @@ function positionOrganizationSettingsDropdown(wrapper) {
 }
 
 function releaseSearchableSelectOverflow(wrapper) {
+    if (positionPhoneGroupDropdown(wrapper)) {
+        searchableSelectOverflowHosts.set(wrapper, []);
+        schedulePhoneGroupDropdownPosition();
+        return;
+    }
     if (searchableSelectOverflowHosts.has(wrapper)) {
         return;
     }
@@ -629,7 +695,20 @@ function buildSearchableSelectOptions(select, list, query = '') {
         item.className = 'searchable-select__option';
         item.id = `searchable-select-option-${Math.random().toString(36).slice(2)}`;
         item.classList.toggle('searchable-select__option--bold', option.dataset.optionBold === 'true');
-        if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
+        if (option.dataset.optionColumns !== undefined) {
+            const columns = groupOptionColumns(option.dataset.optionColumns, window.matchMedia('(max-width: 767px)').matches);
+            item.classList.add('searchable-select__option--group');
+            item.style.setProperty('--group-option-columns', columns.length);
+            columns.forEach((text) => {
+                const cell = document.createElement('span');
+                cell.className = 'searchable-select__group-cell';
+                const label = document.createElement('span');
+                label.textContent = text;
+                label.title = text;
+                cell.append(label);
+                item.append(cell);
+            });
+        } else if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
             item.classList.add('searchable-select__option--columns');
 
             const name = document.createElement('span');
@@ -712,6 +791,10 @@ function buildSearchableSelectOptions(select, list, query = '') {
         visibleCount += 1;
     });
 
+    if (select.hasAttribute('data-group-option-columns') && !window.matchMedia('(max-width: 767px)').matches) {
+        requestAnimationFrame(() => justifyGroupOptionColumns(list));
+    }
+
     visibleCount -= removeOverflowingSearchableSelectOptions(select, list);
 
     if (visibleCount === 0) {
@@ -720,6 +803,51 @@ function buildSearchableSelectOptions(select, list, query = '') {
         empty.textContent = select.dataset.emptyText || 'No results';
         list.appendChild(empty);
     }
+}
+
+function justifyGroupOptionColumns(list) {
+    if (!list.isConnected || list.clientWidth === 0 || document.documentElement.dir !== 'rtl'
+        || window.matchMedia('(max-width: 767px)').matches || !financeTextMeasureContext) return;
+    const rows = Array.from(list.querySelectorAll('.searchable-select__option--group'));
+    const updates = [];
+    const measurements = new Map();
+    for (let column = 0; column < 3; column++) {
+        const labels = rows.map(row => row.children[column]?.firstElementChild).filter(Boolean);
+        if (!labels.length) continue;
+        // Read styles and available widths together; apply text only after all
+        // measurements so opening the menu does not force repeated layouts.
+        const entries = labels.map(label => {
+            const style = window.getComputedStyle(label);
+            const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            const spacing = Number.parseFloat(style.letterSpacing) || 0;
+            const measure = text => {
+                const key = `${font}|${spacing}|${text}`;
+                if (!measurements.has(key)) {
+                    financeTextMeasureContext.font = font;
+                    financeTextMeasureContext.direction = 'rtl';
+                    measurements.set(key, financeTextMeasureContext.measureText(text).width
+                        + Math.max(0, Array.from(text).length - 1) * spacing);
+                }
+                return measurements.get(key);
+            };
+            return { label, measure, available: label.parentElement.clientWidth };
+        });
+        const width = Math.min(
+            Math.ceil(Math.max(...entries.map(entry => entry.measure(entry.label.title)))) + 2,
+            ...entries.map(entry => entry.available),
+        );
+        entries.forEach(({ label, measure }) => {
+            const source = label.title;
+            const text = financeKashidaPositions(source).length
+                ? fitGroupOptionText(source, width - 2, count => financeTextWithKashidas(source, count), measure)
+                : source;
+            updates.push({ label, text, width });
+        });
+    }
+    updates.forEach(({ label, text, width }) => {
+        label.textContent = text;
+        label.style.width = `${width}px`;
+    });
 }
 
 function searchableSelectOptionButtons(list) {
@@ -765,7 +893,15 @@ function highlightSearchableSelectOption(list, search, index) {
         option.classList.toggle('searchable-select__option--highlighted', option === highlighted);
     });
     search.setAttribute('aria-activedescendant', highlighted.id);
-    highlighted.scrollIntoView({ block: 'nearest' });
+    if (list.closest('[data-group-select]') && window.matchMedia('(max-width: 767px)').matches) {
+        const itemRect = highlighted.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const scale = listRect.height / list.offsetHeight || 1;
+        if (itemRect.top < listRect.top) list.scrollTop -= (listRect.top - itemRect.top) / scale;
+        else if (itemRect.bottom > listRect.bottom) list.scrollTop += (itemRect.bottom - listRect.bottom) / scale;
+    } else {
+        highlighted.scrollIntoView({ block: 'nearest' });
+    }
 
     return highlighted;
 }
@@ -860,6 +996,7 @@ function enhanceSearchableSelect(select) {
         && select.dataset.searchableBindingVersion === SEARCHABLE_SELECT_BINDING_VERSION
         && existingWrapper
     ) {
+        if (select.hasAttribute('data-group-option-columns')) existingWrapper.setAttribute('data-group-select', '');
         transferMobileTableFilterCriterion(select, existingWrapper);
         restoreSearchableSelectClear(existingWrapper.querySelector('.searchable-select__clear'));
         select.searchableSelectSync?.();
@@ -885,6 +1022,7 @@ function enhanceSearchableSelect(select) {
 
     const wrapper = document.createElement('div');
     wrapper.className = 'searchable-select';
+    if (select.hasAttribute('data-group-option-columns')) wrapper.setAttribute('data-group-select', '');
     wrapper.setAttribute('wire:ignore', '');
 
     const searchInputMode = select.dataset.searchInput !== 'false';
@@ -1044,10 +1182,10 @@ function enhanceSearchableSelect(select) {
             const nextValue = displaySelectedValue
                 ? (deferredSelection?.value === select.value
                     ? deferredSelection.label
-                    : selectedOption?.textContent.trim() || '')
+                    : selectedOptionText(select))
                 : '';
 
-            if ((!hasSelectedValue || force || document.activeElement !== search) && search.value !== nextValue) {
+            if ((force || document.activeElement !== search) && search.value !== nextValue) {
                 search.value = nextValue;
             }
 
@@ -1078,8 +1216,8 @@ function enhanceSearchableSelect(select) {
             }
         }
 
-        const nextOptionsSignature = Array.from(select.options)
-            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionPrefix || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.dataset.optionBold || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
+        const nextOptionsSignature = (select.hasAttribute('data-group-option-columns') ? String(window.matchMedia('(max-width: 767px)').matches) : '') + Array.from(select.options)
+            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionColumns || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionPrefix || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.dataset.optionBold || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
             .join('\u0001');
 
         if (force || nextOptionsSignature !== optionsSignature) {
@@ -1211,7 +1349,8 @@ function enhanceSearchableSelect(select) {
             releaseSearchableSelectOverflow(wrapper);
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
-            buildSearchableSelectOptions(select, list, '');
+            if (!search.value.trim()) search.value = searchHintValue(select);
+            buildSearchableSelectOptions(select, list, searchableSelectHasValue(select) ? '' : search.value);
             scrollSearchableSelectToSelected(select, list, search);
             requestAnimationFrame(() => search.select());
         });
@@ -1400,6 +1539,10 @@ function scheduleSearchableSelectInitialization() {
 }
 
 window.initializeSearchableSelects = initializeSearchableSelects;
+
+window.matchMedia('(max-width: 767px)').addEventListener('change', () => {
+    document.querySelectorAll('select[data-group-option-columns]').forEach(select => select.searchableSelectSync?.(true));
+});
 
 function focusSearchableSelectById(selectId) {
     if (typeof selectId !== 'string' || selectId === '') {
@@ -2011,7 +2154,8 @@ function synchronizeRecordTableRowHeights() {
 function recordTableHasExplicitColumnLayout(table) {
     if (
         table.querySelector(':scope > colgroup')
-        || table.matches('.attendance-scan-list__table, .attendance-days-table, .attendance-records-table, .attendance-day-groups-table, .assessment-index-table, .assessment-results-data-table, .financial-transactions-table, .student-notes-table, [data-student-progress-juz-table], [data-curriculum-subject-resource-grid]')
+        || (table.closest('[data-student-progress-enrollments]') && window.matchMedia('(min-width: 768px)').matches)
+        || table.matches('.attendance-scan-list__table, .attendance-days-table, .attendance-records-table, .attendance-day-groups-table, .assessment-index-table, .assessment-results-data-table, .financial-transactions-table, .student-notes-table, [data-curriculum-subject-resource-grid]')
     ) {
         return true;
     }
@@ -2233,6 +2377,47 @@ function financeTextWithKashidas(text, count) {
         character + financeKashida.repeat(additions.get(index) ?? 0)
     )).join('');
 }
+
+function justifyDuplicateWarningTip(tooltip) {
+    if (tooltip.dir !== 'rtl' || !financeTextMeasureContext) return;
+    const sentence = tooltip.querySelector('[data-duplicate-tip-message]');
+    const instruction = tooltip.querySelector('[data-duplicate-tip-action]');
+    if (!sentence || !instruction) return;
+
+    const source = instruction.dataset.duplicateTipSource ?? instruction.textContent.trim();
+    instruction.dataset.duplicateTipSource = source;
+    instruction.textContent = source;
+    instruction.style.width = '';
+
+    // Match the longest rendered line when the warning wraps on a small screen.
+    const range = document.createRange();
+    range.selectNodeContents(sentence);
+    const scale = sentence.getBoundingClientRect().width / sentence.offsetWidth || 1;
+    const width = Math.max(0, ...Array.from(range.getClientRects(), rect => rect.width / scale));
+    if (!width) return;
+
+    const style = window.getComputedStyle(instruction);
+    financeTextMeasureContext.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    financeTextMeasureContext.direction = 'rtl';
+    const spacing = Number.parseFloat(style.letterSpacing) || 0;
+    const measure = text => financeTextMeasureContext.measureText(text).width
+        + Math.max(0, Array.from(text).length - 1) * spacing;
+    instruction.textContent = fitGroupOptionText(source, width, count => financeTextWithKashidas(source, count), measure);
+    instruction.style.width = `${Math.ceil(width)}px`;
+}
+
+window.justifyDuplicateWarningTip = (tooltip) => {
+    // Alpine's x-show reveals teleported elements on its next animation frame;
+    // $nextTick alone can still measure display:none and return a zero width.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (tooltip.isConnected && tooltip.getClientRects().length) {
+            justifyDuplicateWarningTip(tooltip);
+            document.fonts.ready.then(() => {
+                if (tooltip.isConnected && tooltip.getClientRects().length) justifyDuplicateWarningTip(tooltip);
+            });
+        }
+    }));
+};
 
 function measureFinancialShapedLabel(element, text) {
     element.textContent = text;

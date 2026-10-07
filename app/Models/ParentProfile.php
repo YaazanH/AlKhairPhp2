@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\ParentNumberService;
+use App\Support\AddressFormatter;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -42,6 +43,11 @@ class ParentProfile extends Model
     protected function fatherPhone(): Attribute
     {
         return $this->phoneAttribute();
+    }
+
+    protected function address(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value): ?string => AddressFormatter::normalize($value));
     }
 
     protected function motherPhone(): Attribute

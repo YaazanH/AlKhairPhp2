@@ -1169,7 +1169,7 @@ new class extends Component
                         {{ __('crud.parents.form.fields.address') }}
                         <span class="text-xs font-normal text-neutral-400">{{ __('crud.parents.form.address_hint') }}</span>
                     </label>
-                    <input id="parent-address" wire:model="address" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-address-input id="parent-address" model="address" :value="$address" />
                     @error('address')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

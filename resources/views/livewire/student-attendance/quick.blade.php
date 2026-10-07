@@ -253,7 +253,7 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
-                <x-back-link :href="route('student-attendance.show', $dayRecord)" navigate />
+                <x-back-link :href="route('attendance.show', ['type' => 'students', 'day' => $dayRecord->id])" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.quick.title') }}</h1>
             </div>

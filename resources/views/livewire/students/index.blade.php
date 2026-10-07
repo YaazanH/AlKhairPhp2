@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Livewire\Concerns\LinksExistingProfileAccounts;
+use App\Livewire\Concerns\ReviewsStudentCreationDuplicates;
 use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\AcademicYear;
 use App\Models\Course;
@@ -24,11 +25,13 @@ use App\Services\QuranFinalTestService;
 use App\Services\QuranPartialTestService;
 use App\Services\StudentNumberService;
 use App\Support\ArabicSearch;
+use App\Support\GradeLevelFromAge;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
@@ -39,6 +42,7 @@ new class extends Component
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use LinksExistingProfileAccounts;
+    use ReviewsStudentCreationDuplicates;
     use SupportsCreateAndNew;
     use WithFileUploads;
     use WithPagination;
@@ -74,6 +78,8 @@ new class extends Component
     public ?int $grade_level_id = null;
 
     public ?int $enrollment_group_id = null;
+
+    public array $activeEnrollmentGroupChanges = [];
 
     public ?int $quran_current_juz_id = null;
 
@@ -215,6 +221,9 @@ new class extends Component
 
         return [
             'students' => $filteredQuery->paginate($this->perPage),
+            'activeStudentEnrollments' => $this->editingId
+                ? $this->scopeEnrollmentsQuery(Enrollment::query()->currentActiveForStudent($this->editingId))->with('group.course')->get()
+                : collect(),
             'parents' => $this->scopeParentsQuery(
                 ParentProfile::query()
                     ->with(['students' => fn ($query) => $query->select('id', 'parent_id', 'last_name')->orderBy('last_name')])
@@ -231,6 +240,8 @@ new class extends Component
                     ->where('is_active', true)
                     ->whereHas('course', fn (Builder $query) => $query->where('is_active', true))
             )
+                ->orderByRaw('grade_level_id is null')
+                ->orderBy(GradeLevel::query()->select('sort_order')->whereColumn('grade_levels.id', 'groups.grade_level_id'))
                 ->when($currentAcademicYearId, fn (Builder $query) => $query->orderByRaw('case when academic_year_id = ? then 0 else 1 end', [$currentAcademicYearId]))
                 ->orderBy('name')
                 ->get(['id', 'name', 'academic_year_id', 'course_id', 'grade_level_id']),
@@ -547,6 +558,8 @@ new class extends Component
             'school_name' => ['nullable', 'string', 'max:255'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
             'enrollment_group_id' => ['nullable', 'exists:groups,id'],
+            'activeEnrollmentGroupChanges' => ['array'],
+            'activeEnrollmentGroupChanges.*' => ['required', 'integer', 'exists:groups,id'],
             'quran_current_juz_id' => ['nullable', 'exists:quran_juzs,id'],
             'quran_current_juz_number' => ['nullable', 'integer', 'between:1,30', 'exists:quran_juzs,juz_number'],
             'external_memorized_juz_ids' => ['array'],
@@ -627,13 +640,9 @@ new class extends Component
         if ($duplicate) {
             $this->authorizeScopedStudentAccess($duplicate);
 
-            if ($duplicate->status === 'active') {
-                $this->showActiveDuplicateStudent($duplicate);
+            $this->showActiveDuplicateStudent($duplicate);
 
-                return;
-            }
-
-            $this->authorizePermission('students.update');
+            return;
         }
 
         $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
@@ -662,13 +671,9 @@ new class extends Component
             if ($duplicate) {
                 $this->authorizeScopedStudentAccess($duplicate);
 
-                if ($duplicate->status === 'active') {
-                    $this->showActiveDuplicateStudent($duplicate);
+                $this->showActiveDuplicateStudent($duplicate);
 
-                    return;
-                }
-
-                $this->authorizePermission('students.update');
+                return;
             }
         }
 
@@ -718,7 +723,7 @@ new class extends Component
             Enrollment::assertStudentCanJoinGroup((int) $targetStudentId, $selectedGroup->id, $existingEnrollmentId, 'enrollment_group_id');
         }
 
-        unset($validated['enrollment_group_id']);
+        unset($validated['enrollment_group_id'], $validated['activeEnrollmentGroupChanges']);
         $externalMemorizedJuzIds = array_map('intval', $validated['external_memorized_juz_ids'] ?? []);
         unset($validated['external_memorized_juz_ids']);
         unset($validated['quran_current_juz_number']);
@@ -743,7 +748,7 @@ new class extends Component
             ? ($validated['joined_at'] ?: null)
             : ($validated['joined_at'] ?: now()->toDateString());
 
-        if ($qualityIssue && $editingStudent && ! $this->studentQualityEditHasChanges(
+        if ($qualityIssue && $editingStudent && $this->activeEnrollmentGroupChanges === [] && ! $this->studentQualityEditHasChanges(
             $editingStudent,
             $validated,
             $studentPhone,
@@ -754,6 +759,8 @@ new class extends Component
         }
 
         $payload = DB::transaction(function () use ($existingAccount, $externalMemorizedJuzIds, $isEditing, $selectedGroup, $studentPhone, $targetStudentId, $validated): array {
+            $this->saveActiveEnrollmentGroupChanges();
+
             $student = Student::query()->updateOrCreate(
                 ['id' => $targetStudentId],
                 $validated,
@@ -836,6 +843,7 @@ new class extends Component
 
     public function openQuickParentForm(): void
     {
+        unset($this->acceptedDuplicateNames['parent']);
         abort_unless($this->canPermission('parents.create') || $this->canPermission('parents.update'), 403);
 
         $this->showQuickParentForm = true;
@@ -862,6 +870,7 @@ new class extends Component
 
     public function closeQuickParentForm(): void
     {
+        unset($this->acceptedDuplicateNames['parent']);
         $this->showQuickParentForm = false;
         $this->quick_parent_father_name = '';
         $this->quick_parent_father_work = '';
@@ -941,7 +950,7 @@ new class extends Component
                 'birth_date' => $this->birth_date,
             ]);
 
-            if ($duplicate?->status === 'active') {
+            if ($duplicate) {
                 $this->authorizeScopedStudentAccess($duplicate);
                 $this->showActiveDuplicateStudent($duplicate);
 
@@ -1036,6 +1045,7 @@ new class extends Component
         $this->authorizeScopedStudentAccess($student);
 
         $this->editingId = $student->id;
+        $this->activeEnrollmentGroupChanges = [];
         $this->editingStudentHasEnrollments = (bool) $student->enrollments_exists;
         $this->editingStudentHasRelatedRecords = $this->editingStudentHasEnrollments
             || (bool) $student->memorization_sessions_exists
@@ -1066,6 +1076,46 @@ new class extends Component
         $this->showFormModal = true;
 
         $this->resetValidation();
+    }
+
+    public function editActiveEnrollmentGroup(int $enrollmentId): void
+    {
+        $this->authorizePermission('students.update');
+        $this->authorizePermission('enrollments.update');
+        abort_unless($this->editingId, 403);
+        $enrollment = Enrollment::query()->currentActiveForStudent($this->editingId)->findOrFail($enrollmentId);
+        $this->authorizeScopedEnrollmentAccess($enrollment);
+        $this->activeEnrollmentGroupChanges[$enrollment->id] = $enrollment->group_id;
+    }
+
+    protected function saveActiveEnrollmentGroupChanges(): void
+    {
+        if ($this->activeEnrollmentGroupChanges === []) {
+            return;
+        }
+
+        $this->authorizePermission('enrollments.update');
+        abort_unless($this->editingId, 403);
+        Student::query()->whereKey($this->editingId)->lockForUpdate()->firstOrFail();
+
+        foreach ($this->activeEnrollmentGroupChanges as $enrollmentId => $groupId) {
+            $field = 'activeEnrollmentGroupChanges.'.$enrollmentId;
+            $enrollment = Enrollment::query()->currentActiveForStudent($this->editingId)
+                ->with('group')->lockForUpdate()->findOrFail($enrollmentId);
+            $this->authorizeScopedEnrollmentAccess($enrollment);
+            $group = Group::query()->with('course')->findOrFail($groupId);
+            $this->authorizeScopedGroupAccess($group);
+
+            if ($group->course_id !== $enrollment->group->course_id) {
+                throw ValidationException::withMessages([$field => __('crud.enrollments.errors.different_course')]);
+            }
+            if (! $group->is_active || ! $group->course?->is_active || $group->course?->finished_at) {
+                throw ValidationException::withMessages([$field => __('crud.enrollments.errors.inactive_group')]);
+            }
+
+            Enrollment::assertStudentCanJoinGroup($this->editingId, $group->id, $enrollment->id, $field);
+            $enrollment->update(['group_id' => $group->id]);
+        }
     }
 
     public function closeDuplicateStudentModal(): void
@@ -1163,8 +1213,12 @@ new class extends Component
 
     public function cancel(): void
     {
+        $this->reviewedDuplicate = null;
+        $this->acceptedDuplicateNames = [];
+        $this->closeDuplicateStudentModal();
         $this->existingAccountId = null;
         $this->editingId = null;
+        $this->activeEnrollmentGroupChanges = [];
         $this->editStudent = null;
         $this->qualityIssueKey = '';
         $this->editingStudentHasEnrollments = false;
@@ -1302,20 +1356,7 @@ new class extends Component
             ->first(['starts_on']);
         $referenceYear = (int) ($academicYear?->starts_on?->format('Y') ?: now()->format('Y'));
         $age = $referenceYear - (int) substr($birthDate, 0, 4);
-        $sortOrder = match (true) {
-            $age <= 4 => 1,
-            $age === 5 => 2,
-            $age >= 6 && $age <= 17 => $age + 5,
-            $age >= 18 => 30,
-            default => null,
-        };
-
-        $this->grade_level_id = $sortOrder === null
-            ? null
-            : GradeLevel::query()
-                ->where('is_active', true)
-                ->where('sort_order', $sortOrder)
-                ->value('id');
+        $this->grade_level_id = GradeLevelFromAge::resolve($age);
 
         if (! $this->editingId && $this->enrollment_group_auto) {
             $this->syncDefaultEnrollmentGroup();
@@ -1330,6 +1371,7 @@ new class extends Component
 
         $baseQuery = $this->scopeGroupsQuery(
             Group::query()
+                ->withCount(['enrollments as active_enrollments_count' => fn (Builder $query) => $query->where('status', 'active')])
                 ->where('is_active', true)
                 ->whereHas('course', fn (Builder $query) => $query->where('is_active', true))
                 ->where('grade_level_id', $gradeLevelId)
@@ -1342,8 +1384,10 @@ new class extends Component
         if ($currentAcademicYearId) {
             $currentGroupId = (clone $baseQuery)
                 ->where('academic_year_id', $currentAcademicYearId)
+                ->orderBy('active_enrollments_count')
                 ->orderBy('name')
-                ->value('id');
+                ->orderBy('id')
+                ->first()?->id;
 
             if ($currentGroupId) {
                 return (int) $currentGroupId;
@@ -1352,8 +1396,10 @@ new class extends Component
 
         $groupId = (clone $baseQuery)
             ->orderByDesc('academic_year_id')
+            ->orderBy('active_enrollments_count')
             ->orderBy('name')
-            ->value('id');
+            ->orderBy('id')
+            ->first()?->id;
 
         return $groupId ? (int) $groupId : null;
     }
@@ -1816,6 +1862,10 @@ new class extends Component
 
     protected function findDuplicateStudent(array $validated): ?Student
     {
+        if (! $this->editingId && $this->duplicateNameAccepted('student')) {
+            return null;
+        }
+
         $firstName = ArabicSearch::normalizeForDuplicate((string) ($validated['first_name'] ?? ''));
         $lastName = ArabicSearch::normalizeForDuplicate((string) ($validated['last_name'] ?? ''));
         $birthDate = $this->normalizeBirthYearValue((string) ($validated['birth_date'] ?? ''));
@@ -1853,7 +1903,7 @@ new class extends Component
             $validated['mother_phone'] ?? null,
             $validated['home_phone'] ?? null,
         ])
-            ->map(fn ($phone) => preg_replace('/\D+/', '', (string) $phone) ?: null)
+            ->map(fn ($phone) => PhoneNumberFormatter::normalize($phone))
             ->filter()
             ->values();
 
@@ -1868,14 +1918,14 @@ new class extends Component
             ->get()
             ->first(function (ParentProfile $parent) use ($fatherName, $motherName, $phones): bool {
                 $parentPhones = collect([$parent->father_phone, $parent->mother_phone, $parent->home_phone])
-                    ->map(fn ($phone) => preg_replace('/\D+/', '', (string) $phone) ?: null)
+                    ->map(fn ($phone) => PhoneNumberFormatter::normalize($phone))
                     ->filter();
 
                 $phoneMatches = $phones->isNotEmpty() && $phones->intersect($parentPhones)->isNotEmpty();
                 $fatherMatches = $fatherName !== '' && ArabicSearch::normalizeForDuplicate($parent->father_name) === $fatherName;
                 $motherMatches = $motherName !== '' && ArabicSearch::normalizeForDuplicate((string) $parent->mother_name) === $motherName;
 
-                return $phoneMatches || ($fatherMatches && $motherName !== '' && $motherMatches);
+                return $phoneMatches || (! $this->duplicateNameAccepted('parent') && $fatherMatches && $motherName !== '' && $motherMatches);
             });
     }
 
@@ -2174,46 +2224,7 @@ new class extends Component
         </form>
     </x-admin.modal>
 
-    <x-admin.modal
-        :show="$showDuplicateStudentModal"
-        :title="__('crud.students.duplicate_active.title')"
-        :description="__('crud.students.duplicate_active.description')"
-        close-method="closeDuplicateStudentModal"
-        max-width="3xl"
-    >
-        @if ($duplicateStudent)
-            @php
-                $duplicateEnrollment = $duplicateStudent->enrollments->first();
-                $duplicateFields = [
-                    __('crud.students.form.fields.student_number') => ($duplicateStudent->student_number ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.first_name') => $duplicateStudent->first_name,
-                    __('crud.students.form.fields.last_name') => $duplicateStudent->last_name,
-                    __('crud.students.form.fields.phone') => ($duplicateStudent->user?->phone ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.birth_year') => ($duplicateStudent->birth_date?->format('Y') ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.gender') => ($duplicateStudent->gender ? __('crud.common.gender_options.'.$duplicateStudent->gender) : __('crud.common.not_available')),
-                    __('crud.students.form.fields.parent') => ($duplicateStudent->parentProfile?->father_name ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.school') => ($duplicateStudent->school_name ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.grade_level') => ($duplicateStudent->gradeLevel?->name ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.group') => ($duplicateEnrollment?->group?->name ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.current_juz') => ($duplicateStudent->quranCurrentJuz?->juz_number ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.status') => __('crud.common.status_options.'.$duplicateStudent->status),
-                    __('crud.students.form.fields.joined_at') => ($duplicateStudent->joined_at?->format('d-m-Y') ?: __('crud.common.not_available')),
-                    __('crud.students.form.fields.notes') => ($duplicateStudent->notes ?: __('crud.common.not_available')),
-                ];
-            @endphp
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                @foreach ($duplicateFields as $label => $value)
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
-                        <div class="kpi-label">{{ $label }}</div>
-                        <div @class(['mt-2 text-sm font-semibold text-white', 'record-person-name' => in_array($label, [__('crud.students.form.fields.first_name'), __('crud.students.form.fields.last_name'), __('crud.students.form.fields.parent')], true), 'record-phone' => $label === __('crud.students.form.fields.phone')])>{{ $value }}</div>
-                    </div>
-                @endforeach
-            </div>
-            <div class="mt-4 flex justify-end">
-                <button type="button" wire:click="closeDuplicateStudentModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.close') }}</button>
-            </div>
-        @endif
-    </x-admin.modal>
+
 
     <x-admin.modal
         :show="$showFormModal"
@@ -2226,7 +2237,10 @@ new class extends Component
             <div class="grid gap-4 md:grid-cols-3" data-student-identity-row>
                 <div>
                     <label for="student-first-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.first_name') }}</label>
-                    <input id="student-first-name" wire:model="first_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.fields.first_name') }}">
+                    <div class="profile-duplicate-field">
+                        <input id="student-first-name" wire:model.live.debounce.400ms="first_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.fields.first_name') }}">
+                        <x-profile-duplicate-warning :match="$this->profileDuplicateWarnings['first_name'] ?? null" field="first_name" />
+                    </div>
                     @error('first_name')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -2234,7 +2248,9 @@ new class extends Component
 
                 <div>
                     <label for="student-last-name" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.last_name') }}</label>
-                    <input id="student-last-name" wire:model="last_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.fields.last_name') }}">
+                    <div class="profile-duplicate-field">
+                        <input id="student-last-name" wire:model.live.debounce.400ms="last_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.students.form.fields.last_name') }}">
+                        </div>
                     @error('last_name')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
@@ -2243,7 +2259,7 @@ new class extends Component
                 <div>
                     <label for="student-phone" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.phone') }}</label>
                     <div class="flex items-center gap-2">
-                        <div class="min-w-0 flex-1"><x-phone-input id="student-phone" model="student_phone" :value="$student_phone" :placeholder="__('crud.students.form.fields.phone')" /></div>
+                        <div class="min-w-0 flex-1"><x-phone-input id="student-phone" model="student_phone" :live="true" :duplicate="$this->profileDuplicateWarnings['student_phone'] ?? null" :value="$student_phone" :placeholder="__('crud.students.form.fields.phone')" /></div>
                     </div>
                     @error('student_phone')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -2301,8 +2317,8 @@ new class extends Component
                         <label class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.parent') }}</label>
                         <div class="flex h-[2.875rem] w-full items-center rounded-xl border border-white/10 bg-black/10 px-4 text-sm">
                             <span class="record-person-name">{{ $connectedParent?->father_name ?: __('crud.common.not_available') }}</span>
-                            <button type="button" wire:click="clearSelectedParent" class="admin-icon-button ms-auto" title="{{ __('crud.students.form.parent_shortcut.remove_relationship') }}" aria-label="{{ __('crud.students.form.parent_shortcut.remove_relationship') }}" data-student-parent-unlink-action>
-                                <x-admin-action-icon name="unlink" />
+                            <button type="button" wire:click="clearSelectedParent" class="student-parent-unlink ms-auto" data-modal-action-icon-ignore title="{{ __('crud.students.form.parent_shortcut.remove_relationship') }}" aria-label="{{ __('crud.students.form.parent_shortcut.remove_relationship') }}" data-student-parent-unlink-action>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m9 15 6-6M7 13l-2 2a3 3 0 0 0 4 4l2-2m2-10 2-2a3 3 0 0 1 4 4l-2 2M3 3l18 18" /></svg>
                             </button>
                         </div>
                     </div>
@@ -2343,7 +2359,10 @@ new class extends Component
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_name') }}</label>
-                            <input wire:model="quick_parent_father_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.fields.father_name') }}">
+                            <div class="profile-duplicate-field">
+                                <input wire:model.live.debounce.400ms="quick_parent_father_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.fields.father_name') }}">
+                                <x-profile-duplicate-warning :match="$this->profileDuplicateWarnings['quick_parent_father_name'] ?? $this->profileDuplicateWarnings['quick_parent_mother_name'] ?? null" :field="isset($this->profileDuplicateWarnings['quick_parent_father_name']) ? 'quick_parent_father_name' : 'quick_parent_mother_name'" />
+                            </div>
                             @error('quick_parent_father_name')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -2351,7 +2370,7 @@ new class extends Component
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.father_phone') }}</label>
-                            <x-phone-input model="quick_parent_father_phone" :value="$quick_parent_father_phone" :placeholder="__('crud.parents.form.fields.father_phone')" />
+                            <x-phone-input model="quick_parent_father_phone" :live="true" :duplicate="$this->profileDuplicateWarnings['quick_parent_father_phone'] ?? null" :value="$quick_parent_father_phone" :placeholder="__('crud.parents.form.fields.father_phone')" />
                             @error('quick_parent_father_phone')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -2382,7 +2401,7 @@ new class extends Component
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.home_phone') }}</label>
-                            <x-phone-input model="quick_parent_home_phone" :value="$quick_parent_home_phone" :placeholder="__('crud.parents.form.fields.home_phone')" />
+                            <x-phone-input model="quick_parent_home_phone" :live="true" :duplicate="$this->profileDuplicateWarnings['quick_parent_home_phone'] ?? null" :value="$quick_parent_home_phone" :placeholder="__('crud.parents.form.fields.home_phone')" />
                             @error('quick_parent_home_phone')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -2392,7 +2411,9 @@ new class extends Component
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.mother_name') }}</label>
-                            <input wire:model="quick_parent_mother_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.fields.mother_name') }}">
+                            <div class="profile-duplicate-field">
+                                <input wire:model.live.debounce.400ms="quick_parent_mother_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm" placeholder="{{ __('crud.parents.form.fields.mother_name') }}">
+                            </div>
                             @error('quick_parent_mother_name')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -2400,7 +2421,7 @@ new class extends Component
 
                         <div>
                             <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.mother_phone') }}</label>
-                            <x-phone-input model="quick_parent_mother_phone" :value="$quick_parent_mother_phone" :placeholder="__('crud.parents.form.fields.mother_phone')" />
+                            <x-phone-input model="quick_parent_mother_phone" :live="true" :duplicate="$this->profileDuplicateWarnings['quick_parent_mother_phone'] ?? null" :value="$quick_parent_mother_phone" :placeholder="__('crud.parents.form.fields.mother_phone')" />
                             @error('quick_parent_mother_phone')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                             @enderror
@@ -2408,8 +2429,8 @@ new class extends Component
                     </div>
 
                     <div class="mt-4">
-                        <label class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.address') }}</label>
-                        <input wire:model="quick_parent_address" type="text" placeholder="{{ __('crud.parents.form.placeholders.address') }}" class="w-full rounded-xl px-4 py-3 text-sm">
+                        <label for="quick-parent-address" class="mb-1 block text-sm font-medium">{{ __('crud.parents.form.fields.address') }}</label>
+                        <x-address-input id="quick-parent-address" model="quick_parent_address" :value="$quick_parent_address" />
                         @error('quick_parent_address')
                             <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                         @enderror
@@ -2434,10 +2455,10 @@ new class extends Component
 
                 <div>
                     <label for="student-grade-level" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.grade_level') }}</label>
-                    <select id="student-grade-level" wire:model="grade_level_id" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <select id="student-grade-level" wire:model.live="grade_level_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.students.form.placeholders.select_grade') }}</option>
                     @foreach ($gradeLevels as $gradeLevel)
-                        <option value="{{ $gradeLevel->id }}">{{ $gradeLevel->name }}</option>
+                        <option value="{{ $gradeLevel->id }}" @selected((int) $grade_level_id === $gradeLevel->id)>{{ $gradeLevel->name }}</option>
                     @endforeach
                     </select>
                     @error('grade_level_id')
@@ -2478,7 +2499,7 @@ new class extends Component
                         @endphp
                         <div wire:key="student-current-juz-locked" class="flex h-[2.875rem] w-full items-center rounded-xl border border-white/10 bg-black/10 px-4 text-sm" data-current-juz-locked>
                             <span>{{ __('crud.students.labels.juz_number', ['number' => $displayCurrentJuzNumber]) }}</span>
-                            <button type="button" wire:click="clearCurrentJuz" class="ms-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-white/65 transition hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
+                            <button type="button" wire:click="clearCurrentJuz" data-modal-action-icon-ignore class="ms-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-white/65 transition hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                         </div>
                     @else
                         <input id="student-juz" wire:key="student-current-juz-input" wire:model="quran_current_juz_number" wire:blur="commitCurrentJuz" wire:keydown.space.prevent.stop="commitCurrentJuz" x-on:focus-current-juz.window="$nextTick(() => $el.focus())" type="number" inputmode="numeric" min="1" max="30" step="1" class="h-[2.875rem] w-full rounded-xl px-4 py-0 text-sm" placeholder="{{ __('crud.students.form.placeholders.select_juz') }}" data-current-juz-input>
@@ -2499,7 +2520,7 @@ new class extends Component
                         @foreach (collect($juzs)->whereIn('id', array_map('intval', $external_memorized_juz_ids)) as $juz)
                             <span wire:key="student-memorized-juz-{{ $juz->id }}" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300/20 bg-emerald-500/12 px-2 py-1 text-xs font-medium text-emerald-100">
                                 {{ __('crud.students.labels.juz_number', ['number' => $juz->juz_number]) }}
-                                <button type="button" wire:click="removeExternalMemorizedJuz({{ $juz->id }})" class="inline-flex size-4 items-center justify-center rounded-full text-sm leading-none text-emerald-200 hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
+                                <button type="button" wire:click="removeExternalMemorizedJuz({{ $juz->id }})" data-modal-action-icon-ignore class="inline-flex size-4 items-center justify-center rounded-full text-sm leading-none text-emerald-200 hover:bg-white/10 hover:text-white" aria-label="{{ __('crud.common.actions.delete') }}">×</button>
                             </span>
                         @endforeach
                         <input id="student-external-juz" wire:model="external_memorized_juz_input" wire:keydown.space.prevent.stop="addExternalMemorizedJuz" x-on:keydown.enter.prevent.stop="if (window.matchMedia('(max-width: 1023px)').matches) { $wire.addExternalMemorizedJuz() }" x-on:keydown.tab.prevent.stop="" type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" class="min-w-28 flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none ring-0 focus:border-0 focus:ring-0" placeholder="{{ __('crud.students.form.placeholders.enter_memorized_juz') }}">
@@ -2517,18 +2538,10 @@ new class extends Component
             @if (! $editingId)
                 <div data-student-enrollment-group-field>
                     <label for="student-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                    <select id="student-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course">
+                    <select id="student-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course" data-group-option-columns>
                         <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
                         @foreach ($enrollmentGroups as $group)
-                            <option value="{{ $group->id }}">
-                                {{ $group->name }}
-                                @if ($group->course)
-                                    - {{ $group->course->name }}
-                                @endif
-                                @if ($group->gradeLevel)
-                                    - {{ $group->gradeLevel->name }}
-                                @endif
-                            </option>
+                            <option value="{{ $group->id }}" data-option-columns="{{ json_encode([$group->name, $group->gradeLevel?->name ?? '—', $group->course?->name ?? '—']) }}" @selected((int) $enrollment_group_id === $group->id)>{{ collect([$group->name, $group->gradeLevel?->name, $group->course?->name])->filter()->implode(' - ') }}</option>
                         @endforeach
                     </select>
                     @error('enrollment_group_id')
@@ -2537,23 +2550,40 @@ new class extends Component
                 </div>
             @endif
 
+            @foreach ($activeStudentEnrollments as $activeEnrollment)
+                <div wire:key="student-active-enrollment-{{ $activeEnrollment->id }}" data-student-active-enrollment>
+                    <label for="student-active-group-{{ $activeEnrollment->id }}" class="mb-1 block text-sm font-medium">{{ $activeEnrollment->group->course->name }}</label>
+                    @if (array_key_exists($activeEnrollment->id, $activeEnrollmentGroupChanges))
+                        <select id="student-active-group-{{ $activeEnrollment->id }}" wire:model="activeEnrollmentGroupChanges.{{ $activeEnrollment->id }}" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-group-option-columns>
+                            @foreach ($enrollmentGroups->where('course_id', $activeEnrollment->group->course_id) as $group)
+                                <option value="{{ $group->id }}" data-option-columns="{{ json_encode([$group->name, $group->gradeLevel?->name ?? '—']) }}" @selected((int) $activeEnrollmentGroupChanges[$activeEnrollment->id] === $group->id)>{{ collect([$group->name, $group->gradeLevel?->name])->filter()->implode(' - ') }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <div class="flex min-h-[3.125rem] items-center gap-3 rounded-xl border border-white/10 bg-black/10 px-4 py-1">
+                            <span class="min-w-0 flex-1 text-sm">{{ $activeEnrollment->group->name }}</span>
+                            @can('enrollments.update')
+                                <button type="button" wire:click="editActiveEnrollmentGroup({{ $activeEnrollment->id }})" class="admin-icon-button shrink-0 !border-0 !bg-transparent hover:opacity-75 focus-visible:ring-2 focus-visible:ring-emerald-400/50" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-student-active-group-edit>
+                                    <x-admin-action-icon name="edit" />
+                                </button>
+                            @endcan
+                        </div>
+                    @endif
+                    @error('activeEnrollmentGroupChanges.'.$activeEnrollment->id)
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+            @endforeach
+
             @if ($editingId && $editingStudentNeedsActiveCourseEnrollment)
                 <div class="grid gap-4 {{ $editingStudentNeedsActiveCourseEnrollment && auth()->user()->can('enrollments.create') ? 'grid-cols-2' : '' }}" data-student-edit-status-row>
                     @if ($editingStudentNeedsActiveCourseEnrollment && auth()->user()->can('enrollments.create'))
                         <div data-student-edit-enrollment-group>
                             <label for="student-edit-enrollment-group" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.group') }}</label>
-                            <select id="student-edit-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course">
+                            <select id="student-edit-enrollment-group" wire:model="enrollment_group_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('crud.students.form.placeholders.select_group') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="course" data-group-option-columns>
                                 <option value="">{{ __('crud.students.form.placeholders.select_group') }}</option>
                                 @foreach ($enrollmentGroups as $group)
-                                    <option value="{{ $group->id }}">
-                                        {{ $group->name }}
-                                        @if ($group->course)
-                                            - {{ $group->course->name }}
-                                        @endif
-                                        @if ($group->gradeLevel)
-                                            - {{ $group->gradeLevel->name }}
-                                        @endif
-                                    </option>
+                                    <option value="{{ $group->id }}" data-option-columns="{{ json_encode([$group->name, $group->gradeLevel?->name ?? '—']) }}" @selected((int) $enrollment_group_id === $group->id)>{{ collect([$group->name, $group->gradeLevel?->name])->filter()->implode(' - ') }}</option>
                                 @endforeach
                             </select>
                             @error('enrollment_group_id')
@@ -2677,4 +2707,51 @@ new class extends Component
             </div>
         </form>
     </x-admin.modal>
+    <x-admin.modal
+        :show="$showDuplicateStudentModal"
+        :title="__('duplicates.title')"
+        :description="__('duplicates.explanation')"
+        :dismissible="false"
+        max-width="3xl"
+    >
+        @if ($duplicateStudent)
+            @php
+                $duplicateEnrollment = $duplicateStudent->enrollments->first();
+                $duplicateFields = [
+                    __('crud.students.form.fields.student_number') => ($duplicateStudent->student_number ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.first_name') => $duplicateStudent->first_name,
+                    __('crud.students.form.fields.last_name') => $duplicateStudent->last_name,
+                    __('crud.students.form.fields.phone') => ($duplicateStudent->user?->phone ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.birth_year') => ($duplicateStudent->birth_date?->format('Y') ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.gender') => ($duplicateStudent->gender ? __('crud.common.gender_options.'.$duplicateStudent->gender) : __('crud.common.not_available')),
+                    __('crud.students.form.fields.parent') => ($duplicateStudent->parentProfile?->father_name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.school') => ($duplicateStudent->school_name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.grade_level') => ($duplicateStudent->gradeLevel?->name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.group') => ($duplicateEnrollment?->group?->name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.current_juz') => ($duplicateStudent->quranCurrentJuz?->juz_number ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.joined_at') => ($duplicateStudent->joined_at?->format('d-m-Y') ?: __('crud.common.not_available')),
+                ];
+            @endphp
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($duplicateFields as $label => $value)
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                        <div class="kpi-label">{{ $label }}</div>
+                        <div @class(['mt-2 text-sm font-semibold text-white', 'record-person-name' => in_array($label, [__('crud.students.form.fields.first_name'), __('crud.students.form.fields.last_name'), __('crud.students.form.fields.parent')], true), 'record-phone' => $label === __('crud.students.form.fields.phone')])>
+                            @if ($label === __('crud.students.form.fields.phone') && $duplicateStudent->user?->phone)
+                                <bdi dir="ltr" class="inline-block whitespace-nowrap">{{ \App\Support\PhoneNumberFormatter::format($duplicateStudent->user->phone) }}</bdi>
+                            @else
+                                {{ $value }}
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="duplicate-review-actions mt-4">
+                <button type="button" wire:click="continueDuplicateDraft" data-modal-action-icon-ignore class="pill-link">{{ __('duplicates.keep') }}</button>
+                <button type="button" wire:click="useReviewedDuplicate" data-modal-action-icon-ignore class="pill-link pill-link--accent">{{ __('duplicates.use_student') }}</button>
+            </div>
+        @endif
+    </x-admin.modal>
+
+    @include('livewire.students.duplicate-review')
 </div>

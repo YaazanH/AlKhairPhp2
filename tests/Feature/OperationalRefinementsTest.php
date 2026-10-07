@@ -121,7 +121,7 @@ class OperationalRefinementsTest extends TestCase
         $expected = [
             'platform' => ['dashboard', 'student_progress', 'reports', 'curricula'],
             'registration' => ['enrollments', 'students'],
-            'tracking_attendance' => ['student_attendance', 'teacher_attendance'],
+            'tracking_attendance' => ['student_attendance'],
             'memorization_entry' => ['enter_memorize', 'quran_tests_quick_entry'],
             'tracking_quran' => ['memorization', 'quran_partial_tests', 'quran_final_tests', 'quran_tests'],
             'tracking_performance' => ['assessments', 'point_ledger'],

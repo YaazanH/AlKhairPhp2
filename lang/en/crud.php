@@ -87,6 +87,8 @@ return [
             'active' => 'Active profiles',
         ],
         'form' => [
+            'accept_address' => 'Accept suggestion',
+            'address_completion_hint' => 'Press Tab or Enter to accept; use the up and down arrows to browse suggestions.',
             'create_title' => 'New parent profile',
             'edit_title' => 'Edit parent profile',
             'help' => 'Student-specific school data stays on the student record. Keep family contact data here.',
@@ -103,9 +105,9 @@ return [
             ],
             'placeholders' => [
                 'new_father_work' => 'Select job',
-                'address' => 'City - region - details',
+                'address' => 'City - Area - Details',
             ],
-            'address_hint' => '(city - region - details)',
+            'address_hint' => '(city - neighbourhood - street / details)',
             'active_profile' => 'Active profile',
             'create_submit' => 'Create parent',
             'update_submit' => 'Update parent',

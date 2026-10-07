@@ -18,6 +18,8 @@ new class extends Component
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
+    public bool $unified = false;
+
     public TeacherAttendanceDay $currentDay;
 
     public string $day_status = 'open';
@@ -30,8 +32,9 @@ new class extends Component
 
     public array $selected_statuses = [];
 
-    public function mount(TeacherAttendanceDay $teacherAttendanceDay): void
+    public function mount(TeacherAttendanceDay $teacherAttendanceDay, bool $unified = false): void
     {
+        $this->unified = $unified;
         $this->authorizePermission('attendance.teacher.view');
 
         $this->currentDay = $this->scopeTeacherAttendanceDaysQuery(
@@ -114,7 +117,7 @@ new class extends Component
             'dayRecord' => $day,
             'teacherRecords' => $teacherRecords,
             'teacherAttendancePercentages' => $teacherAttendancePercentages,
-            'availableExtraTeachers' => $this->availableTeachersScopeQuery()
+            'availableExtraTeachers' => $this->availableTeachersScopeQuery()->where('status', 'active')
                 ->with('accessRole')
                 ->when($existingTeacherIds !== [], fn ($query) => $query->whereNotIn('id', $existingTeacherIds))
                 ->orderBy('first_name')
@@ -299,7 +302,7 @@ new class extends Component
             ['manual_teacher_id' => __('workflow.teacher_attendance.day_details.manual_add.teacher')]
         );
 
-        $teacher = $this->availableTeachersScopeQuery()
+        $teacher = $this->availableTeachersScopeQuery()->where('status', 'active')
             ->whereKey((int) $validated['manual_teacher_id'])
             ->first();
 
@@ -309,18 +312,7 @@ new class extends Component
             return;
         }
 
-        DB::transaction(function () use ($teacher): void {
-            TeacherAttendanceExclusion::query()->where('teacher_id', $teacher->id)->delete();
-
-            app(TeacherAttendanceDayService::class)->createOrSyncDay(
-                $this->currentDay->attendance_date->format('Y-m-d'),
-                collect([$teacher]),
-                auth()->user(),
-                $this->notes,
-                $this->day_status,
-                $this->defaultTeacherAttendanceStatusId(),
-            );
-        });
+        app(TeacherAttendanceDayService::class)->addTeacherFromDay($this->currentDay, $teacher, auth()->user());
 
         $this->loadDay();
         $this->closeManualTeacherModal();
@@ -341,6 +333,7 @@ new class extends Component
         $this->authorizeScopedTeacherAccess($teacher);
 
         DB::transaction(function () use ($teacher): void {
+            DB::table('teacher_attendance_inclusions')->where('teacher_id', $teacher->id)->delete();
             TeacherAttendanceExclusion::query()->updateOrCreate(
                 ['teacher_id' => $teacher->id],
                 ['excluded_by' => auth()->id(), 'excluded_at' => now()],
@@ -373,7 +366,7 @@ new class extends Component
 
         session()->flash('status', __('workflow.teacher_attendance.messages.deleted'));
 
-        $this->redirect(route('teacher-attendance.index'), navigate: true);
+        $this->redirect(route('attendance.index'), navigate: true);
     }
 
     protected function loadDay(): void
@@ -455,19 +448,52 @@ new class extends Component
 }; ?>
 
 <div class="page-stack">
-    <section class="page-hero p-6 lg:p-8">
-        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div>
-                <x-back-link :href="route('teacher-attendance.index')" navigate />
-                <div class="eyebrow mt-4">{{ __('ui.nav.tracking') }}</div>
-                <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.teacher_attendance.day_details.title') }}</h1>
+    <div class="attendance-day-header">
+        <section class="page-hero attendance-day-hero p-6 lg:p-8">
+            <div class="attendance-day-hero-layout flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <x-back-link :href="route('attendance.index')" navigate />
+                    <div class="eyebrow mt-4">{{ __('ui.nav.tracking') }}</div>
+                    <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
+                </div>
+                <div class="attendance-day-metrics"><div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-teacher-attendance-day-date-metric>
+                    <div class="text-xs text-neutral-300">{{ __('workflow.teacher_attendance.form.attendance_date') }}</div>
+                    <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ \App\Support\DateDisplay::html($dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</bdi>
+                </div>
+                <div class="attendance-day-present-metric shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-attendance-present-count>
+                    <div class="text-xs text-neutral-300">{{ __('attendance.present_teachers') }}</div>
+                    <span class="mt-1 block text-lg font-semibold text-emerald-100">{{ number_format($stats['marked']) }}</span>
+                </div></div>
             </div>
-            <div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-teacher-attendance-day-date-metric>
-                <div class="text-xs text-neutral-300">{{ __('workflow.teacher_attendance.form.attendance_date') }}</div>
-                <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ \App\Support\DateDisplay::html($dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</bdi>
+        </section>
+
+        <div class="attendance-day-navigation-row">
+            @if ($unified)
+                <x-attendance-type-switch selected="teachers" action="$parent.switchTab" />
+            @endif
+            <div class="attendance-day-navigation-actions">
+                    @can('attendance.teacher.take')
+                        @php
+                            $dayStatusActionLabel = $dayRecord->status === 'closed'
+                                ? __('workflow.student_attendance.day_details.controls.reopen_day')
+                                : __('workflow.student_attendance.day_details.controls.close_day');
+                        @endphp
+                        <button wire:click="toggleDayStatus" wire:key="teacher-attendance-day-status-action-{{ $dayRecord->id }}" type="button" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-teacher-attendance-day-status-action>
+                            @if ($dayRecord->status === 'closed')
+                                <x-admin-action-icon name="unlock" />
+                            @else
+                                <x-admin-action-icon name="lock" />
+                            @endif
+                        </button>
+                        @if ($dayRecord->status !== 'closed')
+                            <button wire:click="deleteDay" wire:key="teacher-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-teacher-attendance-day-delete-action>
+                                <x-admin-action-icon name="delete" />
+                            </button>
+                        @endif
+                    @endcan
             </div>
         </div>
-    </section>
+    </div>
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
@@ -498,7 +524,7 @@ new class extends Component
 
                 <div class="admin-action-cluster admin-action-cluster--end">
                     <button type="button" wire:click="closeManualTeacherModal" class="pill-link pill-link--compact">{{ __('crud.common.actions.cancel') }}</button>
-                    <button type="submit" class="pill-link pill-link--accent pill-link--compact">{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}</button>
+                    <button type="submit" class="pill-link pill-link--accent pill-link--compact" @disabled($availableExtraTeachers->isEmpty())>{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}</button>
                 </div>
             </form>
         </x-admin.modal>
@@ -518,23 +544,10 @@ new class extends Component
             </div>
             @can('attendance.teacher.take')
                 <div class="admin-toolbar__actions">
-                    @php
-                        $dayStatusActionLabel = $dayRecord->status === 'closed'
-                            ? __('workflow.student_attendance.day_details.controls.reopen_day')
-                            : __('workflow.student_attendance.day_details.controls.close_day');
-                    @endphp
-                    <button wire:click="toggleDayStatus" wire:key="teacher-attendance-day-status-action-{{ $dayRecord->id }}" type="button" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-teacher-attendance-day-status-action>
-                        @if ($dayRecord->status === 'closed')
-                            <x-admin-action-icon name="unlock" />
-                        @else
-                            <x-admin-action-icon name="lock" />
-                        @endif
-                    </button>
+
                     @if ($dayRecord->status !== 'closed')
-                        <x-add-action-button wire:click="openManualTeacherModal" wire:key="teacher-attendance-add-teacher-action-{{ $dayRecord->id }}" :label="__('workflow.teacher_attendance.day_details.manual_add.action')" @disabled($availableExtraTeachers->isEmpty()) />
-                        <button wire:click="deleteDay" wire:key="teacher-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-teacher-attendance-day-delete-action>
-                            <x-admin-action-icon name="delete" />
-                        </button>
+                        <x-add-action-button wire:click="openManualTeacherModal" wire:key="teacher-attendance-add-teacher-action-{{ $dayRecord->id }}" :label="__('workflow.teacher_attendance.day_details.manual_add.action')" data-teacher-attendance-add-action />
+
                     @endif
                 </div>
             @endcan
