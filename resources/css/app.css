@@ -2670,11 +2670,11 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .app-main table:not([data-student-progress-juz-table]) > tbody > tr:not(:has(> td:only-child[colspan])):hover {
+    .app-main table > tbody > tr:not(:has(> td:only-child[colspan])):hover {
         background-color: rgba(151, 219, 174, 0.09);
     }
 
-    html:not(.dark) .app-main table:not([data-student-progress-juz-table]) > tbody > tr:not(:has(> td:only-child[colspan])):hover {
+    html:not(.dark) .app-main table > tbody > tr:not(:has(> td:only-child[colspan])):hover {
         background-color: rgba(22, 104, 57, 0.09);
     }
 
@@ -2685,7 +2685,7 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
 
     /* Keep the final record highlight rectangular instead of letting the
        rounded table viewport shape its lower corners. */
-    .app-main table:not([data-student-progress-juz-table]) > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
+    .app-main table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
         background-color: transparent;
         background-image: linear-gradient(rgba(151, 219, 174, 0.09), rgba(151, 219, 174, 0.09));
         background-position: center;
@@ -2694,7 +2694,7 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
         border-radius: 0;
     }
 
-    html:not(.dark) .app-main table:not([data-student-progress-juz-table]) > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
+    html:not(.dark) .app-main table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
         background-image: linear-gradient(rgba(22, 104, 57, 0.09), rgba(22, 104, 57, 0.09));
     }
 

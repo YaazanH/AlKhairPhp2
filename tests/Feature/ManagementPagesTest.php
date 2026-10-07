@@ -1678,6 +1678,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('data-juz-progress-empty-action', $studentProgressView);
         $this->assertStringContainsString('data-student-progress-awqaf-save-action', $studentProgressView);
         $this->assertStringContainsString('.student-juz-progress-table [data-juz-progress-status]', $styles);
+        $this->assertStringNotContainsString('table:not([data-student-progress-juz-table])', $styles);
         $this->assertStringContainsString('[data-student-progress-enrollments] :is([data-enrollment-group-name], [data-enrollment-teacher-name])', $styles);
         $this->assertStringContainsString('[data-student-progress-enrollments] .status-chip {', $styles);
         $this->assertStringContainsString('white-space: nowrap !important;', $styles);
