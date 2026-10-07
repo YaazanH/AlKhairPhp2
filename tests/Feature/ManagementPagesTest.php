@@ -1671,7 +1671,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('[data-student-progress-enrollments] > [data-table-scroll-region] {', $styles);
         $this->assertStringContainsString('overflow-x: hidden !important;', $styles);
         $this->assertStringContainsString("[data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {", $styles);
-        $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:not(:has(> td:only-child[colspan])):hover {', $styles);
+        $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {', $styles);
+        $this->assertStringContainsString('background-size: calc(100% - 3rem) 100%;', $styles);
         $this->assertStringContainsString('[data-student-progress-assessments] table.table-content :is(th, td) {', $styles);
         $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
         $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);
@@ -2433,7 +2434,6 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('tr:only-child:has(> td:only-child[colspan]):hover', $styles);
         $this->assertStringContainsString('tr:last-child:not(:has(> td:only-child[colspan])):hover', $styles);
         $this->assertStringContainsString('background-size: 100% 100%;', $styles);
-        $this->assertStringNotContainsString('background-size: calc(100% - 3rem) 100%;', $styles);
         $this->assertStringContainsString('table > tbody > tr[data-single-row-action] .single-row-action__control', $styles);
         $this->assertStringContainsString('table.table--single-row-actions :is(.single-row-action__header, .single-row-action__cell)', $styles);
         $this->assertStringContainsString('table.table--single-row-actions > colgroup > col.single-row-action__column', $styles);
