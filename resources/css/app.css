@@ -4542,6 +4542,12 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     align-items: center;
 }
 
+/* Progress tables share two-column grid rows, but each card should end after
+   its own final record instead of stretching to match its taller neighbour. */
+.student-progress-data-table {
+    align-self: start;
+}
+
 .student-progress-data-table__header .admin-grid-meta__title {
     min-width: 0;
     line-height: 1.5rem;
