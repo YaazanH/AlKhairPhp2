@@ -2970,6 +2970,18 @@ html:not(.dark) [data-course-report-filter-toggle][aria-pressed='true'] {
     border-spacing: 0;
 }
 
+[data-student-progress-assessments] table.table-content {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+}
+
+[data-student-progress-assessments] table.table-content :is(th, td) {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+}
+
 :is(.settings-record-table, [data-student-progress-generic-table]) thead {
     background: rgba(255, 255, 255, 0.035);
 }

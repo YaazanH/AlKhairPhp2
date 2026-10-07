@@ -227,6 +227,7 @@ class StudentProgressPageTest extends TestCase
             ->assertViewHas('finalAssessmentResults', fn ($results) => $results->contains('id', $finalResult->id))
             ->call('showDetails', 'final-assessments')
             ->assertSee('data-student-progress-generic-table', false)
+            ->assertSee('data-student-progress-assessments', false)
             ->assertSee('table-content text-sm', false)
             ->assertDontSee('w-[65%]', false)
             ->assertDontSee('w-28 min-w-28', false)
@@ -235,6 +236,7 @@ class StudentProgressPageTest extends TestCase
 
         $component
             ->call('showDetails', 'assessments')
+            ->assertSee('data-student-progress-assessments', false)
             ->assertSeeText('Weekly Quiz')
             ->assertDontSeeText('Weekly Quiz · Quran Track');
     }
@@ -350,7 +352,7 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $ownStudent])
             ->assertViewHas('stats', fn (array $stats) => $stats['points'] === 12)
-            ->assertSeeText('Parent Group')
+            ->assertDontSeeText('Parent Group')
             ->assertSeeText('Quiz Reward')
             ->assertSeeText('Parent Secondary Group')
             ->assertSeeText('Course Filter Quiz')
