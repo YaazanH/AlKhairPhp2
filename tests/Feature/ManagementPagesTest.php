@@ -1684,11 +1684,11 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('[data-student-progress-enrollments] > [data-table-scroll-region] {', $styles);
         $this->assertStringContainsString('overflow-x: hidden !important;', $styles);
         $this->assertStringContainsString("[data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {", $styles);
-        $this->assertStringContainsString(".student-progress-data-table {\n    align-self: start;", $styles);
+        $this->assertStringContainsString('.student-progress-data-table > [data-table-scroll-region] {', $styles);
+        $this->assertStringContainsString('border-bottom-left-radius: 0;', $styles);
+        $this->assertStringContainsString('border-bottom-right-radius: 0;', $styles);
         $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {', $styles);
         $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {', $styles);
-        $this->assertStringContainsString('border-end-start-radius: calc(1.5rem - 1px);', $styles);
-        $this->assertStringContainsString('border-end-end-radius: calc(1.5rem - 1px);', $styles);
         $this->assertStringContainsString('[data-student-progress-assessments] table.table-content :is(th, td) {', $styles);
         $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
         $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);

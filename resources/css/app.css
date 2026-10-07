@@ -2712,13 +2712,6 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
         background-color: rgba(22, 104, 57, 0.09);
     }
 
-    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td:first-child {
-        border-end-start-radius: calc(1.5rem - 1px);
-    }
-
-    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td:last-child {
-        border-end-end-radius: calc(1.5rem - 1px);
-    }
 }
 
 .admin-icon-button {
@@ -4542,12 +4535,6 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     align-items: center;
 }
 
-/* Progress tables share two-column grid rows, but each card should end after
-   its own final record instead of stretching to match its taller neighbour. */
-.student-progress-data-table {
-    align-self: start;
-}
-
 .student-progress-data-table__header .admin-grid-meta__title {
     min-width: 0;
     line-height: 1.5rem;
@@ -4587,6 +4574,14 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     width: 100%;
     height: 100%;
     flex: 0 0 100%;
+}
+
+/* Keep the table viewport square at its lower edge. The outer card clips the
+   highlight only when the record actually reaches the card's rounded bottom;
+   a shorter table inside an equal-height grid card therefore stays square. */
+.student-progress-data-table > [data-table-scroll-region] {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .admin-grid-meta__summary {
