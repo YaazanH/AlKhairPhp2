@@ -6,10 +6,12 @@ use App\Models\Course;
 use App\Models\Group;
 use App\Services\CourseLifecycleService;
 use App\Services\CourseScheduleService;
-use App\Support\ScheduleTimeSlots;
+use App\Support\ArabicSearch;
 use App\Support\CourseCalendarPalette;
+use App\Support\ScheduleTimeSlots;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -107,10 +109,11 @@ new class extends Component
             ->with('academicYear')
             ->withCount('groups')
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
                     $builder
-                        ->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('description', 'like', '%'.$this->search.'%');
+                        ->where('name', 'like', $search)
+                        ->orWhere('description', 'like', $search);
                 });
             })
             ->when($this->academicYearFilter !== 'all', fn ($query) => $query->where('academic_year_id', (int) $this->academicYearFilter))
@@ -212,7 +215,7 @@ new class extends Component
 
         try {
             $validated = $this->validate();
-        } catch (\Illuminate\Validation\ValidationException $exception) {
+        } catch (ValidationException $exception) {
             $this->showCalendarModal = false;
             throw $exception;
         }
@@ -243,13 +246,13 @@ new class extends Component
             if ($this->calendarCourseId === $course->id) {
                 try {
                     $this->persistCourseCalendar();
-                } catch (\Illuminate\Validation\ValidationException $exception) {
+                } catch (ValidationException $exception) {
                     $this->showCalendarModal = true;
                     throw $exception;
                 }
                 if ($this->getErrorBag()->isNotEmpty()) {
                     $this->showCalendarModal = true;
-                    throw \Illuminate\Validation\ValidationException::withMessages($this->getErrorBag()->toArray());
+                    throw ValidationException::withMessages($this->getErrorBag()->toArray());
                 }
             }
 
@@ -674,8 +677,7 @@ new class extends Component
             return;
         }
 
-        if (collect($this->calendarRows)->contains(fn (array $row, int $index): bool =>
-            $index !== $this->editingCalendarRow && strtolower($row['color']) === $data['calendarColor'])) {
+        if (collect($this->calendarRows)->contains(fn (array $row, int $index): bool => $index !== $this->editingCalendarRow && strtolower($row['color']) === $data['calendarColor'])) {
             $this->addError('calendarColor', __('course_calendar.manager.errors.color_used'));
 
             return;
@@ -823,7 +825,6 @@ new class extends Component
                 $entry->save();
             }
         });
-
 
     }
 

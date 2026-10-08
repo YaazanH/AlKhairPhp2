@@ -103,7 +103,9 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-results-dual', false)
             ->assertSee('assessment-results-single--full', false)
             ->assertSee('assessment-results-dual--inactive', false)
-            ->assertSee('assessment-result-status-chip', false)
+            ->assertSee('assessment-result-status-text status-text status-text--amber', false)
+            ->assertSee('assessment-result-points-text status-text status-text--slate', false)
+            ->assertDontSee('assessment-result-status-chip', false)
             ->assertDontSee('assessment-student-attempt')
             ->assertDontSee('assessment-student-notes')
             ->set('result_scores.'.$enrollment->id, '85')
@@ -321,14 +323,16 @@ class AssessmentWorkflowTest extends TestCase
         $this->assertStringContainsString('class="admin-icon-button admin-modal-action-button"', $assessmentFormSource);
         $this->assertStringContainsString('<x-admin-action-icon name="more" class="admin-modal-action__icon" />', $assessmentFormSource);
         $this->assertStringContainsString('assessment-group-scope-control', $assessmentFormSource);
+        $this->assertStringContainsString('wire:model.live="group_scope" required data-search-input="false" data-dropdown-search="false"', $assessmentFormSource);
         $this->assertSame(4, substr_count($assessmentFormSource, 'assessment-form__course-height-control'));
         $this->assertStringContainsString(".assessment-form__course-height-control {\n    height: 3.125rem !important;\n    min-height: 3.125rem !important;", $styles);
-        $this->assertStringContainsString(".assessment-group-scope-control {\n    --assessment-group-control-size: 3.125rem;", $styles);
+        $this->assertStringContainsString(".assessment-group-scope-control {\n    --assessment-group-control-size: 3.125rem;\n    align-items: center;", $styles);
         $this->assertStringContainsString(".assessment-group-scope-control :is(\n    .searchable-select__button,\n    .searchable-select__search--trigger\n) {\n    height: var(--assessment-group-control-size);", $styles);
-        $this->assertStringContainsString(".assessment-group-scope-control [data-assessment-group-picker-open] {\n    width: var(--assessment-group-control-size) !important;", $styles);
-        $this->assertStringContainsString("height: var(--assessment-group-control-size) !important;\n    min-height: var(--assessment-group-control-size) !important;", $styles);
+        $this->assertStringContainsString(".assessment-group-scope-control [data-assessment-group-picker-open] {\n    width: var(--admin-action-button-size) !important;", $styles);
+        $this->assertStringContainsString("height: var(--admin-action-button-size) !important;\n    min-height: var(--admin-action-button-size) !important;", $styles);
         $this->assertStringContainsString('data-assessment-group-picker-option', $assessmentFormSource);
         $this->assertStringContainsString('data-assessment-group-picker-check', $assessmentFormSource);
+        $this->assertStringNotContainsString('<span class="record-course-name">{{ $group->course?->name }}</span>', $assessmentFormSource);
         $this->assertStringContainsString(".assessment-group-picker-option {\n    display: flex;\n    width: 100%;", $styles);
         $this->assertStringContainsString('justify-content: space-between;', $styles);
         $this->assertLessThan(
@@ -336,7 +340,7 @@ class AssessmentWorkflowTest extends TestCase
             strpos($assessmentFormSource, 'assessment-group-picker-option__copy'),
         );
         $this->assertStringContainsString('required data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"', $assessmentFormSource);
-        $this->assertStringContainsString('wire:model.live="group_scope" required data-clearable="false" data-search-selection-required="true"', $assessmentFormSource);
+        $this->assertStringContainsString('wire:model.live="group_scope" required data-search-input="false" data-dropdown-search="false" data-clearable="false" data-search-selection-required="true"', $assessmentFormSource);
         $this->assertStringContainsString('<x-admin.save-button :label="$editingId ?', $assessmentFormSource);
         $this->assertStringContainsString('data-assessment-delete-action', $assessmentFormSource);
         $this->assertStringNotContainsString('<button type="submit" class="pill-link pill-link--accent">', $assessmentFormSource);
@@ -484,6 +488,7 @@ class AssessmentWorkflowTest extends TestCase
             ->set('courseFilter', 'all')
             ->assertDontSee('assessment-index-mobile', false)
             ->assertSee('assessment-index-table-scroll', false)
+            ->assertDontSee('status-chip', false)
             ->assertSeeInOrder(['Later Due Assessment', 'Earlier Due Assessment', $undatedAssessment->title]);
     }
 
@@ -657,7 +662,7 @@ class AssessmentWorkflowTest extends TestCase
         Volt::test('assessments.index')
             ->call('edit', $assessment->id)
             ->assertSee('w-[20%]', false)
-            ->assertSee('w-[18%]', false)
+            ->assertSee('w-[22%]', false)
             ->assertSee('wire:click="delete('.$assessment->id.')"', false)
             ->assertSee('disabled', false)
             ->call('delete', $assessment->id)

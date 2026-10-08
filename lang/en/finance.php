@@ -153,6 +153,7 @@ return [
         'exchange_no' => 'Exchange no.',
         'decimal_places' => 'Decimal places',
         'expense_kind' => 'Expense category',
+        'expense_details' => 'Expense details',
         'from_date' => 'From date',
         'from' => 'From',
         'income' => 'Income',
@@ -257,6 +258,7 @@ return [
         'withdrawal_cleanup_failed' => 'The withdrawal request could not be deleted. No records were changed. Please try again.',
         'withdrawal_cleanup_finished' => 'The one-time withdrawal-request cleanup has been closed.',
         'withdrawal_cleanup_not_found' => 'No active withdrawal request was found with this number.',
+        'declined_withdrawal_deleted' => 'Declined withdrawal request :request was deleted.',
         'pull_posted' => 'Withdrawal request posted.',
         'pull_sent' => 'Withdrawal request sent to finance management.',
         'pull_settled' => 'Withdrawal request finalised.',
@@ -513,6 +515,8 @@ return [
         'withdrawal_cleanup_confirm' => 'Delete this withdrawal request and its linked records?',
         'withdrawal_cleanup_finished_action' => 'I finished',
         'withdrawal_cleanup_finish_confirm' => 'Close this cleanup tool permanently?',
+        'declined_withdrawal_delete_help' => 'This declined withdrawal request has no financial transaction. You can delete it here.',
+        'declined_withdrawal_delete_confirm' => 'Permanently delete this declined withdrawal request?',
     ],
     'statuses' => [
         'accepted' => 'Pending',
@@ -559,6 +563,8 @@ return [
         'to_base' => '1 :currency = :amount :base',
     ],
     'validation' => [
+        'expense_details_required' => 'Enter the expense details.',
+        'declined_withdrawal_has_records' => 'This declined withdrawal request has linked financial records and cannot be removed.',
         'single_category_type' => 'Only one type is allowed in Exchange and one in Transfer, including inactive types.',
         'invalid_special_reference_prefix' => 'The special reference must use one of these configured prefixes: :prefixes.',
         'cash_box_currency_mismatch' => 'This fund does not support the selected currency.',

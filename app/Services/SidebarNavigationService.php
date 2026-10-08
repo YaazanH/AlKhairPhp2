@@ -25,7 +25,7 @@ class SidebarNavigationService
             'tracking_tools' => ['title_key' => 'ui.nav.notes_group', 'sort_order' => 70],
             'finance' => ['title_key' => 'ui.nav.finance', 'sort_order' => 80],
             'identity_tools' => ['title_key' => 'ui.nav.cards_group', 'sort_order' => 90],
-            'activities' => ['title_key' => 'ui.nav.activities', 'sort_order' => 100],
+            'activities' => ['title_key' => 'ui.nav.communication', 'sort_order' => 135],
             'designs' => ['title_key' => 'ui.nav.designs', 'sort_order' => 110],
             'academics' => ['title_key' => 'ui.nav.courses', 'sort_order' => 120],
             'people' => ['title_key' => 'ui.nav.users', 'sort_order' => 130],
@@ -54,8 +54,7 @@ class SidebarNavigationService
             'curricula' => $this->item('ui.nav.curricula', 'books-leaning', 'curricula.index', ['curricula.*'], 'platform', 40),
             'enrollments' => $this->item('ui.nav.enrollments', 'enrollment-add', 'enrollments.index', ['enrollments.*'], 'registration', 10, ['enrollments.view']),
 
-            'student_attendance' => $this->item('ui.nav.student_attendance', 'clipboard-student', 'student-attendance.index', ['student-attendance.*', 'groups.attendance', 'barcode-actions.import'], 'tracking_attendance', 10, ['attendance.student.view']),
-            'teacher_attendance' => $this->item('ui.nav.teacher_attendance', 'clipboard-person', 'teacher-attendance.index', ['teacher-attendance.*'], 'tracking_attendance', 20, ['attendance.teacher.view']),
+            'student_attendance' => $this->item('attendance.title', 'clipboard-student', 'attendance.index', ['attendance.*', 'student-attendance.*', 'teacher-attendance.*', 'groups.attendance', 'barcode-actions.import'], 'tracking_attendance', 10, ['attendance.student.view', 'attendance.teacher.view']),
 
             'memorization' => $this->item('ui.nav.memorization', 'quran-stand', 'memorization.index', ['memorization.index', 'enrollments.memorization'], 'tracking_quran', 10, ['memorization.view']),
             'enter_memorize' => $this->item('ui.nav.enter_memorize', 'pencil-square', 'memorization.quick-entry', ['memorization.quick-entry'], 'memorization_entry', 10, ['memorization.record']),

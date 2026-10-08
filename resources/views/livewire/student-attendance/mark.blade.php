@@ -5,13 +5,13 @@ use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AttendanceStatus;
 use App\Models\Enrollment;
 use App\Models\GroupAttendanceDay;
-use App\Models\StudentAttendanceRecord;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use App\Services\StudentAttendanceDayService;
-use Livewire\Volt\Component;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Livewire\Volt\Component;
 
 new class extends Component
 {
@@ -341,7 +341,7 @@ new class extends Component
     <section class="page-hero attendance-mark-hero p-6 lg:p-8">
         <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <x-back-link :href="route('student-attendance.show', $groupDayRecord->studentAttendanceDay)" navigate />
+                <x-back-link :href="route('attendance.show', ['type' => 'students', 'day' => $groupDayRecord->studentAttendanceDay->id])" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
             </div>

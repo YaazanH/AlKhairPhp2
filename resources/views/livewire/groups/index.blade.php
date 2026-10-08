@@ -15,6 +15,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
 use App\Services\Landlord\CurrentModuleAccess;
+use App\Support\ArabicSearch;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -22,38 +23,64 @@ use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
+
     #[Url(as: 'edit')]
     public ?int $editGroup = null;
+
     public ?int $course_id = null;
+
     public ?int $academic_year_id = null;
+
     public ?int $teacher_id = null;
+
     public ?int $assistant_teacher_id = null;
+
     public ?int $grade_level_id = null;
+
     public ?int $curriculum_id = null;
+
     public string $name = '';
+
     public string $capacity = '0';
+
     public bool $is_active = true;
+
     public string $search = '';
+
     public string $statusFilter = 'active';
+
     public string $courseFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public ?int $rosterGroupId = null;
+
     public ?int $roster_student_id = null;
+
     public string $roster_enrolled_at = '';
+
     public bool $showRosterModal = false;
+
     public ?int $quickSummaryGroupId = null;
+
     public string $quickSummaryDate = '';
+
     public bool $showQuickSummaryModal = false;
+
     public ?int $dashboardCardGroupId = null;
+
     public string $dashboard_card_template_id = '';
+
     public bool $showDashboardCardTemplateModal = false;
 
     public function mount(): void
@@ -75,17 +102,18 @@ new class extends Component {
             ->with(['academicYear', 'course', 'teacher', 'assistantTeacher', 'gradeLevel', 'curriculum:id,name'])
             ->withCount(['enrollments', 'schedules'])
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
                     $builder
-                        ->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%'))
-                        ->orWhereHas('academicYear', fn ($yearQuery) => $yearQuery->where('name', 'like', '%'.$this->search.'%'))
+                        ->where('name', 'like', $search)
+                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', $search))
+                        ->orWhereHas('academicYear', fn ($yearQuery) => $yearQuery->where('name', 'like', $search))
                         ->orWhereHas('teacher', fn ($teacherQuery) => $teacherQuery
-                            ->where('first_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('last_name', 'like', '%'.$this->search.'%'))
+                            ->where('first_name', 'like', $search)
+                            ->orWhere('last_name', 'like', $search))
                         ->orWhereHas('assistantTeacher', fn ($teacherQuery) => $teacherQuery
-                            ->where('first_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('last_name', 'like', '%'.$this->search.'%'));
+                            ->where('first_name', 'like', $search)
+                            ->orWhere('last_name', 'like', $search));
                 });
             })
             ->when($this->courseFilter !== 'all', fn ($query) => $query->where('course_id', (int) $this->courseFilter))
@@ -1271,7 +1299,7 @@ new class extends Component {
                                         @php
                                             $rosterStatusClass = match ($enrollment->status) {
                                                 'active' => 'status-chip status-chip--emerald',
-                                                'completed' => 'status-chip status-chip--gold',
+                                                'completed' => 'status-chip status-chip--blue',
                                                 default => 'status-chip status-chip--slate',
                                             };
                                         @endphp

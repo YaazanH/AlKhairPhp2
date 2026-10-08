@@ -2,6 +2,10 @@
 
 namespace App\Support;
 
+use Closure;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
+
 class ArabicSearch
 {
     public static function normalize(string $value): string
@@ -24,6 +28,39 @@ class ArabicSearch
         }, $tokens);
 
         return trim(implode(' ', array_filter($tokens, fn (string $token): bool => $token !== '')));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function tokens(string $value): array
+    {
+        $tokens = preg_split('/\s+/u', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_unique($tokens));
+    }
+
+    /**
+     * Add one AND constraint per search word. The callback defines the fields
+     * that may satisfy each individual word.
+     */
+    public static function whereAllTokens(Builder $query, string $value, Closure $constraint): Builder
+    {
+        foreach (self::tokens($value) as $token) {
+            $query->where(function (Builder $tokenQuery) use ($constraint, $token): void {
+                $constraint($tokenQuery, $token);
+            });
+        }
+
+        return $query;
+    }
+
+    public static function matchesAllTokens(string $haystack, string $needle): bool
+    {
+        $normalizedHaystack = Str::lower(self::normalize($haystack));
+
+        return collect(self::tokens(self::normalize($needle)))
+            ->every(fn (string $token): bool => Str::contains($normalizedHaystack, Str::lower($token)));
     }
 
     public static function normalizedSqlExpression(string $expression, string $driver): string

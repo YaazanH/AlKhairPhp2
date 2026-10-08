@@ -10,14 +10,19 @@ use App\Services\ReportDashboardService;
 use App\Services\Landlord\CurrentModuleAccess;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public mixed $course_id = null;
+
     public mixed $assessment_type_id = null;
+
     public mixed $group_id = null;
+
     public string $date_from = '';
+
     public string $date_to = '';
     public bool $classesEnabled = true;
     public bool $studentAttendanceEnabled = true;
@@ -112,7 +117,6 @@ new class extends Component {
 
         return (int) $value;
     }
-
 }; ?>
 
 @php
@@ -208,7 +212,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid grid-cols-2 gap-3 md:gap-4">
                 <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
                     <div class="kpi-label">{{ __('reports.assessments.results_recorded') }}</div>
                     <div class="mt-3 text-2xl font-semibold text-white">{{ number_format($report['assessments']['results_recorded']) }}</div>

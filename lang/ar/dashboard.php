@@ -119,8 +119,9 @@ return [
         'group_dashboard' => [
             'heading' => 'لوحة معلم حلقة',
             'subheading' => 'عرض مركز لحضور الحلقة وحفظها واختباراتها وترتيب طلابها.',
-            'today_summary' => 'ملخص اليوم',
-            'copy_today_summary' => 'نسخ ملخص اليوم',
+            'latest_attendance_summary' => 'ملخص آخر يوم حضور',
+            'copy_latest_attendance_summary' => 'نسخ ملخص آخر يوم حضور',
+            'no_attendance_summary' => 'لا يوجد يوم حضور بعد',
             'stats' => [
                 'group' => 'اسم المجموعة',
                 'students' => 'عدد الطلاب',

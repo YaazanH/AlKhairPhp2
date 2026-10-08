@@ -71,6 +71,7 @@ return [
         'teacher_attendance' => 'Teacher Attendance',
         'student_notes' => 'Student Notes',
         'finance' => 'Finance',
+        'communication' => 'Communication',
         'activities' => 'Activities',
         'family_activities' => 'Family Activities',
         'invoices' => 'Invoices',

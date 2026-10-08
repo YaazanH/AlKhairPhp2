@@ -87,6 +87,8 @@ return [
             'active' => 'Active profiles',
         ],
         'form' => [
+            'accept_address' => 'Accept suggestion',
+            'address_completion_hint' => 'Press Tab or Enter to accept; use the up and down arrows to browse suggestions.',
             'create_title' => 'New parent profile',
             'edit_title' => 'Edit parent profile',
             'help' => 'Student-specific school data stays on the student record. Keep family contact data here.',
@@ -103,9 +105,9 @@ return [
             ],
             'placeholders' => [
                 'new_father_work' => 'Select job',
-                'address' => 'City - region - details',
+                'address' => 'City - Area - Details',
             ],
-            'address_hint' => '(city - region - details)',
+            'address_hint' => '(city - neighbourhood - street / details)',
             'active_profile' => 'Active profile',
             'create_submit' => 'Create parent',
             'update_submit' => 'Update parent',
@@ -411,7 +413,8 @@ return [
             'student_phone_help' => 'Optional. Used for login or contact when needed.',
             'group_help' => 'A matching group for the selected grade is picked automatically when available, and you can still choose any other group manually.',
             'grade_calculated_help' => 'Calculated automatically from the birth year and current academic year; you can correct it manually.',
-            'external_memorized_juzs_help' => 'Type a juz number and press Space to save it. Use × on a chip to remove it.',
+            'external_memorized_juzs_help' => 'Type a juz number, then tap + or press Space or Enter to add it. Use × on a chip to remove it.',
+            'add_memorized_juz' => 'Add previously memorised juz',
             'placeholders' => [
                 'select_parent' => 'Select parent',
                 'select_gender' => 'Select gender',
@@ -484,6 +487,7 @@ return [
                 'student_number' => 'Student No.',
                 'parent' => 'Parent',
                 'grade' => 'Grade',
+                'school' => 'School',
                 'juz' => 'Juz',
                 'enrollments' => 'Enrolments',
                 'status' => 'Status',

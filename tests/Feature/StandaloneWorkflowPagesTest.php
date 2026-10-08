@@ -817,6 +817,12 @@ class StandaloneWorkflowPagesTest extends TestCase
         $this->assertStringContainsString("__('workflow.points.workbench.table.headers.course')", $pointsSource);
         $this->assertStringContainsString("orWhereHas('enrollment.group.course'", $pointsSource);
         $this->assertStringContainsString('.points-ledger-table .points-ledger-col--course', $pointsStyles);
+        $this->assertStringNotContainsString('<colgroup>', $pointsSource);
+        $this->assertStringContainsString("@if (\$stateFilter === 'all')", $pointsSource);
+        $this->assertStringContainsString('data-points-ledger-value', $pointsSource);
+        $this->assertStringContainsString('data-points-ledger-state=', $pointsSource);
+        $this->assertStringContainsString('data-points-ledger-delete-action', $pointsSource);
+        $this->assertStringNotContainsString('.points-ledger-delete-action {', $pointsStyles);
 
         $enrollment = $this->managerContext();
         $bonus = PointType::query()->create([
@@ -850,11 +856,15 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSee('points-ledger-mobile__metrics', false)
             ->assertSee('points-ledger-entered-at', false)
             ->assertSee('data-has-void-reason="false"', false)
+            ->assertSee('data-shows-state="false"', false)
+            ->assertDontSee('data-points-ledger-state=', false)
             ->assertSet('showFormModal', true)
             ->assertSet('selectedStudentId', null)
             ->assertSet('manual_point_type_id', $bonus->id)
             ->set('stateFilter', 'all')
             ->assertSee('data-has-void-reason="true"', false)
+            ->assertSee('data-shows-state="true"', false)
+            ->assertSee('data-points-ledger-state="active"', false)
             ->assertSee(__('workflow.points.workbench.table.headers.void_reason'));
 
         $transaction = PointTransaction::query()->where('source_type', 'manual')->firstOrFail();
@@ -884,6 +894,44 @@ class StandaloneWorkflowPagesTest extends TestCase
             'points' => 5,
             'notes' => 'Excellent participation',
         ]);
+
+        Volt::test('points.index')
+            ->call('openVoidModal', $transaction->id)
+            ->set('void_reason', 'Duplicate record')
+            ->call('voidSelected')
+            ->assertHasNoErrors()
+            ->set('stateFilter', 'voided')
+            ->assertSee('class="opacity-60 points-ledger-row--voided"', false)
+            ->assertSee('data-points-ledger-voided="'.$transaction->id.'"', false);
+    }
+
+    public function test_points_student_picker_uses_fathers_full_names_for_namesakes(): void
+    {
+        $firstEnrollment = $this->managerContext();
+        $firstStudent = $firstEnrollment->student;
+        $firstStudent->parentProfile->update(['father_name' => 'Mahmoud Khaled Ali']);
+        $firstStudent->update(['first_name' => 'Omar', 'last_name' => 'Ali']);
+
+        $secondParent = ParentProfile::create(['father_name' => 'Samer Nabil Ali']);
+        $secondStudent = Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'Omar',
+            'last_name' => 'Ali',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        Enrollment::create([
+            'student_id' => $secondStudent->id,
+            'group_id' => $firstEnrollment->group_id,
+            'enrolled_at' => '2026-09-02',
+            'status' => 'active',
+        ]);
+
+        Volt::test('points.index')
+            ->call('openCreateModal')
+            ->assertSee('Omar Mahmoud Khaled Ali')
+            ->assertSee('Omar Samer Nabil Ali')
+            ->assertDontSee('Omar Ali');
     }
 
     public function test_manager_awqaf_workbench_uses_group_teacher_and_hides_recorded_juzs(): void

@@ -9,6 +9,7 @@ use App\Models\Group;
 use App\Models\PointTransaction;
 use App\Services\AssessmentService;
 use App\Services\PointLedgerService;
+use App\Support\ArabicSearch;
 use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Component;
 
@@ -94,12 +95,11 @@ new class extends Component
                 ->where('group_id', $selectedGroup->id)
                 ->where('status', 'active')
                 ->when(filled($this->search), function ($query) {
-                    $query->whereHas('student', function ($studentQuery) {
-                        $studentQuery
-                            ->where('first_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('last_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('student_number', 'like', '%'.$this->search.'%');
-                    });
+                    ArabicSearch::whereAllTokens(
+                        $query,
+                        $this->search,
+                        fn ($builder, string $token) => $builder->whereHas('student', fn ($studentQuery) => $studentQuery->whereMatchesSearchToken($token)),
+                    );
                 })
                 ->when($this->resultStatusFilter !== 'all', function ($query) {
                     if ($this->resultStatusFilter === 'pending') {
@@ -428,10 +428,10 @@ new class extends Component
     public function resultStatusClass(string $status): string
     {
         return match ($status) {
-            'passed' => 'status-chip status-chip--emerald',
-            'failed' => 'status-chip status-chip--rose',
-            'absent' => 'status-chip status-chip--amber',
-            default => 'status-chip status-chip--slate',
+            'passed' => 'status-text status-text--emerald',
+            'failed' => 'status-text status-text--rose',
+            'absent' => 'status-text status-text--amber',
+            default => 'status-text status-text--slate',
         };
     }
 
@@ -663,8 +663,8 @@ new class extends Component
                             <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
                             <td class="px-3 py-2"><div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
                             <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                            <td class="px-3 py-2"><span class="assessment-result-status-chip {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
-                            <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
+                            <td class="px-3 py-2"><span class="assessment-result-status-text {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                            <td class="px-3 py-2"><span class="assessment-result-points-text status-text status-text--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="px-3 py-8 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td></tr>
@@ -692,8 +692,8 @@ new class extends Component
                                     <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
                                     <td class="px-3 py-2"><div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
                                     <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                                    <td class="px-3 py-2"><span class="assessment-result-status-chip {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
-                                    <td class="px-3 py-2"><span class="status-chip status-chip--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
+                                    <td class="px-3 py-2"><span class="assessment-result-status-text {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                                    <td class="px-3 py-2"><span class="assessment-result-points-text status-text status-text--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                                 </tr>
                             @empty
                                 <tr><td colspan="5" class="px-3 py-8 text-center text-sm text-neutral-500">{{ __('workflow.assessments.results.table.empty') }}</td></tr>

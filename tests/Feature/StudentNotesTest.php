@@ -90,13 +90,13 @@ class StudentNotesTest extends TestCase
         ]);
     }
 
-    public function test_student_notes_use_the_compact_date_form_and_generic_table_without_parent_names(): void
+    public function test_student_notes_use_the_compact_date_form_and_duplicate_aware_student_names(): void
     {
         [$student] = $this->managerNotesContext();
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString("input[readonly]:not([type='checkbox']):not([type='radio']):not(.formatted-date-input__display),", $styles);
-        $this->assertStringContainsString("background: rgba(115, 115, 115, 0.18) !important;", $styles);
+        $this->assertStringContainsString('background: rgba(115, 115, 115, 0.18) !important;', $styles);
 
         $otherParent = ParentProfile::create([
             'father_name' => 'Second Parent Name',
@@ -143,9 +143,9 @@ class StudentNotesTest extends TestCase
             ->assertDontSee('data-create-and-new-action', false)
             ->assertDontSee('data-icon-name="save-new"', false)
             ->assertDontSee('data-student-note-delete', false)
-            ->assertSee('Notes Student')
-            ->assertDontSee('Notes Parent')
-            ->assertDontSee('Second Parent Name')
+            ->assertSee('Notes Notes Parent')
+            ->assertSee('Notes Second Parent Name')
+            ->assertDontSee('Notes Student')
             ->assertSee('10-09-2026')
             ->assertDontSee('15:30');
 

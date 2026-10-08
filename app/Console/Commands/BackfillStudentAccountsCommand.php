@@ -77,7 +77,7 @@ class BackfillStudentAccountsCommand extends Command
 
         DB::transaction(function () use ($managedUsers, $studentNumbers, $studentsMissingAccounts, &$createdAccounts): void {
             $studentsMissingAccounts
-                ->with('user')
+                ->with(['user', 'parentProfile'])
                 ->orderBy('id')
                 ->chunkById(100, function ($students) use ($managedUsers, $studentNumbers, &$createdAccounts): void {
                     foreach ($students as $student) {
@@ -92,7 +92,7 @@ class BackfillStudentAccountsCommand extends Command
                         $result = $managedUsers->syncLinkedUser(
                             $student->user,
                             [
-                                'name' => trim($student->first_name.' '.$student->last_name),
+                                'name' => $student->full_name,
                                 'username' => $studentNumber,
                                 'phone' => null,
                                 'is_active' => ! in_array($student->status, ['inactive', 'blocked'], true),

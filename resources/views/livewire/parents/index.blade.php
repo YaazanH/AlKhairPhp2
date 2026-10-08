@@ -2,17 +2,17 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
-use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Livewire\Concerns\LinksExistingProfileAccounts;
+use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\DataQualityResolution;
 use App\Models\FatherJob;
 use App\Models\ParentProfile;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\DataQualityService;
 use App\Services\ManagedUserService;
 use App\Services\ParentNumberService;
 use App\Support\ArabicSearch;
-use App\Models\User;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -21,52 +21,88 @@ use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
-    use SupportsCreateAndNew;
     use LinksExistingProfileAccounts;
+    use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
+
     #[Url(as: 'edit')]
     public ?int $editParent = null;
+
     #[Url(as: 'quality_issue')]
     public string $qualityIssueKey = '';
+
     public string $father_name = '';
+
     public string $father_work = '';
+
     public string $new_father_work = '';
+
     public string $father_phone = '';
+
     public string $mother_name = '';
+
     public string $mother_phone = '';
+
     public string $home_phone = '';
+
     public string $address = '';
+
     public string $notes = '';
+
     public bool $is_active = true;
+
     public ?int $accountParentId = null;
+
     public string $account_username = '';
+
     public string $account_email = '';
+
     public string $account_password = '';
+
     public bool $account_is_active = true;
+
     public ?string $issued_password = null;
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
+
     public bool $showAccountModal = false;
+
     public bool $showAccountViewModal = false;
 
     public bool $showPasswordModal = false;
+
     public string $account_father_name = '';
+
     public bool $showChildrenModal = false;
+
     public bool $showBulkStatusModal = false;
+
     public ?int $childrenParentId = null;
+
     public string $childrenParentName = '';
+
     public array $childrenRows = [];
+
     public string $bulk_status_action = 'deactivate';
+
     public string $bulk_scope = 'all';
+
     public string $bulk_parent_number_from = '';
+
     public string $bulk_parent_number_to = '';
+
     public bool $bulk_sync_accounts = true;
 
     public function mount(): void
@@ -85,15 +121,16 @@ new class extends Component {
         $baseQuery = $this->scopeParentsQuery(ParentProfile::query());
         $filteredQuery = $this->scopeParentsQuery(ParentProfile::query())
             ->when(filled($this->search), function ($query) {
-                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
-                $query->where(function ($builder) use ($normalizedPhone) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
+                    $normalizedPhone = PhoneNumberFormatter::normalize($token);
                     $builder
-                        ->where('parent_number', 'like', '%'.$this->search.'%')
-                        ->orWhere('father_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('mother_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('father_phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('mother_phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('home_phone', 'like', '%'.$this->search.'%')
+                        ->where('parent_number', 'like', $search)
+                        ->orWhere('father_name', 'like', $search)
+                        ->orWhere('mother_name', 'like', $search)
+                        ->orWhere('father_phone', 'like', $search)
+                        ->orWhere('mother_phone', 'like', $search)
+                        ->orWhere('home_phone', 'like', $search)
                         ->when($normalizedPhone, fn ($query) => $query
                             ->orWhere('father_phone', 'like', '%'.$normalizedPhone.'%')
                             ->orWhere('mother_phone', 'like', '%'.$normalizedPhone.'%')
@@ -1132,7 +1169,7 @@ new class extends Component {
                         {{ __('crud.parents.form.fields.address') }}
                         <span class="text-xs font-normal text-neutral-400">{{ __('crud.parents.form.address_hint') }}</span>
                     </label>
-                    <input id="parent-address" wire:model="address" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                    <x-address-input id="parent-address" model="address" :value="$address" />
                     @error('address')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror

@@ -6,26 +6,45 @@ use App\Models\CurriculumLessonTopic;
 use App\Models\CurriculumResource;
 use App\Models\CurriculumSubject;
 use App\Models\CurriculumSubjectDefinition;
+use App\Models\GradeLevel;
 use App\Services\CurriculumAccessService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public Curriculum $curriculumRecord;
+
     public bool $showSubjectModal = false;
+
     public string $subjectDefinitionId = '';
+
     public array $resourceIds = [];
+
     public ?int $editingSubjectId = null;
+
     public ?int $lessonSubjectId = null;
+
     public ?int $lessonResourceId = null;
+
     public ?int $editingLessonId = null;
+
     public string $lessonName = '';
+
     public string $chapterNumber = '';
+
     public int $importance = 1;
+
     public array $topicNames = [];
+
     public array $newLessonDrafts = [];
+
     public bool $showCurriculumModal = false;
+
+    public bool $showStandaloneResourcesModal = false;
+
     public string $curriculumName = '';
+
     public string $curriculumGradeId = '';
 
     public function mount(Curriculum $curriculum): void
@@ -39,13 +58,15 @@ new class extends Component {
     public function with(): array
     {
         $curriculum = Curriculum::query()->with(['course', 'gradeLevel', 'standaloneResources', 'subjects.definition', 'subjects.resources', 'subjects.lessons.resource', 'subjects.lessons.topics'])->findOrFail($this->curriculumRecord->id);
+
         return [
             'curriculum' => $curriculum,
             'definitions' => CurriculumSubjectDefinition::query()->where('is_active', true)->whereDoesntHave('curriculumSubjects', fn ($query) => $query->where('curriculum_id', $curriculum->id))->with(['resources' => fn ($query) => $query->where('is_active', true)->orderBy('book_name')])->orderBy('name')->get(),
             'selectedDefinition' => $this->subjectDefinitionId ? CurriculumSubjectDefinition::query()->with(['resources' => fn ($query) => $query->where('is_active', true)])->find($this->subjectDefinitionId) : null,
             'lessonSubject' => $this->lessonSubjectId ? CurriculumSubject::query()->with('resources')->find($this->lessonSubjectId) : null,
-            'grades' => \App\Models\GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(),
+            'grades' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(),
             'standaloneResources' => CurriculumResource::query()->whereNull('subject_definition_id')->where('is_active', true)->orderBy('book_name')->get(),
+            'hasAssignedGroups' => $curriculum->groups()->exists(),
         ];
     }
 
@@ -81,6 +102,7 @@ new class extends Component {
         $validResources = $definition->resources->whereIn('id', $data['resourceIds'])->pluck('id');
         if ($definition->resources->isNotEmpty() && $validResources->isEmpty()) {
             $this->addError('resourceIds', __('curricula.errors.resource_required'));
+
             return;
         }
         $subject = $this->editingSubjectId
@@ -117,8 +139,12 @@ new class extends Component {
     {
         CurriculumSubject::query()->where('curriculum_id', $this->curriculumRecord->id)->findOrFail($subjectId);
         $lesson = $lessonId ? CurriculumLesson::query()->where('curriculum_subject_id', $subjectId)->findOrFail($lessonId) : null;
-        $this->lessonSubjectId = $subjectId; $this->editingLessonId = $lessonId; $this->lessonResourceId = $lesson?->curriculum_resource_id ?? $resourceId;
-        $this->chapterNumber = (string) ($lesson?->chapter_number ?? ''); $this->lessonName = $lesson?->name ?? ''; $this->importance = $lesson?->importance ?? 1;
+        $this->lessonSubjectId = $subjectId;
+        $this->editingLessonId = $lessonId;
+        $this->lessonResourceId = $lesson?->curriculum_resource_id ?? $resourceId;
+        $this->chapterNumber = (string) ($lesson?->chapter_number ?? '');
+        $this->lessonName = $lesson?->name ?? '';
+        $this->importance = $lesson?->importance ?? 1;
         $this->resetValidation();
     }
 
@@ -129,10 +155,16 @@ new class extends Component {
         $resourceId = null;
         if ($subject->resources->count() > 1) {
             $resourceId = $subject->resources->where('id', $this->lessonResourceId)->value('id');
-            if (! $resourceId) { $this->addError('lessonResourceId', __('curricula.errors.lesson_resource_required')); return; }
+            if (! $resourceId) {
+                $this->addError('lessonResourceId', __('curricula.errors.lesson_resource_required'));
+
+                return;
+            }
         }
         $lessonValues = ['curriculum_subject_id' => $subject->id, 'curriculum_resource_id' => $resourceId, 'chapter_number' => filled($data['chapterNumber'] ?? null) ? $data['chapterNumber'] : null, 'name' => $data['lessonName'], 'importance' => $data['importance'], 'sort_order' => $this->editingLessonId ? CurriculumLesson::query()->findOrFail($this->editingLessonId)->sort_order : ((int) $subject->lessons()->max('sort_order') + 10)];
-        if (! $this->editingLessonId) $lessonValues['page_count'] = 0;
+        if (! $this->editingLessonId) {
+            $lessonValues['page_count'] = 0;
+        }
         CurriculumLesson::query()->updateOrCreate(['id' => $this->editingLessonId], $lessonValues);
         $this->editingLessonId = null;
         $this->lessonSubjectId = null;
@@ -159,7 +191,9 @@ new class extends Component {
     public function addTopic(int $lessonId): void
     {
         $lesson = CurriculumLesson::query()->whereHas('subject', fn ($query) => $query->where('curriculum_id', $this->curriculumRecord->id))->findOrFail($lessonId);
-        if (blank($this->topicNames[$lessonId] ?? null)) return;
+        if (blank($this->topicNames[$lessonId] ?? null)) {
+            return;
+        }
         $data = $this->validate(["topicNames.{$lessonId}" => ['required', 'string', 'max:255']]);
         CurriculumLessonTopic::query()->create(['curriculum_lesson_id' => $lesson->id, 'name' => $data['topicNames'][$lessonId], 'sort_order' => ((int) $lesson->topics()->max('sort_order')) + 10]);
         $this->topicNames[$lessonId] = '';
@@ -170,7 +204,9 @@ new class extends Component {
     {
         $subject = CurriculumSubject::query()->with('resources')->where('curriculum_id', $this->curriculumRecord->id)->findOrFail($subjectId);
         $draft = $this->newLessonDrafts[$subjectId][$resourceId] ?? [];
-        if (blank($draft['name'] ?? null)) return;
+        if (blank($draft['name'] ?? null)) {
+            return;
+        }
 
         $path = "newLessonDrafts.{$subjectId}.{$resourceId}";
         $data = $this->validate([
@@ -180,7 +216,9 @@ new class extends Component {
         ]);
         $lesson = $data['newLessonDrafts'][$subjectId][$resourceId];
         $validResourceId = $resourceId > 0 ? $subject->resources->where('id', $resourceId)->value('id') : null;
-        if ($resourceId > 0 && ! $validResourceId) abort(422);
+        if ($resourceId > 0 && ! $validResourceId) {
+            abort(422);
+        }
 
         CurriculumLesson::query()->create([
             'curriculum_subject_id' => $subject->id,
@@ -217,6 +255,16 @@ new class extends Component {
         $this->curriculumRecord->standaloneResources()->toggle($resource->id);
     }
 
+    public function openStandaloneResources(): void
+    {
+        $this->showStandaloneResourcesModal = true;
+    }
+
+    public function closeStandaloneResources(): void
+    {
+        $this->showStandaloneResourcesModal = false;
+    }
+
     public function saveCurriculum(): void
     {
         $data = $this->validate(['curriculumName' => ['required', 'string', 'max:255'], 'curriculumGradeId' => ['nullable', 'exists:grade_levels,id']]);
@@ -226,8 +274,13 @@ new class extends Component {
 
     public function deleteCurriculum()
     {
-        if ($this->curriculumRecord->groups()->exists()) { $this->addError('delete', __('curricula.errors.curriculum_used')); return null; }
+        if ($this->curriculumRecord->groups()->exists()) {
+            $this->addError('delete', __('curricula.errors.curriculum_used'));
+
+            return null;
+        }
         $this->curriculumRecord->delete();
+
         return $this->redirectRoute('curricula.index', navigate: true);
     }
 }; ?>
@@ -241,20 +294,38 @@ new class extends Component {
             </div>
             <div class="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-2" data-curriculum-header-actions>
                 <x-add-action-button wire:click="openSubject" :label="__('curricula.actions.add_subject')" />
+                @if($standaloneResources->isNotEmpty())
+                    <button type="button" wire:click="openStandaloneResources" class="admin-icon-button" title="{{ __('curricula.fields.standalone_books') }}" aria-label="{{ __('curricula.fields.standalone_books') }}" data-curriculum-standalone-books-action>
+                        <x-admin-action-icon name="book" />
+                    </button>
+                @endif
                 <x-edit-action-button wire:click="$set('showCurriculumModal', true)" :label="__('curricula.actions.edit')" data-curriculum-title-edit-action />
             </div>
         </div>
     </section>
     @if(session('status'))<div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>@endif
     @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
-    @if($standaloneResources->isNotEmpty())<section class="surface-panel p-5"><div class="admin-toolbar__title">{{ __('curricula.fields.standalone_books') }}</div><div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">@foreach($standaloneResources as $resource)<label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 p-3"><input type="checkbox" wire:click="toggleStandaloneResource({{ $resource->id }})" @checked($curriculum->standaloneResources->contains($resource)) class="rounded"><span>{{ $resource->book_name }}</span></label>@endforeach</div></section>@endif
+    <x-admin.modal :show="$showStandaloneResourcesModal" :title="__('curricula.fields.standalone_books')" close-method="closeStandaloneResources" max-width="fit" compact>
+        <div class="w-[min(48rem,calc(100vw-3rem))]" data-compact-standalone-books-modal>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach($standaloneResources as $resource)
+                    <label class="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-white/10 px-3 py-2">
+                        <input type="checkbox" wire:click="toggleStandaloneResource({{ $resource->id }})" @checked($curriculum->standaloneResources->contains($resource)) class="rounded">
+                        <span class="leading-snug">{{ $resource->book_name }}</span>
+                    </label>
+                @endforeach
+            </div>
+        </div>
+    </x-admin.modal>
     <x-admin.modal :show="$showCurriculumModal" :title="__('curricula.form.curriculum_title')" close-method="$set('showCurriculumModal', false)" max-width="fit" compact>
         <form wire:submit="saveCurriculum" class="w-[min(28rem,calc(100vw-3rem))] space-y-4">
             <label class="block text-sm">{{ __('curricula.fields.name') }}<input wire:model="curriculumName" class="mt-1 w-full rounded-xl px-4 py-3"></label>
             <label class="block text-sm">{{ __('curricula.fields.grade') }}<select wire:model="curriculumGradeId" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('curricula.options.all_grades') }}</option>@foreach($grades as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label>
             <div class="admin-action-cluster admin-action-cluster--end" data-curriculum-modal-actions>
                 <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('curricula.actions.save') }}" aria-label="{{ __('curricula.actions.save') }}" data-curriculum-save-action><x-admin-action-icon name="save" class="admin-modal-action__icon" /></button>
-                <x-delete-action-button wire:click="deleteCurriculum" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" class="admin-modal-action-button" data-curriculum-delete-action />
+                @unless($hasAssignedGroups)
+                    <x-delete-action-button wire:click="deleteCurriculum" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" class="admin-modal-action-button" data-curriculum-delete-action />
+                @endunless
             </div>
         </form>
     </x-admin.modal>
@@ -320,7 +391,7 @@ new class extends Component {
                                                             <button type="button" wire:click="saveLesson" class="admin-icon-button admin-icon-button--accent" title="{{ __('curricula.actions.save') }}" aria-label="{{ __('curricula.actions.save') }}" data-curriculum-lesson-save-action><x-admin-action-icon name="save" /></button>
                                                             <x-delete-action-button wire:click="deleteLesson({{ $lesson->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('curricula.actions.delete')" data-delete-lesson-in-edit />
                                                         @else
-                                                            <x-edit-action-button wire:click="openLesson({{ $subject->id }}, {{ $lesson->id }})" :label="__('curricula.actions.edit')" data-edit-lesson-icon />
+                                                            <x-edit-action-button wire:click="openLesson({{ $subject->id }}, {{ $lesson->id }})" :label="__('curricula.actions.edit')" data-edit-lesson-icon data-keep-visible-table-action />
                                                         @endif
                                                     </div>
                                                 </td>
@@ -333,7 +404,7 @@ new class extends Component {
                                                     </td>
                                                     <td class="px-3 py-2"></td>
                                                     <td class="px-3 py-2"></td>
-                                                    <td class="px-3 py-2 text-end"><button type="button" wire:click="deleteTopic({{ $topic->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger !h-8 !w-8 !basis-8" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-curriculum-topic-delete-action><x-admin-action-icon name="delete" /></button></td>
+                                                    <td class="px-3 py-2 text-end"><button type="button" wire:click="deleteTopic({{ $topic->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-curriculum-topic-delete-action><x-admin-action-icon name="delete" /></button></td>
                                                 </tr>
                                             @endforeach
                                             <tr wire:key="curriculum-topic-add-{{ $lesson->id }}" x-show="openTopics[{{ $lesson->id }}]" x-cloak class="bg-black/[0.075]" data-curriculum-add-topic-row>

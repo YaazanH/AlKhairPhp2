@@ -51,7 +51,11 @@ class QuickQuranTestEntryTest extends TestCase
 
         $styles = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('.quick-entry-save-action {', $styles);
-        $this->assertStringContainsString('flex: 1 1 100% !important;', $styles);
+        $this->assertStringContainsString(".quick-saber-save-action {\n    width: var(--admin-action-button-size);", $styles);
+        $this->assertStringContainsString('flex: 0 0 var(--admin-action-button-size) !important;', $styles);
+        $this->assertStringContainsString(".quick-saber-form .quick-saber-save-action {\n        width: 100% !important;", $styles);
+        $this->assertStringContainsString('max-width: none !important;', $styles);
+        $this->assertStringContainsString('aspect-ratio: auto !important;', $styles);
 
         AppSetting::storeValue('general', 'memorization_saber_entries_enabled', false, 'boolean');
 

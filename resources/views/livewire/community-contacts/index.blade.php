@@ -2,28 +2,44 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\CommunityContact;
+use App\Support\ArabicSearch;
 use App\Support\PhoneNumberFormatter;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use WithPagination;
 
     public ?int $editingId = null;
+
     public string $name = '';
+
     public string $category = '';
+
     public string $organization = '';
+
     public string $phone = '';
+
     public string $secondary_phone = '';
+
     public string $email = '';
+
     public string $address = '';
+
     public string $notes = '';
+
     public bool $is_active = true;
+
     public string $search = '';
+
     public string $categoryFilter = 'all';
+
     public string $statusFilter = 'all';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
 
     public function mount(): void
@@ -36,20 +52,21 @@ new class extends Component {
         $baseQuery = CommunityContact::query();
         $filteredQuery = CommunityContact::query()
             ->when(filled($this->search), function ($query) {
-                $normalizedPhone = PhoneNumberFormatter::normalize($this->search);
-                $query->where(function ($builder) use ($normalizedPhone) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
+                    $normalizedPhone = PhoneNumberFormatter::normalize($token);
                     $builder
-                        ->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('category', 'like', '%'.$this->search.'%')
-                        ->orWhere('organization', 'like', '%'.$this->search.'%')
-                        ->orWhere('phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('secondary_phone', 'like', '%'.$this->search.'%')
+                        ->where('name', 'like', $search)
+                        ->orWhere('category', 'like', $search)
+                        ->orWhere('organization', 'like', $search)
+                        ->orWhere('phone', 'like', $search)
+                        ->orWhere('secondary_phone', 'like', $search)
                         ->when($normalizedPhone, fn ($query) => $query
                             ->orWhere('phone', 'like', '%'.$normalizedPhone.'%')
                             ->orWhere('secondary_phone', 'like', '%'.$normalizedPhone.'%'))
-                        ->orWhere('email', 'like', '%'.$this->search.'%')
-                        ->orWhere('address', 'like', '%'.$this->search.'%')
-                        ->orWhere('notes', 'like', '%'.$this->search.'%');
+                        ->orWhere('email', 'like', $search)
+                        ->orWhere('address', 'like', $search)
+                        ->orWhere('notes', 'like', $search);
                 });
             })
             ->when($this->categoryFilter !== 'all', fn ($query) => $query->where('category', $this->categoryFilter))
@@ -281,12 +298,11 @@ new class extends Component {
                                 </span>
                             </td>
                             <td class="table-cell-compact px-5 py-4">
-                                <div class="community-contact-row-actions flex justify-end gap-2">
+                                <div class="community-contact-row-actions">
                                     @can('community-contacts.update')
-                                        <button type="button" wire:click="edit({{ $contact->id }})" class="pill-link pill-link--compact whitespace-nowrap px-4">{{ __('crud.common.actions.edit') }}</button>
-                                    @endcan
-                                    @can('community-contacts.delete')
-                                        <button type="button" wire:click="delete({{ $contact->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact pill-link--danger whitespace-nowrap px-4">{{ __('crud.common.actions.delete') }}</button>
+                                        <button type="button" wire:click="edit({{ $contact->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-community-contact-edit-action>
+                                            <x-admin-action-icon name="edit" />
+                                        </button>
                                     @endcan
                                 </div>
                             </td>
@@ -374,6 +390,15 @@ new class extends Component {
                 <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>
                 @if ($editingId)
                     <button type="submit" class="pill-link pill-link--accent">{{ __('community_contacts.actions.update') }}</button>
+                    @can('community-contacts.delete')
+                        <x-delete-action-button
+                            wire:click="delete({{ $editingId }})"
+                            wire:confirm="{{ __('crud.common.confirm_delete.message') }}"
+                            :label="__('crud.common.actions.delete')"
+                            class="admin-modal-action-button"
+                            data-community-contact-delete-action
+                        />
+                    @endcan
                 @else
                     <button
                         type="submit"

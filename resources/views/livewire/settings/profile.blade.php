@@ -7,7 +7,8 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public $profile_photo_upload = null;
@@ -28,45 +29,47 @@ new class extends Component {
         $this->email = (string) Auth::user()->email;
     }
 
-    public function updatedProfilePhotoUpload(): void
+    public function saveProfile(ManagedUserService $managedUsers): void
     {
         $user = Auth::user()->loadMissing(['studentProfile', 'teacherProfile']);
 
-        $this->validate([
-            'profile_photo_upload' => ['required', 'image', 'max:'.config('uploads.image_max_kb')],
-        ]);
-
-        $user->storeProfilePhotoUpload($this->profile_photo_upload);
-
-        $this->reset('profile_photo_upload');
-        $this->dispatch('profile-updated', name: $user->name);
-    }
-
-    public function updateUsername(ManagedUserService $managedUsers): void
-    {
-        if (Auth::user()->hasImmutableUsername()) {
+        if ($user->hasImmutableUsername() && $this->username !== $user->username) {
             throw ValidationException::withMessages(['username' => __('access.profile_accounts.username_locked')]);
         }
 
         $validated = $this->validate([
             'username' => ['required', 'string', 'max:255'],
+            'profile_photo_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
         ]);
 
-        $user = Auth::user();
-        $username = $managedUsers->uniqueUsername($validated['username'], $user->name, $user->id);
-        $email = $user->is_tenant_administrator
-            ? $user->email
-            : $managedUsers->uniqueEmail(null, $username, $user->id);
+        if (! $user->hasImmutableUsername()) {
+            $username = $managedUsers->uniqueUsername($validated['username'], $user->name, $user->id);
+            $email = $user->is_tenant_administrator
+                ? $user->email
+                : $managedUsers->uniqueEmail(null, $username, $user->id);
 
-        $user->forceFill([
-            'username' => $username,
-            'email' => $email,
-        ])->save();
+            $user->forceFill([
+                'username' => $username,
+                'email' => $email,
+            ])->save();
 
-        $this->username = $username;
-        $this->email = $email;
+            $this->username = $username;
+            $this->email = $email;
+            $this->dispatch('username-updated');
+        }
+
+        if ($this->profile_photo_upload) {
+            $user->storeProfilePhotoUpload($this->profile_photo_upload);
+            $this->reset('profile_photo_upload');
+        }
+
         $this->dispatch('profile-updated', name: $user->name);
-        $this->dispatch('username-updated');
+        $this->dispatch('profile-saved');
+    }
+
+    public function updateUsername(ManagedUserService $managedUsers): void
+    {
+        $this->saveProfile($managedUsers);
     }
 
     public function updatePassword(): void
@@ -99,39 +102,38 @@ new class extends Component {
         @php($profileUser = Auth::user()->loadMissing(['studentProfile', 'teacherProfile']))
 
         <section class="surface-panel p-5 lg:p-6" data-account-profile-section>
-            <div class="mb-6">
-                <h2 class="font-display text-3xl text-white">{{ __('settings.account.profile.form_title') }}</h2>
-            </div>
+            <form wire:submit="saveProfile">
+                <div class="mb-6 flex items-center justify-between gap-4">
+                    <h2 class="font-display text-3xl text-white">{{ __('settings.account.profile.form_title') }}</h2>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent shrink-0" title="{{ __('settings.common.actions.save') }}" aria-label="{{ __('settings.common.actions.save') }}" wire:loading.attr="disabled" wire:target="saveProfile,profile_photo_upload" data-account-profile-save-action>
+                        <x-admin-action-icon name="save" />
+                    </button>
+                </div>
 
-            <div class="grid gap-5 lg:grid-cols-2 lg:items-stretch">
-                <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
-                    <div class="flex h-full flex-col gap-4 sm:flex-row sm:items-center">
-                        <x-user-avatar :user="$profileUser" size="lg" />
+                <div class="grid gap-5 lg:grid-cols-2 lg:items-stretch">
+                    <div class="rounded-3xl border border-white/10 bg-white/5 p-5" data-account-profile-photo-card>
+                        <div class="flex h-full min-w-0 items-center gap-4" data-account-profile-photo-layout>
+                            <x-user-avatar :user="$profileUser" size="lg" />
 
-                        <div class="min-w-0 flex-1">
-                            <label for="account-profile-photo" class="text-sm font-semibold text-white">{{ __('settings.account.profile.fields.photo') }}</label>
-                            <input id="account-profile-photo" wire:model.live="profile_photo_upload" type="file" accept="image/*" class="mt-3 block w-full text-sm">
-                            @error('profile_photo_upload') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                            <div class="min-w-0 flex-1">
+                                <label for="account-profile-photo" class="text-sm font-semibold text-white">{{ __('settings.account.profile.fields.photo') }}</label>
+                                <input id="account-profile-photo" wire:model="profile_photo_upload" type="file" accept="image/*" class="mt-3 block w-full min-w-0 max-w-full overflow-hidden text-sm">
+                                @error('profile_photo_upload') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                            </div>
                         </div>
+                    </div>
+
+                    <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+                        <label for="account-username" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.username') }}</label>
+                        <input id="account-username" wire:model="username" @readonly($profileUser->hasImmutableUsername()) type="text" required autocomplete="username" class="w-full rounded-xl px-4 py-3 text-sm">
+                        @error('username') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 </div>
 
-                <form wire:submit="updateUsername" class="rounded-3xl border border-white/10 bg-white/5 p-5">
-                    <div class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-                        <div class="min-w-0">
-                            <label for="account-username" class="mb-1 block text-sm font-medium">{{ __('settings.account.profile.fields.username') }}</label>
-                            <input id="account-username" wire:model="username" @readonly($profileUser->hasImmutableUsername()) type="text" required autocomplete="username" class="w-full rounded-xl px-4 py-3 text-sm">
-                            @error('username') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                        </div>
-                        @unless ($profileUser->hasImmutableUsername())
-                            <button type="submit" class="pill-link pill-link--accent">{{ __('settings.common.actions.save') }}</button>
-                        @endunless
-                    </div>
-                    <x-action-message class="mt-3 text-sm text-emerald-200" on="username-updated">
-                        {{ __('settings.account.profile.saved') }}
-                    </x-action-message>
-                </form>
-            </div>
+                <x-action-message class="mt-3 text-sm text-emerald-200" on="profile-saved">
+                    {{ __('settings.account.profile.saved') }}
+                </x-action-message>
+            </form>
         </section>
 
         <section class="surface-panel p-5 lg:p-6" data-account-password-section>

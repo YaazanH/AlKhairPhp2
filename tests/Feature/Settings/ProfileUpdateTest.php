@@ -4,6 +4,8 @@ namespace Tests\Feature\Settings;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -23,6 +25,11 @@ class ProfileUpdateTest extends TestCase
             ->assertDontSee('account-email', false)
             ->assertDontSee(__('settings.account.profile.form_subtitle'))
             ->assertDontSee(__('settings.account.password.form_subtitle'))
+            ->assertSee('wire:submit="saveProfile"', false)
+            ->assertSee('data-account-profile-save-action', false)
+            ->assertSee('data-account-profile-photo-layout', false)
+            ->assertSee('class="flex h-full min-w-0 items-center gap-4"', false)
+            ->assertDontSee('wire:submit="updateUsername"', false)
             ->assertDontSee('settings-tabs', false);
     }
 
@@ -68,6 +75,34 @@ class ProfileUpdateTest extends TestCase
         $user->refresh();
         $this->assertSame('centre-admin', $user->username);
         $this->assertSame('admin@example.test', $user->email);
+    }
+
+    public function test_one_profile_save_updates_the_username_and_photo_together(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create([
+            'username' => 'old-user',
+            'email' => 'old-user@example.test',
+        ]);
+
+        $this->actingAs($user);
+
+        Volt::test('settings.profile')
+            ->set('username', 'new-user')
+            ->set('profile_photo_upload', UploadedFile::fake()->image('profile.jpg', 320, 320))
+            ->call('saveProfile')
+            ->assertHasNoErrors()
+            ->assertSet('username', 'new-user')
+            ->assertSet('email', 'new-user@alkhair.local')
+            ->assertSet('profile_photo_upload', null);
+
+        $user->refresh();
+
+        $this->assertSame('new-user', $user->username);
+        $this->assertSame('new-user@alkhair.local', $user->email);
+        $this->assertNotNull($user->profile_photo_path);
+        Storage::disk('public')->assertExists($user->profile_photo_path);
     }
 
     public function test_old_account_tabs_redirect_to_the_consolidated_account_page(): void

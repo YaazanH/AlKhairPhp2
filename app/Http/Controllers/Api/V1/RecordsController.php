@@ -10,6 +10,7 @@ use App\Models\Group;
 use App\Models\Invoice;
 use App\Models\Student;
 use App\Services\AccessScopeService;
+use App\Support\ArabicSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
@@ -263,13 +264,11 @@ class RecordsController extends Controller
             ->when($validated['parent_id'] ?? null, fn (Builder $query, int $parentId) => $query->where('parent_id', $parentId))
             ->when($validated['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($validated['search'] ?? null, function (Builder $query, string $search) {
-                $query->where(function (Builder $builder) use ($search) {
-                    $builder
-                        ->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('student_number', 'like', "%{$search}%")
-                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
-                });
+                ArabicSearch::whereAllTokens(
+                    $query,
+                    $search,
+                    fn (Builder $builder, string $token) => $builder->whereMatchesSearchToken($token),
+                );
             })
             ->orderBy('last_name')
             ->orderBy('first_name')

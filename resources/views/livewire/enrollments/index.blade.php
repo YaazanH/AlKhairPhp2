@@ -7,30 +7,46 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Student;
+use App\Support\ArabicSearch;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public ?int $editingId = null;
+
     public ?int $student_id = null;
+
     public ?int $group_id = null;
+
     public string $enrolled_at = '';
+
     public string $status = 'active';
+
     public string $left_at = '';
+
     public string $notes = '';
+
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public string $courseFilter = 'all';
+
     public string $groupFilter = 'all';
+
     public string $sortField = 'enrolled_at';
+
     public string $sortDirection = 'desc';
+
     public int $perPage = 15;
+
     public bool $showFormModal = false;
 
     protected array $sortableFields = [
@@ -52,15 +68,13 @@ new class extends Component {
         $filteredQuery = $this->scopeEnrollmentsQuery(Enrollment::query())
             ->with(['group.course', 'student'])
             ->when(filled($this->search), function ($query) {
-                $query->where(function ($builder) {
+                ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
+                    $search = '%'.$token.'%';
                     $builder
-                        ->whereHas('student', fn ($studentQuery) => $studentQuery
-                            ->where('first_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('last_name', 'like', '%'.$this->search.'%')
-                            ->orWhere('student_number', 'like', '%'.$this->search.'%'))
+                        ->whereHas('student', fn ($studentQuery) => $studentQuery->whereMatchesSearchToken($token))
                         ->orWhereHas('group', fn ($groupQuery) => $groupQuery
-                            ->where('name', 'like', '%'.$this->search.'%')
-                            ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$this->search.'%')));
+                            ->where('name', 'like', $search)
+                            ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', $search)));
                 });
             })
             ->when($this->courseFilter !== 'all', fn ($query) => $query->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter)))
@@ -541,7 +555,7 @@ new class extends Component {
                             @php
                                 $enrollmentStatusClass = match ($enrollment->status) {
                                     'active' => 'status-chip status-chip--emerald',
-                                    'completed' => 'status-chip status-chip--gold',
+                                    'completed' => 'status-chip status-chip--blue',
                                     default => 'status-chip status-chip--slate',
                                 };
                             @endphp

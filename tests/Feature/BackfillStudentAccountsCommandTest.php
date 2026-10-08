@@ -61,6 +61,39 @@ class BackfillStudentAccountsCommandTest extends TestCase
         $this->assertNotEmpty($activeStudent->user->issued_password);
     }
 
+    public function test_command_uses_fathers_full_names_for_namesake_accounts(): void
+    {
+        $firstParent = ParentProfile::create([
+            'father_name' => 'Mahmoud Khaled Ali',
+            'is_active' => true,
+        ]);
+        $secondParent = ParentProfile::create([
+            'father_name' => 'Samer Nabil Ali',
+            'is_active' => true,
+        ]);
+
+        $firstStudent = Student::create([
+            'parent_id' => $firstParent->id,
+            'first_name' => 'Omar',
+            'last_name' => 'Ali',
+            'birth_date' => '2012-01-01',
+            'status' => 'active',
+        ]);
+        $secondStudent = Student::create([
+            'parent_id' => $secondParent->id,
+            'first_name' => 'Omar',
+            'last_name' => 'Ali',
+            'birth_date' => '2012-02-01',
+            'status' => 'active',
+        ]);
+
+        $this->artisan('students:backfill-accounts --all')
+            ->assertExitCode(0);
+
+        $this->assertSame('Omar Mahmoud Khaled Ali', $firstStudent->fresh()->user->name);
+        $this->assertSame('Omar Samer Nabil Ali', $secondStudent->fresh()->user->name);
+    }
+
     public function test_command_can_optionally_include_inactive_students(): void
     {
         $parent = ParentProfile::create([

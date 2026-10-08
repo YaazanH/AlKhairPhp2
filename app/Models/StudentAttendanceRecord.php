@@ -31,7 +31,17 @@ class StudentAttendanceRecord extends Model
         'student_id',
         'attendance_status_id',
         'notes',
+        'quick_attendance_added_at',
+        'quick_attendance_previous',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'quick_attendance_added_at' => 'datetime',
+            'quick_attendance_previous' => 'array',
+        ];
+    }
 
     public function attendanceDay(): BelongsTo
     {

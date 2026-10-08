@@ -2,9 +2,11 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
+use App\Models\Student;
 use App\Models\User;
 use App\Services\SidebarNavigationService;
 use App\Support\ApplicationTimezone;
+use App\Support\ArabicSearch;
 use App\Support\DataAuditVisibility;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -16,16 +18,23 @@ use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use Spatie\Activitylog\Models\Activity as AuditActivity;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use WithPagination;
 
     public string $search = '';
+
     public string $eventFilter = 'all';
+
     public string $moduleFilter = 'all';
+
     public string $fromDate = '';
+
     public string $toDate = '';
+
     public array $selectedActivityIds = [];
+
     public int $perPage = 15;
 
     public function mount(): void
@@ -101,12 +110,13 @@ new class extends Component {
     {
         return $this->visibleActivitiesQuery()
             ->when(filled($this->search), function (Builder $query): void {
-                $query->where(function (Builder $builder): void {
-                    $builder->where('description', 'like', '%'.$this->search.'%')
-                        ->orWhere('properties', 'like', '%'.$this->search.'%')
+                ArabicSearch::whereAllTokens($query, $this->search, function (Builder $builder, string $token): void {
+                    $search = '%'.$token.'%';
+                    $builder->where('description', 'like', $search)
+                        ->orWhere('properties', 'like', $search)
                         ->orWhereHas('causer', fn (Builder $causer) => $causer
-                            ->where('name', 'like', '%'.$this->search.'%')
-                            ->orWhere('email', 'like', '%'.$this->search.'%'));
+                            ->where('name', 'like', $search)
+                            ->orWhere('email', 'like', $search));
                 });
             })
             ->when($this->eventFilter !== 'all', fn (Builder $query) => $query->where('event', $this->eventFilter))
@@ -138,6 +148,7 @@ new class extends Component {
             ) {
                 $bundles[$lastIndex]['ids'][] = $id;
                 $bundles[$lastIndex]['key'] .= '-'.$id;
+
                 continue;
             }
 
@@ -171,11 +182,30 @@ new class extends Component {
         return $bundles;
     }
 
-    public function updatedSearch(): void { $this->resetPage(); }
-    public function updatedEventFilter(): void { $this->resetPage(); }
-    public function updatedModuleFilter(): void { $this->resetPage(); }
-    public function updatedFromDate(): void { $this->resetPage(); }
-    public function updatedToDate(): void { $this->resetPage(); }
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedEventFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedModuleFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFromDate(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedToDate(): void
+    {
+        $this->resetPage();
+    }
 
     public function clearFilters(): void
     {
@@ -265,8 +295,12 @@ new class extends Component {
     {
         $events = collect($activities)->pluck('event')->filter()->unique()->values();
 
-        if ($events->count() === 1 && $events->first() === 'created') return 'created';
-        if ($events->count() === 1 && $events->first() === 'deleted') return 'deleted';
+        if ($events->count() === 1 && $events->first() === 'created') {
+            return 'created';
+        }
+        if ($events->count() === 1 && $events->first() === 'deleted') {
+            return 'deleted';
+        }
 
         return 'changed';
     }
@@ -317,6 +351,7 @@ new class extends Component {
                                 'key' => sha1($rowKey),
                                 'record_key' => $recordKey,
                             ];
+
                             continue;
                         }
 
@@ -357,13 +392,19 @@ new class extends Component {
             return $this->appSettingLabel($subject);
         }
 
+        if ($subject instanceof Student) {
+            return $subject->loadMissing('parentProfile')->full_name;
+        }
+
         if ($subject instanceof Model) {
             if (filled($subject->getAttribute('first_name')) || filled($subject->getAttribute('last_name'))) {
                 return trim($subject->getAttribute('first_name').' '.$subject->getAttribute('last_name'));
             }
 
             foreach (['name', 'title', 'filename', 'invoice_number', 'transaction_number', 'parent_number', 'student_number', 'number'] as $field) {
-                if (filled($subject->getAttribute($field))) return (string) $subject->getAttribute($field);
+                if (filled($subject->getAttribute($field))) {
+                    return (string) $subject->getAttribute($field);
+                }
             }
         }
 
@@ -391,7 +432,9 @@ new class extends Component {
             'data_governance.audit.field_labels.'.$setting->key,
         ] as $translationKey) {
             $translated = __($translationKey);
-            if ($translated !== $translationKey) return $translated;
+            if ($translated !== $translationKey) {
+                return $translated;
+            }
         }
 
         return Str::headline((string) $setting->key);
@@ -403,10 +446,14 @@ new class extends Component {
         $subjectId = (int) ($group['subject_id'] ?? 0);
         $setting = $this->bundleSubject($activity, $subjectType, $subjectId);
 
-        if (! $setting instanceof AppSetting) return $row;
+        if (! $setting instanceof AppSetting) {
+            return $row;
+        }
 
         foreach (['before', 'after'] as $side) {
-            if (($row[$side]['state'] ?? null) !== 'value') continue;
+            if (($row[$side]['state'] ?? null) !== 'value') {
+                continue;
+            }
 
             $value = (string) ($row[$side]['value'] ?? '');
             $translated = $this->localizedAppSettingValue($setting, (string) ($row['source_field'] ?? ''), $value);
@@ -422,7 +469,9 @@ new class extends Component {
 
     protected function localizedAppSettingValue(AppSetting $setting, string $field, string $value): ?string
     {
-        if ($field === 'key') return $this->appSettingLabel($setting);
+        if ($field === 'key') {
+            return $this->appSettingLabel($setting);
+        }
 
         if ($field === 'value' && $setting->type === 'boolean') {
             return __(filter_var($value, FILTER_VALIDATE_BOOL)
@@ -446,7 +495,9 @@ new class extends Component {
 
         foreach ($translationKeys as $translationKey) {
             $translated = __($translationKey);
-            if ($translated !== $translationKey) return $translated;
+            if ($translated !== $translationKey) {
+                return $translated;
+            }
         }
 
         return null;
@@ -618,11 +669,13 @@ new class extends Component {
 
     public function formatTimestamp(mixed $timestamp): string
     {
-        if (blank($timestamp)) return '—';
+        if (blank($timestamp)) {
+            return '—';
+        }
 
         try {
             return Carbon::parse($timestamp)->format('d-m-Y H:i');
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return (string) $timestamp;
         }
     }
@@ -704,24 +757,40 @@ new class extends Component {
         $result = [];
 
         while ($offset < $length) {
-            while ($offset < $length && (ctype_space($json[$offset]) || $json[$offset] === ',')) $offset++;
-            if ($offset >= $length || $json[$offset] !== '"') break;
+            while ($offset < $length && (ctype_space($json[$offset]) || $json[$offset] === ',')) {
+                $offset++;
+            }
+            if ($offset >= $length || $json[$offset] !== '"') {
+                break;
+            }
 
             $keyEnd = $this->jsonTokenEnd($json, $offset);
-            if ($keyEnd === null) break;
+            if ($keyEnd === null) {
+                break;
+            }
 
             $key = json_decode(substr($json, $offset, $keyEnd - $offset), true);
             $offset = $keyEnd;
-            while ($offset < $length && ctype_space($json[$offset])) $offset++;
-            if ($offset >= $length || $json[$offset] !== ':') break;
+            while ($offset < $length && ctype_space($json[$offset])) {
+                $offset++;
+            }
+            if ($offset >= $length || $json[$offset] !== ':') {
+                break;
+            }
 
             $offset++;
-            while ($offset < $length && ctype_space($json[$offset])) $offset++;
+            while ($offset < $length && ctype_space($json[$offset])) {
+                $offset++;
+            }
             $valueEnd = $this->jsonTokenEnd($json, $offset);
-            if ($valueEnd === null) break;
+            if ($valueEnd === null) {
+                break;
+            }
 
             $decoded = json_decode(substr($json, $offset, $valueEnd - $offset), true);
-            if (json_last_error() !== JSON_ERROR_NONE || ! is_string($key)) break;
+            if (json_last_error() !== JSON_ERROR_NONE || ! is_string($key)) {
+                break;
+            }
 
             $result[$key] = $decoded;
             $offset = $valueEnd;
@@ -733,7 +802,9 @@ new class extends Component {
     protected function jsonTokenEnd(string $json, int $offset): ?int
     {
         $length = strlen($json);
-        if ($offset >= $length) return null;
+        if ($offset >= $length) {
+            return null;
+        }
 
         $opening = $json[$offset];
 
@@ -742,13 +813,17 @@ new class extends Component {
             for ($index = $offset + 1; $index < $length; $index++) {
                 if ($escaped) {
                     $escaped = false;
+
                     continue;
                 }
                 if ($json[$index] === '\\') {
                     $escaped = true;
+
                     continue;
                 }
-                if ($json[$index] === '"') return $index + 1;
+                if ($json[$index] === '"') {
+                    return $index + 1;
+                }
             }
 
             return null;
@@ -762,18 +837,30 @@ new class extends Component {
             for ($index = $offset + 1; $index < $length; $index++) {
                 $character = $json[$index];
                 if ($inString) {
-                    if ($escaped) $escaped = false;
-                    elseif ($character === '\\') $escaped = true;
-                    elseif ($character === '"') $inString = false;
+                    if ($escaped) {
+                        $escaped = false;
+                    } elseif ($character === '\\') {
+                        $escaped = true;
+                    } elseif ($character === '"') {
+                        $inString = false;
+                    }
+
                     continue;
                 }
                 if ($character === '"') {
                     $inString = true;
+
                     continue;
                 }
-                if (in_array($character, ['{', '['], true)) $stack[] = $character;
-                if (in_array($character, ['}', ']'], true)) array_pop($stack);
-                if ($stack === []) return $index + 1;
+                if (in_array($character, ['{', '['], true)) {
+                    $stack[] = $character;
+                }
+                if (in_array($character, ['}', ']'], true)) {
+                    array_pop($stack);
+                }
+                if ($stack === []) {
+                    return $index + 1;
+                }
             }
 
             return null;
@@ -808,14 +895,20 @@ new class extends Component {
     {
         foreach ([$after, $before] as $values) {
             $title = is_array($values[$scope] ?? null) ? trim((string) ($values[$scope]['title'] ?? '')) : '';
-            if ($title !== '') return $title;
+            if ($title !== '') {
+                return $title;
+            }
         }
 
         $translationKey = 'ui.nav.'.$scope;
         $translated = __($translationKey);
 
-        if ($translated !== $translationKey) return $translated;
-        if (is_numeric($scope)) return __('data_governance.audit.item_number', ['number' => ((int) $scope) + 1]);
+        if ($translated !== $translationKey) {
+            return $translated;
+        }
+        if (is_numeric($scope)) {
+            return __('data_governance.audit.item_number', ['number' => ((int) $scope) + 1]);
+        }
 
         return Str::headline($scope);
     }
@@ -830,7 +923,9 @@ new class extends Component {
                 default => null,
             };
 
-            if ($translationKey) return __($translationKey);
+            if ($translationKey) {
+                return __($translationKey);
+            }
         }
 
         $translationKey = 'data_governance.audit.structure_fields.'.$field;
@@ -881,7 +976,7 @@ new class extends Component {
                 $format = str_contains($value, ':') ? 'd-m-Y H:i' : 'd-m-Y';
 
                 return ['value' => Carbon::parse($value)->format($format), 'direction' => 'ltr', 'state' => 'value'];
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // Fall through and keep the original value visible.
             }
         }
@@ -889,7 +984,9 @@ new class extends Component {
         if ($field === 'status' && is_string($value)) {
             foreach (['crud.common.status_options.'.$value, 'data_governance.quality.'.$value] as $translationKey) {
                 $translated = __($translationKey);
-                if ($translated !== $translationKey) return ['value' => $translated, 'direction' => 'auto', 'state' => 'value'];
+                if ($translated !== $translationKey) {
+                    return ['value' => $translated, 'direction' => 'auto', 'state' => 'value'];
+                }
             }
         }
 
@@ -904,7 +1001,9 @@ new class extends Component {
         ])->all();
 
         foreach ($service->settings()['groups'] as $key => $group) {
-            if (filled($group['title'] ?? null)) $labels[$key] = (string) $group['title'];
+            if (filled($group['title'] ?? null)) {
+                $labels[$key] = (string) $group['title'];
+            }
         }
 
         return $labels;

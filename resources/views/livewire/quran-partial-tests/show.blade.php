@@ -7,19 +7,27 @@ use App\Models\QuranPartialTest;
 use App\Models\Teacher;
 use App\Services\QuranPartialTestRuleService;
 use App\Services\QuranPartialTestService;
+use App\Support\OperationalFeatureSettings;
 use App\Support\RoleRegistry;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public QuranPartialTest $partialTest;
+
     public ?int $selectedPartId = null;
+
     public ?int $teacher_id = null;
+
     public string $tested_on = '';
+
     public string $mistake_count = '';
+
     public bool $showAttemptModal = false;
+
     public ?int $editingAttemptId = null;
 
     public function mount(QuranPartialTest $partialTest): void
@@ -58,7 +66,8 @@ new class extends Component {
     public function openAttemptModal(int $partId): void
     {
         $this->authorizePermission('quran-partial-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
+        OperationalFeatureSettings::ensureQuranTestsEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $part = $this->partialTest->parts()->findOrFail($partId);
 
@@ -97,7 +106,8 @@ new class extends Component {
         }
 
         if (! $this->editingAttemptId) {
-            \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
+            OperationalFeatureSettings::ensureQuranTestsEnabled();
+            OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
 
         $validated = $this->validate([
@@ -132,7 +142,7 @@ new class extends Component {
                     'tested_on' => $validated['tested_on'],
                 ]);
             }
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('attempt', $exception->getMessage());
 
             return;
@@ -186,7 +196,7 @@ new class extends Component {
             ->attempts()->findOrFail($this->editingAttemptId);
         try {
             app(QuranPartialTestService::class)->deleteAttempt($attempt);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('attempt', $exception->getMessage());
 
             return;
@@ -208,7 +218,7 @@ new class extends Component {
 
         try {
             app(QuranPartialTestService::class)->deleteTest($this->partialTest);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('deleteTest', $exception->getMessage());
 
             return;
@@ -295,9 +305,6 @@ new class extends Component {
             <section class="surface-table" data-partial-quarter-card>
                 <div class="admin-grid-meta admin-grid-meta--controls">
                     <div class="admin-grid-meta__title">{{ __('workflow.quran_partial_tests.part.quarters.'.$part->part_number) }}</div>
-                    @if ($part->status !== 'passed' && auth()->user()->can('quran-partial-tests.record'))
-                        <button type="button" wire:click="openAttemptModal({{ $part->id }})" class="pill-link pill-link--accent workflow-entry-action--hidden">{{ __('workflow.quran_partial_tests.actions.record_attempt') }}</button>
-                    @endif
                 </div>
 
                 @if ($part->attempts->isEmpty())

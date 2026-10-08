@@ -71,6 +71,7 @@ return [
         'teacher_attendance' => 'حضور المشرفين',
         'student_notes' => 'ملاحظات الطلاب',
         'finance' => 'المالية',
+        'communication' => 'التواصل',
         'activities' => 'الأنشطة',
         'family_activities' => 'أنشطة الأسرة',
         'invoices' => 'الفواتير',

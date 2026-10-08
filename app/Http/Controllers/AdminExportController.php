@@ -16,6 +16,7 @@ use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PdfBrandingService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
+use App\Support\ArabicSearch;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
@@ -37,10 +38,11 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->where('name', 'like', '%'.$search.'%')
-                    ->orWhere('description', 'like', '%'.$search.'%');
+                    ->where('name', 'like', $pattern)
+                    ->orWhere('description', 'like', $pattern);
             });
         }
 
@@ -78,14 +80,15 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->where('parent_number', 'like', '%'.$search.'%')
-                    ->orWhere('father_name', 'like', '%'.$search.'%')
-                    ->orWhere('mother_name', 'like', '%'.$search.'%')
-                    ->orWhere('father_phone', 'like', '%'.$search.'%')
-                    ->orWhere('mother_phone', 'like', '%'.$search.'%')
-                    ->orWhere('home_phone', 'like', '%'.$search.'%');
+                    ->where('parent_number', 'like', $pattern)
+                    ->orWhere('father_name', 'like', $pattern)
+                    ->orWhere('mother_name', 'like', $pattern)
+                    ->orWhere('father_phone', 'like', $pattern)
+                    ->orWhere('mother_phone', 'like', $pattern)
+                    ->orWhere('home_phone', 'like', $pattern);
             });
         }
 
@@ -117,15 +120,13 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->where('first_name', 'like', '%'.$search.'%')
-                    ->orWhere('last_name', 'like', '%'.$search.'%')
-                    ->orWhere('student_number', 'like', '%'.$search.'%')
-                    ->orWhere('school_name', 'like', '%'.$search.'%')
+                    ->whereMatchesSearchToken($token, app(CurrentModuleAccess::class)->enabled('parents'))
+                    ->orWhere('school_name', 'like', $pattern)
                     ->when(app(CurrentModuleAccess::class)->enabled('parents'), fn ($query) => $query->orWhereHas('parentProfile', fn ($parentQuery) => $parentQuery
-                        ->where('father_name', 'like', '%'.$search.'%')
-                        ->orWhere('mother_name', 'like', '%'.$search.'%')));
+                        ->where('mother_name', 'like', $pattern)));
             });
         }
 
@@ -159,13 +160,14 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->where('first_name', 'like', '%'.$search.'%')
-                    ->orWhere('last_name', 'like', '%'.$search.'%')
-                    ->orWhere('phone', 'like', '%'.$search.'%')
-                    ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', '%'.$search.'%'))
-                    ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$search.'%'));
+                    ->where('first_name', 'like', $pattern)
+                    ->orWhere('last_name', 'like', $pattern)
+                    ->orWhere('phone', 'like', $pattern)
+                    ->orWhereHas('accessRole', fn ($roleQuery) => $roleQuery->where('name', 'like', $pattern))
+                    ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', $pattern));
             });
         }
 
@@ -202,17 +204,18 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->where('name', 'like', '%'.$search.'%')
-                    ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$search.'%'))
-                    ->orWhereHas('academicYear', fn ($yearQuery) => $yearQuery->where('name', 'like', '%'.$search.'%'))
+                    ->where('name', 'like', $pattern)
+                    ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', $pattern))
+                    ->orWhereHas('academicYear', fn ($yearQuery) => $yearQuery->where('name', 'like', $pattern))
                     ->orWhereHas('teacher', fn ($teacherQuery) => $teacherQuery
-                        ->where('first_name', 'like', '%'.$search.'%')
-                        ->orWhere('last_name', 'like', '%'.$search.'%'))
+                        ->where('first_name', 'like', $pattern)
+                        ->orWhere('last_name', 'like', $pattern))
                     ->orWhereHas('assistantTeacher', fn ($teacherQuery) => $teacherQuery
-                        ->where('first_name', 'like', '%'.$search.'%')
-                        ->orWhere('last_name', 'like', '%'.$search.'%'));
+                        ->where('first_name', 'like', $pattern)
+                        ->orWhere('last_name', 'like', $pattern));
             });
         }
 
@@ -328,14 +331,13 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->whereHas('student', fn ($studentQuery) => $studentQuery
-                        ->where('first_name', 'like', '%'.$search.'%')
-                        ->orWhere('last_name', 'like', '%'.$search.'%'))
+                    ->whereHas('student', fn ($studentQuery) => $studentQuery->whereMatchesSearchToken($token))
                     ->orWhereHas('group', fn ($groupQuery) => $groupQuery
-                        ->where('name', 'like', '%'.$search.'%')
-                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', '%'.$search.'%')));
+                        ->where('name', 'like', $pattern)
+                        ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('name', 'like', $pattern)));
             });
         }
 
@@ -427,12 +429,13 @@ class AdminExportController extends Controller
 
         if (filled($request->string('search')->value())) {
             $search = $request->string('search')->value();
-            $query->where(function ($builder) use ($search) {
+            ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
+                $pattern = '%'.$token.'%';
                 $builder
-                    ->where('name', 'like', '%'.$search.'%')
-                    ->orWhere('username', 'like', '%'.$search.'%')
-                    ->orWhere('email', 'like', '%'.$search.'%')
-                    ->orWhere('phone', 'like', '%'.$search.'%');
+                    ->where('name', 'like', $pattern)
+                    ->orWhere('username', 'like', $pattern)
+                    ->orWhere('email', 'like', $pattern)
+                    ->orWhere('phone', 'like', $pattern);
             });
         }
 

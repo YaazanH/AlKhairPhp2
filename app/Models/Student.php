@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\StudentNumberService;
+use App\Support\ArabicSearch;
 use App\Support\AvatarDefaults;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -75,6 +77,43 @@ class Student extends Model
         }
 
         return trim($this->first_name.' '.$this->last_name);
+    }
+
+    public function scopeWhereMatchesSearchToken(Builder $query, string $token, bool $includeParent = true): Builder
+    {
+        $driver = $query->getConnection()->getDriverName();
+        $normalizedPattern = '%'.ArabicSearch::normalize($token).'%';
+        $rawPattern = '%'.trim($token).'%';
+        $normalizedFirstName = ArabicSearch::normalizedSqlExpression("coalesce({$query->qualifyColumn('first_name')}, '')", $driver);
+        $normalizedLastName = ArabicSearch::normalizedSqlExpression("coalesce({$query->qualifyColumn('last_name')}, '')", $driver);
+        $normalizedFullName = ArabicSearch::normalizedSqlExpression(ArabicSearch::concatWithSpaces([
+            $query->qualifyColumn('first_name'),
+            $query->qualifyColumn('last_name'),
+        ], $driver), $driver);
+
+        return $query->where(function (Builder $builder) use (
+            $driver,
+            $normalizedFirstName,
+            $normalizedFullName,
+            $normalizedLastName,
+            $normalizedPattern,
+            $rawPattern,
+            $includeParent
+        ): void {
+            $builder
+                ->whereRaw($normalizedFirstName.' like ?', [$normalizedPattern])
+                ->orWhereRaw($normalizedLastName.' like ?', [$normalizedPattern])
+                ->orWhereRaw($normalizedFullName.' like ?', [$normalizedPattern])
+                ->orWhere($builder->qualifyColumn('student_number'), 'like', $rawPattern)
+                ->when($includeParent, fn (Builder $builder) => $builder->orWhereHas('parentProfile', function (Builder $parentQuery) use ($driver, $normalizedPattern): void {
+                    $normalizedFatherName = ArabicSearch::normalizedSqlExpression(
+                        "coalesce({$parentQuery->qualifyColumn('father_name')}, '')",
+                        $driver,
+                    );
+
+                    $parentQuery->whereRaw($normalizedFatherName.' like ?', [$normalizedPattern]);
+                }));
+        });
     }
 
     public function photoUrl(): ?string

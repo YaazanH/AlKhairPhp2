@@ -3,6 +3,7 @@
 use App\Models\Course;
 use App\Models\Curriculum;
 use App\Models\CurriculumLesson;
+use App\Models\CurriculumLessonTopic;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\GroupCurriculumLessonProgress;
@@ -16,27 +17,48 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public string $courseId = '';
+
     public string $selectedGroupId = '';
+
     public ?int $detailsGroupId = null;
+
     public bool $showCurriculumModal = false;
+
     public ?int $editingCurriculumId = null;
+
     public string $curriculumName = '';
+
     public string $curriculumGradeId = '';
+
     public bool $showProgressModal = false;
+
     public ?int $progressLessonId = null;
+
     public string $progressDate = '';
+
     public string $progressStatus = 'taught';
+
     public bool $showCustomModal = false;
+
     public ?int $editingCustomId = null;
+
     public string $customSubjectName = '';
+
     public string $customLessonName = '';
+
     public int $customImportance = 1;
+
     public string $customDate = '';
+
     public string $customStatus = 'taught';
+
     public bool $showBooksModal = false;
+
     public array $showTaughtLessons = [];
+
     public array $expandedTopicLessons = [];
 
     public function mount(): void
@@ -71,10 +93,16 @@ new class extends Component {
             $selectedGroup = $this->detailsGroupId ? $groups->firstWhere('id', $this->detailsGroupId) : null;
         } else {
             $availableGroups = $groupsQuery->with('course')->orderBy('name')->get();
-            if ($this->selectedGroupId === '' && $availableGroups->isNotEmpty()) $this->selectedGroupId = (string) $availableGroups->first()->id;
+            if ($this->selectedGroupId === '' && $availableGroups->isNotEmpty()) {
+                $this->selectedGroupId = (string) $availableGroups->first()->id;
+            }
             $selectedGroup = $availableGroups->firstWhere('id', (int) $this->selectedGroupId);
-            if ($selectedGroup) $selectedGroup->load(['curriculum.standaloneResources', 'curriculum.subjects.definition', 'curriculum.subjects.resources', 'curriculum.subjects.lessons.resource', 'curriculum.subjects.lessons.topics', 'curriculumProgresses.teacher', 'curriculumTopicProgresses.teacher', 'customCurriculumLessons.teacher']);
-            $groups = $availableGroups; $groupProgress = collect(); $curricula = collect();
+            if ($selectedGroup) {
+                $selectedGroup->load(['curriculum.standaloneResources', 'curriculum.subjects.definition', 'curriculum.subjects.resources', 'curriculum.subjects.lessons.resource', 'curriculum.subjects.lessons.topics', 'curriculumProgresses.teacher', 'curriculumTopicProgresses.teacher', 'customCurriculumLessons.teacher']);
+            }
+            $groups = $availableGroups;
+            $groupProgress = collect();
+            $curricula = collect();
         }
 
         $selectedSummary = $selectedGroup ? $progressService->summary($selectedGroup) : ['total' => 0, 'completed' => 0, 'percentage' => 0];
@@ -111,9 +139,11 @@ new class extends Component {
     {
         abort_unless(app(CurriculumAccessService::class)->canManage(Auth::user()), 403);
         $curriculum = $id ? Curriculum::query()->findOrFail($id) : null;
-        $this->editingCurriculumId = $id; $this->curriculumName = $curriculum?->name ?? '';
+        $this->editingCurriculumId = $id;
+        $this->curriculumName = $curriculum?->name ?? '';
         $this->curriculumGradeId = (string) ($curriculum?->grade_level_id ?? '');
-        $this->resetValidation(); $this->showCurriculumModal = true;
+        $this->resetValidation();
+        $this->showCurriculumModal = true;
     }
 
     public function saveCurriculum()
@@ -126,7 +156,9 @@ new class extends Component {
         $curriculum = Curriculum::query()->updateOrCreate(['id' => $this->editingCurriculumId], ['course_id' => null, 'grade_level_id' => $data['curriculumGradeId'] ?: null, 'name' => $data['curriculumName'], 'is_active' => true]);
         $wasNew = ! $this->editingCurriculumId;
         $this->showCurriculumModal = false;
-        if ($wasNew) return $this->redirectRoute('curricula.show', $curriculum, navigate: true);
+        if ($wasNew) {
+            return $this->redirectRoute('curricula.show', $curriculum, navigate: true);
+        }
         session()->flash('status', __('curricula.messages.curriculum_saved'));
     }
 
@@ -134,7 +166,11 @@ new class extends Component {
     {
         abort_unless(app(CurriculumAccessService::class)->canManage(Auth::user()), 403);
         $curriculum = Curriculum::query()->withCount('groups')->findOrFail($id);
-        if ($curriculum->groups_count) { $this->addError('delete', __('curricula.errors.curriculum_used')); return; }
+        if ($curriculum->groups_count) {
+            $this->addError('delete', __('curricula.errors.curriculum_used'));
+
+            return;
+        }
         $curriculum->delete();
     }
 
@@ -149,7 +185,9 @@ new class extends Component {
         $group = $this->teacherGroup();
         $lesson = CurriculumLesson::query()->whereHas('subject', fn ($query) => $query->where('curriculum_id', $group->curriculum_id))->findOrFail($lessonId);
         $record = GroupCurriculumLessonProgress::query()->where('group_id', $group->id)->where('curriculum_lesson_id', $lesson->id)->first();
-        $this->progressLessonId = $lesson->id; $this->progressDate = $record?->taught_on?->toDateString() ?? now()->toDateString(); $this->progressStatus = $record?->status ?? 'taught';
+        $this->progressLessonId = $lesson->id;
+        $this->progressDate = $record?->taught_on?->toDateString() ?? now()->toDateString();
+        $this->progressStatus = $record?->status ?? 'taught';
         $this->showProgressModal = true;
     }
 
@@ -159,7 +197,8 @@ new class extends Component {
         $data = $this->validate(['progressLessonId' => ['required', 'exists:curriculum_lessons,id'], 'progressDate' => ['required', 'date'], 'progressStatus' => ['required', Rule::in(['partial', 'taught'])]]);
         CurriculumLesson::query()->whereKey($data['progressLessonId'])->whereHas('subject', fn ($query) => $query->where('curriculum_id', $group->curriculum_id))->firstOrFail();
         GroupCurriculumLessonProgress::query()->updateOrCreate(['group_id' => $group->id, 'curriculum_lesson_id' => $data['progressLessonId']], ['teacher_id' => $this->teachingTeacherId($group), 'status' => $data['progressStatus'], 'taught_on' => $data['progressDate']]);
-        $this->showProgressModal = false; session()->flash('status', __('curricula.messages.progress_saved'));
+        $this->showProgressModal = false;
+        session()->flash('status', __('curricula.messages.progress_saved'));
     }
 
     public function toggleLesson(int $lessonId): void
@@ -187,7 +226,7 @@ new class extends Component {
     public function toggleTopic(int $topicId): void
     {
         $group = $this->teacherGroup();
-        $topic = \App\Models\CurriculumLessonTopic::query()
+        $topic = CurriculumLessonTopic::query()
             ->with('lesson.topics')
             ->whereHas('lesson.subject', fn ($query) => $query->where('curriculum_id', $group->curriculum_id))
             ->findOrFail($topicId);
@@ -299,9 +338,12 @@ new class extends Component {
         $group = $this->teacherGroup();
         $lesson = $id ? GroupCustomCurriculumLesson::query()->where('group_id', $group->id)->findOrFail($id) : null;
         $this->editingCustomId = $id;
-        $this->customSubjectName = $lesson?->subject_name ?? ''; $this->customLessonName = $lesson?->name ?? '';
+        $this->customSubjectName = $lesson?->subject_name ?? '';
+        $this->customLessonName = $lesson?->name ?? '';
         $this->customImportance = $lesson?->importance ?? 1;
-        $this->customDate = $lesson?->taught_on?->toDateString() ?? now()->toDateString(); $this->customStatus = $lesson?->status ?? 'taught'; $this->showCustomModal = true;
+        $this->customDate = $lesson?->taught_on?->toDateString() ?? now()->toDateString();
+        $this->customStatus = $lesson?->status ?? 'taught';
+        $this->showCustomModal = true;
     }
 
     public function saveCustom(): void
@@ -313,7 +355,8 @@ new class extends Component {
             'customDate' => ['required', 'date'],
         ]);
         GroupCustomCurriculumLesson::query()->updateOrCreate(['id' => $this->editingCustomId, 'group_id' => $group->id], ['teacher_id' => $this->teachingTeacherId($group), 'subject_name' => $data['customSubjectName'], 'name' => $data['customLessonName'], 'importance' => $data['customImportance'], 'taught_on' => $data['customDate'], 'status' => 'taught']);
-        $this->showCustomModal = false; session()->flash('status', __('curricula.messages.custom_saved'));
+        $this->showCustomModal = false;
+        session()->flash('status', __('curricula.messages.custom_saved'));
     }
 
     protected function teacherGroup(): Group
@@ -334,6 +377,7 @@ new class extends Component {
     {
         $standard = GroupCurriculumLessonProgress::query()->where('group_id', $group->id)->with(['lesson', 'teacher'])->get()->map(fn ($row) => ['name' => $row->lesson?->name, 'date' => $row->taught_on, 'teacher' => $row->teacher]);
         $custom = GroupCustomCurriculumLesson::query()->where('group_id', $group->id)->with('teacher')->get()->map(fn ($row) => ['name' => $row->name, 'date' => $row->taught_on, 'teacher' => $row->teacher]);
+
         return $standard->concat($custom)->sortByDesc(fn ($row) => $row['date']?->format('Y-m-d'))->take(5)->values();
     }
 }; ?>
@@ -501,7 +545,44 @@ new class extends Component {
             </div>
         </form>
     </x-admin.modal>
-    <x-admin.modal :show="$detailsGroupId !== null" :title="__('curricula.progress.group_details', ['group' => $selectedGroup?->name])" close-method="$set('detailsGroupId', null)" max-width="6xl"><div class="space-y-3">@foreach($subjectRows as $subject)<details class="rounded-2xl border border-white/10 p-4"><summary class="flex cursor-pointer justify-between"><span class="font-semibold text-white">{{ $subject['name'] }}</span><span>{{ number_format($subject['percentage'], 0) }}%</span></summary><table class="mt-3 w-full text-sm"><thead><tr><th class="p-2">{{ __('curricula.fields.lesson') }}</th><th class="p-2">{{ __('curricula.fields.status') }}</th><th class="p-2">{{ __('curricula.fields.date') }}</th></tr></thead><tbody>@foreach($subject['lessons'] as $lesson)<tr><td class="p-2 text-white">{{ $lesson['name'] }}</td><td class="p-2">{{ __('curricula.status.'.$lesson['status']) }}</td><td class="p-2" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td></tr>@endforeach</tbody></table></details>@endforeach</div></x-admin.modal>
+    <x-admin.modal :show="$detailsGroupId !== null" :title="__('curricula.progress.group_details', ['group' => $selectedGroup?->name])" close-method="$set('detailsGroupId', null)" max-width="6xl">
+        <div class="space-y-3" data-curriculum-group-details-tables>
+            @foreach($subjectRows as $subject)
+                <details class="surface-table" data-curriculum-group-details-table>
+                    <summary class="admin-grid-meta cursor-pointer list-none select-none" data-curriculum-group-details-toggle>
+                        <div class="min-w-0" data-curriculum-group-details-heading>
+                            <div class="admin-grid-meta__title">{{ $subject['name'] }}</div>
+                            <div class="admin-grid-meta__summary" dir="ltr">{{ number_format($subject['percentage'], 0) }}%</div>
+                        </div>
+                        <span class="admin-icon-button shrink-0" aria-hidden="true" data-curriculum-group-details-collapse>
+                            <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" data-curriculum-group-details-chevron><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 6 6 6-6" /></svg>
+                        </span>
+                    </summary>
+
+                    <div class="overflow-x-auto" data-table-scroll-region>
+                        <table class="table-content text-sm">
+                            <thead>
+                                <tr>
+                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.lesson') }}</th>
+                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.status') }}</th>
+                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.date') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-white/6">
+                                @foreach($subject['lessons'] as $lesson)
+                                    <tr>
+                                        <td class="px-5 py-3 font-semibold text-white">{{ $lesson['name'] }}</td>
+                                        <td class="px-5 py-3">{{ __('curricula.status.'.$lesson['status']) }}</td>
+                                        <td class="px-5 py-3" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            @endforeach
+        </div>
+    </x-admin.modal>
     <x-admin.modal :show="$showCustomModal" :title="__('curricula.form.custom_title')" close-method="$set('showCustomModal', false)" max-width="3xl">
         <form wire:submit="saveCustom" class="grid gap-4 md:grid-cols-2">
             <label class="block text-sm">{{ __('curricula.fields.subject') }}<input wire:model="customSubjectName" class="mt-1 w-full rounded-xl px-4 py-3"></label>

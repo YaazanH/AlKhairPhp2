@@ -398,6 +398,9 @@ new class extends Component
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->latest('recorded_on')->latest('id')->get()
             : collect();
+        $latestMemorizationSession = $memorizationSessions->first();
+        $lastRecitedPage = $latestMemorizationSession?->pages->last()?->page_no
+            ?? $latestMemorizationSession?->to_page;
         $memorizationRows = $memorizationSessions
             ->flatMap(function (MemorizationSession $session) {
                 $pages = $session->pages->pluck('page_no')->map(fn ($page) => (int) $page)->filter()->values();
@@ -414,7 +417,7 @@ new class extends Component
             })
             ->values();
 
-        $assessmentResults = $this->canViewProgressSection('assessment-results.view')
+        $allAssessmentResults = $this->canViewProgressSection('assessment-results.view')
             ? $this->scopeProgressDataQuery(
                 'scopeAssessmentResultsQuery',
                 AssessmentResult::query()
@@ -423,7 +426,7 @@ new class extends Component
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->latest('id')->get()
             : collect();
-        $finalAssessmentResults = $assessmentResults
+        $finalAssessmentResults = $allAssessmentResults
             ->filter(function (AssessmentResult $result): bool {
                 $assessment = $result->assessment;
                 $code = Str::lower((string) $assessment?->type?->code);
@@ -433,8 +436,9 @@ new class extends Component
                     || Str::contains($name, ['final exam', 'final assessment', 'نهائي']);
             })
             ->values();
-        $nonFinalAssessmentResults = $assessmentResults
+        $nonFinalAssessmentResults = $allAssessmentResults
             ->reject(fn (AssessmentResult $result): bool => $finalAssessmentResults->contains('id', $result->id))
+            ->filter(fn (AssessmentResult $result): bool => in_array((int) $result->enrollment_id, $highlightEnrollmentIds, true))
             ->values();
 
         $awqafTests = $this->canViewProgressSection('quran-awqaf-tests.view') || $this->canViewProgressSection('quran-tests.view')
@@ -496,27 +500,6 @@ new class extends Component
                     ->whereIn('enrollment_id', $highlightEnrollmentIds)
             )->distinct('group_attendance_day_id')->count('group_attendance_day_id')
             : 0;
-
-        $timelineAttendance = $this->canViewProgressSection('attendance.student.view')
-            ? $this->scopeProgressDataQuery(
-                'scopeStudentAttendanceRecordsQuery',
-                StudentAttendanceRecord::query()->with(['status', 'attendanceDay'])
-                    ->whereIn('enrollment_id', $enrollmentIds)
-            )->get()
-            : collect();
-        $timelinePoints = $this->canViewProgressSection('points.view')
-            ? $this->scopeProgressDataQuery(
-                'scopePointTransactionsQuery',
-                PointTransaction::query()->notVoided()
-                    ->where('student_id', $studentRecord->id)->whereIn('enrollment_id', $enrollmentIds)
-            )->get()
-            : null;
-        $timeline = app(\App\Services\StudentTimelineService::class)->build(
-            $visibleEnrollments,
-            $this->canViewProgressSection('memorization.view') ? $memorizationSessions : null,
-            $this->canViewProgressSection('attendance.student.view') ? $timelineAttendance : null,
-            $finalTests, $awqafTests, $finalAssessmentResults, $timelinePoints,
-        );
 
         $pageSet = $generalPages->flip();
         $externalJuzIds = $studentRecord->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -638,13 +621,12 @@ new class extends Component
 
         return [
             'studentOptions' => $studentOptions,
-            'timeline' => $timeline,
-            'timelineDefaultIndex' => app(\App\Services\StudentTimelineService::class)->defaultIndex($timeline, $defaultCourseId ? (int) $defaultCourseId : null),
             'studentRecord' => $studentRecord,
             'activeEnrollment' => $activeEnrollment,
             'enrollments' => $visibleEnrollments,
             'enrollmentTotalPoints' => $enrollmentTotalPoints,
             'memorizationRows' => $memorizationRows,
+            'lastRecitedPage' => $lastRecitedPage,
             'assessmentResults' => $nonFinalAssessmentResults,
             'finalAssessmentResults' => $finalAssessmentResults,
             'awqafTests' => $awqafTests,
@@ -729,7 +711,8 @@ new class extends Component
 
 @php
     $statusClass = fn (string $status) => match ($status) {
-        'passed', 'finished', 'active', 'completed' => 'status-chip--emerald',
+        'passed', 'active' => 'status-chip--emerald',
+        'finished', 'completed' => 'status-chip--blue',
         'failed', 'missing', 'withdrawn', 'cancelled' => 'status-chip--rose',
         'awaiting', 'in_progress', 'pending' => 'status-chip--amber',
         default => 'status-chip--slate',
@@ -787,7 +770,10 @@ new class extends Component
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.phone') }}</div><div class="mt-2 text-sm font-semibold text-white"><bdi dir="ltr" class="record-phone">{{ $studentRecord->user?->phone ?: __('crud.common.not_available') }}</bdi></div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.school') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->school_name ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.group') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $activeEnrollment?->group?->name ?: __('crud.common.not_available') }}</div></div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.current_juz') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->quranCurrentJuz ? __('workflow.common.labels.juz_number', ['number' => $studentRecord->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</div></div>
+                    <div class="grid grid-cols-2 overflow-hidden rounded-2xl border border-white/8 bg-white/4">
+                        <div class="min-w-0 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.current_juz') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->quranCurrentJuz ? __('workflow.common.labels.juz_number', ['number' => $studentRecord->quranCurrentJuz->juz_number]) : __('crud.common.not_available') }}</div></div>
+                        <div class="student-progress-profile__last-recitation min-w-0 p-3"><div class="kpi-label truncate" title="{{ __('workflow.student_progress.profile.last_recitation') }}">{{ __('workflow.student_progress.profile.last_recitation') }}</div><div class="mt-2 text-sm font-semibold text-white" data-student-progress-last-recitation>{{ $lastRecitedPage ?? __('crud.common.not_available') }}</div></div>
+                    </div>
                 </div>
             </div>
             @error('progressPhotoUpload')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
@@ -935,32 +921,35 @@ new class extends Component
             <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
             @error('awqaf')<div class="flash-error mx-5 mb-4 px-4 py-3 text-sm">{{ $message }}</div>@enderror
             @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
-                <div class="table-scroll-region overflow-x-auto" data-table-scroll-region><table class="w-full text-sm" data-student-progress-juz-table><thead><tr>
+                <div class="table-scroll-region overflow-x-auto" data-table-scroll-region><table class="table-content text-sm" data-student-progress-juz-table><thead><tr>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
                     @if ($quranProgressionSettings['partial_test_enabled'])<th class="px-5 py-4 text-left" data-progression-stage-column="partial">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>@endif
                     @if ($quranProgressionSettings['final_test_enabled'])<th class="px-5 py-4 text-left" data-progression-stage-column="final">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>@endif
-                    <th class="px-5 py-4 text-center" data-juz-progress-status-heading>{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
-                    <th class="admin-actions-column px-5 py-4 text-center" data-juz-progress-actions-heading>{{ __('workflow.student_progress.juz_progress.headers.actions') }}</th>
+                    <th class="px-5 py-4 text-left" data-juz-progress-status-heading>{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
                 </tr></thead><tbody class="divide-y divide-white/6">
                     @foreach ($quranJuzProgress as $row)<tr>
                         <td class="px-5 py-4 text-white">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
                         <td class="px-5 py-4">{{ $row->memorized_externally ? '' : number_format($row->memorized_pages) }}</td>
                         @if ($quranProgressionSettings['partial_test_enabled'])<td class="px-5 py-4">@if (! $row->memorized_externally && $row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>@endif
                         @if ($quranProgressionSettings['final_test_enabled'])<td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ \App\Support\DateDisplay::text(trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? ''))) }}" @endif>{{ ! $row->memorized_externally && $row->latest_final_score !== null ? \App\Support\PercentageFormatter::format($row->latest_final_score) : '' }}</td>@endif
-                        <td class="px-5 py-4 text-center" data-juz-progress-status-cell><span class="status-chip {{ $row->memorized_externally ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status) }}" data-juz-progress-status>{{ $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)) }}</span></td>
-                        <td class="px-5 py-4 text-center" data-juz-progress-actions-cell>
-                            @php($showMissingPagesAction = ! $row->memorized_externally && $row->next_stage === 'memorization' && $row->missing_pages->isNotEmpty())
-                            @php($showAwqafAction = $quranProgressionSettings['awqaf_test_enabled'] && $row->enrollment && app(AccessScopeService::class)->canAccessEnrollment(auth()->user(), $row->enrollment) && $row->next_stage === 'awqaf' && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
-                            @if ($row->awqaf_passed)
-                                <span class="text-sm text-emerald-300">تم سبره بالأوقاف{{ \App\Support\DateDisplay::html($row->awqaf_passed_on ? ' · '.$row->awqaf_passed_on->format('d-m-Y') : '') }}</span>
-                            @elseif ($showMissingPagesAction || $showAwqafAction)
-                                <div class="flex flex-wrap justify-center gap-2">
-                                    @if ($showMissingPagesAction)<button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="pill-link pill-link--compact" data-juz-progress-action>{{ __('workflow.student_progress.juz_progress.show_missing') }}</button>@endif
-                                    @if ($showAwqafAction)<button type="button" wire:click="openAwqafTest({{ $row->juz->id }})" class="pill-link pill-link--compact" data-juz-progress-action>{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}</button>@endif
-                                </div>
+                        @php($showMissingPagesAction = ! $row->memorized_externally && $row->next_stage === 'memorization' && $row->missing_pages->isNotEmpty())
+                        @php($showAwqafAction = $quranProgressionSettings['awqaf_test_enabled'] && $row->enrollment && app(AccessScopeService::class)->canAccessEnrollment(auth()->user(), $row->enrollment) && $row->next_stage === 'awqaf' && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
+                        @php($juzStatusClass = $row->memorized_externally ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status))
+                        @php($juzStatusLabel = $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)))
+                        <td class="px-5 py-4" data-juz-progress-status-cell>
+                            @if ($showMissingPagesAction)
+                                <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="status-chip student-juz-status-action {{ $juzStatusClass }}" data-juz-progress-status title="{{ __('workflow.student_progress.juz_progress.show_missing') }}">{{ $juzStatusLabel }}</button>
+                            @elseif ($showAwqafAction)
+                                <button type="button" wire:click="openAwqafTest({{ $row->juz->id }})" class="status-chip student-juz-status-action student-juz-status-action--awqaf {{ $juzStatusClass }}" data-juz-progress-status title="{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}" aria-label="{{ $juzStatusLabel }} — {{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}">
+                                    <x-admin-action-icon name="add" class="student-juz-status-action__plus" />
+                                    {{ $juzStatusLabel }}
+                                </button>
                             @else
-                                <span class="block w-full text-center text-neutral-600" data-juz-progress-empty-action>-</span>
+                                <span class="status-chip {{ $juzStatusClass }}" data-juz-progress-status>{{ $juzStatusLabel }}</span>
+                            @endif
+                            @if ($row->awqaf_passed)
+                                <span class="mt-2 block text-sm text-emerald-300">تم سبره بالأوقاف{{ \App\Support\DateDisplay::html($row->awqaf_passed_on ? ' · '.$row->awqaf_passed_on->format('d-m-Y') : '') }}</span>
                             @endif
                         </td>
                     </tr>@endforeach
@@ -972,13 +961,13 @@ new class extends Component
         <section class="grid gap-6 xl:grid-cols-2">
             @if($this->canViewProgressSection('memorization.view'))
                 <x-student-progress-table :title="__('workflow.student_progress.memorization.latest_title')" :empty="$memorizationRows->isEmpty()" :empty-text="__('workflow.student_progress.memorization.empty')" view-all-action="memorization">
-                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></x-slot:head>
+                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></x-slot:head>
                     @foreach ($memorizationRows->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->date?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->page }}</td><td class="px-4 py-3">{{ $row->teacher ?: __('crud.common.not_available') }}</td></tr>@endforeach
                 </x-student-progress-table>
             @endif
             @if($this->canViewProgressSection('points.view'))
                 <x-student-progress-table :title="__('workflow.student_progress.points.latest_title')" :empty="$pointTransactions->isEmpty()" :empty-text="__('workflow.student_progress.points.empty')" view-all-action="points">
-                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></x-slot:head>
+                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></x-slot:head>
                     @foreach ($pointTransactions->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: __('crud.common.not_available') }}</td></tr>@endforeach
                 </x-student-progress-table>
             @endif
@@ -987,47 +976,47 @@ new class extends Component
         <section class="grid gap-6 xl:grid-cols-2">
             @if($this->canViewProgressSection('assessment-results.view'))
                 <x-student-progress-table :title="__('workflow.student_progress.assessments.title')" :empty="$assessmentResults->isEmpty()" :empty-text="__('workflow.student_progress.assessments.empty')" view-all-action="assessments">
-                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></x-slot:head>
+                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></x-slot:head>
                     @foreach ($assessmentResults->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3">{{ $row->assessment?->title ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
                 </x-student-progress-table>
             @endif
             @if($this->canViewProgressSection('assessment-results.view'))
                 <x-student-progress-table :title="__('workflow.student_progress.final_assessments.title')" :empty="$finalAssessmentResults->isEmpty()" :empty-text="__('workflow.student_progress.final_assessments.empty')" view-all-action="final-assessments">
-                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="w-1/2 px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></x-slot:head>
+                    <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></x-slot:head>
                     @foreach ($finalAssessmentResults->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3 font-medium">{{ $row->assessment?->title ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ $row->score !== null ? number_format((float) $row->score, 2) : '' }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('workflow.common.result_status.'.$row->status) }}</span></td></tr>@endforeach
                 </x-student-progress-table>
             @endif
         </section>
 
         <section class="grid gap-6 xl:grid-cols-2">
-            <x-student-progress-table :title="__('workflow.student_progress.enrollments.title')" :empty="$enrollments->isEmpty()" :empty-text="__('workflow.student_progress.enrollments.empty')" view-all-action="enrollments">
-                <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th>@if($this->canViewProgressSection('points.view'))<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.total_points') }}</th>@endif<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></x-slot:head>
-                @foreach ($enrollments->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3"><span class="record-course-name">{{ $row->group?->course?->name ?: __('crud.common.not_available') }}</span></td><td class="px-4 py-3">{{ $row->group?->name ?: __('crud.common.not_available') }}</td><td class="record-person-name px-4 py-3">{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : __('crud.common.not_available') }}</td>@if($this->canViewProgressSection('points.view'))<td class="whitespace-nowrap px-4 py-3" data-enrollment-total-points="{{ $row->id }}">{{ number_format($enrollmentTotalPoints[$row->id]) }}</td>@endif<td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}">{{ __('crud.common.status_options.'.$row->status) }}</span></td></tr>@endforeach
+            @php($enrollmentOverviewRows = $enrollments->reject(fn ($row) => $row->group?->course?->is_active)->take(5))
+            <x-student-progress-table :title="__('workflow.student_progress.enrollments.title')" :empty="$enrollmentOverviewRows->isEmpty()" :empty-text="__('workflow.student_progress.enrollments.empty')" view-all-action="enrollments" data-student-progress-enrollments="overview">
+                <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></x-slot:head>
+                @foreach ($enrollmentOverviewRows as $row)<tr data-student-progress-enrollment-row="{{ $row->id }}"><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3"><span class="record-course-name">{{ $row->group?->course?->name ?: __('crud.common.not_available') }}</span></td><td class="px-4 py-3" data-enrollment-group-name>{{ $row->group?->name ?: __('crud.common.not_available') }}</td><td class="record-person-name px-4 py-3" data-enrollment-teacher-name>{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : __('crud.common.not_available') }}</td><td class="px-4 py-3">@if ($row->status !== 'active')<span class="status-chip {{ $statusClass($row->status) }}">{{ __('crud.common.status_options.'.$row->status) }}</span>@endif</td></tr>@endforeach
             </x-student-progress-table>
             <x-student-progress-table :title="__('workflow.student_progress.notes.title')" :empty="$parentVisibleNotes->isEmpty()" :empty-text="__('workflow.student_progress.notes.empty')" view-all-action="notes">
-                <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></x-slot:head>
+                <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></x-slot:head>
                 @foreach ($parentVisibleNotes->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->noted_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->source }}</td><td class="px-4 py-3">{{ $row->body }}</td></tr>@endforeach
             </x-student-progress-table>
         </section>
 
-        @include('livewire.students.partials.timeline')
 
         <x-admin.modal :show="$openDetails !== ''" :title="$openDetails === 'parent' ? __('workflow.student_progress.parent_details.title') : __('workflow.student_progress.actions.view_all')" close-method="closeDetails" max-width="fit" compact>
             @if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents') && $openDetails === 'parent' && $studentRecord->parentProfile)
                 @php($parent = $studentRecord->parentProfile)
                 <div class="space-y-4"><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-3"><div><div class="kpi-label">{{ __('workflow.student_progress.profile.father_name') }}</div><div class="record-person-name mt-1 text-white">{{ $parent->father_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_work') }}</div><div class="mt-1 text-white">{{ $parent->father_work ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr" class="record-phone">{{ $parent->father_phone ?: '-' }}</bdi></div></div></div><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_name') }}</div><div class="record-person-name mt-1 text-white">{{ $parent->mother_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr" class="record-phone">{{ $parent->mother_phone ?: '-' }}</bdi></div></div></div><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.address') }}</div><div class="mt-1 text-white">{{ $parent->address ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.home_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr" class="record-phone">{{ $parent->home_phone ?: '-' }}</bdi></div></div></div></div>
             @elseif ($openDetails === 'memorization')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->date?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->page }}</td><td class="px-4 py-3">{{ $row->teacher ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->date?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->page }}</td><td class="px-4 py-3">{{ $row->teacher ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'points')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: '-' }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: '-' }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'assessments')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ $row->assessment?->title ?: '-' }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table data-student-progress-assessments><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ $row->assessment?->title ?: '-' }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'final-assessments')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="text-sm"><thead><tr><th data-table-number-column class="w-12 px-3 py-2 text-left" data-student-progress-number-column>#</th><th class="w-[65%] px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="w-28 min-w-28 px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="w-28 min-w-28 px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-3 py-2" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-3 py-2 font-medium">{{ $row->assessment?->title ?: '-' }}</td><td class="px-3 py-2">{{ $row->score !== null ? number_format((float) $row->score, 2) : '-' }}</td><td class="px-3 py-2">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table data-student-progress-assessments><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-3 py-2 text-center" data-student-progress-number-column>#</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-3 py-2" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-3 py-2 font-medium">{{ $row->assessment?->title ?: '-' }}</td><td class="px-3 py-2">{{ $row->score !== null ? number_format((float) $row->score, 2) : '-' }}</td><td class="px-3 py-2">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'enrollments')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th>@if($this->canViewProgressSection('points.view'))<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.total_points') }}</th>@endif<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3"><span class="record-course-name">{{ $row->group?->course?->name ?: '-' }}</span></td><td class="px-4 py-3">{{ $row->group?->name ?: '-' }}</td><td class="record-person-name px-4 py-3">{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : '-' }}</td>@if($this->canViewProgressSection('points.view'))<td class="whitespace-nowrap px-4 py-3" data-enrollment-total-points="{{ $row->id }}">{{ number_format($enrollmentTotalPoints[$row->id]) }}</td>@endif<td class="px-4 py-3">{{ __('crud.common.status_options.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table data-student-progress-enrollments><div class="overflow-x-auto" data-table-scroll-region><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th>@if($this->canViewProgressSection('points.view'))<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.total_points') }}</th>@endif<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr data-student-progress-enrollment-row="{{ $row->id }}"><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3"><span class="record-course-name">{{ $row->group?->course?->name ?: '-' }}</span></td><td class="px-4 py-3" data-enrollment-group-name>{{ $row->group?->name ?: '-' }}</td><td class="record-person-name px-4 py-3" data-enrollment-teacher-name>{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : '-' }}</td>@if($this->canViewProgressSection('points.view'))<td class="whitespace-nowrap px-4 py-3" data-enrollment-total-points="{{ $row->id }}">{{ number_format($enrollmentTotalPoints[$row->id]) }}</td>@endif<td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}" data-enrollment-status="{{ $row->status }}">{{ __('crud.common.status_options.'.$row->status) }}</span></td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'notes')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-left" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->noted_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->source }}</td><td class="px-4 py-3">{{ $row->body }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->noted_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->source }}</td><td class="px-4 py-3">{{ $row->body }}</td></tr>@endforeach</tbody></table></div></div>
             @endif
             @if ($openDetails !== 'parent' && $paginatedDetails->hasPages())<div class="mt-4">{{ $paginatedDetails->links() }}</div>@endif
         </x-admin.modal>
@@ -1035,22 +1024,11 @@ new class extends Component
         <x-admin.modal :show="$selectedMissingJuz !== null" :title="$selectedMissingJuz ? __('workflow.student_progress.juz_progress.missing_title', ['juz' => $selectedMissingJuz->juz->juz_number]) : ''" :description="__('workflow.student_progress.juz_progress.missing_subtitle')" close-method="closeMissingPages" max-width="2xl">
             @if ($selectedMissingJuz)
                 <div class="student-progress-missing-pages" data-student-progress-missing-pages>
-                    <div class="overflow-x-auto">
-                        <table class="student-progress-missing-pages__table" dir="rtl">
-                            <tbody>
-                                @foreach ($selectedMissingJuz->missing_pages->values()->chunk(5) as $missingPageRow)
-                                    <tr>
-                                        @foreach ($missingPageRow as $missingPage)
-                                            <td>{{ number_format((int) $missingPage) }}</td>
-                                        @endforeach
-                                        @for ($emptyCell = $missingPageRow->count(); $emptyCell < 5; $emptyCell++)
-                                            <td class="student-progress-missing-pages__empty" aria-hidden="true"></td>
-                                        @endfor
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+                    <ol class="student-progress-missing-pages__grid" dir="rtl" role="list">
+                        @foreach ($selectedMissingJuz->missing_pages->values() as $missingPage)
+                            <li><bdi>{{ number_format((int) $missingPage) }}</bdi></li>
+                        @endforeach
+                    </ol>
                 </div>
             @endif
         </x-admin.modal>

@@ -217,9 +217,7 @@ class StudentAttendanceDayService
 
     public function recordEnrollmentStatus(StudentAttendanceDay $day, Enrollment $enrollment, AttendanceStatus $status, ?string $notes = null): StudentAttendanceRecord
     {
-        if ($day->fresh()->status === 'closed') {
-            throw new InvalidArgumentException(__('workflow.student_attendance.messages.closed_day_locked'));
-        }
+        $this->assertAttendanceDayOpen($day->fresh());
 
         $groupDay = GroupAttendanceDay::query()
             ->where('student_attendance_day_id', $day->id)
@@ -239,6 +237,8 @@ class StudentAttendanceDayService
                 [
                     'attendance_status_id' => $status->id,
                     'notes' => $notes,
+                    'quick_attendance_added_at' => null,
+                    'quick_attendance_previous' => null,
                 ],
             );
 
@@ -256,6 +256,89 @@ class StudentAttendanceDayService
 
             return $record->fresh(['status']);
         });
+    }
+
+    public function recordQuickEnrollmentStatus(StudentAttendanceDay $day, Enrollment $enrollment, AttendanceStatus $status): StudentAttendanceRecord
+    {
+        return DB::transaction(function () use ($day, $enrollment, $status): StudentAttendanceRecord {
+            $day = StudentAttendanceDay::query()->lockForUpdate()->findOrFail($day->id);
+            $this->assertAttendanceDayOpen($day);
+
+            if ($enrollment->status !== 'active' || (int) $enrollment->group->course_id !== (int) $day->course_id) {
+                throw new InvalidArgumentException(__('workflow.student_attendance.messages.enrollment_not_in_day'));
+            }
+
+            if (! $day->groupAttendanceDays()->where('group_id', $enrollment->group_id)->exists()) {
+                $this->createOrSyncDay($day->attendance_date->toDateString(), collect([$enrollment->group]), auth()->user(), $day->notes, $day->status, courseId: $day->course_id);
+            }
+
+            $previous = StudentAttendanceRecord::query()
+                ->whereHas('attendanceDay', fn ($query) => $query->where('student_attendance_day_id', $day->id))
+                ->where('enrollment_id', $enrollment->id)
+                ->lockForUpdate()->first();
+            $snapshot = $previous?->quick_attendance_previous ?? [
+                'exists' => $previous !== null,
+                'attendance_status_id' => $previous?->attendance_status_id,
+                'notes' => $previous?->notes,
+            ];
+            $addedAt = $previous?->quick_attendance_added_at ?? now();
+            $record = $this->recordEnrollmentStatus($day, $enrollment, $status);
+            $record->update([
+                'quick_attendance_added_at' => $addedAt,
+                'quick_attendance_previous' => $snapshot,
+            ]);
+
+            return $record;
+        });
+    }
+
+    public function undoQuickEnrollmentStatus(StudentAttendanceDay $day, Enrollment $enrollment): void
+    {
+        DB::transaction(function () use ($day, $enrollment): void {
+            $day = StudentAttendanceDay::query()->lockForUpdate()->findOrFail($day->id);
+            $this->assertAttendanceDayOpen($day);
+            $record = StudentAttendanceRecord::query()
+                ->whereHas('attendanceDay', fn ($query) => $query->where('student_attendance_day_id', $day->id))
+                ->where('enrollment_id', $enrollment->id)
+                ->whereNotNull('quick_attendance_added_at')
+                ->lockForUpdate()->first();
+
+            if (! $record) {
+                return;
+            }
+
+            $previous = $record->quick_attendance_previous;
+            $status = AttendanceStatus::find($previous['attendance_status_id'] ?? null);
+            if (($previous['exists'] ?? false) && $status) {
+                $this->recordEnrollmentStatus($day, $enrollment, $status, $previous['notes'] ?? null);
+
+                return;
+            }
+
+            $ledger = app(PointLedgerService::class);
+            $ledger->voidSourceTransactions('student_attendance_record', $record->id, __('workflow.student_attendance.messages.void_reason'));
+            if ($previous['exists'] ?? false) {
+                $record->update([
+                    'attendance_status_id' => null,
+                    'notes' => $previous['notes'] ?? null,
+                    'quick_attendance_added_at' => null,
+                    'quick_attendance_previous' => null,
+                ]);
+            } else {
+                $record->delete();
+            }
+            $ledger->syncEnrollmentCaches($enrollment->fresh(['student']));
+        });
+    }
+
+    protected function assertAttendanceDayOpen(StudentAttendanceDay $day): void
+    {
+        if ($day->course_finished_at) {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.archived_day_locked'));
+        }
+        if ($day->status === 'closed') {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.closed_day_locked'));
+        }
     }
 
     public function fillMissingStatuses(StudentAttendanceDay $day, ?int $attendanceStatusId = null, ?User $actor = null): StudentAttendanceDay

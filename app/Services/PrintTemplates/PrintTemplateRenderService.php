@@ -6,6 +6,7 @@ use App\Models\PrintTemplate;
 use App\Services\IdCards\Code39SvgRenderer;
 use App\Services\IdCards\QrCodeSvgRenderer;
 use Illuminate\Support\Carbon;
+use Mpdf\Mpdf;
 
 class PrintTemplateRenderService
 {
@@ -53,6 +54,34 @@ class PrintTemplateRenderService
                 ];
             })
             ->all();
+    }
+
+    public function preparePdfPages(array $pages, Mpdf $mpdf): array
+    {
+        foreach ($pages as &$page) {
+            foreach ($page as &$item) {
+                foreach ($item['elements'] as &$element) {
+                    if (
+                        ! in_array($element['type'] ?? null, ['custom_text', 'dynamic_text', 'date_text', 'page_number'], true)
+                        || ($element['styling']['text_align'] ?? null) !== 'justify'
+                        || ! isset($element['resolved']['value'])
+                    ) {
+                        continue;
+                    }
+
+                    $element['resolved']['value'] = $this->addMeasuredArabicKashidas(
+                        preg_replace('/\x{0640}+/u', '', (string) $element['resolved']['value']) ?? (string) $element['resolved']['value'],
+                        $element,
+                        $mpdf,
+                    );
+                }
+                unset($element);
+            }
+            unset($item);
+        }
+        unset($page);
+
+        return $pages;
     }
 
     protected function renderElement(PrintTemplate $template, array $context, array $element, int $pageNumber): array
@@ -160,7 +189,7 @@ class PrintTemplateRenderService
             preg_match_all('/\s/u', $text, $spaces);
             $visualLength = count($letters[0]) + (count($spaces[0]) * 0.45);
 
-            if ($visualLength < ($lineCapacity * 0.35)) {
+            if ($visualLength >= ($lineCapacity * 0.98)) {
                 return $text;
             }
 
@@ -175,12 +204,11 @@ class PrintTemplateRenderService
                 return $text;
             }
 
-            // Tatweel is narrower than a normal glyph. Close the estimated gap
-            // without putting more than two marks at any joining point.
-            $estimatedGap = $visualLength < $lineCapacity
-                ? $lineCapacity - $visualLength
-                : min(2.2, $lineCapacity * 0.08);
-            $needed = min(count($joins[0]) * 2, 12, max(1, (int) ceil($estimatedGap / 0.55)));
+            // In Dubai, a tatweel is about 0.08em wide while the average Arabic
+            // glyph estimate above is 0.55em. Use that real ratio so the
+            // browser preview visibly fills the selected width too.
+            $estimatedGap = $lineCapacity - $visualLength;
+            $needed = min(count($joins[0]) * 64, 640, max(1, (int) ceil($estimatedGap / (0.08 / 0.55))));
             $positions = collect($joins[0])
                 ->map(fn (array $match, int $index) => [
                     'position' => $match[1] + strlen($match[0]),
@@ -203,6 +231,92 @@ class PrintTemplateRenderService
 
             return $text;
         }, $value) ?? $value;
+    }
+
+    protected function addMeasuredArabicKashidas(string $value, array $element, Mpdf $mpdf): string
+    {
+        if (! preg_match('/\p{Arabic}/u', $value)) {
+            return $value;
+        }
+
+        $fontSizeMm = max((float) ($element['styling']['font_size'] ?? 4.2), 1.5);
+        $fontWeight = (int) ($element['styling']['font_weight'] ?? 400);
+        $targetWidth = max((float) ($element['width'] ?? 4) - 0.75, 1);
+        $mpdf->SetFont('dubai', $fontWeight >= 600 ? 'B' : '', $fontSizeMm * 72 / 25.4);
+
+        $parts = preg_split('/(\R)/u', $value, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$value];
+
+        return collect($parts)->map(function (string $text) use ($mpdf, $targetWidth) {
+            if (preg_match('/^\R$/u', $text) || ! preg_match('/\p{Arabic}/u', $text)) {
+                return $text;
+            }
+
+            $baseWidth = $mpdf->GetStringWidth($text);
+            if ($baseWidth >= $targetWidth) {
+                return $text;
+            }
+
+            $positions = $this->arabicKashidaPositions($text);
+            if ($positions === []) {
+                return $text;
+            }
+
+            $maximum = min(count($positions) * 64, 640);
+            $low = 0;
+            $high = $maximum;
+            $best = $text;
+
+            while ($low <= $high) {
+                $count = intdiv($low + $high, 2);
+                $candidate = $this->insertDistributedKashidas($text, $positions, $count);
+
+                if ($mpdf->GetStringWidth($candidate) <= $targetWidth) {
+                    $best = $candidate;
+                    $low = $count + 1;
+                } else {
+                    $high = $count - 1;
+                }
+            }
+
+            return $best;
+        })->implode('');
+    }
+
+    protected function arabicKashidaPositions(string $text): array
+    {
+        preg_match_all(
+            '/([\x{0626}\x{0628}\x{062A}-\x{062E}\x{0633}-\x{063A}\x{0641}-\x{0647}\x{0649}\x{064A}])(?=[\x{0622}-\x{064A}])/u',
+            $text,
+            $joins,
+            PREG_OFFSET_CAPTURE,
+        );
+
+        return collect($joins[0] ?? [])
+            ->map(fn (array $match, int $index) => [
+                'position' => $match[1] + strlen($match[0]),
+                'score' => $this->kashidaJoinScore($match[0], $index, count($joins[0])),
+            ])
+            ->sortByDesc('score')
+            ->pluck('position')
+            ->values()
+            ->all();
+    }
+
+    protected function insertDistributedKashidas(string $text, array $positions, int $count): string
+    {
+        $insertions = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $position = $positions[$index % count($positions)];
+            $insertions[$position] = ($insertions[$position] ?? 0) + 1;
+        }
+
+        krsort($insertions);
+        foreach ($insertions as $position => $amount) {
+            $text = substr($text, 0, $position).str_repeat("\u{0640}", $amount).substr($text, $position);
+        }
+
+        return $text;
     }
 
     protected function kashidaJoinScore(string $letter, int $index, int $total): float

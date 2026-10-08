@@ -91,6 +91,8 @@ class DataGovernanceTest extends TestCase
 
         $qualityView = file_get_contents(resource_path('views/livewire/data-quality/index.blade.php'));
         $this->assertStringContainsString('data-data-quality-review-action', $qualityView);
+        $this->assertStringContainsString('data-data-quality-review-action data-keep-visible-table-action', $qualityView);
+        $this->assertStringContainsString('<td class="admin-actions-column px-5 py-4 text-center">', $qualityView);
         $this->assertStringContainsString('wire:init="refreshTable"', $qualityView);
         $this->assertStringContainsString('data-data-quality-refresh-on-open', $qualityView);
         $this->assertStringContainsString('<x-admin-action-icon name="review" />', $qualityView);
@@ -129,6 +131,7 @@ class DataGovernanceTest extends TestCase
         $this->assertStringContainsString('data-audit-log-table__number-column', $auditView);
         $this->assertStringContainsString('data-audit-log-table__details-column', $auditView);
         $this->assertStringContainsString(".data-audit-log-table {\n    min-width: 70rem;\n    table-layout: fixed;", $styles);
+        $this->assertStringNotContainsString('.data-audit-log-table.table--single-row-actions', $styles);
         $this->assertStringContainsString(".data-audit-log-table__number-column {\n    width: 4rem;", $styles);
         $this->assertStringContainsString(".data-audit-log-table col[data-data-audit-content-column] {\n    width: calc((100% - 11rem) / 5);", $styles);
         $this->assertStringContainsString(".data-audit-log-table__details-column {\n    width: 7rem;", $styles);
@@ -1061,7 +1064,7 @@ class DataGovernanceTest extends TestCase
         $issue = app(DataQualityService::class)->issues()->firstWhere('type', 'duplicate_student');
         $component = Volt::test('data-quality.index')->call('review', $issue['key']);
         $records = $component->get('editableRecords');
-        $this->assertSame('ياسر نبيل', $records[0]['label']);
+        $this->assertSame('ياسر نبيل سالم', $records[0]['label']);
         $this->assertSame(
             [__('data_governance.quality.record_fields.enrollments_count'), __('data_governance.quality.record_fields.memorization_sessions_count')],
             array_column(array_slice($records[0]['details'], 0, 2), 'field'),

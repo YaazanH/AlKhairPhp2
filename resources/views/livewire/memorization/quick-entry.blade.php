@@ -3,30 +3,43 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\Enrollment;
-use App\Models\Student;
-use App\Models\QuranJuz;
 use App\Models\MemorizationSessionPage;
+use App\Models\QuranJuz;
+use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\MemorizationService;
+use App\Support\OperationalFeatureSettings;
 use Illuminate\Database\Eloquent\Builder;
-use Livewire\Volt\Component;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
+use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public ?int $selectedStudentId = null;
+
     public ?int $selectedEnrollmentId = null;
+
     public ?int $selectedJuzNumber = null;
+
     public array $selectedPages = [];
+
     public ?int $teacher_id = null;
+
     public bool $showDuplicateModal = false;
+
     public array $duplicatePages = [];
+
     public array $uniquePages = [];
+
     #[Locked]
     public array $pendingMemorizationPayload = [];
+
     #[Locked]
     public ?int $pendingEnrollmentId = null;
 
@@ -49,7 +62,7 @@ new class extends Component {
         return [
             'unfinishedJuzs' => $this->unfinishedJuzs,
             'displayedJuz' => $this->unfinishedJuzs->firstWhere('number', $this->selectedJuzNumber),
-            'entriesEnabled' => \App\Support\OperationalFeatureSettings::memorizationAndSabersEnabled(),
+            'entriesEnabled' => OperationalFeatureSettings::memorizationAndSabersEnabled(),
             'studentOptions' => $studentOptions,
             'availableEnrollments' => $availableEnrollments,
             'currentTeacher' => $this->currentTeacher(),
@@ -109,7 +122,7 @@ new class extends Component {
         $this->resetValidation('teacher_id');
     }
 
-    protected function excludedJuzIds(Student $student): \Illuminate\Support\Collection
+    protected function excludedJuzIds(Student $student): Collection
     {
         return $student->externalMemorizedJuzs()->pluck('quran_juzs.id')
             ->merge($student->quranPartialTests()->pluck('juz_id'))
@@ -121,7 +134,7 @@ new class extends Component {
     }
 
     #[Computed]
-    public function unfinishedJuzs(): \Illuminate\Support\Collection
+    public function unfinishedJuzs(): Collection
     {
         if (! $this->selectedStudentId) {
             return collect();
@@ -157,7 +170,7 @@ new class extends Component {
     public function selectJuz(int $number): void
     {
         $this->authorizePermission('memorization.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         abort_unless($this->selectedStudentId, 404);
         $this->findQuickEntryStudent($this->selectedStudentId);
         unset($this->unfinishedJuzs);
@@ -178,7 +191,7 @@ new class extends Component {
     public function save(): void
     {
         $this->authorizePermission('memorization.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
@@ -267,7 +280,7 @@ new class extends Component {
     public function confirmDuplicateSave(): void
     {
         $this->authorizePermission('memorization.record');
-        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         if ($this->pendingMemorizationPayload === [] || ! $this->pendingEnrollmentId) {
             return;
@@ -314,7 +327,7 @@ new class extends Component {
 
     protected function saveQuickEntrySession(Enrollment $enrollment, array $payload, bool $skipDuplicates = false): void
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($enrollment, $payload, $skipDuplicates): void {
+        DB::transaction(function () use ($enrollment, $payload, $skipDuplicates): void {
             $session = app(MemorizationService::class)->saveSession($enrollment, $payload, null, $skipDuplicates);
             $page = $session->pages->first()?->page_no;
             if ($page !== null) {
@@ -329,7 +342,7 @@ new class extends Component {
         return auth()->user()?->hasAnyRole(['manager', 'admin', 'super_admin']) ?? false;
     }
 
-    protected function currentTeacher(): ?\App\Models\Teacher
+    protected function currentTeacher(): ?Teacher
     {
         if ($this->canChooseRecordingTeacher()) {
             return null;
@@ -576,7 +589,7 @@ new class extends Component {
             </div>
             @endif
 
-            <div class="admin-action-cluster admin-action-cluster--end">
+            <div class="admin-action-cluster admin-action-cluster--end quick-memorization-save-actions">
                 <button type="submit" class="admin-icon-button admin-icon-button--accent quick-entry-save-action" title="{{ __('workflow.memorization.quick_entry.form.save') }}" aria-label="{{ __('workflow.memorization.quick_entry.form.save') }}" data-quick-memorization-save-action wire:loading.attr="disabled" wire:target="save,confirmDuplicateSave" @disabled($selectedStudentId && ! $displayedJuz)><x-admin-action-icon name="save" /></button>
             </div>
         </form>

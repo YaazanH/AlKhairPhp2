@@ -153,6 +153,7 @@ return [
         'exchange_no' => 'رقم الصرافة',
         'decimal_places' => 'عدد الخانات العشرية',
         'expense_kind' => 'تصنيف المصروف',
+        'expense_details' => 'تفاصيل المصروف',
         'from_date' => 'من تاريخ',
         'from' => 'من',
         'income' => 'الإيرادات',
@@ -257,6 +258,7 @@ return [
         'withdrawal_cleanup_failed' => 'تعذر حذف طلب السحب. لم يتم تغيير أي سجل. يرجى المحاولة مرة أخرى.',
         'withdrawal_cleanup_finished' => 'تم إغلاق أداة تنظيف طلبات السحب نهائياً.',
         'withdrawal_cleanup_not_found' => 'لم يتم العثور على طلب سحب فعال بهذا الرقم.',
+        'declined_withdrawal_deleted' => 'تم حذف طلب السحب المرفوض :request.',
         'pull_posted' => 'تم تسجيل طلب السحب.',
         'pull_sent' => 'تم إرسال طلب السحب إلى إدارة المالية.',
         'pull_settled' => 'تم إنهاء دورة طلب السحب.',
@@ -521,6 +523,8 @@ return [
         'withdrawal_cleanup_confirm' => 'هل تريد حذف طلب السحب هذا والسجلات المرتبطة به؟',
         'withdrawal_cleanup_finished_action' => 'انتهيت',
         'withdrawal_cleanup_finish_confirm' => 'هل تريد إغلاق أداة التنظيف هذه نهائياً؟',
+        'declined_withdrawal_delete_help' => 'هذا طلب سحب مرفوض ولا يرتبط بحركة مالية. يمكنك حذفه من هنا.',
+        'declined_withdrawal_delete_confirm' => 'هل تريد حذف طلب السحب المرفوض نهائياً؟',
     ],
     'statuses' => [
         'accepted' => 'معلق',
@@ -567,6 +571,8 @@ return [
         'to_base' => '1 :currency = :amount :base',
     ],
     'validation' => [
+        'expense_details_required' => 'يجب إدخال تفاصيل المصروف.',
+        'declined_withdrawal_has_records' => 'طلب السحب المرفوض مرتبط بسجلات مالية ولا يمكن حذفه.',
         'single_category_type' => 'يُسمح بنوع واحد فقط ضمن فئة الصرافة ونوع واحد ضمن فئة التحويل، بما في ذلك الأنواع غير النشطة.',
         'invalid_special_reference_prefix' => 'يجب أن يستخدم الرقم المرجعي الخاص إحدى البادئات المضبوطة التالية: :prefixes.',
         'cash_box_currency_mismatch' => 'هذا الصندوق لا يدعم العملة المحددة.',

@@ -1,5 +1,10 @@
+import { addressInput } from './address-completion';
 import jsQR from 'jsqr';
+import { attachCameraStream, prepareInlineCameraVideo, requestCameraStream } from './quick-attendance-camera';
 import { debounceSearch } from './search-debounce';
+import { groupOptionColumns, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
+
+window.addressInput = addressInput;
 
 const delayedSearchInputs = new WeakMap();
 document.addEventListener('input', (event) => {
@@ -384,6 +389,10 @@ function restoreSearchableSelectClear(clear) {
 function selectedOptionText(select) {
     const option = select.options[select.selectedIndex];
 
+    if (option?.dataset.optionColumns && window.matchMedia('(max-width: 767px)').matches) {
+        return groupOptionColumns(option.dataset.optionColumns, true)[0] || '';
+    }
+
     return option?.textContent?.trim() || select.dataset.placeholder || '';
 }
 
@@ -402,6 +411,59 @@ function searchHintValue(select) {
 }
 
 const searchableSelectOverflowHosts = new WeakMap();
+
+function positionPhoneGroupDropdown(wrapper) {
+    if (wrapper.previousElementSibling?.matches('select[data-group-option-columns]')) wrapper.setAttribute('data-group-select', '');
+    if (!wrapper.hasAttribute('data-group-select') || !window.matchMedia('(max-width: 767px)').matches) return false;
+    const trigger = wrapper.querySelector('.searchable-select__search--trigger, .searchable-select__button');
+    const panel = wrapper.querySelector('.searchable-select__panel');
+    const list = wrapper.querySelector('.searchable-select__list');
+    const body = wrapper.closest('.admin-modal__body');
+    if (!trigger || !panel || !list || !body) return false;
+
+    const viewport = window.visualViewport;
+    const bodyRect = body.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const scale = wrapperRect.width / wrapper.offsetWidth || 1;
+    const bounds = {
+        top: Math.max(viewport?.offsetTop || 0, bodyRect.top) + 8,
+        bottom: Math.min((viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight), bodyRect.bottom) - 8,
+        left: Math.max(viewport?.offsetLeft || 0, bodyRect.left) + 8,
+        right: Math.min((viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth), bodyRect.right) - 8,
+    };
+    const placement = containedGroupMenu(triggerRect, bounds, 240 * scale);
+    // Stay inside the modal's scroll host: fixed descendants are unreliable
+    // inside WebKit's filtered surfaces, and releasing overflow resets scrolling.
+    Object.assign(panel.style, {
+        position: 'absolute',
+        left: `${(placement.left - wrapperRect.left) / scale}px`,
+        right: 'auto',
+        width: `${placement.width / scale}px`,
+        maxWidth: `${placement.width / scale}px`,
+        maxHeight: `${placement.height / scale}px`,
+        top: placement.openAbove ? 'auto' : `${(triggerRect.bottom - wrapperRect.top + placement.gap) / scale}px`,
+        bottom: placement.openAbove ? `${(wrapperRect.bottom - triggerRect.top + placement.gap) / scale}px` : 'auto',
+    });
+    list.style.maxHeight = `${Math.max(0, placement.height / scale - 2)}px`;
+    return true;
+}
+
+let phoneGroupDropdownFrame = null;
+function schedulePhoneGroupDropdownPosition(event) {
+    if (event?.target instanceof Element && event.target.closest('.searchable-select__list')) return;
+    if (phoneGroupDropdownFrame !== null) return;
+    phoneGroupDropdownFrame = requestAnimationFrame(() => {
+        phoneGroupDropdownFrame = null;
+        document.querySelectorAll('[data-group-select].searchable-select--open').forEach(wrapper => {
+            if (!positionPhoneGroupDropdown(wrapper)) resetOrganizationSettingsDropdownPosition(wrapper);
+        });
+    });
+}
+document.addEventListener('scroll', schedulePhoneGroupDropdownPosition, { capture: true, passive: true });
+window.addEventListener('resize', schedulePhoneGroupDropdownPosition, { passive: true });
+window.visualViewport?.addEventListener('resize', schedulePhoneGroupDropdownPosition, { passive: true });
+window.visualViewport?.addEventListener('scroll', schedulePhoneGroupDropdownPosition, { passive: true });
 
 function resetOrganizationSettingsDropdownPosition(wrapper) {
     const panel = wrapper.querySelector('.searchable-select__panel');
@@ -468,6 +530,11 @@ function positionOrganizationSettingsDropdown(wrapper) {
 }
 
 function releaseSearchableSelectOverflow(wrapper) {
+    if (positionPhoneGroupDropdown(wrapper)) {
+        searchableSelectOverflowHosts.set(wrapper, []);
+        schedulePhoneGroupDropdownPosition();
+        return;
+    }
     if (searchableSelectOverflowHosts.has(wrapper)) {
         return;
     }
@@ -537,7 +604,6 @@ function restoreSearchableSelectOverflow(wrapper) {
 }
 
 function closeSearchableSelect(wrapper) {
-    wrapper.cancelPendingSearch?.();
     wrapper.classList.remove('searchable-select--open');
     wrapper.querySelector('.searchable-select__panel')?.setAttribute('hidden', 'hidden');
     wrapper.querySelector('.searchable-select__button')?.setAttribute('aria-expanded', 'false');
@@ -597,6 +663,7 @@ function removeOverflowingSearchableSelectOptions(select, list) {
 
 function buildSearchableSelectOptions(select, list, query = '') {
     const normalizedQuery = normalizeSearchableText(query);
+    const queryTokens = normalizedQuery.split(' ').filter(Boolean);
     const options = Array.from(select.options);
     const placeholderOption = searchableSelectPlaceholderOption(select);
     let visibleCount = 0;
@@ -619,7 +686,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
         const label = option.textContent.trim();
         const searchableText = normalizeSearchableText(`${label} ${option.dataset.search || ''}`);
 
-        if (normalizedQuery && !searchableText.includes(normalizedQuery)) {
+        if (queryTokens.length > 0 && !queryTokens.every((token) => searchableText.includes(token))) {
             return;
         }
 
@@ -629,7 +696,20 @@ function buildSearchableSelectOptions(select, list, query = '') {
         item.className = 'searchable-select__option';
         item.id = `searchable-select-option-${Math.random().toString(36).slice(2)}`;
         item.classList.toggle('searchable-select__option--bold', option.dataset.optionBold === 'true');
-        if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
+        if (option.dataset.optionColumns !== undefined) {
+            const columns = groupOptionColumns(option.dataset.optionColumns, window.matchMedia('(max-width: 767px)').matches);
+            item.classList.add('searchable-select__option--group');
+            item.style.setProperty('--group-option-columns', columns.length);
+            columns.forEach((text) => {
+                const cell = document.createElement('span');
+                cell.className = 'searchable-select__group-cell';
+                const label = document.createElement('span');
+                label.textContent = text;
+                label.title = text;
+                cell.append(label);
+                item.append(cell);
+            });
+        } else if (option.dataset.optionName !== undefined || option.dataset.optionNumber !== undefined) {
             item.classList.add('searchable-select__option--columns');
 
             const name = document.createElement('span');
@@ -712,6 +792,10 @@ function buildSearchableSelectOptions(select, list, query = '') {
         visibleCount += 1;
     });
 
+    if (select.hasAttribute('data-group-option-columns') && !window.matchMedia('(max-width: 767px)').matches) {
+        requestAnimationFrame(() => justifyGroupOptionColumns(list));
+    }
+
     visibleCount -= removeOverflowingSearchableSelectOptions(select, list);
 
     if (visibleCount === 0) {
@@ -720,6 +804,51 @@ function buildSearchableSelectOptions(select, list, query = '') {
         empty.textContent = select.dataset.emptyText || 'No results';
         list.appendChild(empty);
     }
+}
+
+function justifyGroupOptionColumns(list) {
+    if (!list.isConnected || list.clientWidth === 0 || document.documentElement.dir !== 'rtl'
+        || window.matchMedia('(max-width: 767px)').matches || !financeTextMeasureContext) return;
+    const rows = Array.from(list.querySelectorAll('.searchable-select__option--group'));
+    const updates = [];
+    const measurements = new Map();
+    for (let column = 0; column < 3; column++) {
+        const labels = rows.map(row => row.children[column]?.firstElementChild).filter(Boolean);
+        if (!labels.length) continue;
+        // Read styles and available widths together; apply text only after all
+        // measurements so opening the menu does not force repeated layouts.
+        const entries = labels.map(label => {
+            const style = window.getComputedStyle(label);
+            const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            const spacing = Number.parseFloat(style.letterSpacing) || 0;
+            const measure = text => {
+                const key = `${font}|${spacing}|${text}`;
+                if (!measurements.has(key)) {
+                    financeTextMeasureContext.font = font;
+                    financeTextMeasureContext.direction = 'rtl';
+                    measurements.set(key, financeTextMeasureContext.measureText(text).width
+                        + Math.max(0, Array.from(text).length - 1) * spacing);
+                }
+                return measurements.get(key);
+            };
+            return { label, measure, available: label.parentElement.clientWidth };
+        });
+        const width = Math.min(
+            Math.ceil(Math.max(...entries.map(entry => entry.measure(entry.label.title)))) + 2,
+            ...entries.map(entry => entry.available),
+        );
+        entries.forEach(({ label, measure }) => {
+            const source = label.title;
+            const text = financeKashidaPositions(source).length
+                ? fitGroupOptionText(source, width - 2, count => financeTextWithKashidas(source, count), measure)
+                : source;
+            updates.push({ label, text, width });
+        });
+    }
+    updates.forEach(({ label, text, width }) => {
+        label.textContent = text;
+        label.style.width = `${width}px`;
+    });
 }
 
 function searchableSelectOptionButtons(list) {
@@ -765,7 +894,15 @@ function highlightSearchableSelectOption(list, search, index) {
         option.classList.toggle('searchable-select__option--highlighted', option === highlighted);
     });
     search.setAttribute('aria-activedescendant', highlighted.id);
-    highlighted.scrollIntoView({ block: 'nearest' });
+    if (list.closest('[data-group-select]') && window.matchMedia('(max-width: 767px)').matches) {
+        const itemRect = highlighted.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const scale = listRect.height / list.offsetHeight || 1;
+        if (itemRect.top < listRect.top) list.scrollTop -= (listRect.top - itemRect.top) / scale;
+        else if (itemRect.bottom > listRect.bottom) list.scrollTop += (itemRect.bottom - listRect.bottom) / scale;
+    } else {
+        highlighted.scrollIntoView({ block: 'nearest' });
+    }
 
     return highlighted;
 }
@@ -860,6 +997,7 @@ function enhanceSearchableSelect(select) {
         && select.dataset.searchableBindingVersion === SEARCHABLE_SELECT_BINDING_VERSION
         && existingWrapper
     ) {
+        if (select.hasAttribute('data-group-option-columns')) existingWrapper.setAttribute('data-group-select', '');
         transferMobileTableFilterCriterion(select, existingWrapper);
         restoreSearchableSelectClear(existingWrapper.querySelector('.searchable-select__clear'));
         select.searchableSelectSync?.();
@@ -885,6 +1023,7 @@ function enhanceSearchableSelect(select) {
 
     const wrapper = document.createElement('div');
     wrapper.className = 'searchable-select';
+    if (select.hasAttribute('data-group-option-columns')) wrapper.setAttribute('data-group-select', '');
     wrapper.setAttribute('wire:ignore', '');
 
     const searchInputMode = select.dataset.searchInput !== 'false';
@@ -981,8 +1120,6 @@ function enhanceSearchableSelect(select) {
     transferMobileTableFilterCriterion(select, wrapper);
 
     let optionsSignature = '';
-    let pendingSearch;
-    wrapper.cancelPendingSearch = () => pendingSearch?.cancel();
 
     const updateRequiredSelectionValidity = (valid) => {
         if (!searchSelectionRequired) {
@@ -1030,7 +1167,6 @@ function enhanceSearchableSelect(select) {
     };
 
     const sync = (force = false) => {
-        if (force) pendingSearch?.cancel();
         search.disabled = select.disabled;
 
         if (searchInputMode) {
@@ -1047,10 +1183,10 @@ function enhanceSearchableSelect(select) {
             const nextValue = displaySelectedValue
                 ? (deferredSelection?.value === select.value
                     ? deferredSelection.label
-                    : selectedOption?.textContent.trim() || '')
+                    : selectedOptionText(select))
                 : '';
 
-            if ((!hasSelectedValue || force || document.activeElement !== search) && search.value !== nextValue) {
+            if ((force || document.activeElement !== search) && search.value !== nextValue) {
                 search.value = nextValue;
             }
 
@@ -1081,8 +1217,8 @@ function enhanceSearchableSelect(select) {
             }
         }
 
-        const nextOptionsSignature = Array.from(select.options)
-            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionPrefix || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.dataset.optionBold || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
+        const nextOptionsSignature = (select.hasAttribute('data-group-option-columns') ? String(window.matchMedia('(max-width: 767px)').matches) : '') + Array.from(select.options)
+            .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionColumns || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionPrefix || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.dataset.optionBold || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
             .join('\u0001');
 
         if (force || nextOptionsSignature !== optionsSignature) {
@@ -1110,9 +1246,6 @@ function enhanceSearchableSelect(select) {
     };
 
     const handleSearchableSelectKeydown = (event) => {
-        if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
-            pendingSearch?.flush();
-        }
         if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
             event.preventDefault();
             event.stopPropagation();
@@ -1217,12 +1350,14 @@ function enhanceSearchableSelect(select) {
             releaseSearchableSelectOverflow(wrapper);
             panel.removeAttribute('hidden');
             search.setAttribute('aria-expanded', 'true');
-            buildSearchableSelectOptions(select, list, '');
+            if (!search.value.trim()) search.value = searchHintValue(select);
+            buildSearchableSelectOptions(select, list, searchableSelectHasValue(select) ? '' : search.value);
             scrollSearchableSelectToSelected(select, list, search);
             requestAnimationFrame(() => search.select());
         });
 
-        pendingSearch = debounceSearch(() => {
+        search.addEventListener('input', () => {
+            if (searchSelectionRequired) searchSelectionConfirmed = false;
             if (!select.isConnected || !wrapper.isConnected || select.disabled) return;
             const hasQuery = search.value.trim() !== '';
             wrapper.classList.toggle('searchable-select--selected', hasQuery || searchableSelectHasValue(select));
@@ -1265,11 +1400,6 @@ function enhanceSearchableSelect(select) {
             buildSearchableSelectOptions(select, list, search.value);
         });
 
-        search.addEventListener('input', () => {
-            if (searchSelectionRequired) searchSelectionConfirmed = false;
-            pendingSearch();
-        });
-
         wrapper.addEventListener('focusout', (event) => {
             if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) {
                 return;
@@ -1306,7 +1436,6 @@ function enhanceSearchableSelect(select) {
             if (willOpen) {
                 releaseSearchableSelectOverflow(wrapper);
             } else {
-                pendingSearch?.cancel();
                 restoreSearchableSelectOverflow(wrapper);
             }
             button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
@@ -1323,12 +1452,11 @@ function enhanceSearchableSelect(select) {
             }
         });
 
-        pendingSearch = debounceSearch(() => {
+        search.addEventListener('input', () => {
             if (select.isConnected && wrapper.isConnected && !select.disabled) {
                 buildSearchableSelectOptions(select, list, search.value);
             }
         });
-        search.addEventListener('input', pendingSearch);
         button.addEventListener('keydown', (event) => {
             if (!['ArrowDown', 'ArrowUp'].includes(event.key)) {
                 return;
@@ -1366,7 +1494,6 @@ function enhanceSearchableSelect(select) {
     }
 
     select.addEventListener('change', () => {
-        pendingSearch?.cancel();
         if (searchSelectionRequired && select.dataset.searchSelectionConfirmed === 'true') {
             searchSelectionConfirmed = select.value !== '';
             delete select.dataset.searchSelectionConfirmed;
@@ -1413,6 +1540,10 @@ function scheduleSearchableSelectInitialization() {
 }
 
 window.initializeSearchableSelects = initializeSearchableSelects;
+
+window.matchMedia('(max-width: 767px)').addEventListener('change', () => {
+    document.querySelectorAll('select[data-group-option-columns]').forEach(select => select.searchableSelectSync?.(true));
+});
 
 function focusSearchableSelectById(selectId) {
     if (typeof selectId !== 'string' || selectId === '') {
@@ -1625,6 +1756,566 @@ document.addEventListener('livewire:initialized', () => {
     });
 });
 
+const mobileScrollableTableCellSelector = [
+    '.overflow-x-auto > table > tbody > tr > td',
+    '.overflow-x-auto > table > tfoot > tr > td',
+    '.table-scroll-region > table > tbody > tr > td',
+    '.table-scroll-region > table > tfoot > tr > td',
+    '.responsive-records-desktop > table > tbody > tr > td',
+    '.responsive-records-desktop > table > tfoot > tr > td',
+].join(', ');
+
+let mobileScrollableTableTextFrame = null;
+
+function enhanceMobileScrollableTableText() {
+    mobileScrollableTableTextFrame = null;
+
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+        return;
+    }
+
+    document.querySelectorAll(mobileScrollableTableCellSelector).forEach((cell) => {
+        // Pure text cells need a real box for a two-line WebKit clamp. Leave
+        // structured cells alone so badges, actions, and custom layouts keep
+        // their component-specific behavior.
+        if (cell.children.length > 0) {
+            return;
+        }
+
+        Array.from(cell.childNodes).forEach((node) => {
+            if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) {
+                return;
+            }
+
+            const value = document.createElement('span');
+            value.className = 'mobile-scroll-table-value';
+            node.before(value);
+            value.append(node);
+        });
+    });
+}
+
+function scheduleMobileScrollableTableTextEnhancement() {
+    if (mobileScrollableTableTextFrame !== null) {
+        window.cancelAnimationFrame(mobileScrollableTableTextFrame);
+    }
+
+    mobileScrollableTableTextFrame = window.requestAnimationFrame(enhanceMobileScrollableTableText);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleMobileScrollableTableTextEnhancement);
+document.addEventListener('livewire:navigated', scheduleMobileScrollableTableTextEnhancement);
+window.addEventListener('resize', scheduleMobileScrollableTableTextEnhancement, { passive: true });
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', scheduleMobileScrollableTableTextEnhancement);
+    window.Livewire?.hook('morph.added', scheduleMobileScrollableTableTextEnhancement);
+});
+
+const singleRowActionControlSelector = 'a[href], button, input[type="button"], input[type="submit"]';
+const singleRowActionInteractiveSelector = 'a, button, input, select, textarea, summary, label, [contenteditable="true"], [role="button"], [role="link"], [wire\\:click]';
+let singleRowActionFrame = null;
+let singleRowActionListenersBound = false;
+
+function clearSingleRowAction(row) {
+    row.querySelectorAll('.single-row-action__control').forEach((control) => {
+        control.classList.remove('single-row-action__control');
+    });
+    row.removeAttribute('data-single-row-action');
+
+    if (row.dataset.singleRowActionAddedTabindex === 'true') {
+        row.removeAttribute('tabindex');
+        delete row.dataset.singleRowActionAddedTabindex;
+    }
+
+    if (row.dataset.singleRowActionAddedLabel === 'true') {
+        row.removeAttribute('aria-label');
+        delete row.dataset.singleRowActionAddedLabel;
+    }
+}
+
+function singleRowActionIsAvailable(action) {
+    if (
+        !(action instanceof HTMLElement)
+        || action.matches(':disabled, [aria-disabled="true"]')
+        || action.closest('[hidden], [aria-hidden="true"]')
+    ) {
+        return false;
+    }
+
+    const style = window.getComputedStyle(action);
+
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function tableActionColumnIndex(table) {
+    const headerCells = Array.from(table.tHead?.rows?.[0]?.cells ?? []);
+
+    return headerCells.findIndex((cell) => cell.classList.contains('admin-actions-column'));
+}
+
+function singleRowActionIsDelete(action) {
+    const wireAction = action.getAttribute('wire:click')?.trim() ?? '';
+    const label = [
+        action.getAttribute('aria-label'),
+        action.getAttribute('title'),
+        action.textContent,
+    ].filter(Boolean).join(' ');
+    const hasDestructiveDataAttribute = Array.from(action.attributes).some((attribute) => (
+        attribute.name.startsWith('data-') && /(?:delete|remove)/.test(attribute.name)
+    ));
+
+    return hasDestructiveDataAttribute
+        || /^(?:\$wire\.)?(?:delete|destroy|remove)\b/i.test(wireAction)
+        || /\b(?:delete|destroy|remove)\b/i.test(label)
+        || /حذف|إزالة|ازالة/.test(label);
+}
+
+function clearSingleRowActionColumnWidths(table) {
+    table.querySelectorAll('.single-row-action__visible-header').forEach((cell) => {
+        cell.classList.remove('single-row-action__visible-header');
+        cell.style.removeProperty('--single-row-action-column-width');
+    });
+    table.querySelectorAll(':scope > colgroup > .single-row-action__visible-column').forEach((column) => {
+        column.classList.remove('single-row-action__visible-column');
+        column.style.removeProperty('--single-row-action-column-width');
+    });
+}
+
+function redistributeSingleRowActionColumnWidth(table, headerCells, actionColumnIndex) {
+    if (!recordTableHasExplicitColumnLayout(table)) return;
+
+    const tableWidth = table.getBoundingClientRect().width;
+    const columnWidths = headerCells.map((cell) => cell.getBoundingClientRect().width);
+    const visibleColumnIndexes = headerCells.flatMap((cell, index) => (
+        index !== actionColumnIndex && window.getComputedStyle(cell).display !== 'none' ? [index] : []
+    ));
+    const flexibleColumnIndexes = visibleColumnIndexes.filter((index) => (
+        !headerCells[index].matches('[data-table-number-column], .table-cell-compact')
+    ));
+    const fixedWidth = visibleColumnIndexes
+        .filter((index) => !flexibleColumnIndexes.includes(index))
+        .reduce((total, index) => total + columnWidths[index], 0);
+    const measuredFlexibleWidth = flexibleColumnIndexes
+        .reduce((total, index) => total + columnWidths[index], 0);
+    const availableFlexibleWidth = tableWidth - fixedWidth;
+
+    if (
+        tableWidth <= 0
+        || flexibleColumnIndexes.length === 0
+        || measuredFlexibleWidth <= 0
+        || availableFlexibleWidth <= 0
+    ) return;
+
+    const colgroupColumns = Array.from(table.querySelectorAll(':scope > colgroup > col'));
+    const widthScale = availableFlexibleWidth / measuredFlexibleWidth;
+
+    flexibleColumnIndexes.forEach((index) => {
+        const width = `${(columnWidths[index] * widthScale / tableWidth) * 100}%`;
+        const header = headerCells[index];
+        const column = colgroupColumns[index];
+
+        header.classList.add('single-row-action__visible-header');
+        header.style.setProperty('--single-row-action-column-width', width);
+
+        if (column instanceof HTMLTableColElement) {
+            column.classList.add('single-row-action__visible-column');
+            column.style.setProperty('--single-row-action-column-width', width);
+        }
+    });
+}
+
+function enhanceSingleActionTableRows() {
+    singleRowActionFrame = null;
+    const replacesButtonsWithRows = window.matchMedia('(min-width: 768px)').matches;
+
+    document.querySelectorAll('table').forEach((table) => {
+        if (table.closest('.balanced-table-measure-host')) return;
+
+        table.classList.remove('table--single-row-actions');
+        table.querySelectorAll('.single-row-action__header, .single-row-action__cell').forEach((cell) => {
+            cell.classList.remove('single-row-action__header', 'single-row-action__cell');
+        });
+        table.querySelectorAll(':scope > colgroup > .single-row-action__column').forEach((column) => {
+            column.classList.remove('single-row-action__column');
+        });
+        clearSingleRowActionColumnWidths(table);
+
+        if (!replacesButtonsWithRows) return;
+
+        const markedActionColumnIndex = tableActionColumnIndex(table);
+        const headerCells = Array.from(table.tHead?.rows?.[0]?.cells ?? []);
+        const actionCells = [];
+        const keepsSingleActionsVisible = table.closest('.settings-admin-page') !== null;
+        let hasSingleActionRow = false;
+        let hasAnyAction = false;
+        let hasVisibleAction = false;
+
+        Array.from(table.tBodies).flatMap((body) => Array.from(body.rows)).forEach((row) => {
+            clearSingleRowAction(row);
+
+            const fallbackCell = row.cells[row.cells.length - 1];
+            const actionCell = markedActionColumnIndex >= 0
+                ? row.cells[markedActionColumnIndex]
+                : fallbackCell?.querySelector('.admin-icon-button, .pill-link, [data-open-action]')
+                    ? fallbackCell
+                    : null;
+
+            if (!(actionCell instanceof HTMLTableCellElement)) return;
+
+            actionCells.push(actionCell);
+
+            const actions = Array.from(actionCell.querySelectorAll(singleRowActionControlSelector))
+                .filter(singleRowActionIsAvailable);
+
+            hasAnyAction ||= actions.length > 0;
+
+            if (actions.length !== 1) {
+                hasVisibleAction ||= actions.length > 1;
+
+                return;
+            }
+
+            const action = actions[0];
+
+            if (keepsSingleActionsVisible) {
+                hasVisibleAction = true;
+
+                return;
+            }
+
+            if (action.hasAttribute('data-keep-visible-table-action')) {
+                hasVisibleAction = true;
+
+                return;
+            }
+
+            if (singleRowActionIsDelete(action)) {
+                hasVisibleAction = true;
+
+                return;
+            }
+
+            hasSingleActionRow = true;
+            const label = action.getAttribute('aria-label')
+                || action.getAttribute('title')
+                || action.textContent?.trim()
+                || '';
+
+            row.setAttribute('data-single-row-action', '');
+            action.classList.add('single-row-action__control');
+
+            if (!row.hasAttribute('tabindex')) {
+                row.tabIndex = 0;
+                row.dataset.singleRowActionAddedTabindex = 'true';
+            }
+
+            if (label && !row.hasAttribute('aria-label')) {
+                row.setAttribute('aria-label', label);
+                row.dataset.singleRowActionAddedLabel = 'true';
+            }
+        });
+
+        if (hasVisibleAction) {
+            table.querySelectorAll('tbody > tr[data-single-row-action]').forEach(clearSingleRowAction);
+        }
+
+        if (markedActionColumnIndex >= 0 && !hasVisibleAction && (hasSingleActionRow || !hasAnyAction)) {
+            redistributeSingleRowActionColumnWidth(table, headerCells, markedActionColumnIndex);
+            table.classList.add('table--single-row-actions');
+            headerCells[markedActionColumnIndex]?.classList.add('single-row-action__header');
+            actionCells.forEach((cell) => cell.classList.add('single-row-action__cell'));
+            table.querySelector(`:scope > colgroup > :nth-child(${markedActionColumnIndex + 1})`)
+                ?.classList.add('single-row-action__column');
+        }
+    });
+}
+
+function scheduleSingleActionTableRows() {
+    if (singleRowActionFrame !== null) {
+        window.cancelAnimationFrame(singleRowActionFrame);
+    }
+
+    singleRowActionFrame = window.requestAnimationFrame(enhanceSingleActionTableRows);
+}
+
+function singleActionRowFromEvent(event) {
+    if (!(event.target instanceof Element)) return null;
+
+    const row = event.target.closest('tr[data-single-row-action]');
+
+    if (!(row instanceof HTMLTableRowElement)) return null;
+
+    const nestedControl = event.target.closest(singleRowActionInteractiveSelector);
+
+    return nestedControl && nestedControl !== row ? null : row;
+}
+
+function activateSingleActionRow(row) {
+    const action = row.querySelector('.single-row-action__control');
+
+    if (
+        !(action instanceof HTMLElement)
+        || action.matches(':disabled, [aria-disabled="true"]')
+        || action.closest('[hidden], [aria-hidden="true"]')
+    ) return;
+
+    action.click();
+}
+
+function bindSingleActionTableRowListeners() {
+    if (singleRowActionListenersBound) return;
+
+    singleRowActionListenersBound = true;
+
+    document.addEventListener('click', (event) => {
+        const row = singleActionRowFromEvent(event);
+
+        if (!row || window.getSelection()?.toString()) return;
+
+        activateSingleActionRow(row);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (!['Enter', ' '].includes(event.key)) return;
+
+        const row = singleActionRowFromEvent(event);
+
+        if (!row || event.target !== row) return;
+
+        event.preventDefault();
+        activateSingleActionRow(row);
+    });
+}
+
+function initializeSingleActionTableRows() {
+    bindSingleActionTableRowListeners();
+
+    if (singleRowActionFrame !== null) {
+        window.cancelAnimationFrame(singleRowActionFrame);
+        singleRowActionFrame = null;
+    }
+
+    enhanceSingleActionTableRows();
+}
+
+document.addEventListener('DOMContentLoaded', initializeSingleActionTableRows);
+document.addEventListener('livewire:navigated', initializeSingleActionTableRows);
+window.addEventListener('resize', scheduleSingleActionTableRows, { passive: true });
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', scheduleSingleActionTableRows);
+    window.Livewire?.hook('morph.added', scheduleSingleActionTableRows);
+});
+
+const balancedRecordTableSelector = [
+    '.surface-table table',
+    '.settings-admin-page table.min-w-full:not(.curriculum-subject-resource-grid):not(.settings-academic-year-table)',
+].join(', ');
+
+let balancedRecordTableFrame = null;
+
+function clearBalancedRecordTableColumns(table) {
+    table.classList.remove('table-content--balanced');
+    delete table.dataset.balancedColumnContainerWidth;
+    table.querySelectorAll(':scope > thead > tr:first-child > :is(th, td)').forEach((cell) => {
+        cell.style.removeProperty('--balanced-column-width');
+    });
+}
+
+function recordTableRowsForHeightSync(table) {
+    return Array.from(table.tBodies).flatMap((body) => Array.from(body.rows)).filter((row) => {
+        const cells = Array.from(row.cells);
+
+        return cells.length > 0
+            && !row.hidden
+            && window.getComputedStyle(row).display !== 'none'
+            && !(cells.length === 1 && cells[0].colSpan > 1);
+    });
+}
+
+function synchronizeRecordTableRowHeights() {
+    document.querySelectorAll('.app-main table').forEach((table) => {
+        const rows = recordTableRowsForHeightSync(table);
+
+        rows.forEach((row) => row.style.removeProperty('height'));
+
+        if (rows.length < 2 || table.getBoundingClientRect().width <= 0) {
+            return;
+        }
+
+        const tallestRowHeight = Math.max(...rows.map((row) => row.getBoundingClientRect().height));
+
+        if (tallestRowHeight <= 0) {
+            return;
+        }
+
+        rows.forEach((row) => row.style.setProperty('height', `${Math.ceil(tallestRowHeight)}px`));
+    });
+}
+
+function recordTableHasExplicitColumnLayout(table) {
+    if (
+        table.querySelector(':scope > colgroup')
+        || (table.closest('[data-student-progress-enrollments]') && window.matchMedia('(min-width: 768px)').matches)
+        || table.matches('.attendance-scan-list__table, .attendance-days-table, .attendance-records-table, .attendance-day-groups-table, .assessment-index-table, .assessment-results-data-table, .financial-transactions-table, .student-notes-table, [data-curriculum-subject-resource-grid]')
+    ) {
+        return true;
+    }
+
+    return !table.classList.contains('table-content--balanced')
+        && window.getComputedStyle(table).tableLayout === 'fixed';
+}
+
+function recordTableHasCompleteBalancedColumns(table, headerCells) {
+    return table.classList.contains('table-content--balanced')
+        && table.dataset.balancedColumnContainerWidth
+        && headerCells.every((cell) => cell.style.getPropertyValue('--balanced-column-width') !== '');
+}
+
+function preserveOrClearBalancedRecordTableColumns(table, headerCells, availableWidth) {
+    const previousContainerWidth = Number.parseFloat(table.dataset.balancedColumnContainerWidth ?? '');
+    const containerWidthIsStable = availableWidth <= 0
+        || (Number.isFinite(previousContainerWidth) && Math.abs(previousContainerWidth - availableWidth) <= 1);
+
+    if (!recordTableHasCompleteBalancedColumns(table, headerCells) || !containerWidthIsStable) {
+        clearBalancedRecordTableColumns(table);
+    }
+}
+
+function measureRecordTableColumns(table, columnCount) {
+    const host = document.createElement('div');
+    const clone = table.cloneNode(true);
+    const widths = Array.from({ length: columnCount }, () => 0);
+
+    host.className = 'surface-table balanced-table-measure-host';
+    clone.classList.remove('table-content--balanced');
+    clone.classList.add('table-content--measuring');
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+    clone.querySelectorAll(':scope > thead > tr:first-child > :is(th, td)').forEach((cell) => {
+        cell.style.removeProperty('--balanced-column-width');
+    });
+    host.append(clone);
+    document.body.append(host);
+
+    Array.from(clone.rows).forEach((row) => {
+        const cells = Array.from(row.cells);
+
+        if (cells.length !== columnCount || cells.some((cell) => cell.colSpan !== 1)) {
+            return;
+        }
+
+        cells.forEach((cell, index) => {
+            widths[index] = Math.max(widths[index], Math.ceil(cell.getBoundingClientRect().width));
+        });
+    });
+
+    host.remove();
+
+    return widths;
+}
+
+function synchronizeBalancedRecordTableColumns() {
+    balancedRecordTableFrame = null;
+
+    document.querySelectorAll(balancedRecordTableSelector).forEach((table) => {
+        const headerCells = Array.from(table.querySelectorAll(':scope > thead > tr:first-child > :is(th, td)'));
+        const availableWidth = table.parentElement?.clientWidth ?? 0;
+
+        if (
+            headerCells.length < 2
+            || availableWidth <= 0
+            || headerCells.some((cell) => cell.colSpan !== 1)
+        ) {
+            preserveOrClearBalancedRecordTableColumns(table, headerCells, availableWidth);
+
+            return;
+        }
+
+        if (recordTableHasExplicitColumnLayout(table)) {
+            clearBalancedRecordTableColumns(table);
+
+            return;
+        }
+
+        const measuredWidths = measureRecordTableColumns(table, headerCells.length);
+        const compactNumberColumnWidth = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) * 3.5;
+        const compactColumnIndexes = new Set(headerCells.flatMap((cell, index) => (
+            cell.matches('[data-table-number-column]') ? [index] : []
+        )));
+        const hiddenColumnIndexes = new Set(headerCells.flatMap((cell, index) => (
+            window.getComputedStyle(cell).display === 'none' ? [index] : []
+        )));
+        const baseWidths = measuredWidths.map((width, index) => (
+            hiddenColumnIndexes.has(index)
+                ? 0
+                : compactColumnIndexes.has(index)
+                    ? Math.min(width, compactNumberColumnWidth)
+                    : width
+        ));
+        const measuredTotal = baseWidths.reduce((total, width) => total + width, 0);
+        const flexibleColumnCount = headerCells.length - compactColumnIndexes.size - hiddenColumnIndexes.size;
+
+        if (!measuredTotal || measuredTotal > availableWidth || flexibleColumnCount < 1) {
+            preserveOrClearBalancedRecordTableColumns(table, headerCells, availableWidth);
+
+            return;
+        }
+
+        const sharedFreeWidth = (availableWidth - measuredTotal) / flexibleColumnCount;
+        const balancedWidths = baseWidths.map((width, index) => (
+            hiddenColumnIndexes.has(index) || compactColumnIndexes.has(index) ? width : width + sharedFreeWidth
+        ));
+
+        headerCells.forEach((cell, index) => {
+            cell.style.setProperty('--balanced-column-width', `${(balancedWidths[index] / availableWidth) * 100}%`);
+        });
+        table.dataset.balancedColumnContainerWidth = String(availableWidth);
+        table.classList.add('table-content--balanced');
+    });
+
+    synchronizeRecordTableRowHeights();
+}
+
+function scheduleBalancedRecordTableColumnSync() {
+    if (balancedRecordTableFrame !== null) {
+        window.cancelAnimationFrame(balancedRecordTableFrame);
+    }
+
+    balancedRecordTableFrame = window.requestAnimationFrame(synchronizeBalancedRecordTableColumns);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleBalancedRecordTableColumnSync);
+document.addEventListener('livewire:navigated', scheduleBalancedRecordTableColumnSync);
+window.addEventListener('resize', scheduleBalancedRecordTableColumnSync, { passive: true });
+document.fonts?.ready.then(scheduleBalancedRecordTableColumnSync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('commit', ({ succeed }) => {
+        succeed(() => {
+            window.requestAnimationFrame(scheduleBalancedRecordTableColumnSync);
+        });
+    });
+
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (
+            el.matches?.(balancedRecordTableSelector)
+            || el.querySelector?.(balancedRecordTableSelector)
+            || el.closest?.('.app-main table')
+        ) {
+            scheduleBalancedRecordTableColumnSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (
+            el.matches?.(balancedRecordTableSelector)
+            || el.querySelector?.(balancedRecordTableSelector)
+            || el.closest?.('.app-main table')
+        ) {
+            scheduleBalancedRecordTableColumnSync();
+        }
+    });
+});
+
 const financeKashida = '\u0640';
 const financeNonConnectingLetters = new Set(['ء', 'ا', 'أ', 'إ', 'آ', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى']);
 const financeArabicLetterPattern = /[\u0621-\u063A\u0641-\u064A\u066E-\u06D3]/u;
@@ -1687,6 +2378,47 @@ function financeTextWithKashidas(text, count) {
         character + financeKashida.repeat(additions.get(index) ?? 0)
     )).join('');
 }
+
+function justifyDuplicateWarningTip(tooltip) {
+    if (tooltip.dir !== 'rtl' || !financeTextMeasureContext) return;
+    const sentence = tooltip.querySelector('[data-duplicate-tip-message]');
+    const instruction = tooltip.querySelector('[data-duplicate-tip-action]');
+    if (!sentence || !instruction) return;
+
+    const source = instruction.dataset.duplicateTipSource ?? instruction.textContent.trim();
+    instruction.dataset.duplicateTipSource = source;
+    instruction.textContent = source;
+    instruction.style.width = '';
+
+    // Match the longest rendered line when the warning wraps on a small screen.
+    const range = document.createRange();
+    range.selectNodeContents(sentence);
+    const scale = sentence.getBoundingClientRect().width / sentence.offsetWidth || 1;
+    const width = Math.max(0, ...Array.from(range.getClientRects(), rect => rect.width / scale));
+    if (!width) return;
+
+    const style = window.getComputedStyle(instruction);
+    financeTextMeasureContext.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    financeTextMeasureContext.direction = 'rtl';
+    const spacing = Number.parseFloat(style.letterSpacing) || 0;
+    const measure = text => financeTextMeasureContext.measureText(text).width
+        + Math.max(0, Array.from(text).length - 1) * spacing;
+    instruction.textContent = fitGroupOptionText(source, width, count => financeTextWithKashidas(source, count), measure);
+    instruction.style.width = `${Math.ceil(width)}px`;
+}
+
+window.justifyDuplicateWarningTip = (tooltip) => {
+    // Alpine's x-show reveals teleported elements on its next animation frame;
+    // $nextTick alone can still measure display:none and return a zero width.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (tooltip.isConnected && tooltip.getClientRects().length) {
+            justifyDuplicateWarningTip(tooltip);
+            document.fonts.ready.then(() => {
+                if (tooltip.isConnected && tooltip.getClientRects().length) justifyDuplicateWarningTip(tooltip);
+            });
+        }
+    }));
+};
 
 function measureFinancialShapedLabel(element, text) {
     element.textContent = text;
@@ -3455,10 +4187,11 @@ function initializeQuickAttendanceScanners() {
         root.dataset.bound = 'true';
 
         const video = root.querySelector('[data-quick-attendance-video]');
-        const message = root.querySelector('[data-quick-attendance-message]');
-        const input = root.querySelector('#quick-attendance-scan');
         const startButton = root.querySelector('[data-quick-attendance-start]');
         const stopButton = root.querySelector('[data-quick-attendance-stop]');
+        const camera = root.querySelector('[data-quick-attendance-camera]');
+        const cameraDisabled = startButton?.disabled ?? false;
+        let cameraSession = 0;
         let stream = null;
         let detector = null;
         let scanning = false;
@@ -3467,13 +4200,23 @@ function initializeQuickAttendanceScanners() {
         let lastFrameScanAt = 0;
         let qrCanvas = null;
         let qrContext = null;
+        let fallbackReader = null;
+        let fallbackReaderPromise = null;
+        let lastFallbackScanAt = 0;
 
         const messageText = (key, fallback = '') => root.dataset[key] || fallback;
 
-        const setMessage = (text) => {
-            if (message) {
-                message.textContent = text;
+        const setMessage = (text, type = 'info') => {
+            const currentMessage = root.querySelector('[data-quick-attendance-message]');
+            if (currentMessage) {
+                currentMessage.textContent = text;
+                currentMessage.dataset.feedbackType = type;
             }
+        };
+
+        const setCameraState = (state) => {
+            if (camera) camera.dataset.cameraState = state;
+            if (startButton) startButton.disabled = cameraDisabled || state === 'starting';
         };
 
         const component = () => {
@@ -3484,6 +4227,7 @@ function initializeQuickAttendanceScanners() {
         };
 
         const stop = () => {
+            cameraSession += 1;
             scanning = false;
 
             if (stream) {
@@ -3495,6 +4239,7 @@ function initializeQuickAttendanceScanners() {
                 video.srcObject = null;
             }
 
+            setCameraState('idle');
             setMessage(messageText('cameraIdle'));
         };
 
@@ -3510,11 +4255,6 @@ function initializeQuickAttendanceScanners() {
             lastSeenAt = now;
             setMessage(messageText('cameraDetected'));
 
-            if (input instanceof HTMLInputElement) {
-                input.value = normalizedValue;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-
             const livewireComponent = component();
 
             if (!livewireComponent) {
@@ -3529,24 +4269,48 @@ function initializeQuickAttendanceScanners() {
             }
         };
 
-        const decodeQrFromCanvas = () => {
+        const loadFallbackReader = () => {
+            fallbackReaderPromise ??= import('@zxing/browser')
+                .then(({ BrowserMultiFormatReader }) => {
+                    fallbackReader = new BrowserMultiFormatReader();
+
+                    return fallbackReader;
+                })
+                .catch(() => null);
+
+            return fallbackReaderPromise;
+        };
+
+        const drawVideoFrame = () => {
             if (!(video instanceof HTMLVideoElement) || !video.videoWidth || !video.videoHeight) {
-                return '';
+                return false;
             }
 
             qrCanvas ??= document.createElement('canvas');
 
-            if (qrCanvas.width !== video.videoWidth || qrCanvas.height !== video.videoHeight) {
-                qrCanvas.width = video.videoWidth;
-                qrCanvas.height = video.videoHeight;
+            const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
+            const frameWidth = Math.max(1, Math.round(video.videoWidth * scale));
+            const frameHeight = Math.max(1, Math.round(video.videoHeight * scale));
+
+            if (qrCanvas.width !== frameWidth || qrCanvas.height !== frameHeight) {
+                qrCanvas.width = frameWidth;
+                qrCanvas.height = frameHeight;
                 qrContext = qrCanvas.getContext('2d', { willReadFrequently: true });
             }
 
             if (!qrContext) {
-                return '';
+                return false;
             }
 
             qrContext.drawImage(video, 0, 0, qrCanvas.width, qrCanvas.height);
+
+            return true;
+        };
+
+        const decodeQrFromCanvas = () => {
+            if (!drawVideoFrame()) {
+                return '';
+            }
 
             const imageData = qrContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
@@ -3573,7 +4337,31 @@ function initializeQuickAttendanceScanners() {
                 }
             }
 
-            return decodeQrFromCanvas();
+            const qrValue = decodeQrFromCanvas();
+
+            if (qrValue) {
+                return qrValue;
+            }
+
+            const now = Date.now();
+
+            if (now - lastFallbackScanAt < 350 || !qrCanvas) {
+                return '';
+            }
+
+            lastFallbackScanAt = now;
+
+            const reader = fallbackReader || await loadFallbackReader();
+
+            if (!reader) {
+                return '';
+            }
+
+            try {
+                return reader.decodeFromCanvas(qrCanvas)?.getText?.() || '';
+            } catch (_error) {
+                return '';
+            }
         };
 
         const scanLoop = async () => {
@@ -3606,29 +4394,27 @@ function initializeQuickAttendanceScanners() {
             }
         };
 
-        const startCameraStream = async () => {
-            try {
-                return await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { ideal: 'environment' },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                    },
-                });
-            } catch (_error) {
-                return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            }
-        };
-
         startButton?.addEventListener('click', async () => {
+            if (cameraDisabled || startButton.disabled || scanning) return;
+
             if (!navigator.mediaDevices?.getUserMedia) {
-                setMessage(messageText('cameraNotSupported'));
-                input?.focus();
+                setMessage(messageText('cameraNotSupported'), 'error');
+                const manualEntry = root.querySelector('.attendance-scanner__manual');
+                if (manualEntry) manualEntry.open = true;
+                const studentPicker = root.querySelector('.attendance-scanner__manual-field .searchable-select__search--trigger, .attendance-scanner__manual-field .searchable-select__button')
+                    || root.querySelector('#quick-attendance-student');
+                studentPicker?.focus();
 
                 return;
             }
 
+            const session = ++cameraSession;
+            setCameraState('starting');
+
             try {
+                if (!(video instanceof HTMLVideoElement)) throw new Error('Camera preview is unavailable.');
+
+                prepareInlineCameraVideo(video);
                 detector = null;
 
                 if ('BarcodeDetector' in window) {
@@ -3639,18 +4425,25 @@ function initializeQuickAttendanceScanners() {
                     }
                 }
 
-                stream = await startCameraStream();
-
-                if (video instanceof HTMLVideoElement) {
-                    video.srcObject = stream;
-                    await video.play();
+                const nextStream = await requestCameraStream(navigator.mediaDevices);
+                if (session !== cameraSession || !root.isConnected) {
+                    nextStream.getTracks().forEach((track) => track.stop());
+                    return;
                 }
+                stream = nextStream;
 
+                await attachCameraStream(video, stream);
+
+                if (session !== cameraSession) return;
                 scanning = true;
+                setCameraState('running');
                 setMessage(messageText('cameraRunning'));
+                if (!detector) void loadFallbackReader();
                 requestAnimationFrame(scanLoop);
             } catch (_error) {
-                setMessage(messageText('cameraError'));
+                if (session !== cameraSession) return;
+                stop();
+                setMessage(messageText('cameraError'), 'error');
             }
         });
 

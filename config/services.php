@@ -2,6 +2,11 @@
 
 return [
 
+    'photon' => [
+        'enabled' => env('ADDRESS_ONLINE_SUGGESTIONS', true),
+        'url' => env('PHOTON_API_URL', 'https://photon.komoot.io/api/'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

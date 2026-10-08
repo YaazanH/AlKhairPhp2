@@ -56,16 +56,13 @@
                     <div class="relative">
                         <flux:profile
                             :name="auth()->user()->name"
+                            :avatar="auth()->user()->profilePhotoUrl()"
                             :initials="auth()->user()->initials()"
                             icon-trailing="chevrons-up-down"
                             class="w-full"
                             x-on:click="open = ! open"
                             x-bind:aria-expanded="open.toString()"
-                        >
-                            <x-slot:avatar>
-                                <x-user-avatar :user="auth()->user()" size="sm" />
-                            </x-slot:avatar>
-                        </flux:profile>
+                        />
 
                         <div
                             x-cloak
@@ -121,7 +118,15 @@
                     </div>
 
                     <flux:spacer />
-                    <x-mobile-header-mark class="mobile-header-mark text-neutral-200" />
+                    <a
+                        href="{{ route('dashboard') }}"
+                        class="mobile-header-home-link"
+                        aria-label="{{ __('ui.nav.dashboard') }}"
+                        title="{{ __('ui.nav.dashboard') }}"
+                        wire:navigate
+                    >
+                        <x-mobile-header-mark class="mobile-header-mark text-neutral-200" />
+                    </a>
                 </flux:header>
 
                 <main class="app-main">
@@ -169,6 +174,7 @@
             </div>
         </div>
 
+        @include('partials.table-row-actions-bootstrap')
         @fluxScripts
     </body>
 </html>

@@ -2,6 +2,7 @@
 
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\SupportsCreateAndNew;
+use App\Support\ArabicSearch;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -11,20 +12,30 @@ use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
     use WithPagination;
 
     public string $selected_role = '';
+
     public array $selected_permissions = [];
+
     public string $role_search = '';
+
     public string $permission_search = '';
+
     public int $perPage = 15;
+
     public bool $showRoleModal = false;
+
     public bool $showPermissionsModal = false;
+
     public string $editing_role = '';
+
     public string $role_name = '';
+
     public string $clone_role = '';
 
     public function mount(): void
@@ -52,10 +63,10 @@ new class extends Component {
         $rolesQuery = $this->rolesQuery();
 
         if (filled($this->permission_search)) {
-            $needle = Str::lower($this->permission_search);
-
-            $permissions = $permissions->filter(fn (Permission $permission): bool => Str::contains(Str::lower($permission->name), $needle)
-                || Str::contains(Str::lower($this->permissionLabel($permission->name)), $needle));
+            $permissions = $permissions->filter(fn (Permission $permission): bool => ArabicSearch::matchesAllTokens(
+                $permission->name.' '.$this->permissionLabel($permission->name),
+                $this->permission_search,
+            ));
         }
 
         $filteredRolesCount = (clone $rolesQuery)->count();
@@ -64,15 +75,15 @@ new class extends Component {
             ->count();
         $permissionGroups = $permissions
             ->groupBy(fn (Permission $permission): string => $this->permissionGroupLabel($permission->name));
-        $collator = class_exists(\Collator::class) ? new \Collator(app()->getLocale()) : null;
+        $collator = class_exists(Collator::class) ? new Collator(app()->getLocale()) : null;
         $permissionGroups = $permissionGroups->sortKeysUsing(function (string $left, string $right) use ($collator): int {
             if ($collator) {
                 return $collator->compare($left, $right) ?: strcmp($left, $right);
             }
 
             return strnatcmp(
-                Str::lower(\App\Support\ArabicSearch::normalize($left)),
-                Str::lower(\App\Support\ArabicSearch::normalize($right)),
+                Str::lower(ArabicSearch::normalize($left)),
+                Str::lower(ArabicSearch::normalize($right)),
             );
         });
 
@@ -365,13 +376,19 @@ new class extends Component {
     {
         return Role::query()
             ->withCount(['users', 'permissions'])
-            ->when(filled($this->role_search), fn ($query) => $query->where('name', 'like', '%'.$this->role_search.'%'))
+            ->when(filled($this->role_search), function ($query): void {
+                ArabicSearch::whereAllTokens(
+                    $query,
+                    $this->role_search,
+                    fn ($builder, string $token) => $builder->where('name', 'like', '%'.$token.'%'),
+                );
+            })
             ->orderByRaw(
                 'case when name = ? then 0 when name = ? then 1 when name = ? then 2 when name = ? then 4 when name = ? then 5 else 3 end',
                 [RoleRegistry::SUPER_ADMIN, RoleRegistry::ADMIN, RoleRegistry::MANAGER, RoleRegistry::PARENT, RoleRegistry::STUDENT],
             )
             ->orderByDesc('level')
-            ->orderByRaw("
+            ->orderByRaw('
                 case
                     when name = ? then 0
                     when name = ? then 1
@@ -381,7 +398,7 @@ new class extends Component {
                     when name = ? then 5
                     else 99
                 end
-            ", [
+            ', [
                 RoleRegistry::SUPER_ADMIN,
                 RoleRegistry::ADMIN,
                 RoleRegistry::MANAGER,

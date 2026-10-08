@@ -105,7 +105,7 @@
                 const letters = (line.match(/[\u0621-\u064a]/g) || []).length;
                 const spaces = (line.match(/\s/g) || []).length;
                 const visualLength = letters + (spaces * 0.45);
-                if (visualLength < (capacity * 0.35)) return line;
+                if (visualLength >= (capacity * 0.98)) return line;
                 const matches = [...line.matchAll(/([\u0626\u0628\u062a-\u062e\u0633-\u063a\u0641-\u0647\u0649\u064a])(?=[\u0622-\u064a])/g)];
                 if (!matches.length) return line;
 
@@ -119,8 +119,8 @@
                     }))
                     .sort((left, right) => right.score - left.score)
                     .map((candidate) => candidate.position);
-                const estimatedGap = visualLength < capacity ? capacity - visualLength : Math.min(2.2, capacity * 0.08);
-                const count = Math.min(matches.length * 2, 12, Math.max(1, Math.ceil(estimatedGap / 0.55)));
+                const estimatedGap = capacity - visualLength;
+                const count = Math.min(matches.length * 64, 640, Math.max(1, Math.ceil(estimatedGap / (0.08 / 0.55))));
                 const insertions = new Map();
 
                 for (let index = 0; index < count; index += 1) {

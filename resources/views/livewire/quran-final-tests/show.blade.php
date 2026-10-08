@@ -3,26 +3,35 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\QuranFinalTest;
-use App\Models\QuranTest;
 use App\Models\QuranJuz;
+use App\Models\QuranTest;
 use App\Models\Teacher;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranFinalTestService;
+use App\Support\OperationalFeatureSettings;
 use App\Support\RoleRegistry;
-use Livewire\Volt\Component;
 use Illuminate\Validation\Rule;
+use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
     public QuranFinalTest $finalTest;
+
     public ?int $teacher_id = null;
+
     public string $tested_on = '';
+
     public string $score = '';
+
     public bool $showAttemptModal = false;
+
     public ?int $editingAttemptId = null;
+
     public bool $showCurrentJuzModal = false;
+
     public string $newCurrentJuzNumber = '';
 
     public function mount(QuranFinalTest $finalTest): void
@@ -62,7 +71,8 @@ new class extends Component {
     public function openAttemptModal(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
+        OperationalFeatureSettings::ensureQuranTestsEnabled();
+        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         if ($this->finalTest->status === 'passed') {
             $this->addError('attempt', __('workflow.quran_final_tests.errors.already_passed'));
@@ -97,7 +107,8 @@ new class extends Component {
         }
 
         if (! $this->editingAttemptId) {
-            \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
+            OperationalFeatureSettings::ensureQuranTestsEnabled();
+            OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
 
         $validated = $this->validate([
@@ -126,7 +137,7 @@ new class extends Component {
                     'score' => $validated['score'] ?? null,
                     'tested_on' => $validated['tested_on'],
                 ]);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('attempt', $exception->getMessage());
 
             return;
@@ -173,7 +184,7 @@ new class extends Component {
         $attempt = $this->finalTest->attempts()->findOrFail($this->editingAttemptId);
         try {
             app(QuranFinalTestService::class)->deleteAttempt($attempt);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('attempt', $exception->getMessage());
 
             return;
@@ -190,7 +201,7 @@ new class extends Component {
 
         try {
             app(QuranFinalTestService::class)->deleteTest($this->finalTest);
-        } catch (\LogicException $exception) {
+        } catch (LogicException $exception) {
             $this->addError('deleteTest', $exception->getMessage());
 
             return;
@@ -297,11 +308,6 @@ new class extends Component {
                 @error('deleteTest') <div class="mt-2 text-sm text-red-300">{{ $message }}</div> @enderror
             </div>
 
-            <div class="flex flex-wrap gap-3 lg:col-start-2">
-                @if ($finalTestRecord->status !== 'passed' && auth()->user()->can('quran-final-tests.record'))
-                    <button type="button" wire:click="openAttemptModal" class="pill-link pill-link--accent workflow-entry-action--hidden">{{ __('workflow.quran_final_tests.actions.record_attempt') }}</button>
-                @endif
-            </div>
         </div>
     </section>
 

@@ -20,6 +20,8 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString('.admin-modal__body .overflow-x-auto {', $styles);
         $this->assertStringContainsString('.print-template-settings-dialog {', $styles);
         $this->assertStringContainsString(".print-template-settings-dialog [class*='grid-cols-']", $styles);
+        $this->assertStringContainsString(".admin-modal__viewport {\n        align-items: center;", $styles);
+        $this->assertStringContainsString(".admin-modal .searchable-select__panel {\n        position: absolute;\n        inset-inline: 0;\n        top: calc(100% + 0.35rem);\n        bottom: auto;", $styles);
     }
 
     public function test_searchable_dropdowns_temporarily_release_every_clipping_popup_ancestor(): void
