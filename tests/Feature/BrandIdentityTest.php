@@ -9,6 +9,7 @@ use App\Services\Landlord\TenantContext;
 use App\Services\WebsiteService;
 use App\Support\BrandIdentity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class BrandIdentityTest extends TestCase
@@ -56,5 +57,16 @@ class BrandIdentityTest extends TestCase
 
         $this->assertSame('Future Learning Centre', $website->siteSettings()['site_name']);
         $this->assertSame('Future Learning Centre', $website->resolveMetaTitle($home));
+    }
+
+    public function test_platform_site_settings_do_not_query_tenant_settings(): void
+    {
+        app(TenantContext::class)->clear();
+        Schema::dropIfExists('app_settings');
+
+        $settings = app(WebsiteService::class)->siteSettings();
+
+        $this->assertSame(app(BrandIdentity::class)->platformName(), $settings['site_name']);
+        $this->assertNull($settings['logo_url']);
     }
 }

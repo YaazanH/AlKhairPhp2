@@ -159,12 +159,13 @@ class WebsiteService
 
     public function siteSettings(): array
     {
-        $website = AppSetting::groupValues('website');
-        $general = AppSetting::groupValues('general');
+        $hasTenant = app(TenantContext::class)->hasTenant();
+        $website = $hasTenant ? AppSetting::groupValues('website') : collect();
+        $general = $hasTenant ? AppSetting::groupValues('general') : collect();
 
-        $siteName = app(TenantContext::class)->hasTenant()
+        $siteName = $hasTenant
             ? $this->branding->currentName()
-            : ($website->get('site_name') ?: $general->get('school_name') ?: $this->branding->platformName());
+            : $this->branding->platformName();
         $tagline = $website->get('site_tagline') ?: [
             'en' => 'Quran, community, and family learning under one roof.',
             'ar' => 'القرآن والمجتمع وتعلّم الأسرة تحت سقف واحد.',
