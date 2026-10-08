@@ -2316,6 +2316,113 @@ document.addEventListener('livewire:initialized', () => {
     });
 });
 
+let tableStatusChipWidthFrame = null;
+const statusChipTextMeasureCanvas = document.createElement('canvas');
+const statusChipTextMeasureContext = statusChipTextMeasureCanvas.getContext('2d');
+const statusChipRoomyLabelWidthThreshold = 5.5;
+
+function synchronizeStatusChipRoominess() {
+    document.querySelectorAll('.status-chip:not([data-juz-progress-status])').forEach((chip) => {
+        const label = chip.textContent?.trim().replace(/\s+/g, ' ') ?? '';
+        const styles = window.getComputedStyle(chip);
+        const fontSize = Number.parseFloat(styles.fontSize || '0');
+
+        if (!statusChipTextMeasureContext || !label || fontSize <= 0) {
+            chip.classList.remove('status-chip--roomy');
+
+            return;
+        }
+
+        statusChipTextMeasureContext.font = styles.font;
+        const labelWidth = statusChipTextMeasureContext.measureText(label).width;
+
+        chip.classList.toggle('status-chip--roomy', labelWidth >= fontSize * statusChipRoomyLabelWidthThreshold);
+    });
+}
+
+function clearUniformTableStatusChipWidth(table) {
+    table.removeAttribute('data-uniform-status-chips');
+    table.style.removeProperty('--table-status-chip-width');
+}
+
+function visibleTableStatusChips(table) {
+    return Array.from(table.querySelectorAll(':scope > tbody .status-chip:not([data-juz-progress-status]), :scope > tfoot .status-chip:not([data-juz-progress-status])')).filter((chip) => (
+        chip.closest('table') === table
+        && chip.getClientRects().length > 0
+        && window.getComputedStyle(chip).display !== 'none'
+    ));
+}
+
+function tableCellAvailableInlineSize(cell) {
+    const styles = window.getComputedStyle(cell);
+    const inlinePadding = Number.parseFloat(styles.paddingInlineStart || '0')
+        + Number.parseFloat(styles.paddingInlineEnd || '0');
+
+    return Math.max(0, cell.clientWidth - inlinePadding);
+}
+
+function synchronizeTableStatusChipWidths() {
+    tableStatusChipWidthFrame = null;
+    synchronizeStatusChipRoominess();
+
+    document.querySelectorAll('.app-main table').forEach((table) => {
+        clearUniformTableStatusChipWidth(table);
+
+        const chips = visibleTableStatusChips(table);
+
+        if (chips.length < 2) {
+            return;
+        }
+
+        const widestChipWidth = Math.ceil(Math.max(...chips.map((chip) => chip.getBoundingClientRect().width)));
+        const everyCellCanFitWidestChip = chips.every((chip) => {
+            const cell = chip.closest('td, th');
+
+            return cell instanceof HTMLTableCellElement
+                && tableCellAvailableInlineSize(cell) + 0.5 >= widestChipWidth;
+        });
+
+        if (widestChipWidth <= 0 || !everyCellCanFitWidestChip) {
+            return;
+        }
+
+        table.style.setProperty('--table-status-chip-width', `${widestChipWidth}px`);
+        table.setAttribute('data-uniform-status-chips', '');
+    });
+}
+
+function scheduleTableStatusChipWidthSync() {
+    if (tableStatusChipWidthFrame !== null) {
+        window.cancelAnimationFrame(tableStatusChipWidthFrame);
+    }
+
+    tableStatusChipWidthFrame = window.requestAnimationFrame(synchronizeTableStatusChipWidths);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleTableStatusChipWidthSync);
+document.addEventListener('livewire:navigated', scheduleTableStatusChipWidthSync);
+window.addEventListener('resize', scheduleTableStatusChipWidthSync, { passive: true });
+document.fonts?.ready.then(scheduleTableStatusChipWidthSync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('commit', ({ succeed }) => {
+        succeed(() => {
+            window.requestAnimationFrame(scheduleTableStatusChipWidthSync);
+        });
+    });
+
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('.status-chip, .app-main table') || el.querySelector?.('.status-chip, .app-main table')) {
+            scheduleTableStatusChipWidthSync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('.status-chip, .app-main table') || el.querySelector?.('.status-chip, .app-main table')) {
+            scheduleTableStatusChipWidthSync();
+        }
+    });
+});
+
 const financeKashida = '\u0640';
 const financeNonConnectingLetters = new Set(['ء', 'ا', 'أ', 'إ', 'آ', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى']);
 const financeArabicLetterPattern = /[\u0621-\u063A\u0641-\u064A\u066E-\u06D3]/u;

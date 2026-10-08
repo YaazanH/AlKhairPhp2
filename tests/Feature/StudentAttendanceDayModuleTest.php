@@ -459,6 +459,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager)
             ->get(route('student-attendance.show', $day, absolute: false))
             ->assertOk()
+            ->assertSeeText('حلقة واحدة - طالب واحد حاضر')
             ->assertSeeTextInOrder([
                 'Separate Counts Group',
                 '2',

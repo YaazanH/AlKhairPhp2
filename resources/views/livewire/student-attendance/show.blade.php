@@ -71,6 +71,7 @@ new class extends Component
                 'groups' => $day->groupAttendanceDays->count(),
                 'students' => $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0)),
                 'marked' => $day->groupAttendanceDays->sum('records_count'),
+                'present' => $day->groupAttendanceDays->sum('present_records_count'),
             ],
         ];
     }
@@ -418,7 +419,7 @@ new class extends Component
         <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar student-attendance-toolbar">
             <div class="attendance-day-toolbar__heading">
                 <div class="admin-grid-meta__title" title="{{ __('workflow.student_attendance.day_details.table.title') }}">{{ __('workflow.student_attendance.day_details.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.day_details.table.groups_in_view', $dayRecord->groupAttendanceDays->count(), ['count' => number_format($dayRecord->groupAttendanceDays->count())]) }}</div>
+                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.day_details.table.groups_in_view', $stats['groups'], ['count' => number_format($stats['groups'])]) }} - {{ trans_choice('workflow.student_attendance.table.present_students', $stats['present'], ['count' => number_format($stats['present'])]) }}</div>
             </div>
             @if ($canAddManualGroup || $canQuickAttend || $canToggleDayStatus)
                 <div class="admin-toolbar__actions">

@@ -2406,6 +2406,14 @@ table.table-content--balanced > thead > tr:first-child > :is(th, td) {
         text-align: center !important;
         direction: ltr;
     }
+
+    .app-main table:has(> thead > tr:first-child > [data-table-number-column]:first-child) > :is(tbody, tfoot) > tr > :first-child > .mobile-scroll-table-value {
+        display: block !important;
+        inline-size: 100%;
+        max-inline-size: none;
+        text-align: center;
+        direction: ltr;
+    }
 }
 
 .balanced-table-measure-host {
@@ -8553,28 +8561,52 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
 }
 
 .status-chip {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    justify-content: center;
+    box-sizing: border-box;
+    gap: 0;
     border-radius: 9999px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
-    padding: 0.45rem 0.8rem;
+    padding-block: 0.45rem;
+    padding-inline-start: 1.57rem;
+    padding-inline-end: 0.77rem;
     font-size: 0.76rem;
     font-weight: 500;
     letter-spacing: 0.08em;
+    text-align: center;
     text-transform: uppercase;
 }
 
 .status-chip::before {
     content: '';
+    position: absolute;
+    display: block;
+    inset-inline-start: 0.55rem;
+    top: 50%;
     width: 0.45rem;
     height: 0.45rem;
-    flex: 0 0 0.45rem;
+    min-width: 0.45rem;
+    min-height: 0.45rem;
+    max-width: 0.45rem;
+    max-height: 0.45rem;
     aspect-ratio: 1;
-    border-radius: 9999px;
+    box-sizing: border-box;
+    border-radius: 50%;
     background: currentColor;
     opacity: 0.9;
+    transform: translateY(-50%);
+}
+
+.status-chip.status-chip--roomy {
+    padding-inline-start: 1.7rem;
+    padding-inline-end: 0.9rem;
+}
+
+.app-main table[data-uniform-status-chips] .status-chip:not([data-juz-progress-status]) {
+    inline-size: var(--table-status-chip-width);
 }
 
 .student-juz-progress-table [data-student-progress-juz-table] :is(th, td) {
@@ -8634,7 +8666,8 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding-inline: 1.5rem;
+    padding-inline-start: 2rem;
+    padding-inline-end: 1rem;
     text-align: center;
     white-space: normal;
     letter-spacing: 0;
@@ -8818,9 +8851,19 @@ html[dir='rtl'] .student-juz-progress-table [data-juz-progress-status] {
         white-space: nowrap !important;
         overflow-wrap: normal !important;
         word-break: normal !important;
-        gap: .3rem;
-        padding: .4rem .55rem;
+        padding-block: .4rem;
+        padding-inline-start: 1.1rem;
+        padding-inline-end: .6rem;
         letter-spacing: 0;
+    }
+
+    .app-main [data-student-progress-enrollments] .status-chip::before {
+        inset-inline-start: .3rem;
+    }
+
+    .app-main [data-student-progress-enrollments] .status-chip.status-chip--roomy {
+        padding-inline-start: 1.225rem;
+        padding-inline-end: .725rem;
     }
 }
 
@@ -13914,13 +13957,6 @@ select:is([data-record-label='course'], [data-record-label='year']) + .searchabl
     .attendance-day-header .attendance-day-navigation-actions {
         flex-direction: column;
     }
-}
-
-/* The phone text-clamping wrapper must not pull centered row numbers left. */
-.app-main .surface-table :is(.attendance-row-number, .attendance-days-number) > .mobile-scroll-table-value {
-    display: inline !important;
-    inline-size: auto;
-    max-inline-size: none;
 }
 
 /* Group and teacher labels must fit their cell beside attendance counts. */
