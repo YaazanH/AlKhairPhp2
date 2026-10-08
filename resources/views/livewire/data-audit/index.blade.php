@@ -1049,7 +1049,7 @@ new class extends Component
                 </tbody>
             </table>
         </div>
-        @if ($activities->hasPages()) <div class="px-5 py-4">{{ $activities->links() }}</div> @endif
+        @if ($activities->hasPages()) <div class="border-t border-white/8 px-5 py-4 lg:px-6">{{ $activities->links() }}</div> @endif
     </section>
 
     <x-admin.modal :show="(bool) $selectedActivity" :title="__('data_governance.audit.details_title')" close-method="closeDetails" max-width="4xl">
