@@ -50,7 +50,7 @@
                             <div class="mb-3 text-sm text-emerald-300">{{ __('report_library.labels.ready') }}</div>
                             <form method="POST" action="{{ route('reports.library.install', $item) }}">
                                 @csrf
-                                <button class="button-primary w-full justify-center">{{ __('report_library.actions.install') }}</button>
+                                <button class="pill-link pill-link--accent w-full justify-center">{{ __('report_library.actions.install') }}</button>
                             </form>
                         @else
                             <div class="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-100" role="note">{{ $compatibility['reason'] }}</div>

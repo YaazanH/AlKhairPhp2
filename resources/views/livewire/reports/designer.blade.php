@@ -1637,7 +1637,7 @@ new class extends Component
                     <div class="flex flex-wrap justify-end gap-3 border-t border-white/10 pt-5">
                         <button type="button" wire:click="preview" class="pill-link">{{ __('report_designer.actions.preview') }}</button>
                         @if (! $readOnly && (($editingId && auth()->user()?->can('report-designer.update')) || (! $editingId && auth()->user()?->can('report-designer.create'))))
-                            <button type="button" wire:click="save" class="button-primary">{{ __('report_designer.actions.save_draft') }}</button>
+                            <button type="button" wire:click="save" class="pill-link pill-link--accent">{{ __('report_designer.actions.save_draft') }}</button>
                         @endif
                     </div>
                 </div>
@@ -1772,7 +1772,7 @@ new class extends Component
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closePlacement" class="pill-link">{{ __('report_designer.actions.cancel') }}</button>
-                <button type="submit" class="button-primary">{{ __('report_designer.actions.apply_placement') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('report_designer.actions.apply_placement') }}</button>
             </div>
         </form>
     </x-admin.modal>
@@ -1818,7 +1818,7 @@ new class extends Component
 
             <div class="flex justify-end gap-3">
                 <button type="button" wire:click="closeRoleLayouts" class="pill-link">{{ __('report_designer.actions.cancel') }}</button>
-                <button type="submit" class="button-primary">{{ __('report_designer.actions.save_layout') }}</button>
+                <button type="submit" class="pill-link pill-link--accent">{{ __('report_designer.actions.save_layout') }}</button>
             </div>
         </form>
     </x-admin.modal>
