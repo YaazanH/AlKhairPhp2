@@ -5196,17 +5196,20 @@ html:not(.dark) .app-pagination__page--dots {
 
 .dashboard-curriculum-hotbar__marker {
     position: absolute;
-    top: 50%;
+    top: calc(50% - 0.5rem);
     width: 1rem;
     height: 1rem;
-    transform: translateY(-50%);
+    transform: none;
     border: 2px solid var(--app-panel-strong);
     border-radius: 999px;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+    transition: box-shadow 140ms ease;
 }
 
 .dashboard-curriculum-hotbar__marker:hover,
 .dashboard-curriculum-hotbar__marker:focus-visible {
+    top: calc(50% - 0.5rem);
+    transform: none;
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
 }
 
@@ -5684,11 +5687,10 @@ html[dir='rtl'] .dashboard-leaderboard__details {
     position: absolute;
     z-index: 2;
     inset: 0;
-    opacity: 0.08;
     pointer-events: none;
 }
 
-.dashboard-performance-map__dimmed-layer .dashboard-performance-map__point--below-average .dashboard-performance-map__dot {
+.dashboard-performance-map__dimmed-layer .dashboard-performance-map__point--below-average:not(.dashboard-performance-map__point--rank-1):not(.dashboard-performance-map__point--rank-2):not(.dashboard-performance-map__point--rank-3) .dashboard-performance-map__dot {
     width: 6px;
     height: 6px;
     min-width: 6px;
@@ -5696,6 +5698,7 @@ html[dir='rtl'] .dashboard-leaderboard__details {
     border-color: #d5ddd8;
     background: #2c3137;
     box-shadow: none;
+    opacity: 0.08;
 }
 
 .dashboard-performance-map__point:hover,
