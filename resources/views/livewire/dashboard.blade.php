@@ -1064,6 +1064,26 @@ new class extends Component
                 $performanceY = fn (int $points) => 7 + (((min($performanceMaximumPoints, max($performanceMinimumPoints, $points)) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
                 $performanceAverageX = $performanceX((int) round($performanceAveragePages));
                 $performanceAverageY = $performanceY((int) round($performanceAveragePoints));
+                $performanceRankPositions = collect();
+                $studentPerformance->filter(fn (array $entry): bool => (bool) $entry['rank'])
+                    ->groupBy(fn (array $entry): string => sprintf('%.4f:%.4f', $performanceX($entry['pages']), $performanceY($entry['points'])))
+                    ->each(function ($entries) use ($performanceX, $performanceY, $performanceRankPositions): void {
+                        if ($entries->count() < 2) {
+                            return;
+                        }
+
+                        $offsets = $entries->count() === 2
+                            ? [['x' => -0.9, 'y' => 0.9], ['x' => 0.9, 'y' => -0.9]]
+                            : [['x' => -1.4, 'y' => 0.9], ['x' => 0.0, 'y' => -1.2], ['x' => 1.4, 'y' => 0.9]];
+
+                        $entries->sortBy('rank')->values()->each(function (array $entry, int $index) use ($offsets, $performanceX, $performanceY, $performanceRankPositions): void {
+                            $offset = $offsets[$index] ?? ['x' => 0.0, 'y' => 0.0];
+                            $performanceRankPositions->put($entry['student']->id, [
+                                'x' => min(95, max(5, $performanceX($entry['pages']) + $offset['x'])),
+                                'y' => min(95, max(5, $performanceY($entry['points']) + $offset['y'])),
+                            ]);
+                        });
+                    });
                 $aboveAveragePerformance = $studentPerformance->filter(fn (array $entry): bool => $entry['points'] > $performanceAveragePoints
                     && $entry['pages'] > $performanceAveragePages);
                 $aboveAveragePerformanceByStrength = $aboveAveragePerformance
@@ -1090,8 +1110,9 @@ new class extends Component
                         continue;
                     }
 
-                    $pointX = (float) $performanceX($entry['pages']);
-                    $pointY = (float) $performanceY($entry['points']);
+                    $rankPosition = $performanceRankPositions->get($entry['student']->id);
+                    $pointX = (float) ($rankPosition['x'] ?? $performanceX($entry['pages']));
+                    $pointY = (float) ($rankPosition['y'] ?? $performanceY($entry['points']));
                     $nearestClusterIndex = null;
                     $nearestClusterDistance = INF;
 
@@ -1232,8 +1253,9 @@ new class extends Component
                                             && $entry['pages'] > $performanceAveragePages;
                                         $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
                                         $performanceDotSize = $aboveAverageDotSizes->get($entry['student']->id, 12);
-                                        $performancePointX = $performanceX($entry['pages']);
-                                        $performancePointY = $performanceY($entry['points']);
+                                        $performanceRankPosition = $performanceRankPositions->get($entry['student']->id);
+                                        $performancePointX = $performanceRankPosition['x'] ?? $performanceX($entry['pages']);
+                                        $performancePointY = $performanceRankPosition['y'] ?? $performanceY($entry['points']);
                                     @endphp
                                     @if ($isAbovePerformanceAverage)
                                         <button

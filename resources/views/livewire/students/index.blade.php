@@ -2094,7 +2094,7 @@ new class extends Component
                                             @can('students.photo.update')
                                                 <label class="admin-icon-button cursor-pointer" title="{{ __('media.student_files.photo.upload') }}" aria-label="{{ __('media.student_files.photo.upload') }}">
                                                     <x-admin-action-icon name="camera" />
-                                                    <input wire:model="quick_photo_upload" wire:change="uploadStudentPhoto({{ $student->id }})" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only">
+                                                    <input wire:model="quick_photo_upload" wire:change="uploadStudentPhoto({{ $student->id }})" type="file" accept="image/*" capture="environment" class="sr-only">
                                                 </label>
                                             @endcan
                                             @can('students.update')

@@ -594,7 +594,7 @@ new class extends Component
                 </tbody>
             </table>
         </div>
-        @if ($issues->hasPages()) <div class="px-5 py-4">{{ $issues->links() }}</div> @endif
+        @if ($issues->hasPages()) <div class="border-t border-white/8 px-5 py-4 lg:px-6">{{ $issues->links() }}</div> @endif
     </section>
 
     <x-admin.modal :show="(bool) $selectedIssue" :title="__('data_governance.quality.review_title')" :description="$selectedIssue['title'] ?? ''" close-method="closeReview" max-width="3xl">

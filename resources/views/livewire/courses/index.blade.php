@@ -107,7 +107,7 @@ new class extends Component
 
         $filteredQuery = Course::query()
             ->with('academicYear')
-            ->withCount('groups')
+            ->withCount(['groups', 'enrollments'])
             ->when(filled($this->search), function ($query) {
                 ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
                     $search = '%'.$token.'%';
@@ -118,11 +118,9 @@ new class extends Component
             })
             ->when($this->academicYearFilter !== 'all', fn ($query) => $query->where('academic_year_id', (int) $this->academicYearFilter))
             ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
-            ->orderByDesc(AcademicYear::select('starts_on')->whereColumn('academic_years.id', 'courses.academic_year_id'))
-            ->orderByDesc(AcademicYear::select('ends_on')->whereColumn('academic_years.id', 'courses.academic_year_id'))
-            ->orderByDesc('academic_year_id')
             ->orderByDesc('starts_on')
             ->orderByDesc('ends_on')
+            ->orderByDesc('enrollments_count')
             ->orderByDesc('id');
 
         $filteredCount = (clone $filteredQuery)->count();
@@ -1039,7 +1037,7 @@ new class extends Component
                                     @if ($course->is_default)
                                         <span class="status-chip status-chip--gold">{{ __('crud.courses.table.default') }}</span>
                                     @else
-                                        <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                        <span class="{{ $course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--blue' }}">
                                             {{ $course->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.finished') }}
                                         </span>
                                     @endif

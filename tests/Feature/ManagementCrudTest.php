@@ -3341,6 +3341,7 @@ class ManagementCrudTest extends TestCase
         Storage::disk('public')->assertExists($student->photo_path);
 
         Volt::test('students.index')
+            ->assertSee('accept="image/*" capture="environment"', false)
             ->set('quick_photo_upload', UploadedFile::fake()->create('replacement-photo.webp', 15360, 'image/webp'))
             ->call('uploadStudentPhoto', $student->id)
             ->assertHasNoErrors();

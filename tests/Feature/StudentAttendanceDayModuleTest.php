@@ -459,6 +459,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager)
             ->get(route('student-attendance.show', $day, absolute: false))
             ->assertOk()
+            ->assertSeeText('حلقة واحدة - طالب واحد حاضر')
             ->assertSeeTextInOrder([
                 'Separate Counts Group',
                 '2',
@@ -664,7 +665,10 @@ class StudentAttendanceDayModuleTest extends TestCase
         $firstEnrollment = $this->makeEnrollment($teacher->id, 'Quick First Group');
         $secondEnrollment = $this->makeEnrollment($teacher->id, 'Quick Second Group', course: $firstEnrollment->group->course);
         $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $late = AttendanceStatus::query()->where('code', 'late')->firstOrFail();
         $absent = AttendanceStatus::query()->where('code', 'absent')->firstOrFail();
+        $present->update(['is_default' => false]);
+        $late->update(['is_default' => true]);
 
         $day = app(StudentAttendanceDayService::class)->createOrSyncDay(
             '2026-10-11',
@@ -677,6 +681,7 @@ class StudentAttendanceDayModuleTest extends TestCase
         $this->actingAs($manager);
 
         Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertSet('selected_status_id', (string) $present->id)
             ->assertSee('Quick First Group Student')
             ->assertSee('Quick Second Group Student')
             ->assertSee(__('workflow.student_attendance.quick.list_title'))
@@ -707,6 +712,10 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->call('scanStudent')
             ->assertHasNoErrors()
             ->assertSee('طالبان حاضران');
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString(".attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) video { opacity: 1; }", $styles);
+        $this->assertStringContainsString(".attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) [data-quick-attendance-start] { display: none; }", $styles);
 
         $this->assertDatabaseHas('student_attendance_records', [
             'enrollment_id' => $firstEnrollment->id,

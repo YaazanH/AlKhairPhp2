@@ -455,13 +455,17 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-performance-map__point--rank-3', false)
             ->assertSee('data-dashboard-centered-bar-chart', false);
 
+        $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('$performanceRankPositions', $dashboardSource);
+        $this->assertStringContainsString("? [['x' => -0.9, 'y' => 0.9], ['x' => 0.9, 'y' => -0.9]]", $dashboardSource);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-1 .dashboard-performance-map__dot {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-2 .dashboard-performance-map__dot {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-3 .dashboard-performance-map__dot {', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-1:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-2:hover .dashboard-performance-map__dot,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-3:hover .dashboard-performance-map__dot,', $dashboardCss);
+        $this->assertStringContainsString('.dashboard-performance-map__point--below-average:not(.dashboard-performance-map__point--rank-1):not(.dashboard-performance-map__point--rank-2):not(.dashboard-performance-map__point--rank-3)', $dashboardCss);
     }
 
     public function test_manager_curriculum_progress_uses_two_column_peer_relative_hotbars(): void
@@ -587,6 +591,8 @@ class DashboardTest extends TestCase
         $this->assertStringContainsString('.dashboard-curriculum-hotbar__fill--warning,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-curriculum-hotbar__fill--danger,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-curriculum-hotbar__marker {', $dashboardCss);
+        $this->assertStringContainsString('top: calc(50% - 0.5rem);', $dashboardCss);
+        $this->assertStringContainsString(".dashboard-curriculum-hotbar__marker:hover,\n.dashboard-curriculum-hotbar__marker:focus-visible {", $dashboardCss);
         $this->assertStringContainsString('grid-template-columns: var(--dashboard-curriculum-identity-width, max-content) max-content minmax(8rem, 1fr);', $dashboardCss);
         $this->assertStringContainsString('content: attr(data-dashboard-curriculum-name-gap);', $dashboardCss);
         $this->assertStringContainsString('width: 100%;', $dashboardCss);

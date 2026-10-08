@@ -1273,15 +1273,15 @@ new class extends Component
         </div>
     </x-admin.modal>
 
-    <x-admin.modal :show="$showAccountViewModal" :title="__('access.profile_accounts.title')" close-method="$set('showAccountViewModal', false)" max-width="2xl">
+    <x-admin.modal :show="$showAccountViewModal" :title="__('access.profile_accounts.title')" close-method="$set('showAccountViewModal', false)" max-width="md">
         <x-slot:headerActions>
             @can('parents.update')
                 <button type="button" wire:click="openPasswordModal" class="admin-modal__close" title="{{ __('access.profile_accounts.sections.password') }}" aria-label="{{ __('access.profile_accounts.sections.password') }}" data-parent-password-edit-action><x-admin-action-icon name="edit" class="size-5" /></button>
             @endcan
         </x-slot:headerActions>
-        <div class="rounded-3xl border border-white/15 bg-white p-8 text-neutral-900 shadow-xl" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
+        <div class="rounded-3xl border border-white/15 bg-white p-5 text-neutral-900 shadow-xl" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
             <div class="record-person-name text-center text-2xl font-bold">{{ $account_father_name }}</div>
-            <div class="mt-8 grid grid-cols-[auto_1fr] gap-x-5 gap-y-4 text-lg">
+            <div class="mt-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-base">
                 <div class="font-semibold">{{ __('access.profile_accounts.fields.username') }}</div><div class="font-mono">{{ $account_username ?: __('crud.common.not_available') }}</div>
                 <div class="font-semibold">{{ __('access.profile_accounts.fields.password') }}</div><div class="min-w-0 break-words">@if($issued_password)<bdi dir="ltr" class="font-mono">{{ $issued_password }}</bdi>@else<span class="text-base leading-relaxed">{{ __('access.profile_accounts.empty.issued_password') }}</span>@endif</div>
             </div>
@@ -1304,7 +1304,7 @@ new class extends Component
         :title="__('access.profile_accounts.title')"
         :description="__('access.profile_accounts.description')"
         close-method="closeAccountModal"
-        max-width="4xl"
+        max-width="md"
     >
         <x-slot:headerActions>
             <button type="button" wire:click="openPasswordModal" class="admin-modal__close" title="{{ __('access.profile_accounts.sections.password') }}" aria-label="{{ __('access.profile_accounts.sections.password') }}" data-parent-password-edit-action><x-admin-action-icon name="edit" class="size-5" /></button>
@@ -1315,7 +1315,7 @@ new class extends Component
             @endif
             <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <div class="text-sm font-semibold text-white">{{ __('access.profile_accounts.sections.identity') }}</div>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div class="mt-4 grid gap-3">
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('access.profile_accounts.fields.username') }}</label>
                         <input wire:model="account_username" type="text" readonly class="w-full rounded-xl px-4 py-3 text-sm opacity-80">
