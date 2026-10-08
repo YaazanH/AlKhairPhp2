@@ -235,6 +235,11 @@ new class extends Component
     protected function defaultStudentAttendanceStatusId(): ?int
     {
         return AttendanceStatus::query()
+            ->where('code', 'present')
+            ->where('is_active', true)
+            ->where('is_present', true)
+            ->whereIn('scope', ['student', 'both'])
+            ->value('id') ?? AttendanceStatus::query()
             ->where('is_default', true)
             ->where('is_active', true)
             ->where('is_present', true)

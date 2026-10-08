@@ -2848,7 +2848,7 @@ html:not(.dark) body .attendance-text-menu + .searchable-select .searchable-sele
     .attendance-scanner__camera { aspect-ratio: 1; }
 }
 .attendance-scanner__camera video { position: absolute; z-index: 1; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; background: #020906; filter: saturate(0.9) contrast(1.04); transition: opacity 160ms ease; }
-.attendance-scanner__camera[data-camera-state='running'] video { opacity: 1; }
+.attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) video { opacity: 1; }
 .attendance-scanner__frame { position: absolute; z-index: 2; top: 50%; left: 50%; width: 64%; max-width: 26rem; aspect-ratio: 1; filter: drop-shadow(0 0 0.75rem rgba(115, 220, 151, 0.16)); transform: translate(-50%, -50%); pointer-events: none; }
 .attendance-scanner__corner { position: absolute; width: 2.75rem; height: 2.75rem; border-color: #d9f3e2; border-style: solid; border-width: 0; }
 .attendance-scanner__corner--top-left { top: 0; left: 0; border-top-width: 0.22rem; border-left-width: 0.22rem; border-top-left-radius: 0.8rem; }
@@ -2863,7 +2863,7 @@ html:not(.dark) body .attendance-text-menu + .searchable-select .searchable-sele
 .attendance-scanner__camera-button:focus-visible { outline: 2px solid #97dbae; outline-offset: 3px; }
 .attendance-scanner__camera-button:disabled { opacity: 0.5; cursor: default; }
 .attendance-scanner__camera:not([data-camera-state='running']) [data-quick-attendance-stop],
-.attendance-scanner__camera[data-camera-state='running'] [data-quick-attendance-start] { display: none; }
+.attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) [data-quick-attendance-start] { display: none; }
 .attendance-scanner__feedback { min-height: 1.5em; margin: 0; color: var(--app-muted); font-size: 0.8rem; line-height: 1.6; text-align: center; }
 .attendance-scanner__feedback:empty { display: none; }
 .attendance-scanner__feedback[data-feedback-type='error'] { color: #ef6464; }
