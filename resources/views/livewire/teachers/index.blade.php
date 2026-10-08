@@ -161,6 +161,9 @@ new class extends Component
                     ->whereNotIn('name', RoleRegistry::actorRoles())
                     ->get()
             ),
+            'reviewRoles' => RoleRegistry::sortCollection(
+                Role::query()->where('guard_name', 'web')->whereNotIn('name', [RoleRegistry::PARENT, RoleRegistry::STUDENT])->get()
+            ),
             'availableScopeGroups' => Group::query()->with('course')->orderBy('name')->get(),
             'availableScopeParents' => ParentProfile::query()->withCount('students')->orderBy('father_name')->get(),
             'availableScopeStudents' => Student::query()->with('parentProfile')->orderBy('last_name')->orderBy('first_name')->get(),
@@ -250,7 +253,7 @@ new class extends Component
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
-            'access_role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
+            'access_role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')->where('guard_name', 'web')->whereNotIn('name', [RoleRegistry::PARENT, RoleRegistry::STUDENT])],
             'course_id' => ['nullable', 'integer', Rule::exists('courses', 'id')],
             'hired_at' => ['nullable', 'date'],
             'is_helping' => ['boolean'],
@@ -449,7 +452,7 @@ new class extends Component
         $this->first_name = $teacher->first_name;
         $this->last_name = $teacher->last_name;
         $this->phone = $teacher->phone;
-        $this->access_role_id = $teacher->access_role_id ? (string) $teacher->access_role_id : '';
+        $this->access_role_id = (string) ($teacher->access_role_id ?? Role::findByName(RoleRegistry::TEACHER, 'web')->id);
         $this->course_id = $teacher->course_id ? (string) $teacher->course_id : '';
         $this->status = $teacher->status;
         $this->hired_at = $teacher->hired_at?->format('Y-m-d') ?? '';
@@ -463,6 +466,11 @@ new class extends Component
     }
 
     public function approveSignupRequest(): void
+    {
+        DB::transaction(fn () => $this->approvePendingSignupRequest());
+    }
+
+    protected function approvePendingSignupRequest(): void
     {
         $this->authorizePermission('teachers.review-signups');
 
@@ -484,7 +492,7 @@ new class extends Component
             'access_role_id' => filled($validated['access_role_id']) ? (int) $validated['access_role_id'] : null,
             'course_id' => filled($validated['course_id']) ? (int) $validated['course_id'] : null,
             'status' => 'active',
-            'hired_at' => $validated['hired_at'],
+            'hired_at' => $validated['hired_at'] ?: null,
             'is_helping' => (bool) $validated['is_helping'],
             'notes' => $validated['notes'] ?: null,
         ])->save();
@@ -520,7 +528,7 @@ new class extends Component
             $result['user']->assignRole($accessRole->name);
         }
 
-        if ($accessRole && $result['user']->hasRole('teacher')) {
+        if ($accessRole && $accessRole->name !== RoleRegistry::TEACHER && $result['user']->hasRole('teacher')) {
             $result['user']->removeRole('teacher');
         }
 
@@ -1317,7 +1325,7 @@ new class extends Component
                     <label for="review-teacher-access-role" class="mb-1 block text-sm font-medium">{{ __('crud.teachers.form.fields.access_role') }}</label>
                     <select id="review-teacher-access-role" wire:model="access_role_id" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('crud.teachers.form.options.select_access_role') }}</option>
-                        @foreach ($availableRoles as $availableRole)
+                        @foreach ($reviewRoles as $availableRole)
                             <option value="{{ $availableRole->id }}">{{ __('ui.roles.'.$availableRole->name) === 'ui.roles.'.$availableRole->name ? \Illuminate\Support\Str::of($availableRole->name)->replace('_', ' ')->headline()->toString() : __('ui.roles.'.$availableRole->name) }}</option>
                         @endforeach
                     </select>

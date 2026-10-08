@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AppSetting;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\ManagedUserService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -128,6 +129,68 @@ class TeacherSignupRequestTest extends TestCase
         $this->assertTrue($teacher->user->is_active);
         $this->assertFalse($teacher->user->hasRole('teacher'));
         $this->assertTrue($teacher->user->hasRole($accessRole->name));
+    }
+
+    public function test_default_teacher_role_is_visible_and_preserved_when_approving_without_a_hire_date(): void
+    {
+        $this->signInManager();
+        $user = User::factory()->create(['is_active' => false]);
+        $user->assignRole('teacher');
+        $teacher = Teacher::query()->create([
+            'user_id' => $user->id,
+            'first_name' => 'Pending',
+            'last_name' => 'Teacher',
+            'phone' => '0944000201',
+            'status' => 'pending',
+            'is_helping' => false,
+        ]);
+        $role = Role::findByName('teacher', 'web');
+
+        Volt::test('teachers.index')
+            ->call('openReviewModal', $teacher->id)
+            ->assertSet('access_role_id', (string) $role->id)
+            ->assertSeeHtml('<option value="'.$role->id.'">'.__('ui.roles.teacher').'</option>')
+            ->call('approveSignupRequest')
+            ->assertHasNoErrors()
+            ->assertSet('showReviewModal', false);
+
+        $this->assertSame('active', $teacher->fresh()->status);
+        $this->assertNull($teacher->fresh()->getRawOriginal('hired_at'));
+        $this->assertSame($role->id, $teacher->fresh()->access_role_id);
+        $this->assertTrue($user->fresh()->is_active);
+        $this->assertTrue($user->fresh()->hasRole('teacher'));
+    }
+
+    public function test_approval_rolls_back_when_account_activation_fails(): void
+    {
+        $this->signInManager();
+        $user = User::factory()->create(['is_active' => false]);
+        $user->assignRole('teacher');
+        $teacher = Teacher::query()->create([
+            'user_id' => $user->id,
+            'first_name' => 'Pending',
+            'last_name' => 'Teacher',
+            'phone' => '0944000202',
+            'status' => 'pending',
+            'is_helping' => false,
+        ]);
+        $this->mock(ManagedUserService::class)
+            ->shouldReceive('syncLinkedUser')->once()
+            ->andThrow(new \RuntimeException('Account activation failed'));
+
+        try {
+            Volt::test('teachers.index')
+                ->call('openReviewModal', $teacher->id)
+                ->call('approveSignupRequest');
+            $this->fail('Expected account activation to fail.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Account activation failed', $exception->getMessage());
+        }
+
+        $this->assertSame('pending', $teacher->fresh()->status);
+        $this->assertNull($teacher->fresh()->access_role_id);
+        $this->assertFalse($user->fresh()->is_active);
+        $this->assertTrue($user->fresh()->hasRole('teacher'));
     }
 
     public function test_manager_can_decline_pending_teacher_signup_request(): void
