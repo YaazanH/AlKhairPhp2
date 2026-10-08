@@ -505,15 +505,19 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('status-chip status-chip--slate', $memorization);
     }
 
-    public function test_completed_status_pills_use_the_blue_tone_everywhere(): void
+    public function test_completed_and_finished_status_pills_use_the_requested_tones(): void
     {
+        $courses = file_get_contents(resource_path('views/livewire/courses/index.blade.php'));
         $enrollments = file_get_contents(resource_path('views/livewire/enrollments/index.blade.php'));
         $groups = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
         $studentProgress = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
 
         $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $enrollments);
         $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $groups);
-        $this->assertStringContainsString("'finished', 'completed' => 'status-chip--blue'", $studentProgress);
+        $this->assertStringContainsString("'passed', 'active', 'finished' => 'status-chip--emerald'", $studentProgress);
+        $this->assertStringContainsString("'completed' => 'status-chip--blue'", $studentProgress);
+        $this->assertStringContainsString("\$course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--blue'", $courses);
+        $this->assertStringContainsString("\$groupIsFinished\n                                    ? 'status-chip status-chip--blue'", $groups);
         $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $enrollments);
         $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $groups);
     }
