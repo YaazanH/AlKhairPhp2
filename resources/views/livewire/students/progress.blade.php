@@ -711,8 +711,8 @@ new class extends Component
 
 @php
     $statusClass = fn (string $status) => match ($status) {
-        'passed', 'active' => 'status-chip--emerald',
-        'finished', 'completed' => 'status-chip--blue',
+        'passed', 'active', 'finished' => 'status-chip--emerald',
+        'completed' => 'status-chip--blue',
         'failed', 'missing', 'withdrawn', 'cancelled' => 'status-chip--rose',
         'awaiting', 'in_progress', 'pending' => 'status-chip--amber',
         default => 'status-chip--slate',
@@ -750,7 +750,7 @@ new class extends Component
             <div class="student-progress-profile__grid">
                 @if(auth()->user()->can('students.update') && app(AccessScopeService::class)->canAccessStudent(auth()->user(), $studentRecord))
                     <label class="student-progress-profile__photo group cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-white/5" data-student-progress-photo-upload title="{{ __('workflow.student_progress.actions.update_photo') }}">
-                        <input wire:model="progressPhotoUpload" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only">
+                        <input wire:model="progressPhotoUpload" type="file" accept="image/*" capture="environment" class="sr-only">
                         @if ($studentPhotoUrl)<x-avatar-image type="student" :src="$studentPhotoUrl" alt="{{ $studentRecord->full_name }}" class="student-progress-profile__photo-image" />@else<div class="student-progress-profile__photo-fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($studentRecord->first_name ?: 'S', 0, 1)) }}</div>@endif
                         <span class="absolute inset-x-2 bottom-2 rounded-xl bg-black/65 px-2 py-1.5 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">{{ __('workflow.student_progress.actions.update_photo') }}</span>
                         <span wire:loading.flex wire:target="progressPhotoUpload" class="absolute inset-0 items-center justify-center bg-black/65"><span class="size-9 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true"></span></span>

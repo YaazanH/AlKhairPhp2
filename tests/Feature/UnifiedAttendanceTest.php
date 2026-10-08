@@ -10,6 +10,7 @@ use App\Models\StudentAttendanceDay;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\User;
+use App\Services\StudentAttendanceDayService;
 use App\Services\TeacherAttendanceDayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -91,6 +92,64 @@ class UnifiedAttendanceTest extends TestCase
         Volt::test('attendance.index')->assertViewHas('days', fn ($days) => $days->total() === 2)->assertSee('First')->assertSee('Second');
     }
 
+    public function test_shared_day_controls_open_close_and_delete_student_and_teacher_attendance_together(): void
+    {
+        [$course] = $this->scheduledCourse('Shared controls');
+        $present = AttendanceStatus::where('code', 'present')->firstOrFail();
+
+        Volt::test('attendance.index')->call('openCreateModal')
+            ->set('course_id', (string) $course->id)
+            ->set('attendance_date', '2026-10-06')
+            ->set('default_attendance_status_id', (string) $present->id)
+            ->call('saveDay')
+            ->assertHasNoErrors();
+
+        $studentDay = StudentAttendanceDay::where('course_id', $course->id)->firstOrFail();
+        $teacherDay = TeacherAttendanceDay::where('course_id', $course->id)->firstOrFail();
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $studentDay, 'unified' => true])
+            ->assertSee('$parent.toggleDayStatus', false)
+            ->assertSee('$parent.deleteDay', false);
+        Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $teacherDay, 'unified' => true])
+            ->assertSee('$parent.toggleDayStatus', false)
+            ->assertSee('$parent.deleteDay', false);
+        $component = Volt::test('attendance.show', ['type' => 'students', 'day' => $studentDay->id]);
+
+        $component->call('toggleDayStatus')->assertHasNoErrors();
+        $this->assertSame('closed', $studentDay->fresh()->status);
+        $this->assertSame('closed', $studentDay->groupAttendanceDays()->firstOrFail()->status);
+        $this->assertSame('closed', $teacherDay->fresh()->status);
+
+        $component->call('switchTab', 'teachers')->call('toggleDayStatus')->assertHasNoErrors();
+        $this->assertSame('open', $studentDay->fresh()->status);
+        $this->assertSame('open', $studentDay->groupAttendanceDays()->firstOrFail()->status);
+        $this->assertSame('open', $teacherDay->fresh()->status);
+
+        $component->call('deleteDay')->assertHasNoErrors();
+        $this->assertDatabaseMissing('student_attendance_days', ['id' => $studentDay->id]);
+        $this->assertDatabaseMissing('teacher_attendance_days', ['id' => $teacherDay->id]);
+    }
+
+    public function test_starting_a_missing_side_repairs_the_shared_attendance_day_in_one_action(): void
+    {
+        [$course, $teacher, $group] = $this->scheduledCourse('Repair pair');
+        $studentDay = app(StudentAttendanceDayService::class)->createOrSyncDay(
+            '2026-10-06',
+            collect([$group]),
+            auth()->user(),
+            courseId: $course->id,
+        );
+
+        Volt::test('attendance.show', ['type' => 'students', 'day' => $studentDay->id])
+            ->call('switchTab', 'teachers')
+            ->call('startAttendance')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, StudentAttendanceDay::where('course_id', $course->id)->count());
+        $teacherDay = TeacherAttendanceDay::where('course_id', $course->id)->firstOrFail();
+        $this->assertSame($studentDay->status, $teacherDay->status);
+        $this->assertTrue($teacherDay->records()->where('teacher_id', $teacher->id)->exists());
+    }
+
     public function test_teacher_only_user_can_use_the_combined_list_but_cannot_switch_to_students(): void
     {
         $user = User::factory()->create();
@@ -99,5 +158,31 @@ class UnifiedAttendanceTest extends TestCase
         Volt::test('attendance.index')->assertSet('exportType', 'teachers')
             ->call('switchExportType', 'students')->assertForbidden();
         $this->get(route('attendance.index'))->assertOk();
+    }
+
+    private function scheduledCourse(string $name): array
+    {
+        $course = Course::create(['name' => $name, 'is_active' => true]);
+        $teacher = Teacher::create([
+            'phone' => fake()->unique()->numerify('0997#######'),
+            'first_name' => 'Shared',
+            'last_name' => 'Teacher',
+            'status' => 'active',
+        ]);
+        $group = Group::create([
+            'academic_year_id' => AcademicYear::where('is_current', true)->value('id'),
+            'name' => $name.' group',
+            'course_id' => $course->id,
+            'teacher_id' => $teacher->id,
+            'is_active' => true,
+        ]);
+        $group->schedules()->create([
+            'day_of_week' => 2,
+            'starts_at' => '09:00',
+            'ends_at' => '10:00',
+            'is_active' => true,
+        ]);
+
+        return [$course, $teacher, $group];
     }
 }

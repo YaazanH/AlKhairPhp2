@@ -477,8 +477,11 @@ new class extends Component
                             $dayStatusActionLabel = $dayRecord->status === 'closed'
                                 ? __('workflow.student_attendance.day_details.controls.reopen_day')
                                 : __('workflow.student_attendance.day_details.controls.close_day');
+                            $dayStatusAction = $unified && auth()->user()->can('attendance.student.toggle-day-status')
+                                ? '$parent.toggleDayStatus'
+                                : 'toggleDayStatus';
                         @endphp
-                        <button wire:click="toggleDayStatus" wire:key="teacher-attendance-day-status-action-{{ $dayRecord->id }}" type="button" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-teacher-attendance-day-status-action>
+                        <button wire:click="{{ $dayStatusAction }}" wire:key="teacher-attendance-day-status-action-{{ $dayRecord->id }}" type="button" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-teacher-attendance-day-status-action>
                             @if ($dayRecord->status === 'closed')
                                 <x-admin-action-icon name="unlock" />
                             @else
@@ -486,7 +489,7 @@ new class extends Component
                             @endif
                         </button>
                         @if ($dayRecord->status !== 'closed')
-                            <button wire:click="deleteDay" wire:key="teacher-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-teacher-attendance-day-delete-action>
+                            <button wire:click="{{ $unified && auth()->user()->can('attendance.student.take') ? '$parent.deleteDay' : 'deleteDay' }}" wire:key="teacher-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-teacher-attendance-day-delete-action>
                                 <x-admin-action-icon name="delete" />
                             </button>
                         @endif

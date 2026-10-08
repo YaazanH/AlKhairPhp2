@@ -121,16 +121,17 @@ new class extends Component
             ->when($this->statusFilter === 'inactive', fn ($query) => $query->where('is_active', false)->whereNull('course_finished_at'))
             ->when($this->statusFilter === 'finished', fn ($query) => $query->whereNotNull('course_finished_at'));
 
-        if ($this->courseFilter === 'all') {
-            $filteredQuery->orderBy(
-                Course::query()
-                    ->select('name')
-                    ->whereColumn('courses.id', 'groups.course_id')
+        $filteredQuery
+            ->orderByRaw('CASE WHEN groups.is_active = 1 AND groups.course_finished_at IS NULL THEN 0 WHEN groups.course_finished_at IS NULL THEN 1 ELSE 2 END')
+            ->orderByRaw('CASE WHEN groups.grade_level_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy(
+                GradeLevel::query()
+                    ->select('sort_order')
+                    ->whereColumn('grade_levels.id', 'groups.grade_level_id')
                     ->limit(1)
-            );
-        }
-
-        $filteredQuery->orderBy('name')->orderBy('id');
+            )
+            ->orderBy('name')
+            ->orderBy('id');
 
         $filteredCount = (clone $filteredQuery)->count();
 
@@ -875,10 +876,12 @@ new class extends Component
                         @foreach ($groups as $group)
                             @php
                                 $groupIsFinished = $group->course_finished_at !== null;
-                                $groupStatusClass = $group->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate';
-                                $groupStatusLabel = $group->is_active
-                                    ? __('crud.common.status_options.active')
-                                    : ($groupIsFinished ? __('crud.common.status_options.finished') : __('crud.common.status_options.inactive'));
+                                $groupStatusClass = $groupIsFinished
+                                    ? 'status-chip status-chip--blue'
+                                    : ($group->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate');
+                                $groupStatusLabel = $groupIsFinished
+                                    ? __('crud.common.status_options.finished')
+                                    : ($group->is_active ? __('crud.common.status_options.active') : __('crud.common.status_options.inactive'));
                             @endphp
                             <tr>
                                 <td class="table-cell-compact whitespace-nowrap px-3 py-4 text-center text-neutral-300" data-row-number>{{ $groups->firstItem() + $loop->index }}</td>

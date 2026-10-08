@@ -563,7 +563,7 @@ class CurriculumModuleTest extends TestCase
         $this->assertStringContainsString('synchronizeCurriculaIndexNameWidths', $javascript);
     }
 
-    public function test_groups_sort_by_course_then_name_while_curriculum_picker_keeps_grade_order(): void
+    public function test_groups_sort_by_status_then_grade_and_name_while_curriculum_picker_keeps_grade_order(): void
     {
         $this->seed(RoleSeeder::class);
         $manager = User::factory()->create();
@@ -584,12 +584,13 @@ class CurriculumModuleTest extends TestCase
         $alphaLaterGroup = Group::create(['course_id' => $alphaCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $laterGrade->id, 'name' => 'A alpha later', 'capacity' => 20, 'is_active' => true]);
         $zuluEarlierGroup = Group::create(['course_id' => $zuluCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $earlierGrade->id, 'name' => 'A zulu earlier', 'capacity' => 20, 'is_active' => true]);
         $alphaEarlierGroup = Group::create(['course_id' => $alphaCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $earlierGrade->id, 'curriculum_id' => $earlierCurriculum->id, 'name' => 'Z alpha earlier', 'capacity' => 20, 'is_active' => true]);
+        $inactiveEarlierGroup = Group::create(['course_id' => $alphaCourse->id, 'academic_year_id' => $year->id, 'teacher_id' => $teacher->id, 'grade_level_id' => $earlierGrade->id, 'name' => 'A inactive earlier', 'capacity' => 20, 'is_active' => false]);
 
         $component = Volt::test('groups.index')
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
-                $alphaLaterGroup->id,
-                $alphaEarlierGroup->id,
                 $zuluEarlierGroup->id,
+                $alphaEarlierGroup->id,
+                $alphaLaterGroup->id,
             ])
             ->assertViewHas('curricula', fn ($curricula) => $curricula->pluck('id')->all() === [
                 $earlierCurriculum->id,
@@ -604,8 +605,16 @@ class CurriculumModuleTest extends TestCase
         $component
             ->set('courseFilter', (string) $alphaCourse->id)
             ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
-                $alphaLaterGroup->id,
                 $alphaEarlierGroup->id,
+                $alphaLaterGroup->id,
+            ])
+            ->set('courseFilter', 'all')
+            ->set('statusFilter', 'all')
+            ->assertViewHas('groups', fn ($groups) => $groups->pluck('id')->all() === [
+                $zuluEarlierGroup->id,
+                $alphaEarlierGroup->id,
+                $alphaLaterGroup->id,
+                $inactiveEarlierGroup->id,
             ]);
 
         Volt::test('groups.show', ['group' => $alphaEarlierGroup])

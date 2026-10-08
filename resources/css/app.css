@@ -2409,6 +2409,14 @@ table.table-content--balanced > thead > tr:first-child > :is(th, td) {
         text-align: center !important;
         direction: ltr;
     }
+
+    .app-main table:has(> thead > tr:first-child > [data-table-number-column]:first-child) > :is(tbody, tfoot) > tr > :first-child > .mobile-scroll-table-value {
+        display: block !important;
+        inline-size: 100%;
+        max-inline-size: none;
+        text-align: center;
+        direction: ltr;
+    }
 }
 
 .balanced-table-measure-host {
@@ -2851,7 +2859,7 @@ html:not(.dark) body .attendance-text-menu + .searchable-select .searchable-sele
     .attendance-scanner__camera { aspect-ratio: 1; }
 }
 .attendance-scanner__camera video { position: absolute; z-index: 1; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; background: #020906; filter: saturate(0.9) contrast(1.04); transition: opacity 160ms ease; }
-.attendance-scanner__camera[data-camera-state='running'] video { opacity: 1; }
+.attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) video { opacity: 1; }
 .attendance-scanner__frame { position: absolute; z-index: 2; top: 50%; left: 50%; width: 64%; max-width: 26rem; aspect-ratio: 1; filter: drop-shadow(0 0 0.75rem rgba(115, 220, 151, 0.16)); transform: translate(-50%, -50%); pointer-events: none; }
 .attendance-scanner__corner { position: absolute; width: 2.75rem; height: 2.75rem; border-color: #d9f3e2; border-style: solid; border-width: 0; }
 .attendance-scanner__corner--top-left { top: 0; left: 0; border-top-width: 0.22rem; border-left-width: 0.22rem; border-top-left-radius: 0.8rem; }
@@ -2866,7 +2874,7 @@ html:not(.dark) body .attendance-text-menu + .searchable-select .searchable-sele
 .attendance-scanner__camera-button:focus-visible { outline: 2px solid #97dbae; outline-offset: 3px; }
 .attendance-scanner__camera-button:disabled { opacity: 0.5; cursor: default; }
 .attendance-scanner__camera:not([data-camera-state='running']) [data-quick-attendance-stop],
-.attendance-scanner__camera[data-camera-state='running'] [data-quick-attendance-start] { display: none; }
+.attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) [data-quick-attendance-start] { display: none; }
 .attendance-scanner__feedback { min-height: 1.5em; margin: 0; color: var(--app-muted); font-size: 0.8rem; line-height: 1.6; text-align: center; }
 .attendance-scanner__feedback:empty { display: none; }
 .attendance-scanner__feedback[data-feedback-type='error'] { color: #ef6464; }
@@ -5199,17 +5207,20 @@ html:not(.dark) .app-pagination__page--dots {
 
 .dashboard-curriculum-hotbar__marker {
     position: absolute;
-    top: 50%;
+    top: calc(50% - 0.5rem);
     width: 1rem;
     height: 1rem;
-    transform: translateY(-50%);
+    transform: none;
     border: 2px solid var(--app-panel-strong);
     border-radius: 999px;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+    transition: box-shadow 140ms ease;
 }
 
 .dashboard-curriculum-hotbar__marker:hover,
 .dashboard-curriculum-hotbar__marker:focus-visible {
+    top: calc(50% - 0.5rem);
+    transform: none;
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
 }
 
@@ -5687,11 +5698,10 @@ html[dir='rtl'] .dashboard-leaderboard__details {
     position: absolute;
     z-index: 2;
     inset: 0;
-    opacity: 0.08;
     pointer-events: none;
 }
 
-.dashboard-performance-map__dimmed-layer .dashboard-performance-map__point--below-average .dashboard-performance-map__dot {
+.dashboard-performance-map__dimmed-layer .dashboard-performance-map__point--below-average:not(.dashboard-performance-map__point--rank-1):not(.dashboard-performance-map__point--rank-2):not(.dashboard-performance-map__point--rank-3) .dashboard-performance-map__dot {
     width: 6px;
     height: 6px;
     min-width: 6px;
@@ -5699,6 +5709,7 @@ html[dir='rtl'] .dashboard-leaderboard__details {
     border-color: #d5ddd8;
     background: #2c3137;
     box-shadow: none;
+    opacity: 0.08;
 }
 
 .dashboard-performance-map__point:hover,
@@ -8553,28 +8564,52 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
 }
 
 .status-chip {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    justify-content: center;
+    box-sizing: border-box;
+    gap: 0;
     border-radius: 9999px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
-    padding: 0.45rem 0.8rem;
+    padding-block: 0.45rem;
+    padding-inline-start: 1.57rem;
+    padding-inline-end: 0.77rem;
     font-size: 0.76rem;
     font-weight: 500;
     letter-spacing: 0.08em;
+    text-align: center;
     text-transform: uppercase;
 }
 
 .status-chip::before {
     content: '';
+    position: absolute;
+    display: block;
+    inset-inline-start: 0.55rem;
+    top: 50%;
     width: 0.45rem;
     height: 0.45rem;
-    flex: 0 0 0.45rem;
+    min-width: 0.45rem;
+    min-height: 0.45rem;
+    max-width: 0.45rem;
+    max-height: 0.45rem;
     aspect-ratio: 1;
-    border-radius: 9999px;
+    box-sizing: border-box;
+    border-radius: 50%;
     background: currentColor;
     opacity: 0.9;
+    transform: translateY(-50%);
+}
+
+.status-chip.status-chip--roomy {
+    padding-inline-start: 1.7rem;
+    padding-inline-end: 0.9rem;
+}
+
+.app-main table[data-uniform-status-chips] .status-chip:not([data-juz-progress-status]) {
+    inline-size: var(--table-status-chip-width);
 }
 
 .student-juz-progress-table [data-student-progress-juz-table] :is(th, td) {
@@ -8634,7 +8669,8 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding-inline: 1.5rem;
+    padding-inline-start: 2rem;
+    padding-inline-end: 1rem;
     text-align: center;
     white-space: normal;
     letter-spacing: 0;
@@ -8818,9 +8854,19 @@ html[dir='rtl'] .student-juz-progress-table [data-juz-progress-status] {
         white-space: nowrap !important;
         overflow-wrap: normal !important;
         word-break: normal !important;
-        gap: .3rem;
-        padding: .4rem .55rem;
+        padding-block: .4rem;
+        padding-inline-start: 1.1rem;
+        padding-inline-end: .6rem;
         letter-spacing: 0;
+    }
+
+    .app-main [data-student-progress-enrollments] .status-chip::before {
+        inset-inline-start: .3rem;
+    }
+
+    .app-main [data-student-progress-enrollments] .status-chip.status-chip--roomy {
+        padding-inline-start: 1.225rem;
+        padding-inline-end: .725rem;
     }
 }
 
@@ -14199,13 +14245,6 @@ select:is([data-record-label='course'], [data-record-label='year']) + .searchabl
     .attendance-day-header .attendance-day-navigation-actions {
         flex-direction: column;
     }
-}
-
-/* The phone text-clamping wrapper must not pull centered row numbers left. */
-.app-main .surface-table :is(.attendance-row-number, .attendance-days-number) > .mobile-scroll-table-value {
-    display: inline !important;
-    inline-size: auto;
-    max-inline-size: none;
 }
 
 /* Group and teacher labels must fit their cell beside attendance counts. */

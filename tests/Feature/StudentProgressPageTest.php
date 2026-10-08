@@ -161,6 +161,7 @@ class StudentProgressPageTest extends TestCase
 
         Volt::test('students.progress', ['student' => $student])
             ->assertSee('data-student-progress-photo-upload', false)
+            ->assertSee('accept="image/*" capture="environment"', false)
             ->set('progressPhotoUpload', UploadedFile::fake()->image('new-student-photo.jpg', 640, 640))
             ->assertHasNoErrors()
             ->assertSeeText(__('workflow.student_progress.messages.photo_updated'));

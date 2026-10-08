@@ -71,6 +71,7 @@ new class extends Component
                 'groups' => $day->groupAttendanceDays->count(),
                 'students' => $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0)),
                 'marked' => $day->groupAttendanceDays->sum('records_count'),
+                'present' => $day->groupAttendanceDays->sum('present_records_count'),
             ],
         ];
     }
@@ -342,8 +343,11 @@ new class extends Component
                                 $dayStatusActionLabel = $dayRecord->status === 'closed'
                                     ? __('workflow.student_attendance.day_details.controls.reopen_day')
                                     : __('workflow.student_attendance.day_details.controls.close_day');
+                                $dayStatusAction = $unified && auth()->user()->can('attendance.teacher.take')
+                                    ? '$parent.toggleDayStatus'
+                                    : 'toggleDayStatus';
                             @endphp
-                            <button type="button" wire:click="toggleDayStatus" wire:key="student-attendance-day-status-action-{{ $dayRecord->id }}" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-student-attendance-day-status-action>
+                            <button type="button" wire:click="{{ $dayStatusAction }}" wire:key="student-attendance-day-status-action-{{ $dayRecord->id }}" class="admin-icon-button" title="{{ $dayStatusActionLabel }}" aria-label="{{ $dayStatusActionLabel }}" data-student-attendance-day-status-action>
                                 @if ($dayRecord->status === 'closed')
                                     <x-admin-action-icon name="unlock" />
                                 @else
@@ -353,7 +357,7 @@ new class extends Component
                         @endif
                         @can('attendance.student.take')
                             @if ($dayRecord->status !== 'closed')
-                                <button type="button" wire:click="deleteDay" wire:key="student-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-student-attendance-day-delete-action>
+                                <button type="button" wire:click="{{ $unified && auth()->user()->can('attendance.teacher.take') ? '$parent.deleteDay' : 'deleteDay' }}" wire:key="student-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-student-attendance-day-delete-action>
                                     <x-admin-action-icon name="delete" />
                                 </button>
                             @endif
@@ -415,7 +419,7 @@ new class extends Component
         <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar student-attendance-toolbar">
             <div class="attendance-day-toolbar__heading">
                 <div class="admin-grid-meta__title" title="{{ __('workflow.student_attendance.day_details.table.title') }}">{{ __('workflow.student_attendance.day_details.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.day_details.table.groups_in_view', $dayRecord->groupAttendanceDays->count(), ['count' => number_format($dayRecord->groupAttendanceDays->count())]) }}</div>
+                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.day_details.table.groups_in_view', $stats['groups'], ['count' => number_format($stats['groups'])]) }} - {{ trans_choice('workflow.student_attendance.table.present_students', $stats['present'], ['count' => number_format($stats['present'])]) }}</div>
             </div>
             @if ($canAddManualGroup || $canQuickAttend || $canToggleDayStatus)
                 <div class="admin-toolbar__actions">

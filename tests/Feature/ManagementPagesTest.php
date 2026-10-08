@@ -505,15 +505,19 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('status-chip status-chip--slate', $memorization);
     }
 
-    public function test_completed_status_pills_use_the_blue_tone_everywhere(): void
+    public function test_completed_and_finished_status_pills_use_the_requested_tones(): void
     {
+        $courses = file_get_contents(resource_path('views/livewire/courses/index.blade.php'));
         $enrollments = file_get_contents(resource_path('views/livewire/enrollments/index.blade.php'));
         $groups = file_get_contents(resource_path('views/livewire/groups/index.blade.php'));
         $studentProgress = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
 
         $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $enrollments);
         $this->assertStringContainsString("'completed' => 'status-chip status-chip--blue'", $groups);
-        $this->assertStringContainsString("'finished', 'completed' => 'status-chip--blue'", $studentProgress);
+        $this->assertStringContainsString("'passed', 'active', 'finished' => 'status-chip--emerald'", $studentProgress);
+        $this->assertStringContainsString("'completed' => 'status-chip--blue'", $studentProgress);
+        $this->assertStringContainsString("\$course->is_active ? 'status-chip status-chip--emerald' : 'status-chip status-chip--blue'", $courses);
+        $this->assertStringContainsString("\$groupIsFinished\n                                    ? 'status-chip status-chip--blue'", $groups);
         $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $enrollments);
         $this->assertStringNotContainsString("'completed' => 'status-chip status-chip--gold'", $groups);
     }
@@ -1694,7 +1698,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
         $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);
         $this->assertStringNotContainsString('mobile-record-card', $studentProgressView);
-        $this->assertStringContainsString('flex: 0 0 0.45rem;', $styles);
+        $this->assertMatchesRegularExpression('/\.status-chip::before \{.*?position:\s*absolute;.*?inset-inline-start:\s*0\.55rem;/s', $styles);
         $this->assertStringContainsString('data-student-progress-missing-pages', $studentProgressView);
         $this->assertStringContainsString('student-progress-missing-pages__grid', $studentProgressView);
         $this->assertStringContainsString('missing_pages->values()', $studentProgressView);
@@ -2398,6 +2402,31 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('.settings-admin-page table.min-w-full:not(.curriculum-subject-resource-grid):not(.settings-academic-year-table):has(> thead > tr > :nth-child(7))', $styles);
     }
 
+    public function test_table_status_pills_keep_the_label_centered_and_share_the_widest_available_width(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertMatchesRegularExpression('/\.status-chip \{.*?position:\s*relative;.*?justify-content:\s*center;.*?text-align:\s*center;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.status-chip \{.*?padding-inline-start:\s*1\.57rem;.*?padding-inline-end:\s*0\.77rem;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.status-chip::before \{.*?position:\s*absolute;.*?inset-inline-start:\s*0\.55rem;.*?top:\s*50%;.*?transform:\s*translateY\(-50%\);/s', $styles);
+        $this->assertMatchesRegularExpression('/\.status-chip::before \{.*?width:\s*0\.45rem;.*?height:\s*0\.45rem;.*?min-width:\s*0\.45rem;.*?min-height:\s*0\.45rem;.*?max-width:\s*0\.45rem;.*?max-height:\s*0\.45rem;.*?aspect-ratio:\s*1;.*?border-radius:\s*50%;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.status-chip\.status-chip--roomy \{.*?padding-inline-start:\s*1\.7rem;.*?padding-inline-end:\s*0\.9rem;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.student-juz-progress-table \[data-juz-progress-status\] \{.*?padding-inline-start:\s*2rem;.*?padding-inline-end:\s*1rem;/s', $styles);
+        $this->assertStringContainsString('.app-main table[data-uniform-status-chips] .status-chip:not([data-juz-progress-status])', $styles);
+        $this->assertStringContainsString('inline-size: var(--table-status-chip-width);', $styles);
+        $this->assertStringContainsString('function synchronizeTableStatusChipWidths()', $script);
+        $this->assertStringContainsString('function synchronizeStatusChipRoominess()', $script);
+        $this->assertStringContainsString('const statusChipRoomyLabelWidthThreshold = 5.5;', $script);
+        $this->assertStringContainsString("chip.classList.toggle('status-chip--roomy', labelWidth >= fontSize * statusChipRoomyLabelWidthThreshold);", $script);
+        $this->assertStringContainsString('synchronizeStatusChipRoominess();', $script);
+        $this->assertStringContainsString('table.style.setProperty(\'--table-status-chip-width\', `${widestChipWidth}px`);', $script);
+        $this->assertStringContainsString("table.setAttribute('data-uniform-status-chips', '');", $script);
+        $this->assertStringContainsString('tableCellAvailableInlineSize(cell) + 0.5 >= widestChipWidth', $script);
+        $this->assertStringContainsString("chip.closest('table') === table", $script);
+        $this->assertStringContainsString('document.fonts?.ready.then(scheduleTableStatusChipWidthSync);', $script);
+    }
+
     public function test_table_row_actions_exclude_delete_and_hide_empty_action_columns(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));
@@ -2483,6 +2512,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString("if (!window.matchMedia('(max-width: 767px)').matches)", $script);
         $this->assertStringContainsString("value.className = 'mobile-scroll-table-value';", $script);
         $this->assertStringContainsString('if (cell.children.length > 0)', $script);
+        $this->assertStringContainsString('> :is(tbody, tfoot) > tr > :first-child > .mobile-scroll-table-value', $styles);
+        $this->assertStringContainsString("display: block !important;\n        inline-size: 100%;\n        max-inline-size: none;\n        text-align: center;\n        direction: ltr;", $styles);
     }
 
     private function makeRouteModels(): array

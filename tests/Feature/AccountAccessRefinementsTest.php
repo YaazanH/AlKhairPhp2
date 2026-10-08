@@ -84,6 +84,8 @@ class AccountAccessRefinementsTest extends TestCase
         $parent = ParentProfile::create(['user_id' => $user->id, 'father_name' => 'Parent']);
         $identity = $user->fresh()->only(['name', 'username', 'email', 'phone', 'is_active']);
         $editor = Volt::test('parents.index')->call('viewAccount', $parent->id)
+            ->assertSee('admin-modal__dialog--md', false)
+            ->assertDontSee('admin-modal__dialog--2xl', false)
             ->assertSee('data-parent-password-edit-action', false)->call('openPasswordModal')
             ->assertSet('account_password', 'CurrentPass123!')->assertSet('showAccountViewModal', false)
             ->assertSet('showAccountModal', false)->assertSet('showFormModal', false)
@@ -97,6 +99,18 @@ class AccountAccessRefinementsTest extends TestCase
         $this->assertTrue(Hash::check('UpdatedPass123!', $user->fresh()->password));
         $this->assertSame('UpdatedPass123!', $user->fresh()->currentIssuedPassword());
         $this->assertSame($identity, $user->fresh()->only(array_keys($identity)));
+    }
+
+    public function test_parent_account_editor_uses_the_compact_modal_layout(): void
+    {
+        $user = User::factory()->create(['username' => 'parent.compact']);
+        $parent = ParentProfile::create(['user_id' => $user->id, 'father_name' => 'Compact Parent']);
+
+        Volt::test('parents.index')->call('openAccountModal', $parent->id)
+            ->assertSee('admin-modal__dialog--md', false)
+            ->assertDontSee('admin-modal__dialog--4xl', false)
+            ->assertSee('class="mt-4 grid gap-3"', false)
+            ->assertDontSee('class="mt-4 grid gap-4 md:grid-cols-2"', false);
     }
 
     public function test_stale_issued_password_is_never_prefilled(): void

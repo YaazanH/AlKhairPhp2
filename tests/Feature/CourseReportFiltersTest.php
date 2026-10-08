@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -123,15 +125,22 @@ class CourseReportFiltersTest extends TestCase
         Volt::test('reports.students-ranking')->assertViewHas('groups', fn ($groups) => $groups->modelKeys() === [$group->id]);
     }
 
-    public function test_course_list_orders_by_academic_year_then_start_and_end_dates_newest_first(): void
+    public function test_course_list_orders_by_course_dates_then_enrollment_count_newest_first(): void
     {
         $older = Course::create(['academic_year_id' => $this->year->id, 'name' => 'A older', 'starts_on' => '2025-09-01', 'ends_on' => '2027-08-31']);
-        $longer = Course::create(['academic_year_id' => $this->year->id, 'name' => 'Z latest longer', 'starts_on' => '2026-09-01', 'ends_on' => '2027-08-31']);
-        $shorter = Course::create(['academic_year_id' => $this->year->id, 'name' => 'B latest shorter', 'starts_on' => '2026-09-01', 'ends_on' => '2026-12-31']);
+        $moreEnrolled = Course::create(['academic_year_id' => $this->year->id, 'name' => 'Z latest more enrolled', 'starts_on' => '2026-09-01', 'ends_on' => '2027-08-31']);
+        $lessEnrolled = Course::create(['academic_year_id' => $this->year->id, 'name' => 'A latest less enrolled', 'starts_on' => '2026-09-01', 'ends_on' => '2027-08-31']);
         $undated = Course::create(['academic_year_id' => $this->year->id, 'name' => 'C undated']);
 
+        $moreGroup = Group::create(['teacher_id' => $this->teacher->id, 'academic_year_id' => $this->year->id, 'course_id' => $moreEnrolled->id, 'name' => 'More enrolled group', 'is_active' => true]);
+        $lessGroup = Group::create(['teacher_id' => $this->teacher->id, 'academic_year_id' => $this->year->id, 'course_id' => $lessEnrolled->id, 'name' => 'Less enrolled group', 'is_active' => true]);
+        $students = collect(['First', 'Second', 'Third'])->map(fn (string $name) => Student::create(['first_name' => $name, 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'status' => 'active']));
+        Enrollment::create(['student_id' => $students[0]->id, 'group_id' => $moreGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        Enrollment::create(['student_id' => $students[1]->id, 'group_id' => $moreGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+        Enrollment::create(['student_id' => $students[2]->id, 'group_id' => $lessGroup->id, 'enrolled_at' => '2026-09-01', 'status' => 'active']);
+
         // Create years out of chronological order and give their courses
-        // conflicting dates so academic-year precedence is observable.
+        // conflicting dates so course-date precedence is observable.
         $newestYear = AcademicYear::create(['name' => 'Newest year', 'starts_on' => '2027-09-01', 'ends_on' => '2028-08-31', 'is_current' => false, 'is_active' => true]);
         $previousYear = AcademicYear::create(['name' => 'Previous year', 'starts_on' => '2025-09-01', 'ends_on' => '2026-08-31', 'is_current' => false, 'is_active' => false]);
         $newestYearCourse = Course::create(['academic_year_id' => $newestYear->id, 'name' => 'Newest year course', 'starts_on' => '2024-09-01', 'ends_on' => '2024-12-31']);
@@ -139,12 +148,12 @@ class CourseReportFiltersTest extends TestCase
         $unassigned = Course::create(['name' => 'No academic year', 'starts_on' => '2031-09-01', 'ends_on' => '2031-12-31']);
 
         Volt::test('courses.index')
-            ->assertViewHas('courses', fn ($courses) => $courses->getCollection()->modelKeys() === [$longer->id, $shorter->id, $older->id, $undated->id])
+            ->assertViewHas('courses', fn ($courses) => $courses->getCollection()->modelKeys() === [$moreEnrolled->id, $lessEnrolled->id, $older->id, $undated->id])
             ->set('statusFilter', 'all')
             ->set('academicYearFilter', 'all')
-            ->assertViewHas('courses', fn ($courses) => $courses->getCollection()->modelKeys() === [$newestYearCourse->id, $longer->id, $shorter->id, $older->id, $undated->id, $previousYearCourse->id, $unassigned->id])
-            ->set('search', 'latest')
-            ->assertViewHas('courses', fn ($courses) => $courses->getCollection()->modelKeys() === [$longer->id, $shorter->id]);
+            ->assertViewHas('courses', fn ($courses) => $courses->getCollection()->modelKeys() === [$unassigned->id, $previousYearCourse->id, $moreEnrolled->id, $lessEnrolled->id, $older->id, $newestYearCourse->id, $undated->id])
+            ->set('search', 'enrolled')
+            ->assertViewHas('courses', fn ($courses) => $courses->getCollection()->modelKeys() === [$moreEnrolled->id, $lessEnrolled->id]);
     }
 
     public function test_copy_of_an_excluded_archive_defaults_to_included(): void
