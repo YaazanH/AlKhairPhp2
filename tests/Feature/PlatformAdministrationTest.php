@@ -78,7 +78,10 @@ class PlatformAdministrationTest extends TestCase
         ]);
         $openTenant->domains()->create(['host' => 'open-centre.localhost', 'is_primary' => true]);
 
-        $this->post(route('platform.login.store'), [
+        $this->withSession([
+            'locale' => 'en',
+            'locale_user_selected' => true,
+        ])->post(route('platform.login.store'), [
             'email' => 'platform@example.test',
             'password' => 'secret-password',
         ])->assertRedirect(route('platform.dashboard'));
@@ -93,7 +96,10 @@ class PlatformAdministrationTest extends TestCase
             ->assertSee('href="http://open-centre.localhost:8000"', false)
             ->assertSee('Open Open Centre website')
             ->assertSee(route('platform.tenants.support-access.store', $openTenant), false)
-            ->assertSee('Open tenant');
+            ->assertSee('Open tenant')
+            ->assertSee('x-on:click="$flux.appearance = \'light\'"', false)
+            ->assertSee('x-on:click="$flux.appearance = \'dark\'"', false)
+            ->assertSee('x-on:click="$flux.appearance = \'system\'"', false);
     }
 
     public function test_inactive_platform_administrator_cannot_sign_in(): void
@@ -136,6 +142,21 @@ class PlatformAdministrationTest extends TestCase
 
         $this->get(route('platform.dashboard'))
             ->assertRedirect(route('platform.login'));
+    }
+
+    public function test_platform_login_exposes_persistent_appearance_controls_without_forcing_dark_mode(): void
+    {
+        $response = $this->withSession([
+            'locale' => 'en',
+            'locale_user_selected' => true,
+        ])->get(route('platform.login'));
+
+        $response
+            ->assertOk()
+            ->assertSee('x-on:click="$flux.appearance = \'light\'"', false)
+            ->assertSee('x-on:click="$flux.appearance = \'dark\'"', false)
+            ->assertSee('x-on:click="$flux.appearance = \'system\'"', false)
+            ->assertDontSee('class="dark" data-platform-auth', false);
     }
 
     public function test_stale_tenant_support_session_does_not_redirect_platform_login_to_tenant_login(): void
@@ -587,6 +608,36 @@ class PlatformAdministrationTest extends TestCase
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
     }
 
+    public function test_tenant_management_header_shows_branding_website_and_quick_access(): void
+    {
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Platform Administrator',
+            'email' => 'platform@example.test', 'password' => 'secret-password',
+        ]);
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Branded Centre',
+            'slug' => 'branded-centre', 'database_name' => 'tenant_branded',
+            'status' => Tenant::STATUS_ACTIVE, 'logo_path' => 'website/branding/logo.png',
+        ]);
+        $tenant->domains()->create(['host' => 'branded-centre.localhost', 'is_primary' => true]);
+
+        $websiteUrl = 'http://branded-centre.localhost:8000';
+
+        $this->withSession([
+            'locale' => 'en',
+            'locale_user_selected' => true,
+        ])->actingAs($administrator, 'platform')
+            ->get(route('platform.tenants.edit', $tenant))
+            ->assertOk()
+            ->assertSee('data-tenant-logo', false)
+            ->assertSee('src="'.$websiteUrl.'/storage/website/branding/logo.png"', false)
+            ->assertSee('data-tenant-website-link', false)
+            ->assertSee('href="'.$websiteUrl.'"', false)
+            ->assertSee('data-tenant-quick-access', false)
+            ->assertSee(route('platform.tenants.support-access.store', $tenant), false)
+            ->assertSee('Quick access');
+    }
+
     public function test_platform_administrator_can_create_duplicate_deactivate_and_delete_modular_packages(): void
     {
         $this->seed(LandlordCatalogSeeder::class);
@@ -654,6 +705,11 @@ class PlatformAdministrationTest extends TestCase
 
     public function test_tenant_extras_are_previewed_audited_and_do_not_remove_package_modules(): void
     {
+        $this->withSession([
+            'locale' => 'en',
+            'locale_user_selected' => true,
+        ]);
+
         $this->seed(LandlordCatalogSeeder::class);
         $administrator = PlatformAdministrator::query()->create([
             'uuid' => (string) Str::uuid(), 'name' => 'Platform Administrator',

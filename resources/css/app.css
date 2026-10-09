@@ -882,6 +882,35 @@ html:not(.dark) .searchable-select__option--highlighted {
         linear-gradient(180deg, #072112 0%, #031009 100%);
 }
 
+/* Platform administration uses legacy light utility surfaces. Normalize them
+   when Flux selects dark appearance so all Platform pages honor the same
+   light, dark, and system preference without changing tenant branding. */
+html.dark .platform-body :is(.bg-white, .bg-zinc-50) {
+    background-color: #111a14 !important;
+}
+
+html.dark .platform-body :is(.border, .border-b, .border-t, .border-zinc-200, .border-zinc-300) {
+    border-color: rgba(167, 195, 175, 0.2) !important;
+}
+
+html.dark .platform-body :is(.text-zinc-950, .text-zinc-900, .text-zinc-800, .text-zinc-700) {
+    color: #edf7ef !important;
+}
+
+html.dark .platform-body :is(.text-zinc-600, .text-zinc-500, .text-zinc-400) {
+    color: #a8b8ad !important;
+}
+
+html.dark .platform-body :is(input, select, textarea) {
+    border-color: rgba(167, 195, 175, 0.24);
+    background-color: #0d1510;
+    color: #edf7ef;
+}
+
+html.dark .platform-body :is(input, textarea)::placeholder {
+    color: #819187;
+}
+
 html:not(.dark) .app-body {
     background:
         radial-gradient(circle at 7% 0%, rgba(18, 109, 59, 0.14), transparent 28rem),
@@ -899,6 +928,22 @@ html:not(.dark) .text-neutral-300,
 html:not(.dark) .text-neutral-400,
 html:not(.dark) .text-neutral-500 {
     color: var(--app-muted) !important;
+}
+
+/* Keep explicit Platform action surfaces readable in light appearance. The
+   application-wide light palette remaps white utility text for legacy dark
+   layouts, but buttons and intentionally dark headers must retain contrast. */
+html:not(.dark) .platform-body :is(.bg-zinc-950, .bg-zinc-900, .bg-emerald-700, .bg-emerald-600, .bg-red-700).text-white,
+html:not(.dark) .platform-body :is(.bg-zinc-950, .bg-zinc-900, .bg-emerald-700, .bg-emerald-600, .bg-red-700) .text-white {
+    color: #fff !important;
+}
+
+html:not(.dark) .platform-body :is(.bg-zinc-950, .bg-zinc-900).text-white {
+    color: #fff !important;
+}
+
+html:not(.dark) .platform-body :is(.bg-zinc-950, .bg-zinc-900) :is(.text-zinc-300, .text-zinc-400) {
+    color: #b8c2ba !important;
 }
 
 html:not(.dark) .divide-white\/6 > :not([hidden]) ~ :not([hidden]) {

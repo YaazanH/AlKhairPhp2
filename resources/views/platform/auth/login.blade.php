@@ -4,33 +4,47 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $direction }}" class="dark" data-platform-auth>
+<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $direction }}" data-platform-auth>
     <head>
         @include('partials.head', [
             'title' => __('platform.login.title'),
             'metaDescription' => __('platform.login.description'),
             'themeColor' => '#07150d',
         ])
-        <script>document.documentElement.classList.add('dark')</script>
         <style>
-            html[data-platform-auth] body,
-            html[data-platform-auth] [data-platform-login] {
+            html.dark[data-platform-auth] body,
+            html.dark[data-platform-auth] [data-platform-login] {
                 background-color: #07100b !important;
                 color: #f6fff8 !important;
             }
 
-            html[data-platform-auth] [data-platform-login] :is(h1, h2) {
+            html.dark[data-platform-auth] [data-platform-login] :is(h1, h2) {
                 color: #ffffff !important;
             }
 
-            html[data-platform-auth] [data-platform-login] input:is([type='email'], [type='password']) {
+            html.dark[data-platform-auth] [data-platform-login] input:is([type='email'], [type='password']) {
                 border-color: rgb(255 255 255 / 0.1) !important;
                 background-color: rgb(0 0 0 / 0.2) !important;
                 color: #ffffff !important;
             }
+
+            html:not(.dark)[data-platform-auth] body,
+            html:not(.dark)[data-platform-auth] [data-platform-login] {
+                background-color: #edf0e4 !important;
+                color: #123326 !important;
+            }
+
+            html:not(.dark)[data-platform-auth] [data-platform-login] input:is([type='email'], [type='password']) {
+                border-color: rgb(18 109 59 / 0.22) !important;
+                background-color: rgb(255 255 255 / 0.82) !important;
+                color: #123326 !important;
+            }
         </style>
     </head>
     <body class="min-h-screen bg-[#07100b] text-white antialiased">
+        <div class="fixed end-5 top-5 z-20 w-44 rounded-2xl border border-emerald-900/10 bg-white/75 shadow-sm backdrop-blur dark:border-white/15 dark:bg-black/20">
+            <x-account-menu-preferences />
+        </div>
         <main class="relative isolate min-h-svh overflow-hidden" data-platform-login>
             <div class="pointer-events-none absolute inset-0 -z-10">
                 <div class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)] bg-[size:48px_48px]"></div>
@@ -48,7 +62,6 @@
                                 <span class="block text-xs text-white/45">{{ __('platform.brand.administration') }}</span>
                             </span>
                         </a>
-                        <x-locale-switcher compact />
                     </div>
 
                     <div class="max-w-2xl py-14">
@@ -84,7 +97,7 @@
                             <x-locale-switcher compact />
                         </div>
 
-                        <div class="rounded-[2rem] border border-white/10 bg-[#111914]/90 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-8">
+                        <div class="rounded-[2rem] border border-emerald-900/10 bg-white/85 p-6 shadow-2xl shadow-black/10 backdrop-blur-xl dark:border-white/10 dark:bg-[#111914]/90 dark:shadow-black/40 sm:p-8">
                             <div class="mb-7">
                                 <span class="inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-300/8 px-3 py-1.5 text-xs font-medium text-emerald-200">
                                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-300"></span>
@@ -106,7 +119,6 @@
                                         required
                                         autofocus
                                         autocomplete="email"
-                                        style="background:#0b120e !important;color:#fff !important;border-color:rgba(255,255,255,.12) !important"
                                         class="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-emerald-300/50 focus:ring-2 focus:ring-emerald-300/10"
                                     >
                                     @error('email')
@@ -121,7 +133,6 @@
                                         name="password"
                                         required
                                         autocomplete="current-password"
-                                        style="background:#0b120e !important;color:#fff !important;border-color:rgba(255,255,255,.12) !important"
                                         class="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-emerald-300/50 focus:ring-2 focus:ring-emerald-300/10"
                                     >
                                     @error('password')
