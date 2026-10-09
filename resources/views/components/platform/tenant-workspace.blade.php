@@ -24,8 +24,8 @@
         ->filter(fn ($label, $level) => $user->hasPlatformPermission('support-access.'.$level));
 @endphp
 <x-platform-layout :title="$tenant->name">
-    <div class="space-y-6">
-        <header class="rounded-3xl bg-zinc-950 p-6 text-white shadow-sm">
+    <div class="platform-tenant-workspace space-y-6">
+        <header class="platform-tenant-header rounded-3xl bg-zinc-950 p-6 text-white shadow-sm">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <a href="{{ route('platform.dashboard') }}" class="text-sm font-semibold text-emerald-300">{{ __('platform.ui.tenant_workspace.all_tenants') }}</a>
@@ -62,7 +62,7 @@
         </header>
         @if(session('status'))<div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">{{ session('status') }}</div>@endif
         <div class="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <nav class="h-fit rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm" aria-label="{{ __('platform.ui.tenant_workspace.settings_label') }}">
+            <nav class="platform-tenant-nav h-fit rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm" aria-label="{{ __('platform.ui.tenant_workspace.settings_label') }}">
                 @foreach($items as [$key, $label, $route, $visible]) @if($visible)<a href="{{ route($route, $tenant) }}" class="mb-1 block rounded-xl px-4 py-3 text-sm font-semibold {{ $current === $key ? 'bg-emerald-50 text-emerald-800' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950' }}">{{ $label }}</a>@endif @endforeach
             </nav>
             <main class="min-w-0">{{ $slot }}</main>

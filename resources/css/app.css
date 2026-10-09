@@ -6365,6 +6365,154 @@ html[lang^='ar'] .student-inline__meta {
     color: var(--color-accent-foreground);
 }
 
+/* Tenant branding is applied through dedicated brand tokens. Status colours
+   remain semantic, while light and dark surfaces receive only a restrained
+   tint from the selected tenant colour. */
+html:not(.dark) .tenant-app-body {
+    background:
+        radial-gradient(circle at 7% 0%, rgb(var(--tenant-primary-rgb) / 0.16), transparent 28rem),
+        radial-gradient(circle at 92% 8%, rgb(var(--tenant-primary-rgb) / 0.07), transparent 24rem),
+        linear-gradient(180deg, #f3f3ec 0%, #e8ebe4 100%);
+}
+
+html:not(.dark) .tenant-app-body .page-hero {
+    border-color: rgb(var(--tenant-primary-rgb) / 0.3);
+    background:
+        radial-gradient(circle at 12% 15%, rgb(var(--tenant-primary-rgb) / 0.14), transparent 21rem),
+        linear-gradient(135deg, #fffdf8, rgb(var(--tenant-primary-rgb) / 0.09));
+}
+
+html:not(.dark) .tenant-app-body .page-hero::after {
+    background: radial-gradient(circle, rgb(var(--tenant-primary-rgb) / 0.1), transparent 68%);
+}
+
+html:not(.dark) .tenant-app-body .surface-panel {
+    background: linear-gradient(145deg, #fffdf8, rgb(var(--tenant-primary-rgb) / 0.045));
+}
+
+html:not(.dark) .tenant-app-body .stat-card {
+    border-color: rgb(var(--tenant-primary-rgb) / 0.32);
+    background:
+        radial-gradient(circle at 92% 90%, rgb(var(--tenant-primary-rgb) / 0.16), transparent 8rem),
+        linear-gradient(145deg, #f9faf5, rgb(var(--tenant-primary-rgb) / 0.14));
+}
+
+html:not(.dark) .tenant-app-body .stat-card::before {
+    background: radial-gradient(circle, rgb(var(--tenant-primary-rgb) / 0.2), transparent 74%);
+}
+
+.dark .tenant-app-body {
+    --app-bg: #07100c;
+    --app-panel: rgba(13, 22, 18, 0.94);
+    --app-panel-soft: rgba(19, 29, 24, 0.92);
+    --app-panel-strong: rgba(9, 16, 13, 0.98);
+    --app-border: rgba(218, 231, 222, 0.16);
+    --app-text: #f2f7f3;
+    --app-muted: #afbbb3;
+    --app-control-background: rgba(18, 25, 21, 0.96);
+    background:
+        radial-gradient(circle at 7% 0%, rgb(var(--tenant-primary-rgb) / 0.16), transparent 28rem),
+        linear-gradient(180deg, #09120e 0%, #050b08 100%);
+}
+
+.dark .tenant-app-body .page-hero {
+    background:
+        radial-gradient(circle at 10% 10%, rgb(var(--tenant-primary-rgb) / 0.16), transparent 22rem),
+        linear-gradient(135deg, #111b17, #08100c);
+}
+
+.dark .tenant-app-body .page-hero::after {
+    background: radial-gradient(circle, rgb(var(--tenant-primary-rgb) / 0.14), transparent 68%);
+}
+
+.dark .tenant-app-body .stat-card {
+    background:
+        radial-gradient(circle at 92% 90%, rgb(var(--tenant-primary-rgb) / 0.12), transparent 8rem),
+        linear-gradient(145deg, #151b18, #0c110e);
+}
+
+.theme-readability-note {
+    border-color: rgb(var(--tenant-primary-rgb) / 0.3);
+    background: rgb(var(--tenant-primary-rgb) / 0.09);
+    color: var(--app-muted);
+}
+
+.theme-readability-note strong {
+    color: var(--app-text);
+}
+
+.report-library-module {
+    background: rgba(22, 101, 52, 0.1);
+    color: #215c35;
+}
+
+.report-library-ready {
+    color: #176b3a;
+}
+
+.dark .report-library-module {
+    background: rgba(74, 222, 128, 0.1);
+    color: #b9e8c8;
+}
+
+.dark .report-library-ready {
+    color: #9ee6b7;
+}
+
+/* The Platform workspace is not tenant-branded. It uses neutral surfaces so
+   a tenant's selected colour cannot leak into Platform readability. */
+html:not(.dark) .platform-body {
+    --app-text: #17221b;
+    --app-muted: #5d685f;
+    --app-border: rgba(45, 57, 49, 0.2);
+    background:
+        radial-gradient(circle at 8% 0%, rgba(72, 105, 84, 0.1), transparent 28rem),
+        linear-gradient(180deg, #f2f3ed 0%, #e8ebe5 100%);
+}
+
+.dark .platform-body {
+    --app-bg: #0b0e0c;
+    --app-panel: #151917;
+    --app-panel-soft: #1b201d;
+    --app-panel-strong: #101311;
+    --app-border: rgba(225, 232, 227, 0.16);
+    --app-text: #f2f5f3;
+    --app-muted: #adb6b0;
+    --app-control-background: #111512;
+    background:
+        radial-gradient(circle at 8% 0%, rgba(83, 112, 94, 0.12), transparent 28rem),
+        linear-gradient(180deg, #101411 0%, #090c0a 100%);
+}
+
+.platform-tenant-header {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: linear-gradient(135deg, #111713, #080b09) !important;
+    color: #fff !important;
+}
+
+.platform-tenant-header h1,
+.platform-tenant-header [data-tenant-website-link] {
+    color: #fff !important;
+}
+
+.platform-tenant-header [data-tenant-quick-access] select {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: #202521;
+    color: #fff;
+}
+
+.dark .platform-tenant-workspace :is(.bg-white, .bg-zinc-50, .bg-zinc-100) {
+    background-color: var(--app-panel) !important;
+}
+
+.dark .platform-tenant-workspace :is(.rounded-2xl, .rounded-3xl)[class*='border'] {
+    border-color: var(--app-border) !important;
+}
+
+.dark .platform-tenant-nav {
+    background: #151917 !important;
+}
+
 /* Tenant administrators may choose any valid primary colour. Opaque branded
    actions use the primary/foreground pair generated by TenantTheme, which is
    contrast checked, rather than assuming white text is always readable. */

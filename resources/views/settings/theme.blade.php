@@ -25,6 +25,26 @@
                     return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
                 },
                 foreground(hex) { return this.luminance(hex) > 0.179 ? '#000000' : '#ffffff'; },
+                contrast(first, second) {
+                    const lighter = Math.max(this.luminance(first), this.luminance(second));
+                    const darker = Math.min(this.luminance(first), this.luminance(second));
+                    return (lighter + 0.05) / (darker + 0.05);
+                },
+                mix(hex, target, amount) {
+                    const source = this.rgb(hex);
+                    const destination = this.rgb(target);
+                    const channels = source.map((channel, index) => Math.round(channel + (destination[index] - channel) * amount));
+                    return '#' + channels.map(channel => channel.toString(16).padStart(2, '0')).join('');
+                },
+                accent(hex, background) {
+                    if (this.contrast(hex, background) >= 4.5) return hex;
+                    const target = this.luminance(background) > 0.5 ? '#000000' : '#ffffff';
+                    for (let amount = 0.05; amount <= 1; amount += 0.05) {
+                        const candidate = this.mix(hex, target, amount);
+                        if (this.contrast(candidate, background) >= 4.5) return candidate;
+                    }
+                    return target;
+                },
                 normalise() {
                     let value = this.colour.trim();
                     if (value && !value.startsWith('#')) value = '#' + value;
@@ -55,8 +75,8 @@
                         @enderror
                     </div>
 
-                    <div class="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-4 text-sm leading-6 text-sky-100">
-                        <strong class="block text-white">{{ __('theme.readability_title') }}</strong>
+                    <div class="theme-readability-note rounded-2xl border p-4 text-sm leading-6">
+                        <strong class="block">{{ __('theme.readability_title') }}</strong>
                         {{ __('theme.readability_message') }}
                     </div>
 
@@ -78,7 +98,7 @@
                         <article class="overflow-hidden rounded-3xl border border-black/10 bg-[#fbfaf4] text-[#112b1c] shadow-xl">
                             <div class="h-2" x-bind:style="`background:${colour}`"></div>
                             <div class="p-5">
-                                <p class="text-xs font-bold uppercase tracking-wider" x-bind:style="`color:${colour}`">{{ __('theme.light_mode') }}</p>
+                                <p class="text-xs font-bold uppercase tracking-wider" x-bind:style="`color:${accent(colour, '#fbfaf4')}`">{{ __('theme.light_mode') }}</p>
                                 <h3 class="mt-3 text-xl font-bold">{{ __('theme.preview_heading') }}</h3>
                                 <p class="mt-2 text-sm text-[#48614f]">{{ __('theme.preview_copy') }}</p>
                                 <button type="button" class="mt-5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm" x-bind:style="`background:${colour};color:${foreground(colour)}`">{{ __('theme.preview_action') }}</button>
@@ -88,7 +108,7 @@
                         <article class="overflow-hidden rounded-3xl border border-white/10 bg-[#04160b] text-[#f3fff6] shadow-xl">
                             <div class="h-2" x-bind:style="`background:${colour}`"></div>
                             <div class="p-5">
-                                <p class="text-xs font-bold uppercase tracking-wider" x-bind:style="`color:${colour}`">{{ __('theme.dark_mode') }}</p>
+                                <p class="text-xs font-bold uppercase tracking-wider" x-bind:style="`color:${accent(colour, '#04160b')}`">{{ __('theme.dark_mode') }}</p>
                                 <h3 class="mt-3 text-xl font-bold">{{ __('theme.preview_heading') }}</h3>
                                 <p class="mt-2 text-sm text-[#accdb5]">{{ __('theme.preview_copy') }}</p>
                                 <button type="button" class="mt-5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm" x-bind:style="`background:${colour};color:${foreground(colour)}`">{{ __('theme.preview_action') }}</button>

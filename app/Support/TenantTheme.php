@@ -94,11 +94,11 @@ class TenantTheme
     public function cssVariables(): string
     {
         $palette = $this->palette();
-        $shades = collect($palette['shades'])
-            ->map(fn (string $value, int $shade): string => "--color-emerald-{$shade}: {$value};")
-            ->implode(' ');
 
-        return ":root { --tenant-primary: {$palette['primary']}; --tenant-primary-rgb: {$palette['primary_rgb']}; --tenant-primary-hover: {$palette['light_hover']}; --color-accent: {$palette['primary']}; --color-accent-content: {$palette['light_accent']}; --color-accent-foreground: {$palette['foreground']}; --app-accent: {$palette['light_accent']}; --app-accent-soft: {$palette['light_soft']}; {$shades} } .dark { --tenant-primary-hover: {$palette['dark_hover']}; --color-accent: {$palette['primary']}; --color-accent-content: {$palette['dark_accent']}; --color-accent-foreground: {$palette['foreground']}; --app-accent: {$palette['dark_accent']}; --app-accent-soft: rgb({$palette['dark_soft_rgb']} / 0.16); }";
+        // Brand colour and semantic colours are deliberately separate. Replacing
+        // Tailwind's emerald scale made success/status text inherit arbitrary
+        // tenant shades that were not readable on their surrounding surfaces.
+        return ":root { --tenant-primary: {$palette['primary']}; --tenant-primary-rgb: {$palette['primary_rgb']}; --tenant-primary-hover: {$palette['light_hover']}; --tenant-on-primary: {$palette['foreground']}; --tenant-accent-text: {$palette['light_accent']}; --tenant-accent-soft: {$palette['light_soft']}; --color-accent: {$palette['primary']}; --color-accent-content: {$palette['light_accent']}; --color-accent-foreground: {$palette['foreground']}; --app-accent: {$palette['light_accent']}; --app-accent-soft: {$palette['light_soft']}; } .dark { --tenant-primary-hover: {$palette['dark_hover']}; --tenant-accent-text: {$palette['dark_accent']}; --tenant-accent-soft: rgb({$palette['dark_soft_rgb']} / 0.16); --color-accent: {$palette['primary']}; --color-accent-content: {$palette['dark_accent']}; --color-accent-foreground: {$palette['foreground']}; --app-accent: {$palette['dark_accent']}; --app-accent-soft: rgb({$palette['dark_soft_rgb']} / 0.16); }";
     }
 
     private function normalize(string $color): ?string

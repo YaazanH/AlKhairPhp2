@@ -26,4 +26,13 @@ class TenantThemeTest extends TestCase
     {
         $this->assertFalse(app(TenantTheme::class)->canProduceReadablePalette('green'));
     }
+
+    public function test_css_variables_do_not_replace_semantic_success_colours(): void
+    {
+        $variables = app(TenantTheme::class)->cssVariables();
+
+        $this->assertStringContainsString('--tenant-primary:', $variables);
+        $this->assertStringContainsString('--tenant-accent-text:', $variables);
+        $this->assertStringNotContainsString('--color-emerald-', $variables);
+    }
 }

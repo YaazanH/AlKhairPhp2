@@ -17,7 +17,7 @@
             <div class="flash-success px-4 py-3 text-sm" role="status">{{ session('status') }}</div>
         @endif
 
-        <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <section class="report-library-grid grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             @forelse($items as $item)
                 @php
                     $revision = $item->publishedRevision;
@@ -41,13 +41,13 @@
                     <div class="mt-5 flex flex-wrap gap-2 text-xs">
                         <span class="rounded-full bg-white/5 px-3 py-1.5 text-neutral-300">{{ __('report_designer.sources.'.$source.'.label') }}</span>
                         @foreach($revision->required_modules as $module)
-                            <span class="rounded-full bg-emerald-400/10 px-3 py-1.5 text-emerald-200">{{ config('modules.definitions.'.$module.'.name', str_replace('_', ' ', $module)) }}</span>
+                            <span class="report-library-module rounded-full px-3 py-1.5">{{ config('modules.definitions.'.$module.'.name', str_replace('_', ' ', $module)) }}</span>
                         @endforeach
                     </div>
 
                     <div class="mt-auto border-t border-white/10 pt-5">
                         @if($compatibility['compatible'])
-                            <div class="mb-3 text-sm text-emerald-300">{{ __('report_library.labels.ready') }}</div>
+                            <div class="report-library-ready mb-3 text-sm font-medium">{{ __('report_library.labels.ready') }}</div>
                             <form method="POST" action="{{ route('reports.library.install', $item) }}">
                                 @csrf
                                 <button class="pill-link pill-link--accent w-full justify-center">{{ __('report_library.actions.install') }}</button>
