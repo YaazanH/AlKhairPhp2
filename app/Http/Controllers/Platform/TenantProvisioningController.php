@@ -22,6 +22,7 @@ class TenantProvisioningController extends Controller
             'owner_password' => ['required', 'string', 'min:8'],
             'timezone' => ['nullable', 'timezone'],
             'locale' => ['nullable', Rule::in(array_keys(config('app.supported_locales', [])))],
+            'learning_path_type' => ['required', Rule::in(Tenant::learningPathTypes())],
             'storage_limit_gb' => ['required', 'numeric', 'min:0.1', 'max:100000'],
         ], [
             'slug.alpha_dash' => 'The subdomain may contain only letters, numbers, dashes, and underscores.',
@@ -34,6 +35,7 @@ class TenantProvisioningController extends Controller
             'owner_name' => 'tenant administrator name',
             'owner_email' => 'tenant administrator email',
             'owner_password' => 'temporary password',
+            'learning_path_type' => 'learning path',
             'storage_limit_gb' => 'tenant storage limit',
         ]);
         $exitCode = Artisan::call('saas:provision-tenant', [
@@ -42,6 +44,7 @@ class TenantProvisioningController extends Controller
             '--platform-email' => $request->user('platform')->email,
             '--storage-limit-gb' => $data['storage_limit_gb'],
             '--timezone' => $data['timezone'] ?? null, '--locale' => $data['locale'] ?? null,
+            '--learning-path' => $data['learning_path_type'],
         ]);
 
         if ($exitCode !== Command::SUCCESS) {

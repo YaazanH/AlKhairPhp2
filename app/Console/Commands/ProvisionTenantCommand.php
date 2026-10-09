@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
 
 class ProvisionTenantCommand extends Command
 {
-    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--storage-limit-gb=} {--timezone=} {--locale=}';
+    protected $signature = 'saas:provision-tenant {name} {slug} {owner-email} {--owner-name=} {--owner-password=} {--platform-email=platform-admin@alkhair.test} {--storage-limit-gb=} {--timezone=} {--locale=} {--learning-path=}';
 
     protected $description = 'Create a new isolated tenant database, users, seed data, and storage.';
 
@@ -34,6 +34,14 @@ class ProvisionTenantCommand extends Command
     ): int {
         set_time_limit(0);
         ignore_user_abort(true);
+
+        $learningPath = (string) $this->option('learning-path');
+
+        if (! in_array($learningPath, Tenant::learningPathTypes(), true)) {
+            $this->error('Choose a supported learning path: quran or lesson_level.');
+
+            return self::FAILURE;
+        }
 
         $platform = PlatformAdministrator::query()->where('email', $this->option('platform-email'))->firstOrFail();
         $ownerName = $this->option('owner-name') ?: $this->argument('owner-email');
@@ -59,6 +67,7 @@ class ProvisionTenantCommand extends Command
             'status' => Tenant::STATUS_PROVISIONING,
             'timezone' => $this->option('timezone') ?: null,
             'locale' => $this->option('locale') ?: null,
+            'learning_path_type' => $learningPath,
             'storage_limit_bytes' => filled($this->option('storage-limit-gb'))
                 ? (int) round((float) $this->option('storage-limit-gb') * 1024 * 1024 * 1024)
                 : null,

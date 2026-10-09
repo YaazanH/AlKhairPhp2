@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\Assessment;
 use App\Models\CurriculumLesson;
 use App\Models\Group;
+use App\Models\Landlord\Tenant;
 use App\Models\LearningProgressionLevel;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
@@ -25,16 +26,16 @@ class LearningProgressionService
 {
     public const GROUP = 'learning_progression';
 
-    public const PROFILE_QURAN = 'quran';
+    public const PROFILE_QURAN = Tenant::LEARNING_PATH_QURAN;
 
-    public const PROFILE_LESSON_LEVEL = 'lesson_level';
+    public const PROFILE_LESSON_LEVEL = Tenant::LEARNING_PATH_LESSON_LEVEL;
 
     public function settings(): array
     {
         $settings = AppSetting::groupValues(self::GROUP);
 
         return [
-            'profile' => $settings->get('profile') ?? self::PROFILE_QURAN,
+            'profile' => $this->learningPathType($settings->get('profile')),
             'configured' => (bool) ($settings->get('configured') ?? false),
             'partial_test_enabled' => (bool) ($settings->get('partial_test_enabled') ?? true),
             'partial_test_required_for_final' => (bool) ($settings->get('partial_test_required_for_final') ?? true),
@@ -44,29 +45,10 @@ class LearningProgressionService
         ];
     }
 
-    public function selectProfile(string $profile): void
-    {
-        if ($this->isLocked()) {
-            throw new LogicException(__('learning_progression.errors.locked'));
-        }
-
-        if (! in_array($profile, [self::PROFILE_QURAN, self::PROFILE_LESSON_LEVEL], true)) {
-            throw ValidationException::withMessages([
-                'profile' => __('learning_progression.errors.profile_invalid'),
-            ]);
-        }
-
-        AppSetting::storeValue(self::GROUP, 'profile', $profile);
-        AppSetting::storeValue(
-            self::GROUP,
-            'configured',
-            $profile === self::PROFILE_LESSON_LEVEL && LearningProgressionLevel::query()->exists(),
-            'boolean',
-        );
-    }
-
     public function storeQuranSettings(array $settings): void
     {
+        $this->ensureLearningPath(self::PROFILE_QURAN);
+
         if ($this->isLocked()) {
             throw new LogicException(__('learning_progression.errors.locked'));
         }
@@ -91,7 +73,6 @@ class LearningProgressionService
             ]);
         }
 
-        AppSetting::storeValue(self::GROUP, 'profile', self::PROFILE_QURAN);
         AppSetting::storeValue(self::GROUP, 'configured', true, 'boolean');
 
         foreach ($settings as $key => $value) {
@@ -101,6 +82,8 @@ class LearningProgressionService
 
     public function storeLevel(array $data, ?LearningProgressionLevel $level = null): LearningProgressionLevel
     {
+        $this->ensureLearningPath(self::PROFILE_LESSON_LEVEL);
+
         if ($this->isLocked()) {
             throw new LogicException(__('learning_progression.errors.locked'));
         }
@@ -158,7 +141,6 @@ class LearningProgressionService
             $level->groups()->sync($groupIds);
             $level->lessons()->sync($lessonIds);
 
-            AppSetting::storeValue(self::GROUP, 'profile', self::PROFILE_LESSON_LEVEL);
             AppSetting::storeValue(self::GROUP, 'configured', true, 'boolean');
 
             return $level->refresh();
@@ -167,6 +149,8 @@ class LearningProgressionService
 
     public function deleteLevel(LearningProgressionLevel $level): void
     {
+        $this->ensureLearningPath(self::PROFILE_LESSON_LEVEL);
+
         if ($this->isLocked()) {
             throw new LogicException(__('learning_progression.errors.locked'));
         }
@@ -180,6 +164,8 @@ class LearningProgressionService
 
     public function moveLevel(LearningProgressionLevel $level, string $direction): void
     {
+        $this->ensureLearningPath(self::PROFILE_LESSON_LEVEL);
+
         if ($this->isLocked()) {
             throw new LogicException(__('learning_progression.errors.locked'));
         }
@@ -219,6 +205,10 @@ class LearningProgressionService
 
     public function ensureTestEnabled(string $test): void
     {
+        if ($this->settings()['profile'] !== self::PROFILE_QURAN) {
+            throw new LogicException(__('learning_progression.errors.wrong_learning_path'));
+        }
+
         if ($this->configurationRequired()) {
             throw new LogicException(__('learning_progression.errors.not_configured'));
         }
@@ -243,6 +233,12 @@ class LearningProgressionService
 
     public function ensureConfigured(string $errorKey = 'learning_progression'): void
     {
+        if ($this->settings()['profile'] !== self::PROFILE_QURAN) {
+            throw ValidationException::withMessages([
+                $errorKey => __('learning_progression.errors.wrong_learning_path'),
+            ]);
+        }
+
         if ($this->configurationRequired()) {
             throw ValidationException::withMessages([
                 $errorKey => __('learning_progression.errors.not_configured'),
@@ -253,6 +249,26 @@ class LearningProgressionService
     public function configurationRequired(): bool
     {
         return app(TenantContext::class)->hasTenant() && ! $this->settings()['configured'];
+    }
+
+    private function learningPathType(mixed $legacyProfile = null): string
+    {
+        if (app(TenantContext::class)->hasTenant()) {
+            return app(TenantContext::class)->tenant()->learning_path_type ?: Tenant::LEARNING_PATH_QURAN;
+        }
+
+        return in_array($legacyProfile, Tenant::learningPathTypes(), true)
+            ? $legacyProfile
+            : Tenant::LEARNING_PATH_QURAN;
+    }
+
+    private function ensureLearningPath(string $expected): void
+    {
+        if ($this->settings()['profile'] !== $expected) {
+            throw ValidationException::withMessages([
+                'learning_path' => __('learning_progression.errors.wrong_learning_path'),
+            ]);
+        }
     }
 
     public function finalRequiresPartial(): bool

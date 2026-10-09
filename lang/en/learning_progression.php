@@ -4,8 +4,9 @@ return [
     'navigation' => 'Learning progression',
     'eyebrow' => 'Student journey',
     'title' => 'Learning progression',
-    'subtitle' => 'Choose one progression profile for this tenant, then define the evidence students need before advancing.',
+    'subtitle' => 'Configure the learning path selected when this tenant was created and define the evidence students need before advancing.',
     'profile_choice' => 'Progression profile',
+    'profile_immutable' => 'This learning path was selected when the tenant was created and cannot be changed.',
     'profiles' => [
         'quran' => [
             'title' => 'Quran progression',
@@ -144,6 +145,7 @@ return [
         'test_disabled' => ':test is not used in this organisation progression.',
         'not_configured' => 'Configure the tenant learning progression before recording Quran progress.',
         'profile_invalid' => 'Choose a supported learning progression profile.',
+        'wrong_learning_path' => 'This operation is not available for the tenant learning path.',
         'groups_required' => 'Choose at least one valid delivery group.',
         'lessons_required' => 'Choose at least one valid required lesson.',
         'lesson_group_mismatch' => 'Every required lesson must belong to a curriculum used by one of the selected delivery groups.',

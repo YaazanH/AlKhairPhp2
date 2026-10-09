@@ -2,6 +2,7 @@
 
 namespace App\Models\Landlord;
 
+use DomainException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -21,6 +22,10 @@ class Tenant extends LandlordModel
 
     public const STATUS_PROVISIONING_FAILED = 'provisioning_failed';
 
+    public const LEARNING_PATH_QURAN = 'quran';
+
+    public const LEARNING_PATH_LESSON_LEVEL = 'lesson_level';
+
     protected $fillable = [
         'uuid',
         'name',
@@ -30,9 +35,27 @@ class Tenant extends LandlordModel
         'suspended_at',
         'timezone',
         'locale',
+        'learning_path_type',
         'logo_path',
         'storage_limit_bytes',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $tenant): void {
+            $tenant->learning_path_type ??= self::LEARNING_PATH_QURAN;
+
+            if (! in_array($tenant->learning_path_type, self::learningPathTypes(), true)) {
+                throw new DomainException('Unsupported tenant learning path type.');
+            }
+        });
+
+        static::updating(function (self $tenant): void {
+            if ($tenant->isDirty('learning_path_type')) {
+                throw new DomainException('The tenant learning path type is immutable.');
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -80,5 +103,18 @@ class Tenant extends LandlordModel
     public function isOperational(): bool
     {
         return in_array($this->status, [self::STATUS_TRIAL, self::STATUS_ACTIVE], true);
+    }
+
+    public static function learningPathTypes(): array
+    {
+        return [self::LEARNING_PATH_QURAN, self::LEARNING_PATH_LESSON_LEVEL];
+    }
+
+    public function learningPathLabel(): string
+    {
+        return match ($this->learning_path_type) {
+            self::LEARNING_PATH_LESSON_LEVEL => 'Lessons and levels',
+            default => 'Quran',
+        };
     }
 }

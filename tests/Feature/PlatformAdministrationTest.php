@@ -211,7 +211,8 @@ class PlatformAdministrationTest extends TestCase
                 && ! array_key_exists('--plan', $arguments)
                 && ! array_key_exists('--voucher', $arguments)
                 && $arguments['--timezone'] === 'Asia/Damascus'
-                && $arguments['--locale'] === 'ar'))
+                && $arguments['--locale'] === 'ar'
+                && $arguments['--learning-path'] === Tenant::LEARNING_PATH_LESSON_LEVEL))
             ->andReturn(Command::SUCCESS);
 
         $this->actingAs($administrator, 'platform')
@@ -224,9 +225,53 @@ class PlatformAdministrationTest extends TestCase
                 'storage_limit_gb' => 12.5,
                 'timezone' => 'Asia/Damascus',
                 'locale' => 'ar',
+                'learning_path_type' => Tenant::LEARNING_PATH_LESSON_LEVEL,
             ])
             ->assertRedirect(route('platform.dashboard'))
             ->assertSessionHas('status');
+    }
+
+    public function test_tenant_creation_requires_a_supported_learning_path(): void
+    {
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Administrator',
+            'email' => 'platform@example.test',
+            'password' => 'secret-password',
+        ]);
+
+        $payload = [
+            'name' => 'Learning Centre',
+            'slug' => 'learning-centre',
+            'owner_name' => 'Tenant Owner',
+            'owner_email' => 'owner@example.test',
+            'owner_password' => 'temporary-password',
+            'storage_limit_gb' => 10,
+        ];
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.tenants.store'), $payload)
+            ->assertSessionHasErrors('learning_path_type');
+
+        $this->actingAs($administrator, 'platform')
+            ->post(route('platform.tenants.store'), $payload + ['learning_path_type' => 'hybrid'])
+            ->assertSessionHasErrors('learning_path_type');
+    }
+
+    public function test_a_created_tenant_learning_path_cannot_be_changed(): void
+    {
+        $tenant = Tenant::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Immutable Path Centre',
+            'slug' => 'immutable-path',
+            'status' => Tenant::STATUS_DRAFT,
+            'learning_path_type' => Tenant::LEARNING_PATH_QURAN,
+        ]);
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('The tenant learning path type is immutable.');
+
+        $tenant->update(['learning_path_type' => Tenant::LEARNING_PATH_LESSON_LEVEL]);
     }
 
     public function test_platform_administrator_cannot_assign_a_reserved_subdomain_to_a_tenant(): void

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
@@ -216,6 +217,7 @@ class LessonLevelProgressionTest extends TestCase
     private function progressionRecords(): array
     {
         $this->seed();
+        AppSetting::storeValue('learning_progression', 'profile', LearningProgressionService::PROFILE_LESSON_LEVEL);
         $user = User::factory()->create(['username' => 'level-manager']);
         $course = Course::query()->create(['name' => 'Level Course', 'is_active' => true]);
         $curriculum = Curriculum::query()->create(['course_id' => $course->id, 'name' => 'Level Curriculum', 'is_active' => true]);

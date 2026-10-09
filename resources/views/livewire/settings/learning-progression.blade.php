@@ -64,19 +64,6 @@ new class extends Component {
         $this->saveQuran();
     }
 
-    public function updatedProfile(string $profile): void
-    {
-        $this->authorizePermission('learning-progression.manage');
-
-        try {
-            app(LearningProgressionService::class)->selectProfile($profile);
-        } catch (LogicException $exception) {
-            $this->addError('profile', $exception->getMessage());
-        }
-
-        $this->loadSettings();
-    }
-
     public function createLevel(): void
     {
         $this->resetLevelForm();
@@ -249,18 +236,13 @@ new class extends Component {
 
             @error('progression') <div class="text-sm text-red-600">{{ $message }}</div> @enderror
 
-            <fieldset @disabled($locked)>
-                <legend class="mb-3 text-sm font-semibold text-neutral-950 dark:text-white">{{ __('learning_progression.profile_choice') }}</legend>
-                <div class="grid gap-3 md:grid-cols-2">
-                    @foreach ([\App\Services\LearningProgressionService::PROFILE_QURAN => 'quran', \App\Services\LearningProgressionService::PROFILE_LESSON_LEVEL => 'lesson_level'] as $value => $label)
-                        <label class="flex cursor-pointer gap-3 rounded-2xl border p-4 transition {{ $profile === $value ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'border-neutral-200 dark:border-neutral-800' }}">
-                            <input wire:model.live="profile" type="radio" value="{{ $value }}" class="mt-1 border-neutral-300 text-emerald-600">
-                            <span><span class="block font-semibold">{{ __('learning_progression.profiles.'.$label.'.title') }}</span><span class="mt-1 block text-sm leading-6 text-neutral-500 dark:text-neutral-400">{{ __('learning_progression.profiles.'.$label.'.copy') }}</span></span>
-                        </label>
-                    @endforeach
-                </div>
-                @error('profile') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
-            </fieldset>
+            @php($profileLabel = $profile === \App\Services\LearningProgressionService::PROFILE_LESSON_LEVEL ? 'lesson_level' : 'quran')
+            <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30" data-learning-path-type>
+                <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{{ __('learning_progression.profile_choice') }}</div>
+                <div class="mt-2 font-semibold text-neutral-950 dark:text-white">{{ __('learning_progression.profiles.'.$profileLabel.'.title') }}</div>
+                <p class="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{{ __('learning_progression.profiles.'.$profileLabel.'.copy') }}</p>
+                <p class="mt-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">{{ __('learning_progression.profile_immutable') }}</p>
+            </section>
 
             @if ($profile === \App\Services\LearningProgressionService::PROFILE_QURAN)
                 <form wire:submit="saveQuran" class="space-y-6">

@@ -18,6 +18,21 @@
                     <label class="grid gap-1.5 text-sm font-semibold">Timezone<select name="timezone" class="rounded-xl border p-3 font-normal"><option value="">Platform default</option><option value="Asia/Damascus" @selected(old('timezone') === 'Asia/Damascus')>Asia/Damascus</option><option value="UTC" @selected(old('timezone') === 'UTC')>UTC</option></select>@error('timezone')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
                     <label class="grid gap-1.5 text-sm font-semibold">Default language<select name="locale" class="rounded-xl border p-3 font-normal"><option value="">Platform default</option><option value="ar" @selected(old('locale') === 'ar')>Arabic</option><option value="en" @selected(old('locale') === 'en')>English</option></select>@error('locale')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
                     <label class="grid gap-1.5 text-sm font-semibold">Storage limit (GB)<input type="number" name="storage_limit_gb" value="{{ old('storage_limit_gb', 10) }}" step="0.1" min="0.1" required class="rounded-xl border p-3 font-normal"><span class="text-xs font-normal text-zinc-500">A tenant-level limit for its database, documents, media, and backups.</span>@error('storage_limit_gb')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
+                    <fieldset class="md:col-span-2">
+                        <legend class="text-sm font-semibold">Learning path</legend>
+                        <p class="mt-1 text-xs text-zinc-500">Choose carefully. The learning path is permanent and cannot be changed after the tenant is created.</p>
+                        <div class="mt-3 grid gap-3 md:grid-cols-2">
+                            <label class="flex cursor-pointer gap-3 rounded-2xl border border-zinc-200 p-4">
+                                <input type="radio" name="learning_path_type" value="{{ \App\Models\Landlord\Tenant::LEARNING_PATH_QURAN }}" required @checked(old('learning_path_type') === \App\Models\Landlord\Tenant::LEARNING_PATH_QURAN) class="mt-1">
+                                <span><strong class="block">Quran</strong><span class="mt-1 block text-xs font-normal text-zinc-500">Memorisation with configurable partial, final, and Awqaf test stages.</span></span>
+                            </label>
+                            <label class="flex cursor-pointer gap-3 rounded-2xl border border-zinc-200 p-4">
+                                <input type="radio" name="learning_path_type" value="{{ \App\Models\Landlord\Tenant::LEARNING_PATH_LESSON_LEVEL }}" required @checked(old('learning_path_type') === \App\Models\Landlord\Tenant::LEARNING_PATH_LESSON_LEVEL) class="mt-1">
+                                <span><strong class="block">Lessons and levels</strong><span class="mt-1 block text-xs font-normal text-zinc-500">The tenant builds ordered levels from its lessons, groups, attendance, and assessments.</span></span>
+                            </label>
+                        </div>
+                        @error('learning_path_type')<span class="mt-2 block text-xs text-red-700">{{ $message }}</span>@enderror
+                    </fieldset>
                 </div>
             </section>
             <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">

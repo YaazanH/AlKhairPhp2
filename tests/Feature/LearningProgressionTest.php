@@ -74,11 +74,13 @@ class LearningProgressionTest extends TestCase
 
     public function test_authorized_tenant_user_can_build_an_ordered_lesson_level_progression(): void
     {
+        $this->useLearningPath(Tenant::LEARNING_PATH_LESSON_LEVEL);
         $this->signInAsAdministrator();
         [$group, $lesson, $assessment] = $this->lessonLevelRecords('Foundation');
 
         Volt::test('settings.learning-progression')
-            ->set('profile', LearningProgressionService::PROFILE_LESSON_LEVEL)
+            ->assertSet('profile', LearningProgressionService::PROFILE_LESSON_LEVEL)
+            ->assertDontSee('name="profile"', false)
             ->call('createLevel')
             ->set('levelName', 'Foundation')
             ->set('levelDescription', 'The first learning stage')
@@ -101,6 +103,7 @@ class LearningProgressionTest extends TestCase
 
     public function test_lesson_level_rejects_lessons_from_an_unselected_group_curriculum(): void
     {
+        $this->useLearningPath(Tenant::LEARNING_PATH_LESSON_LEVEL);
         $this->seed();
         [$group, , $assessment] = $this->lessonLevelRecords('Selected');
         [, $otherLesson] = $this->lessonLevelRecords('Other');
@@ -126,6 +129,26 @@ class LearningProgressionTest extends TestCase
 
         $service->storeQuranSettings([
             'partial_test_enabled' => false,
+            'partial_test_required_for_final' => true,
+            'final_test_enabled' => true,
+            'final_test_required_for_awqaf' => true,
+            'awqaf_test_enabled' => true,
+        ]);
+    }
+
+    public function test_tenant_learning_path_controls_available_progression_configuration(): void
+    {
+        $this->useLearningPath(Tenant::LEARNING_PATH_LESSON_LEVEL);
+
+        $this->assertSame(
+            LearningProgressionService::PROFILE_LESSON_LEVEL,
+            app(LearningProgressionService::class)->settings()['profile'],
+        );
+
+        $this->expectException(ValidationException::class);
+
+        app(LearningProgressionService::class)->storeQuranSettings([
+            'partial_test_enabled' => true,
             'partial_test_required_for_final' => true,
             'final_test_enabled' => true,
             'final_test_required_for_awqaf' => true,
@@ -286,6 +309,18 @@ class LearningProgressionTest extends TestCase
         $this->actingAs($user);
 
         return $user;
+    }
+
+    private function useLearningPath(string $learningPath): void
+    {
+        app(TenantContext::class)->set(new Tenant([
+            'uuid' => 'learning-path-test-tenant',
+            'name' => 'Learning Path Test Tenant',
+            'slug' => 'learning-path-test',
+            'database_name' => 'learning_path_test',
+            'status' => Tenant::STATUS_ACTIVE,
+            'learning_path_type' => $learningPath,
+        ]));
     }
 
     private function studentEnrollment(): array
