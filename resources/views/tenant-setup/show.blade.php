@@ -41,6 +41,10 @@
                 </label>
                 <label class="block md:col-span-2">
                     <span class="mb-2 block text-sm font-medium text-neutral-200">Tenant logo <span class="text-xs font-normal text-neutral-400">Optional</span></span>
+                    @php($currentTenantLogo = $settings->get('tenant_logo_path') ?: $tenant->logo_path)
+                    @if ($currentTenantLogo)
+                        <img src="{{ asset('storage/'.ltrim($currentTenantLogo, '/')) }}" alt="{{ $tenant->name }}" class="mb-3 h-20 w-20 rounded-2xl bg-white object-contain p-2" data-current-tenant-logo>
+                    @endif
                     <input type="file" name="tenant_logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white">
                     @error('tenant_logo')<span class="mt-1 block text-sm text-red-200">{{ $message }}</span>@enderror
                 </label>

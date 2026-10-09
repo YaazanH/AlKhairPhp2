@@ -4,7 +4,8 @@
     $pageDescription = $metaDescription ?? __('ui.app.workspace_tagline');
     $pageUrl = $metaUrl ?? url()->current();
     $pageImage = $metaImage ?? null;
-    $faviconImage = $faviconUrl ?? $pageImage ?? app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
+    $tenantLogoUrl = app(\App\Support\BrandIdentity::class)->currentLogoUrl();
+    $faviconImage = $faviconUrl ?? $pageImage ?? $tenantLogoUrl ?? app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
     $tenantTheme = app(\App\Support\TenantTheme::class);
     $tenantThemeCss = $tenantTheme->isTenantRequest() ? $tenantTheme->cssVariables() : null;
     $resolvedThemeColor = $themeColor ?? ($tenantTheme->isTenantRequest() ? $tenantTheme->primaryColor() : '#17120e');

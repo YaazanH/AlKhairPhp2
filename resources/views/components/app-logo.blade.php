@@ -5,10 +5,12 @@
 ])
 
 @php
-    $title = $title ?: app(\App\Support\BrandIdentity::class)->currentName();
+    $branding = app(\App\Support\BrandIdentity::class);
+    $title = $title ?: $branding->currentName();
+    $tenantLogoUrl = $branding->currentLogoUrl();
     $siteLogoUrl = app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
     $fallbackLogoPath = public_path('storage/website/branding/logo.jpeg');
-    $logoUrl = $siteLogoUrl ?: (file_exists($fallbackLogoPath) ? asset('storage/website/branding/logo.jpeg') : null);
+    $logoUrl = $tenantLogoUrl ?: $siteLogoUrl ?: (file_exists($fallbackLogoPath) ? asset('storage/website/branding/logo.jpeg') : null);
     $measureArabicSubtitleToTitle = app()->isLocale('ar') && (bool) $justifySubtitleToTitle;
     $useJustifiedArabicSubtitle = app()->isLocale('ar') && ! $measureArabicSubtitleToTitle && $subtitle === __('ui.app.short_tagline');
     $displaySubtitle = $useJustifiedArabicSubtitle ? 'مــنــصــة الــتــعــلــم' : $subtitle;

@@ -11,8 +11,10 @@ use App\Services\Landlord\TenantContext;
 use App\Services\Landlord\TenantSetupManager;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -102,6 +104,33 @@ class TenantOnboardingTest extends TestCase
         $this->post('/setup/finish')->assertRedirect(route('dashboard'));
         $this->assertSame('ready', app(TenantSetupManager::class)->summary($this->tenant)['status']);
         $this->get('/dashboard')->assertOk();
+    }
+
+    public function test_wizard_tenant_logo_overrides_a_separate_public_website_logo_in_the_app_shell(): void
+    {
+        Storage::fake('public');
+        app(TenantSetupManager::class)->initialiseNewTenant($this->tenant);
+        AppSetting::storeValue('website', 'logo_path', 'website/branding/old-logo.png');
+        Storage::disk('public')->put('website/branding/old-logo.png', 'old');
+        $this->actingAs($this->admin());
+
+        $this->patch('/setup/foundation', [
+            'school_name' => 'Setup Mosque',
+            'default_locale' => 'en',
+            'school_timezone' => 'Asia/Damascus',
+            'tenant_logo' => UploadedFile::fake()->create('tenant-logo.png', 10, 'image/png'),
+        ])->assertRedirect();
+
+        $path = (string) AppSetting::groupValues('general')->get('tenant_logo_path');
+        $this->assertStringStartsWith('logo/', $path);
+        Storage::disk('public')->assertExists($path);
+        $this->assertSame($path, $this->tenant->fresh()->logo_path);
+
+        $this->get('/setup')
+            ->assertOk()
+            ->assertSee('data-current-tenant-logo', false)
+            ->assertSee('storage/'.ltrim($path, '/'), false)
+            ->assertDontSee('storage/website/branding/old-logo.png', false);
     }
 
     public function test_tenant_administrator_changes_temporary_password_before_setup(): void

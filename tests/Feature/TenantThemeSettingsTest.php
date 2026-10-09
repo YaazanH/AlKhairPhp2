@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Landlord\Tenant;
 use App\Models\User;
 use App\Services\Landlord\TenantContext;
+use App\Services\SidebarNavigationService;
 use App\Support\TenantTheme;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -48,6 +49,21 @@ class TenantThemeSettingsTest extends TestCase
 
         $this->assertSame(TenantTheme::DEFAULT_PRIMARY, app(TenantTheme::class)->primaryColor());
         $this->assertDatabaseMissing('app_settings', ['group' => 'theme', 'key' => 'primary_color']);
+    }
+
+    public function test_tenant_administrator_can_discover_theme_settings_without_general_settings_permission(): void
+    {
+        $administrator = User::factory()->create(['is_tenant_administrator' => true]);
+        $this->selectTenant();
+
+        $themeItem = collect(app(SidebarNavigationService::class)->sidebarFor($administrator))
+            ->pluck('items')
+            ->flatten(1)
+            ->firstWhere('key', 'tenant_theme_settings');
+
+        $this->assertNotNull($themeItem);
+        $this->assertSame(route('settings.theme.edit'), $themeItem['href']);
+        $this->assertSame(__('theme.navigation'), $themeItem['label']);
     }
 
     public function test_non_tenant_administrator_cannot_change_the_tenant_theme(): void

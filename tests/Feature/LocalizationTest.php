@@ -138,6 +138,8 @@ class LocalizationTest extends TestCase
         $logo = file_get_contents(resource_path('views/components/app-logo.blade.php'));
         $styles = file_get_contents(resource_path('css/app.css'));
 
+        $this->assertSame('العربية', config('app.supported_locales.ar.native'));
+
         $this->assertStringContainsString('locale-compact-switch', $switcher);
         $this->assertStringContainsString('$localeCode === \'en\' ? \'EN\'', $switcher);
         $this->assertStringContainsString('$localeCode === \'ar\' ? \'ع\'', $switcher);

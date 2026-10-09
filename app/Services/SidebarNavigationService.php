@@ -78,7 +78,8 @@ class SidebarNavigationService
             'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
             'student_billing' => $this->item('ui.nav.student_billing', 'receipt-percent', 'student-billing.index', ['student-billing.*'], 'finance', 70, ['invoices.view']),
 
-            'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.theme.edit', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
+            'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
+            'tenant_theme_settings' => $this->item('theme.navigation', 'swatch', 'settings.theme.edit', ['settings.theme.*'], 'configuration', 11),
             'learning_progression_settings' => $this->item('learning_progression.navigation', 'presentation-chart-line', 'settings.learning-progression', ['settings.learning-progression'], 'configuration', 12, ['learning-progression.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'designs', 10, ['website.manage']),
@@ -356,6 +357,10 @@ class SidebarNavigationService
 
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
+        if (($itemDefinition['route_name'] ?? null) === 'settings.theme.edit') {
+            return $user->is_tenant_administrator === true;
+        }
+
         if (($itemDefinition['route_name'] ?? null) === 'reports.index') {
             return app(ReportDashboardService::class)->landingRouteNameFor($user) !== null;
         }

@@ -89,7 +89,7 @@ return [
     'supported_locales' => [
         'ar' => [
             'name' => 'Arabic',
-            'native' => 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©',
+            'native' => 'العربية',
             'direction' => 'rtl',
         ],
         'en' => [
