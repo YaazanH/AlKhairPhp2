@@ -51,6 +51,7 @@ class TenantThemeController extends Controller
     private function authorizeTenantAdministrator(Request $request, TenantContext $context): void
     {
         abort_unless($context->hasTenant(), 404);
-        abort_unless($request->user()?->is_tenant_administrator === true, 403);
+        $user = $request->user();
+        abort_unless($user?->is_tenant_administrator === true || $user?->can('settings.manage'), 403);
     }
 }

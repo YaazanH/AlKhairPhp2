@@ -11,6 +11,7 @@ use App\Services\SidebarNavigationService;
 use App\Support\TenantTheme;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class TenantThemeSettingsTest extends TestCase
@@ -66,7 +67,34 @@ class TenantThemeSettingsTest extends TestCase
         $this->assertSame(__('theme.navigation'), $themeItem['label']);
     }
 
-    public function test_non_tenant_administrator_cannot_change_the_tenant_theme(): void
+    public function test_settings_manager_can_discover_and_change_the_tenant_theme(): void
+    {
+        $manager = User::factory()->create(['is_tenant_administrator' => false]);
+        Permission::findOrCreate('settings.manage');
+        $manager->givePermissionTo('settings.manage');
+        $this->selectTenant();
+
+        $themeItem = collect(app(SidebarNavigationService::class)->sidebarFor($manager))
+            ->pluck('items')
+            ->flatten(1)
+            ->firstWhere('key', 'tenant_theme_settings');
+
+        $this->assertNotNull($themeItem);
+
+        $this->actingAs($manager)
+            ->get(route('settings.organization'))
+            ->assertOk()
+            ->assertSee(route('settings.theme.edit'), false);
+
+        $this->actingAs($manager)
+            ->put(route('settings.theme.update'), ['primary_color' => '#7452d6'])
+            ->assertRedirect()
+            ->assertSessionHas('status', __('theme.saved'));
+
+        $this->assertSame('#7452d6', AppSetting::groupValues('theme')->get('primary_color'));
+    }
+
+    public function test_user_without_settings_authority_cannot_change_the_tenant_theme(): void
     {
         $user = User::factory()->create(['is_tenant_administrator' => false]);
         $this->selectTenant();

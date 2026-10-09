@@ -358,7 +358,7 @@ class SidebarNavigationService
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
         if (($itemDefinition['route_name'] ?? null) === 'settings.theme.edit') {
-            return $user->is_tenant_administrator === true;
+            return $user->is_tenant_administrator === true || $user->can('settings.manage');
         }
 
         if (($itemDefinition['route_name'] ?? null) === 'reports.index') {

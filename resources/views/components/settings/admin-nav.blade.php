@@ -23,7 +23,7 @@
                         <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
                     </a>
                 @endcan
-                @if(auth()->user()?->is_tenant_administrator)
+                @if(auth()->user()?->is_tenant_administrator || auth()->user()?->can('settings.manage'))
                     <a href="{{ route('settings.theme.edit') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.theme.edit' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('theme.navigation') }}</span>
                     </a>
