@@ -93,6 +93,7 @@ return [
             'save' => 'Save',
             'cancel' => 'Cancel',
             'active' => 'Active',
+            'provisioning' => 'Provisioning',
             'inactive' => 'Inactive',
             'suspended' => 'Suspended',
             'provisioning_failed' => 'Provisioning failed',

@@ -17,7 +17,7 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
+    <body class="app-body tenant-app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
         @php
             $primaryRole = auth()->user()->primaryRoleName();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;

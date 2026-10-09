@@ -26,6 +26,19 @@ class ManagementPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_theme_surfaces_use_contrast_checked_tenant_colours(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $sidebarLayout = file_get_contents(resource_path('views/components/layouts/app/sidebar.blade.php'));
+        $headerLayout = file_get_contents(resource_path('views/components/layouts/app/header.blade.php'));
+
+        $this->assertStringContainsString('color: var(--color-accent-foreground);', $styles);
+        $this->assertStringContainsString('.tenant-app-body :is(a, button, input[type=', $styles);
+        $this->assertStringContainsString('class="app-body tenant-app-body"', $sidebarLayout);
+        $this->assertStringContainsString('class="app-body tenant-app-body"', $headerLayout);
+        $this->assertStringNotContainsString('dir="{{ $textDirection }}" class="dark"', $headerLayout);
+    }
+
     public function test_numeric_inputs_hide_native_stepper_controls_globally(): void
     {
         $styles = file_get_contents(resource_path('css/app.css'));

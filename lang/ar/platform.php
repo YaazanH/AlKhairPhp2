@@ -93,6 +93,7 @@ return [
             'save' => 'حفظ',
             'cancel' => 'إلغاء',
             'active' => 'نشط',
+            'provisioning' => 'قيد التهيئة',
             'inactive' => 'غير نشط',
             'suspended' => 'معلّق',
             'provisioning_failed' => 'فشلت التهيئة',
