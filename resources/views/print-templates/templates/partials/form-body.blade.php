@@ -54,7 +54,7 @@
                             <h2 class="font-display text-2xl text-white">{{ __('print_templates.templates.form.fields.paper_settings') }}</h2>
                             <div class="admin-modal__header-actions">
                                 @if ($isEditing)
-                                    @can('print-templates.manage')
+                                    @can('id-cards.templates.manage')
                                         <button type="submit" form="print-template-delete-form" class="admin-modal__close print-template-symbol-button print-template-settings-delete" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-print-template-symbol-action="delete"><x-print-template-icon name="trash" /></button>
                                     @endcan
                                 @endif

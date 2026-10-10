@@ -1,3 +1,0 @@
-<?php
-use Illuminate\Database\Migrations\Migration;use Illuminate\Database\Schema\Blueprint;use Illuminate\Support\Facades\Schema;
-return new class extends Migration { public function up():void{Schema::create('tenant_support_requests',function(Blueprint $t){$t->id();$t->string('type',20);$t->string('status',30)->default('submitted');$t->string('subject');$t->text('message');$t->foreignId('submitted_by_user_id')->constrained('users')->cascadeOnDelete();$t->foreignId('forwarded_by_user_id')->nullable()->constrained('users')->nullOnDelete();$t->timestamp('forwarded_at')->nullable();$t->text('tenant_admin_note')->nullable();$t->timestamps();$t->index(['type','status']);});}public function down():void{Schema::dropIfExists('tenant_support_requests');}};

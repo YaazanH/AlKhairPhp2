@@ -69,9 +69,4 @@ class Assessment extends Model
     {
         return $this->belongsTo(AssessmentType::class, 'assessment_type_id');
     }
-
-    public function progressionLevels(): HasMany
-    {
-        return $this->hasMany(LearningProgressionLevel::class, 'final_assessment_id');
-    }
 }

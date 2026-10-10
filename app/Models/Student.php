@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\StudentNumberService;
 use App\Support\ArabicSearch;
 use App\Support\AvatarDefaults;
@@ -66,7 +65,7 @@ class Student extends Model
             ->where('last_name', $this->last_name)
             ->exists();
 
-        if ($hasNamesake && app(CurrentModuleAccess::class)->enabled('parents')) {
+        if ($hasNamesake) {
             $fatherName = $this->relationLoaded('parentProfile')
                 ? $this->parentProfile?->father_name
                 : $this->parentProfile()->value('father_name');
@@ -79,7 +78,7 @@ class Student extends Model
         return trim($this->first_name.' '.$this->last_name);
     }
 
-    public function scopeWhereMatchesSearchToken(Builder $query, string $token, bool $includeParent = true): Builder
+    public function scopeWhereMatchesSearchToken(Builder $query, string $token): Builder
     {
         $driver = $query->getConnection()->getDriverName();
         $normalizedPattern = '%'.ArabicSearch::normalize($token).'%';
@@ -97,22 +96,21 @@ class Student extends Model
             $normalizedFullName,
             $normalizedLastName,
             $normalizedPattern,
-            $rawPattern,
-            $includeParent
+            $rawPattern
         ): void {
             $builder
                 ->whereRaw($normalizedFirstName.' like ?', [$normalizedPattern])
                 ->orWhereRaw($normalizedLastName.' like ?', [$normalizedPattern])
                 ->orWhereRaw($normalizedFullName.' like ?', [$normalizedPattern])
                 ->orWhere($builder->qualifyColumn('student_number'), 'like', $rawPattern)
-                ->when($includeParent, fn (Builder $builder) => $builder->orWhereHas('parentProfile', function (Builder $parentQuery) use ($driver, $normalizedPattern): void {
+                ->orWhereHas('parentProfile', function (Builder $parentQuery) use ($driver, $normalizedPattern): void {
                     $normalizedFatherName = ArabicSearch::normalizedSqlExpression(
                         "coalesce({$parentQuery->qualifyColumn('father_name')}, '')",
                         $driver,
                     );
 
                     $parentQuery->whereRaw($normalizedFatherName.' like ?', [$normalizedPattern]);
-                }));
+                });
         });
     }
 
@@ -253,10 +251,5 @@ class Student extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function learningProgression(): HasOne
-    {
-        return $this->hasOne(StudentLearningProgression::class);
     }
 }

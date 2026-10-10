@@ -10,8 +10,6 @@ use App\Services\ManagedUserService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Volt\Volt;
-use PHPUnit\Framework\Attributes\DataProvider;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ProfileAccountOwnershipTest extends TestCase
@@ -138,8 +136,7 @@ class ProfileAccountOwnershipTest extends TestCase
         Volt::test('parents.index')->set('accountParentId', $parent->id)->set('account_password', 'ChangedPass123!')->call('savePassword')->assertForbidden();
         $this->assertTrue(Hash::check('PrivatePass123!', $user->fresh()->password));
     }
-
-    #[DataProvider('existingLearnerProfileTypes')]
+    #[\PHPUnit\Framework\Attributes\DataProvider('existingLearnerProfileTypes')]
     public function test_teacher_permissions_can_use_an_existing_student_or_parent_login(string $type): void
     {
         $user = User::factory()->create(['username' => $type.'.also.teacher', 'password' => 'ExistingLogin123!', 'issued_password' => 'ExistingLogin123!']);
@@ -149,7 +146,7 @@ class ProfileAccountOwnershipTest extends TestCase
         } else {
             Student::create(['user_id' => $user->id, 'first_name' => 'Existing', 'last_name' => 'Student', 'birth_date' => '2008-01-01', 'status' => 'active']);
         }
-        $role = Role::create(['name' => 'limited-recorder', 'guard_name' => 'web']);
+        $role = \Spatie\Permission\Models\Role::create(['name' => 'limited-recorder', 'guard_name' => 'web']);
         $role->givePermissionTo('memorization.record');
         $count = User::count();
         $hash = $user->password;
@@ -169,4 +166,5 @@ class ProfileAccountOwnershipTest extends TestCase
     {
         return [['parent'], ['student']];
     }
+
 }

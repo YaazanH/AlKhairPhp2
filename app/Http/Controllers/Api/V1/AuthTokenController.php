@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\Landlord\CurrentModuleAccess;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -41,7 +40,6 @@ class AuthTokenController extends Controller
         }
 
         abort_unless($user->is_active, 403, 'This account is inactive.');
-        abort_unless(app(CurrentModuleAccess::class)->portalAccountAllowed($user), 403, 'module_disabled: parent_portal');
 
         $abilities = $this->resolveApiAbilities($user);
 
@@ -82,7 +80,6 @@ class AuthTokenController extends Controller
     {
         return $user->getAllPermissions()
             ->pluck('name')
-            ->filter(fn ($permission) => app(CurrentModuleAccess::class)->permissionAvailable($permission))
             ->sort()
             ->values()
             ->all();

@@ -2,7 +2,6 @@
 
 namespace App\Observers;
 
-use App\Models\User;
 use App\Support\DataAuditVisibility;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -83,9 +82,6 @@ class DataAuditObserver
                 'subject_type_label' => class_basename($model),
                 'route' => request()->route()?->getName(),
                 'ip_address' => request()->ip(),
-                'actor_scope' => $actor instanceof User && $actor->isPlatformAdministrator()
-                    ? 'platform_management'
-                    : 'tenant_user',
             ];
 
             if ($event === 'updated' && $this->mergeConsecutiveModuleUpdate($model, $actor, $entry, $properties)) {

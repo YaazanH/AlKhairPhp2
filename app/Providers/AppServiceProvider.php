@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Http\Middleware\EnsureTenantModules;
 use App\Models\AcademicYear;
 use App\Models\Activity;
 use App\Models\AppSetting;
@@ -27,12 +26,9 @@ use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
-use App\Models\ReportDefinition;
 use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
-use App\Models\StudentLearningProgression;
-use App\Models\StudentLearningProgressionHistory;
 use App\Models\StudentNote;
 use App\Models\SystemBackup;
 use App\Models\Teacher;
@@ -40,9 +36,6 @@ use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
 use App\Observers\DataAuditObserver;
-use App\Observers\ReportDefinitionRevisionObserver;
-use App\Services\Landlord\CurrentModuleAccess;
-use App\Services\Landlord\TenantContext;
 use App\Support\ApplicationTimezone;
 use App\Support\RoleRegistry;
 use App\Translation\CountAwareTranslator;
@@ -51,8 +44,6 @@ use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Support\ServiceProvider;
-use Livewire\Livewire;
-use Spatie\Permission\PermissionRegistrar;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -61,9 +52,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->scoped(TenantContext::class);
-        $this->app->scoped(CurrentModuleAccess::class);
-
         $this->app->extend('translator', function ($translator) {
             $countAware = new CountAwareTranslator($translator->getLoader(), $translator->getLocale());
             $countAware->setFallback($translator->getFallback());
@@ -77,7 +65,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Livewire::addPersistentMiddleware([EnsureTenantModules::class]);
         app(ApplicationTimezone::class)->applyConfigured();
 
         ValidatorFacade::resolver(static function (Translator $translator, array $data, array $rules, array $messages, array $attributes): LocalizedValidator {
@@ -85,13 +72,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::before(static function (User $user, string $ability): ?bool {
-            if (! app(CurrentModuleAccess::class)->permissionAvailable($ability)) {
-                return false;
-            }
-
             return $user->hasRole(RoleRegistry::SUPER_ADMIN) ? true : null;
         });
-        app(PermissionRegistrar::class)->registerPermissions(Gate::getFacadeRoot());
 
         foreach ([
             AcademicYear::class,
@@ -118,13 +100,10 @@ class AppServiceProvider extends ServiceProvider
             QuranFinalTest::class,
             QuranPartialTest::class,
             QuranTest::class,
-            ReportDefinition::class,
             Student::class,
             StudentAttendanceDay::class,
             StudentAttendanceRecord::class,
             StudentNote::class,
-            StudentLearningProgression::class,
-            StudentLearningProgressionHistory::class,
             SystemBackup::class,
             Teacher::class,
             TeacherAttendanceDay::class,
@@ -133,7 +112,5 @@ class AppServiceProvider extends ServiceProvider
         ] as $model) {
             $model::observe(DataAuditObserver::class);
         }
-
-        ReportDefinition::observe(ReportDefinitionRevisionObserver::class);
     }
 }

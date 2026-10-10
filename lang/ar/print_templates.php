@@ -230,7 +230,7 @@ return [
             'preview_fallbacks' => [
                 'text' => 'قيمة تجريبية',
                 'image' => 'صورة',
-                'custom_text' => 'اسم المؤسسة',
+                'custom_text' => 'مسجد الخير',
                 'date_text' => '2026-05-17',
                 'page_number' => 'الصفحة 1',
             ],
@@ -281,10 +281,10 @@ return [
     ],
     'builder' => [
         'defaults' => [
-            'custom_text' => 'اسم المؤسسة',
+            'custom_text' => 'مسجد الخير',
             'date_content' => '{{ date }}',
             'page_number_content' => 'الصفحة {{ page_number }}',
-            'title_content' => 'اسم المؤسة',
+            'title_content' => 'مسجد الخير',
         ],
         'sample_values' => [
             'full_name' => 'أحمد خالد',

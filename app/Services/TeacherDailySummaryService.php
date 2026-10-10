@@ -8,7 +8,6 @@ use App\Models\QuranPartialTestAttempt;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -43,17 +42,10 @@ class TeacherDailySummaryService
             ];
         }
 
-        $modules = app(CurrentModuleAccess::class);
-        if ($modules->enabled('student_attendance') && $modules->enabled('classes')) {
-            $this->attachAbsences($summaries, $teachers, $user, $date);
-        }
-        if ($modules->enabled('memorization')) {
-            $this->attachMemorization($summaries, $teachers, $user, $date);
-        }
-        if ($modules->enabled('quran_tests')) {
-            $this->attachFailedPartialAttempts($summaries, $teachers, $user, $date);
-            $this->attachFailedFinalAttempts($summaries, $teachers, $user, $date);
-        }
+        $this->attachAbsences($summaries, $teachers, $user, $date);
+        $this->attachMemorization($summaries, $teachers, $user, $date);
+        $this->attachFailedPartialAttempts($summaries, $teachers, $user, $date);
+        $this->attachFailedFinalAttempts($summaries, $teachers, $user, $date);
 
         $teachersWithActivity = $summaries
             ->filter(fn (array $summary) => $this->hasActivity($summary))

@@ -18,26 +18,12 @@
         @unless($showWebsiteSettings)
         <section aria-label="{{ __('ui.common.settings') }}">
             <div class="settings-tabs {{ $showBarcodeSettings ? 'settings-tabs--barcode-active' : '' }}" data-dashboard-settings-tabs>
-                @can('settings.manage')
-                    <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
-                    </a>
-                @endcan
-                @if(auth()->user()?->is_tenant_administrator || auth()->user()?->can('settings.manage'))
-                    <a href="{{ route('settings.theme.edit') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.theme.edit' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('theme.navigation') }}</span>
-                    </a>
-                @endif
-                @can('settings.manage')
-                    <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
-                    </a>
-                @endcan
-                @can('learning-progression.manage')
-                    <a href="{{ route('settings.learning-progression') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.learning-progression' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('learning_progression.navigation') }}</span>
-                    </a>
-                @endcan
+                <a href="{{ route('settings.organization') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.organization' ? 'is-active' : '' }}">
+                    <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
+                </a>
+                <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
+                    <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
+                </a>
                 @can('course-completion-rules.manage')
                     <a href="{{ route('settings.course-completion') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.course-completion' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
@@ -68,11 +54,6 @@
                 @can('backups.manage')
                     <a href="{{ route('settings.backups') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.backups' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('backups.navigation_title') }}</span>
-                    </a>
-                @endcan
-                @can('storage.view')
-                    <a href="{{ route('settings.storage') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.storage' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('storage.navigation_title') }}</span>
                     </a>
                 @endcan
             </div>

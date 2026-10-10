@@ -847,7 +847,6 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSee('id="points-workbench-type" wire:model="manual_point_type_id" data-search-input="true" data-open-on-focus="true"', false)
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('manual_point_type_id', $bonus->id)
-            ->set('manual_notes', 'Excellent participation')
             ->call('saveManualAndNew')
             ->assertHasNoErrors()
             ->assertSee('points-ledger-table', false)
@@ -892,7 +891,7 @@ class StandaloneWorkflowPagesTest extends TestCase
         $this->assertDatabaseHas('point_transactions', [
             'id' => $transaction->id,
             'points' => 5,
-            'notes' => 'Excellent participation',
+            'notes' => null,
         ]);
 
         Volt::test('points.index')

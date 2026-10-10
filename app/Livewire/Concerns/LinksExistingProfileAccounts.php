@@ -19,7 +19,7 @@ trait LinksExistingProfileAccounts
             return collect();
         }
 
-        return User::query()->tenantManaged()->whereDoesntHave($profile.'Profile', fn ($query) => $query->withTrashed())
+        return User::query()->whereDoesntHave($profile.'Profile', fn ($query) => $query->withTrashed())
             ->orderBy('name')->get(['id', 'name', 'username']);
     }
 
@@ -30,7 +30,7 @@ trait LinksExistingProfileAccounts
         }
 
         abort_if($this->editingId || ! auth()->user()?->can('users.update'), 403);
-        $user = User::query()->tenantManaged()->whereDoesntHave($profile.'Profile', fn ($query) => $query->withTrashed())
+        $user = User::query()->whereDoesntHave($profile.'Profile', fn ($query) => $query->withTrashed())
             ->lockForUpdate()->find($this->existingAccountId);
         if (! $user) {
             throw ValidationException::withMessages(['existingAccountId' => __('access.profile_accounts.existing_unavailable')]);
@@ -52,7 +52,7 @@ trait LinksExistingProfileAccounts
 
         abort_if($this->editingId, 403);
         abort_unless(auth()->user()?->can('users.update'), 403);
-        $user = User::query()->tenantManaged()->with(['roles', 'permissions', 'scopeOverrides'])->findOrFail($this->existingAccountId);
+        $user = User::query()->with(['roles', 'permissions', 'scopeOverrides'])->findOrFail($this->existingAccountId);
         if (property_exists($this, 'access_roles')) {
             $this->account_username = $user->username ?? '';
             $this->account_password = '';

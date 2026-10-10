@@ -1,11 +1,6 @@
 <?php
 
 return [
-    'custom_reports' => [
-        'eyebrow' => 'Role dashboard',
-        'title' => 'Custom reports',
-        'open' => 'Open full report',
-    ],
     'roles' => [
         'manager' => 'Management',
         'teacher' => 'Teacher',
@@ -220,7 +215,7 @@ return [
     ],
     'unassigned' => [
         'heading' => 'Dashboard Setup',
-        'subheading' => 'This account can sign in, but it does not have an organisation role yet.',
+        'subheading' => 'This account can sign in, but it does not have an Alkhair business role yet.',
         'intro' => 'Assign a role and link the account to the right profile before exposing role-specific modules.',
         'cards' => [
             'next' => [

@@ -29,7 +29,7 @@ class PrintTemplateController extends Controller
     public function index(): View
     {
         return view('print-templates.templates.index', [
-            'templates' => PrintTemplate::query()->where('is_system', false)->latest()->get(),
+            'templates' => PrintTemplate::query()->latest()->get(),
         ]);
     }
 
@@ -75,14 +75,11 @@ class PrintTemplateController extends Controller
 
     public function edit(PrintTemplate $template): View
     {
-        abort_if($template->is_system, 404);
-
         return view('print-templates.templates.form', $this->formPayload($template));
     }
 
     public function update(Request $request, PrintTemplate $template): RedirectResponse
     {
-        abort_if($template->is_system, 404);
         $template->fill($this->validatedPayload($request, $template));
         $template->save();
 
@@ -93,7 +90,6 @@ class PrintTemplateController extends Controller
 
     public function destroy(PrintTemplate $template): RedirectResponse
     {
-        abort_if($template->is_system, 404);
         if ($template->background_image) {
             Storage::disk('public')->delete($template->background_image);
         }
@@ -110,7 +106,6 @@ class PrintTemplateController extends Controller
 
     public function copy(PrintTemplate $template): RedirectResponse
     {
-        abort_if($template->is_system, 404);
         $duplicate = $template->replicate();
         $duplicate->name = $template->name.' '.__('print_templates.templates.copy_suffix');
         // A copied template is a draft variant, not a second report-card template.

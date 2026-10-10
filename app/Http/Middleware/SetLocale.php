@@ -2,8 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\AppSetting;
-use App\Services\Landlord\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
@@ -15,9 +13,6 @@ class SetLocale
     {
         $supportedLocales = array_keys(config('app.supported_locales', []));
         $defaultLocale = config('app.locale', 'ar');
-        if (app(TenantContext::class)->hasTenant()) {
-            $defaultLocale = (string) (AppSetting::groupValues('general')->get('default_locale') ?: $defaultLocale);
-        }
         $configuredLocale = (bool) $request->session()->get('locale_user_selected', false)
             ? $request->session()->get('locale', $defaultLocale)
             : $defaultLocale;

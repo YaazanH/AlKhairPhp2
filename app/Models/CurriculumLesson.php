@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -38,10 +37,5 @@ class CurriculumLesson extends Model
     public function topics(): HasMany
     {
         return $this->hasMany(CurriculumLessonTopic::class)->orderBy('sort_order')->orderBy('id');
-    }
-
-    public function progressionLevels(): BelongsToMany
-    {
-        return $this->belongsToMany(LearningProgressionLevel::class, 'learning_progression_level_lesson');
     }
 }

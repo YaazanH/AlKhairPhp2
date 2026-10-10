@@ -27,7 +27,6 @@ class PrintTemplate extends Model
         'data_sources',
         'layout_json',
         'is_active',
-        'is_system',
         'is_student_card',
         'is_report_card',
     ];
@@ -47,7 +46,6 @@ class PrintTemplate extends Model
             'data_sources' => 'array',
             'layout_json' => 'array',
             'is_active' => 'boolean',
-            'is_system' => 'boolean',
             'is_student_card' => 'boolean',
             'is_report_card' => 'boolean',
         ];
@@ -82,9 +80,7 @@ class PrintTemplate extends Model
     public function printLayoutConfig(): array
     {
         [$width, $height] = static::paperSizes()[$this->paper_size] ?? static::paperSizes()['a4'];
-        if ($this->orientation === 'landscape') {
-            [$width, $height] = [$height, $width];
-        }
+        if ($this->orientation === 'landscape') [$width, $height] = [$height, $width];
 
         return [
             'page_width_mm' => $width, 'page_height_mm' => $height,

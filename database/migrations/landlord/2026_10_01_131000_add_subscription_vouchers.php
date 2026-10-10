@@ -1,5 +1,0 @@
-<?php
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-return new class extends Migration { protected $connection='landlord'; public function up(): void { Schema::create('subscription_vouchers', function(Blueprint $t){$t->id();$t->string('code')->unique();$t->string('name');$t->string('discount_type',12);$t->unsignedBigInteger('discount_value');$t->unsignedInteger('max_redemptions')->nullable();$t->unsignedInteger('redemptions')->default(0);$t->timestamp('starts_at')->nullable();$t->timestamp('ends_at')->nullable();$t->boolean('is_active')->default(true);$t->timestamps();}); Schema::table('tenant_subscriptions',function(Blueprint $t){$t->foreignId('subscription_voucher_id')->nullable()->after('plan_id')->constrained('subscription_vouchers')->nullOnDelete();}); } public function down(): void { Schema::table('tenant_subscriptions',function(Blueprint $t){$t->dropConstrainedForeignId('subscription_voucher_id');});Schema::dropIfExists('subscription_vouchers');} };

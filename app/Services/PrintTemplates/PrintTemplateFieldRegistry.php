@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Services\ActivityAudienceService;
 use App\Services\CourseEndService;
 use App\Services\FinanceService;
-use App\Services\Landlord\CurrentModuleAccess;
 use App\Support\AvatarDefaults;
 use App\Support\PercentageFormatter;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,7 +25,7 @@ class PrintTemplateFieldRegistry
 
     public function entities(): array
     {
-        $entities = [
+        return [
             'student' => [
                 'label' => __('print_templates.entities.student'),
                 'model' => Student::class,
@@ -68,20 +67,6 @@ class PrintTemplateFieldRegistry
                 'relations' => ['activity', 'cashBox', 'category', 'requestedBy', 'reviewedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'],
             ],
         ];
-
-        $ownership = [
-            'student' => 'students',
-            'course_student' => 'classes',
-            'teacher' => 'teachers',
-            'parent' => 'parents',
-            'activity' => 'activities',
-            'finance_request' => 'finance',
-            'revenue' => 'finance',
-        ];
-
-        return collect($entities)
-            ->filter(fn (array $definition, string $entity): bool => ! isset($ownership[$entity]) || app(CurrentModuleAccess::class)->enabled($ownership[$entity]))
-            ->all();
 
     }
 
@@ -198,42 +183,12 @@ class PrintTemplateFieldRegistry
             ],
         ];
 
-        foreach ($this->fieldOwnership() as $module => $paths) {
-            if (app(CurrentModuleAccess::class)->enabled($module)) {
-                continue;
-            }
-
-            foreach ($paths as $path) {
-                [$entity, $field] = explode('.', $path, 2);
-                unset($definitions[$entity][$field]);
-            }
-        }
-
-        $enabledEntities = array_keys($this->entities());
-        $definitions = array_intersect_key($definitions, array_flip($enabledEntities));
-
         foreach (array_keys($definitions) as $entity) {
             $definitions[$entity] = ['current_date' => $this->field('current_date', ['text'], fn () => now()->format('d-m-Y'))]
                 + $definitions[$entity];
         }
 
         return $definitions;
-    }
-
-    /** @return array<string, array<int, string>> */
-    protected function fieldOwnership(): array
-    {
-        return [
-            'parents' => ['student.parent_name', 'course_student.parent_name'],
-            'classes' => ['student.group_name', 'teacher.course', 'activity.group_name'],
-            'student_attendance' => ['course_student.attendance_average', 'course_student.days_attended', 'course_student.days_absent'],
-            'memorization' => ['course_student.memorized_pages', 'course_student.daily_memorization_average', 'course_student.weekly_memorization_average'],
-            'quran_tests' => ['course_student.final_tested_juz', 'course_student.passed_final_juz_count', 'course_student.final_test_score', 'course_student.final_exam_score', 'course_student.final_juzs', 'course_student.final_marks'],
-            'assessments' => ['course_student.assessment_count', 'course_student.assessment_average', 'course_student.worship_assessment_average'],
-            'points_rewards' => ['course_student.points_before_rules', 'course_student.points_after_rules', 'course_student.total_points', 'course_student.cheques_count', 'course_student.leaderboard_count'],
-            'finance' => ['activity.fee_amount'],
-            'activities' => ['finance_request.activity', 'revenue.activity'],
-        ];
     }
 
     public function entityOptions(): array
@@ -293,28 +248,12 @@ class PrintTemplateFieldRegistry
         /** @var class-string<Model> $model */
         $model = $definition['model'];
 
-        $query = $model::query()
+        return $model::query()
             ->with($definition['relations'])
             ->when($entity === 'course_student', fn (Builder $query) => $query->whereHas('quranFinalTests', fn (Builder $tests) => $tests->where('status', 'passed')))
             ->when($entity === 'revenue', fn (Builder $query) => $query
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
                 ->whereIn('status', [FinanceRequest::STATUS_ACCEPTED, FinanceRequest::STATUS_SETTLED]));
-
-        if ($entity === 'user') {
-            $moduleRelations = [
-                'students' => 'studentProfile',
-                'teachers' => 'teacherProfile',
-                'parents' => 'parentProfile',
-            ];
-
-            foreach ($moduleRelations as $module => $relation) {
-                if (! app(CurrentModuleAccess::class)->enabled($module)) {
-                    $query->whereDoesntHave($relation);
-                }
-            }
-        }
-
-        return $query;
     }
 
     public function optionsFor(string $entity): array

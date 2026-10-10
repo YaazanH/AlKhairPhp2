@@ -3,7 +3,6 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\AppSetting;
 use App\Models\Student;
-use App\Models\User;
 use App\Services\SidebarNavigationService;
 use App\Support\ApplicationTimezone;
 use App\Support\ArabicSearch;
@@ -264,24 +263,9 @@ new class extends Component
     public function bundleActorLabel(iterable $activities): string
     {
         return collect($activities)
-            ->map(fn (AuditActivity $activity): string => $this->activityActorLabel($activity))
+            ->map(fn (AuditActivity $activity): string => $activity->causer?->name ?? __('data_governance.audit.system'))
             ->unique()
             ->implode(app()->isLocale('ar') ? '، ' : ', ');
-    }
-
-    public function activityActorLabel(AuditActivity $activity): string
-    {
-        if ($activity->getProperty('actor_scope') === 'platform_management') {
-            return __('data_governance.audit.platform_management');
-        }
-
-        $causer = $activity->causer;
-
-        if ($causer instanceof User && $causer->isPlatformAdministrator()) {
-            return __('data_governance.audit.platform_management');
-        }
-
-        return $causer?->name ?? __('data_governance.audit.system');
     }
 
     public function bundleEventLabel(iterable $activities): string
@@ -1022,7 +1006,7 @@ new class extends Component
             <div class="admin-grid-meta__title">{{ __('data_governance.audit.table_title') }}</div>
             <div class="admin-toolbar__controls admin-toolbar__controls--compact" wire:ignore.self>
                 <div class="admin-filter-field"><label class="sr-only" for="data-audit-search">{{ __('crud.common.filters.search') }}</label><input id="data-audit-search" wire:key="data-audit-search-input" wire:model.live.debounce.500ms="search" type="search" placeholder="{{ __('data_governance.audit.search_placeholder') }}"></div>
-                <div class="admin-filter-field"><label class="sr-only" for="data-audit-event">{{ __('data_governance.audit.all_events') }}</label><select id="data-audit-event" wire:model.live="eventFilter"><option value="all">{{ __('data_governance.audit.all_events') }}</option>@foreach (['created','updated','deleted','restored','report_dashboard_updated','report_exported','report_revision_restored'] as $event)<option value="{{ $event }}">{{ __('data_governance.audit.events.'.$event) }}</option>@endforeach</select></div>
+                <div class="admin-filter-field"><label class="sr-only" for="data-audit-event">{{ __('data_governance.audit.all_events') }}</label><select id="data-audit-event" wire:model.live="eventFilter"><option value="all">{{ __('data_governance.audit.all_events') }}</option>@foreach (['created','updated','deleted','restored'] as $event)<option value="{{ $event }}">{{ __('data_governance.audit.events.'.$event) }}</option>@endforeach</select></div>
                 <div class="admin-filter-field"><label class="sr-only" for="data-audit-module">{{ __('data_governance.audit.all_modules') }}</label><select id="data-audit-module" wire:model.live="moduleFilter"><option value="all">{{ __('data_governance.audit.all_modules') }}</option>@foreach ($modules as $module)<option value="{{ $module }}">{{ $this->moduleLabel($module) }}</option>@endforeach</select></div>
                 <div class="admin-filter-field"><label class="sr-only" for="audit-from-date">{{ __('data_governance.audit.from_date') }}</label><input id="audit-from-date" wire:model.live="fromDate" type="date" title="{{ __('data_governance.audit.from_date') }}"></div>
                 <div class="admin-filter-field"><label class="sr-only" for="audit-to-date">{{ __('data_governance.audit.to_date') }}</label><input id="audit-to-date" wire:model.live="toDate" type="date" title="{{ __('data_governance.audit.to_date') }}"></div>

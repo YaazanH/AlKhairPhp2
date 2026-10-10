@@ -9,7 +9,6 @@ use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceExclusion;
 use App\Services\TeacherAttendanceDayService;
-use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -34,12 +33,10 @@ new class extends Component {
     public bool $showExportModal = false;
     public string $export_date_from = '';
     public string $export_date_to = '';
-    public bool $classesEnabled = true;
 
     public function mount(): void
     {
         $this->authorizePermission('attendance.teacher.view');
-        $this->classesEnabled = app(CurrentModuleAccess::class)->enabled('classes');
         $this->attendance_date = now()->toDateString();
         $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id')
             ?? $this->availableCoursesQuery()->value('courses.id')
@@ -57,7 +54,7 @@ new class extends Component {
                     ->whereNull('course_finished_at')
                     ->whereHas('status', fn (Builder $statusQuery) => $statusQuery->where('is_present', true)),
             ])
-        )->when(! $this->classesEnabled, fn (Builder $query) => $query->whereNull('course_id'));
+        );
 
         // Number visible days chronologically before search, status filters, or pagination.
         $dayNumbers = (clone $daysQuery)->reorder()
@@ -73,8 +70,8 @@ new class extends Component {
             ->latest('attendance_date')
             ->latest('id');
 
-        $scheduledTeacherCount = filled($this->attendance_date) && ($this->classesEnabled ? filled($this->course_id) : true)
-            ? $this->scheduledTeachersForDate($this->attendance_date, $this->classesEnabled ? (int) $this->course_id : null)->count()
+        $scheduledTeacherCount = filled($this->attendance_date) && filled($this->course_id)
+            ? $this->scheduledTeachersForDate($this->attendance_date, (int) $this->course_id)->count()
             : 0;
 
         return [
@@ -82,7 +79,7 @@ new class extends Component {
             'dayNumbers' => $dayNumbers,
             'filteredCount' => (clone $daysQuery)->count(),
             'scheduledTeacherCount' => $scheduledTeacherCount,
-            'courseOptions' => $this->classesEnabled ? $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']) : collect(),
+            'courseOptions' => $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']),
             'defaultStatusOptions' => AttendanceStatus::query()
                 ->where('is_active', true)
                 ->whereIn('scope', ['teacher', 'both'])
@@ -143,33 +140,26 @@ new class extends Component {
             return null;
         }
 
-        $rules = [
+        $validated = $this->validate([
             'attendance_date' => ['required', 'date'],
+            'course_id' => ['required', 'integer', Rule::exists('courses', 'id')],
             'default_attendance_status_id' => [
                 'required',
                 'integer',
                 Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['teacher', 'both'])),
             ],
-        ];
-        if ($this->classesEnabled) {
-            $rules['course_id'] = ['required', 'integer', Rule::exists('courses', 'id')];
-        }
-        $validated = $this->validate($rules);
+        ]);
 
-        if ($this->classesEnabled) {
-            abort_unless($this->availableCoursesQuery()->whereKey((int) $validated['course_id'])->exists(), 403);
-        }
-
-        $courseId = $this->classesEnabled ? (int) $validated['course_id'] : null;
+        abort_unless($this->availableCoursesQuery()->whereKey((int) $validated['course_id'])->exists(), 403);
 
         $day = app(TeacherAttendanceDayService::class)->createOrSyncDay(
             $validated['attendance_date'],
-            $this->scheduledTeachersForDate($validated['attendance_date'], $courseId),
+            $this->scheduledTeachersForDate($validated['attendance_date'], (int) $validated['course_id']),
             auth()->user(),
             null,
             'open',
             (int) $validated['default_attendance_status_id'],
-            $courseId,
+            (int) $validated['course_id'],
         );
 
         session()->flash('status', __('workflow.teacher_attendance.days.messages.created'));
@@ -229,16 +219,6 @@ new class extends Component {
 
     protected function scheduledTeachersForDate(string $attendanceDate, ?int $courseId = null)
     {
-        if (! $this->classesEnabled) {
-            return $this->scopeTeachersQuery(
-                Teacher::query()
-                    ->whereIn('status', ['active', 'inactive'])
-                    ->whereNotIn('id', TeacherAttendanceExclusion::query()->select('teacher_id'))
-                    ->orderBy('first_name')
-                    ->orderBy('last_name')
-            )->get();
-        }
-
         try {
             $dayOfWeek = Carbon::parse($attendanceDate)->dayOfWeek;
         } catch (\Throwable) {
@@ -348,7 +328,7 @@ new class extends Component {
                         <tr>
                             <th data-table-number-column scope="col" class="attendance-days-number px-5 py-4 text-center lg:px-6">#</th>
                             <th class="attendance-days-date px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.date') }}</th>
-                            @if($classesEnabled)<th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.course') }}</th>@endif
+                            <th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.course') }}</th>
                             <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.teachers') }}</th>
                             <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.marked') }}</th>
                             <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.days.table.headers.status') }}</th>
@@ -365,7 +345,7 @@ new class extends Component {
                                         <span class="mt-1">{{ \App\Support\DateDisplay::html($day->attendance_date?->format('d-m-Y')) }}</span>
                                     </div>
                                 </td>
-                                @if($classesEnabled)<td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6"><span class="record-course-name">{{ $day->course?->name ?: __('workflow.common.no_course') }}</span></td>@endif
+                                <td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6"><span class="record-course-name">{{ $day->course?->name ?: __('workflow.common.no_course') }}</span></td>
                                 <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->records_count) }}</td>
                                 <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((int) $day->present_records_count) }}</td>
                                 <td class="attendance-days-mobile-hidden px-5 py-4 lg:px-6">
@@ -401,7 +381,6 @@ new class extends Component {
     >
         <form wire:submit="saveDay" class="date-control-peer-group space-y-4">
             <div class="grid gap-4 md:grid-cols-2">
-                @if($classesEnabled)
                 <div>
                     <label for="teacher-attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.teacher_attendance.days.form.course') }}</label>
                     <select id="teacher-attendance-day-course" wire:model.live="course_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="h-12 min-h-12 w-full rounded-xl px-4 py-0 text-sm" data-record-label="course">
@@ -414,12 +393,9 @@ new class extends Component {
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
-                @endif
 
                 <div class="flex h-12 min-h-12 box-border items-center self-end rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
-                    {{ $classesEnabled
-                        ? __(app()->isLocale('ar') && $scheduledTeacherCount > 10 ? 'workflow.teacher_attendance.days.form.scheduled_teacher_singular_help' : 'workflow.teacher_attendance.days.form.scheduled_teachers_help', ['count' => number_format($scheduledTeacherCount)])
-                        : __('modules.teacher_attendance.teachers_included', ['count' => number_format($scheduledTeacherCount)]) }}
+                    {{ __(app()->isLocale('ar') && $scheduledTeacherCount > 10 ? 'workflow.teacher_attendance.days.form.scheduled_teacher_singular_help' : 'workflow.teacher_attendance.days.form.scheduled_teachers_help', ['count' => number_format($scheduledTeacherCount)]) }}
                 </div>
             </div>
 

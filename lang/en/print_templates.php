@@ -230,7 +230,7 @@ return [
             'preview_fallbacks' => [
                 'text' => 'Sample value',
                 'image' => 'Image',
-                'custom_text' => 'Organisation Name',
+                'custom_text' => 'Masjid AlKhair',
                 'date_text' => '2026-05-17',
                 'page_number' => 'Page 1',
             ],
@@ -281,10 +281,10 @@ return [
     ],
     'builder' => [
         'defaults' => [
-            'custom_text' => 'Organisation Name',
+            'custom_text' => 'Masjid AlKhair',
             'date_content' => '{{ date }}',
             'page_number_content' => 'Page {{ page_number }}',
-            'title_content' => 'Organisation Name',
+            'title_content' => 'Masjid AlKhair',
         ],
         'sample_values' => [
             'full_name' => 'Ahmad Khaled',

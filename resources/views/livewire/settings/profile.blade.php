@@ -2,6 +2,7 @@
 
 use App\Services\ManagedUserService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
@@ -44,9 +45,7 @@ new class extends Component
 
         if (! $user->hasImmutableUsername()) {
             $username = $managedUsers->uniqueUsername($validated['username'], $user->name, $user->id);
-            $email = $user->is_tenant_administrator
-                ? $user->email
-                : $managedUsers->uniqueEmail(null, $username, $user->id);
+            $email = $managedUsers->uniqueEmail(null, $username, $user->id);
 
             $user->forceFill([
                 'username' => $username,
@@ -85,7 +84,10 @@ new class extends Component
             throw $exception;
         }
 
-        Auth::user()->completePasswordChange($validated['password']);
+        Auth::user()->update([
+            'password' => Hash::make($validated['password']),
+            'issued_password' => null,
+        ]);
 
         $this->reset('current_password', 'password', 'password_confirmation');
         $this->dispatch('password-updated');

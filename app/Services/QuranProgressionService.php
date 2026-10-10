@@ -14,15 +14,7 @@ class QuranProgressionService
 {
     public function validate(Enrollment $enrollment, int $juzId, QuranTestType $testType): ?string
     {
-        $learningProgression = app(LearningProgressionService::class);
-
-        try {
-            $learningProgression->ensureTestEnabled($testType->code);
-        } catch (\LogicException $exception) {
-            return $exception->getMessage();
-        }
-
-        if ($testType->code === 'final' && $learningProgression->finalRequiresPartial()) {
+        if ($testType->code === 'final') {
             $hasPassedPartialTest = QuranPartialTest::query()
                 ->where('student_id', $enrollment->student_id)
                 ->where('juz_id', $juzId)
@@ -58,7 +50,7 @@ class QuranProgressionService
                 ->where('status', 'passed')
                 ->exists();
 
-            if ($learningProgression->awqafRequiresFinal() && ! $memorizedExternally && ! $passedFinal && ! $legacyPassedFinal) {
+            if (! $memorizedExternally && ! $passedFinal && ! $legacyPassedFinal) {
                 return __('workflow.quran_tests.errors.awqaf_requires_final');
             }
 
@@ -79,7 +71,6 @@ class QuranProgressionService
 
     public function eligibleAwqafJuzIdsForStudent(int $studentId): Collection
     {
-        $learningProgression = app(LearningProgressionService::class);
         $passedFinalJuzIds = QuranFinalTest::query()
             ->where('student_id', $studentId)
             ->where('status', 'passed')
@@ -103,12 +94,9 @@ class QuranProgressionService
             ->pluck('juz_id')
             ->map(fn ($id) => (int) $id);
 
-        $student = Student::query()->find($studentId);
-        $eligibleJuzIds = $learningProgression->awqafRequiresFinal()
-            ? $passedFinalJuzIds->merge($legacyPassedFinalJuzIds)->merge($externalJuzIds)
-            : ($student ? $learningProgression->memorizedJuzIdsForStudent($student) : collect());
-
-        return $eligibleJuzIds
+        return $passedFinalJuzIds
+            ->merge($legacyPassedFinalJuzIds)
+            ->merge($externalJuzIds)
             ->unique()
             ->values()
             ->diff($recordedAwqafJuzIds)

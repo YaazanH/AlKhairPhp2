@@ -1,6 +1,4 @@
-@props(['label' => null])
-
-@php($label = $label ?: app(\App\Support\BrandIdentity::class)->currentName())
+@props(['label' => __('ui.app.name')])
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 324.39 489.47" role="img" aria-label="{{ $label }}" fill="currentColor" {{ $attributes }}>
   <g id="New_Logo" data-name="New Logo">

@@ -145,27 +145,6 @@ return [
         'source_key_required' => 'The backup could not be decrypted with this installation’s key. Enter the source APP_KEY to retry.',
         'source_key_invalid' => 'The supplied key could not decrypt this backup. Check the source APP_KEY and that the backup file is intact.',
     ],
-    'tenant' => [
-        'title' => 'Backups',
-        'subtitle' => 'Download or restore complete recovery points for :tenant.',
-        'history_title' => 'Tenant backup history',
-        'history_help' => 'Each archive includes this tenant’s database, uploaded public files, and private files.',
-        'create_now' => 'Create backup now',
-        'empty' => 'No backups are available yet. You can create one now; the Platform administrator controls the automatic schedule.',
-        'restore_warning' => 'This permanently replaces the current database and files. A safety backup is created first. Type :tenant and enter your password.',
-        'restore_action' => 'Restore complete backup',
-        'confirmation_placeholder' => 'Type :tenant',
-        'password_placeholder' => 'Your password',
-        'messages' => [
-            'created' => 'A complete tenant backup was created and verified.',
-            'restored' => 'Your backup was restored. A safety backup of the previous data was created first.',
-        ],
-        'errors' => [
-            'database_tool_missing' => 'The server is missing the database backup tool. Ask the hosting administrator to configure it.',
-            'storage_full' => 'The backup could not be created because the tenant quota or server storage is full.',
-            'create_failed' => 'The backup could not be created. Contact the Platform administrator and review the backup log.',
-        ],
-    ],
     'commands' => [
         'created' => 'Encrypted backup created and verified: :filename',
         'failed' => 'The backup could not be created. Check the application log.',

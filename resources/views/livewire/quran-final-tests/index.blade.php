@@ -184,7 +184,6 @@ new class extends Component
     public function openCreateModal(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        OperationalFeatureSettings::ensureQuranTestsEnabled();
         OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $this->resetForm();
@@ -227,7 +226,6 @@ new class extends Component
     public function save(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        OperationalFeatureSettings::ensureQuranTestsEnabled();
         OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $validated = $this->validate([

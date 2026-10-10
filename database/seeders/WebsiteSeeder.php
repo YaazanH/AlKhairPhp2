@@ -14,9 +14,6 @@ class WebsiteSeeder extends Seeder
 {
     public function run(): void
     {
-        $organisationName = AppSetting::groupValues('general')->get('school_name')
-            ?: AppSetting::groupValues('app')->get('school_name')
-            ?: __('ui.app.name');
         $logoPath = $this->seedMediaAsset('logo.jpeg', 'website/branding/logo.jpeg');
         $heroImagePath = $this->seedMediaAsset('WhatsApp Image 2026-03-22 at 2.14.18 PM.jpeg', 'website/gallery/hero.jpeg');
         $galleryPaths = array_values(array_filter([
@@ -26,20 +23,20 @@ class WebsiteSeeder extends Seeder
         ]));
         $videoPath = $this->seedMediaAsset('Eid.mov', 'website/video/eid.mov');
 
-        AppSetting::storeValue('website', 'site_name', $organisationName);
+        AppSetting::storeValue('website', 'site_name', 'Masjid AlKhair');
         AppSetting::storeValue('website', 'site_tagline', [
             'en' => 'Quran learning, family guidance, and a welcoming mosque community.',
             'ar' => 'تعليم القرآن والإرشاد الأسري ومجتمع مسجد مرحّب بالجميع.',
         ], 'array');
         AppSetting::storeValue('website', 'site_description', [
-            'en' => 'A bilingual public homepage built for families, students, and the wider community.',
-            'ar' => 'واجهة عامة ثنائية اللغة مصممة للعائلات والطلاب والمجتمع الأوسع.',
+            'en' => 'A bilingual mosque homepage connected to the AlKhair platform, built for families, students, and the wider community.',
+            'ar' => 'واجهة مسجد ثنائية اللغة مرتبطة بمنصة الخير ومصممة للعائلات والطلاب والمجتمع الأوسع.',
         ], 'array');
         AppSetting::storeValue('website', 'contact_phone', '+963 944 555 000');
         AppSetting::storeValue('website', 'contact_email', 'info@alkhair.test');
         AppSetting::storeValue('website', 'contact_address', [
-            'en' => 'Damascus, Syria',
-            'ar' => 'دمشق، سوريا',
+            'en' => 'AlKhair Mosque, Damascus, Syria',
+            'ar' => 'مسجد الخير، دمشق، سوريا',
         ], 'array');
         AppSetting::storeValue('website', 'primary_color', '#006b2d');
         AppSetting::storeValue('website', 'accent_color', '#0b8f43');
@@ -53,20 +50,20 @@ class WebsiteSeeder extends Seeder
             [
                 'template' => 'home',
                 'title' => [
-                    'en' => $organisationName,
-                    'ar' => $organisationName,
+                    'en' => 'Masjid AlKhair',
+                    'ar' => 'مسجد الخير',
                 ],
                 'excerpt' => [
                     'en' => 'A public homepage for worship, learning, and family programmes.',
                     'ar' => 'واجهة عامة للعبادة والتعلّم وبرامج العائلة.',
                 ],
                 'seo_title' => [
-                    'en' => $organisationName,
-                    'ar' => $organisationName,
+                    'en' => 'Masjid AlKhair',
+                    'ar' => 'مسجد الخير',
                 ],
                 'seo_description' => [
-                    'en' => "Discover Quran programmes, community activities, and family learning at {$organisationName}.",
-                    'ar' => "اكتشف برامج القرآن والأنشطة المجتمعية وتعلّم الأسرة في {$organisationName}.",
+                    'en' => 'Discover Quran programmes, community activities, and family learning at Masjid AlKhair.',
+                    'ar' => 'اكتشف برامج القرآن والأنشطة المجتمعية وتعلّم الأسرة في مسجد الخير.',
                 ],
                 'sections' => [
                     [
@@ -127,8 +124,8 @@ class WebsiteSeeder extends Seeder
                             'ar' => 'بيت مسجد يجمع العبادة والتعلّم والانتماء.',
                         ],
                         'body' => [
-                            'en' => "{$organisationName} welcomes students, parents, teachers, and the wider community through Quran programmes, memorisation support, activities, and steady pastoral care.",
-                            'ar' => "ترحب مؤسسة {$organisationName} بالطلاب وأولياء الأمور والمعلمين وأهل الحي من خلال برامج القرآن ودعم الحفظ والأنشطة والرعاية التربوية المستمرة.",
+                            'en' => 'Masjid AlKhair welcomes students, parents, teachers, and the wider neighbourhood through Quran programmes, memorisation support, activities, and steady pastoral care.',
+                            'ar' => 'يرحّب مسجد الخير بالطلاب وأولياء الأمور والمعلمين وأهل الحي من خلال برامج القرآن ودعم الحفظ والأنشطة والرعاية التربوية المستمرة.',
                         ],
                         'quote' => [
                             'en' => 'Build a calm, trustworthy first impression before anyone creates an account.',
@@ -206,10 +203,10 @@ class WebsiteSeeder extends Seeder
                 'slug' => 'about-us',
                 'order' => 10,
                 'title' => ['en' => 'About Us', 'ar' => 'من نحن'],
-                'excerpt' => ['en' => "Learn the mission and rhythm of {$organisationName}.", 'ar' => "تعرّف إلى رسالة {$organisationName} وإيقاعها التربوي."],
+                'excerpt' => ['en' => 'Learn the mission and rhythm of Masjid AlKhair.', 'ar' => 'تعرّف إلى رسالة مسجد الخير وإيقاعه التربوي.'],
                 'body' => [
-                    'en' => "{$organisationName} is built around steady Quran learning, disciplined care for students, and respectful communication with families.\n\nThis public website can carry your introduction, your values, your weekly priorities, and the pages you want visitors to read before they log in.",
-                    'ar' => "تقوم مؤسسة {$organisationName} على تعلّم قرآني ثابت، ورعاية منضبطة للطلاب، وتواصل محترم مع العائلات.\n\nيمكن لهذا الموقع العام أن يحمل تعريفكم ورسالتكم وأولوياتكم الأسبوعية والصفحات التي تريدون أن يقرأها الزوار قبل تسجيل الدخول.",
+                    'en' => "Masjid AlKhair is built around steady Quran learning, disciplined care for students, and respectful communication with families.\n\nThis public website can carry your introduction, your values, your weekly priorities, and the pages you want visitors to read before they log in.",
+                    'ar' => "يقوم مسجد الخير على تعلّم قرآني ثابت، ورعاية منضبطة للطلاب، وتواصل محترم مع العائلات.\n\nيمكن لهذا الموقع العام أن يحمل تعريفكم ورسالتكم وأولوياتكم الأسبوعية والصفحات التي تريدون أن يقرأها الزوار قبل تسجيل الدخول.",
                 ],
             ],
             [

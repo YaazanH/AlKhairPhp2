@@ -18,9 +18,7 @@ use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranPartialTest;
 use App\Models\Student;
-use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
-use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 
@@ -56,7 +54,7 @@ class ReportingService
         $filters = $this->normalizeFilters($filters);
 
         return $this->scopedStudentAttendanceRecordsQuery($filters)
-            ->with(['attendanceDay.group.academicYear', 'attendanceDay.group.course', 'enrollment.student', 'student', 'studentAttendanceDay', 'status'])
+            ->with(['attendanceDay.group.academicYear', 'attendanceDay.group.course', 'enrollment.student', 'status'])
             ->orderByDesc(
                 GroupAttendanceDay::query()
                     ->select('attendance_date')
@@ -66,11 +64,11 @@ class ReportingService
             ->orderByDesc('student_attendance_records.id')
             ->get()
             ->map(fn (StudentAttendanceRecord $record) => [
-                ($record->attendanceDay?->attendance_date ?? $record->studentAttendanceDay?->attendance_date)?->format('d-m-Y'),
+                $record->attendanceDay?->attendance_date?->format('d-m-Y'),
                 $record->attendanceDay?->group?->academicYear?->name,
                 $record->attendanceDay?->group?->name,
                 $record->attendanceDay?->group?->course?->name,
-                $record->enrollment?->student?->full_name ?? $record->student?->full_name ?? '',
+                $record->enrollment?->student?->full_name ?? '',
                 $record->status?->name,
                 $record->status?->code,
                 $record->notes,
@@ -349,26 +347,10 @@ class ReportingService
 
     protected function attendance(array $filters): array
     {
-        if (! app(CurrentModuleAccess::class)->enabled('student_attendance')) {
-            return [
-                'average_present_per_day' => 0.0,
-                'days_recorded' => 0,
-                'present_count' => 0,
-                'selected_day_present_count' => null,
-                'single_date_selected' => false,
-                'breakdown' => [],
-            ];
-        }
-
         $recordsQuery = $this->scopedStudentAttendanceRecordsQuery($filters);
-        if (app(CurrentModuleAccess::class)->enabled('classes')) {
-            $daysRecorded = $this->scopedAttendanceDaysQuery($filters)->distinct()->count('attendance_date');
-        } else {
-            $daysQuery = app(AccessScopeService::class)->scopeStudentAttendanceDays(StudentAttendanceDay::query(), auth()->user())
-                ->where('scope', 'center');
-            $this->applyDateRange($daysQuery, 'attendance_date', $filters);
-            $daysRecorded = $daysQuery->distinct()->count('attendance_date');
-        }
+        $daysRecorded = $this->scopedAttendanceDaysQuery($filters)
+            ->distinct()
+            ->count('attendance_date');
         $singleDateSelected = $filters['date_from'] && $filters['date_from'] === $filters['date_to'];
         $presentCount = (clone $recordsQuery)
             ->whereHas('status', fn (Builder $query) => $query->where('is_present', true))
@@ -425,18 +407,16 @@ class ReportingService
 
     protected function headline(array $filters): array
     {
-        $access = app(CurrentModuleAccess::class);
-
         return [
-            'active_enrollments' => $access->enabled('classes') ? $this->scopedEnrollmentsQuery($filters)->where('status', 'active')->count() : 0,
+            'active_enrollments' => $this->scopedEnrollmentsQuery($filters)->where('status', 'active')->count(),
             'cash_collected' => $this->decimal(
                 $this->scopedInvoicePaymentsQuery($filters)->sum('amount')
                 + $this->scopedActivityPaymentsQuery($filters)->sum('amount')
             ),
             'invoiced_amount' => $this->decimal($this->scopedInvoiceItemsQuery($filters)->sum('amount')),
-            'memorized_pages' => $access->enabled('memorization') ? (int) $this->scopedMemorizationSessionsQuery($filters)->sum('pages_count') : 0,
-            'net_points' => $access->enabled('points_rewards') ? (int) $this->scopedPointTransactionsQuery($filters)->sum('points') : 0,
-            'students_in_scope' => $access->enabled('students') ? $this->scopedStudentsQuery($filters)->count() : 0,
+            'memorized_pages' => (int) $this->scopedMemorizationSessionsQuery($filters)->sum('pages_count'),
+            'net_points' => (int) $this->scopedPointTransactionsQuery($filters)->sum('points'),
+            'students_in_scope' => $this->scopedStudentsQuery($filters)->count(),
         ];
     }
 
@@ -688,18 +668,8 @@ class ReportingService
     {
         $query = app(AccessScopeService::class)->scopeStudentAttendanceRecords(StudentAttendanceRecord::query(), auth()->user());
 
-        if (! app(CurrentModuleAccess::class)->enabled('classes')) {
-            $query->whereNotNull('student_attendance_day_id');
-        }
-
-        $query->where(function (Builder $recordQuery) use ($filters): void {
-            $recordQuery
-                ->whereHas('attendanceDay', function (Builder $builder) use ($filters): void {
-                    $this->applyDateRange($builder, 'attendance_date', $filters);
-                })
-                ->orWhereHas('studentAttendanceDay', function (Builder $builder) use ($filters): void {
-                    $this->applyDateRange($builder, 'attendance_date', $filters);
-                });
+        $query->whereHas('attendanceDay', function (Builder $builder) use ($filters) {
+            $this->applyDateRange($builder, 'attendance_date', $filters);
         });
 
         if ($filters['group_id'] || $filters['academic_year_id'] || $filters['course_id']) {
@@ -809,9 +779,6 @@ class ReportingService
         return 'reports.overview.'.md5(json_encode([
             'filters' => $filters,
             'locale' => app()->getLocale(),
-            'modules' => collect(['classes', 'student_attendance', 'memorization', 'points_rewards'])
-                ->mapWithKeys(fn (string $module) => [$module => app(CurrentModuleAccess::class)->enabled($module)])
-                ->all(),
             'roles' => $user?->getRoleNames()->values()->all() ?? [],
             'user_id' => $user?->id,
         ]));

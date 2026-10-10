@@ -1,8 +1,5 @@
 <?php
 
-use App\Models\Landlord\PlatformAdministrator;
-use App\Models\User;
-
 return [
 
     /*
@@ -43,11 +40,6 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
-
-        'platform' => [
-            'driver' => 'session',
-            'provider' => 'platform_administrators',
-        ],
     ],
 
     /*
@@ -70,12 +62,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
-        ],
-
-        'platform_administrators' => [
-            'driver' => 'eloquent',
-            'model' => PlatformAdministrator::class,
+            'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
 
         // 'users' => [

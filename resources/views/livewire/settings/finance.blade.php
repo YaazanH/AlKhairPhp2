@@ -1116,7 +1116,7 @@ new class extends Component
             'financeRequestPrintTemplates' => $this->financeRequestPrintTemplates(),
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
             'pullRequestKinds' => FinancePullRequestKind::query()->orderBy('mode')->orderBy('name')->get(),
-            'users' => User::query()->tenantManaged()->where('is_active', true)->orderBy('name')->get(),
+            'users' => User::query()->where('is_active', true)->orderBy('name')->get(),
             'legacyReportImportEnabled' => ! (bool) AppSetting::groupValues('finance')->get('legacy_report_import_finished'),
             'withdrawalRequestCleanupEnabled' => ! (bool) AppSetting::groupValues('finance')->get('withdrawal_request_cleanup_finished'),
         ];

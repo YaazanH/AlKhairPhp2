@@ -13,7 +13,7 @@
             <div class="admin-grid-meta admin-grid-meta--controls">
                 <div class="admin-grid-meta__title">{{ __('print_templates.templates.title') }}</div>
                 <div class="admin-toolbar__actions">
-                    @can('print-templates.manage')
+                    @can('id-cards.templates.manage')
                         <x-add-action-button :href="route('print-templates.templates.create')" :label="__('print_templates.templates.actions.create')" />
                     @endcan
                 </div>
@@ -51,7 +51,7 @@
                                         </span>
                                     </td>
                                     <td class="px-5 py-4 lg:px-6">
-                                        @can('print-templates.manage')
+                                        @can('id-cards.templates.manage')
                                             <x-open-action-button :href="route('print-templates.templates.edit', $template)" :label="__('crud.common.actions.open')" />
                                         @endcan
                                     </td>

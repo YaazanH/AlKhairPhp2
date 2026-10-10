@@ -63,21 +63,14 @@ class SystemBackupService
         return $this->settings();
     }
 
-    public function create(
-        ?User $creator = null,
-        string $trigger = SystemBackup::TRIGGER_MANUAL,
-        string $scope = SystemBackup::SCOPE_DATABASE,
-        bool $applyRetention = true,
-    ): SystemBackup
+    public function create(?User $creator = null, string $trigger = SystemBackup::TRIGGER_MANUAL, string $scope = SystemBackup::SCOPE_DATABASE): SystemBackup
     {
         if (! in_array($trigger, [SystemBackup::TRIGGER_MANUAL, SystemBackup::TRIGGER_SCHEDULED, SystemBackup::TRIGGER_PRE_RESTORE], true)) {
             throw new RuntimeException('Unsupported backup trigger.');
         }
 
         $this->assertScope($scope);
-        if ($trigger === SystemBackup::TRIGGER_SCHEDULED
-            && $scope !== SystemBackup::SCOPE_DATABASE
-            && ! config('backups.allow_scheduled_full', false)) {
+        if ($trigger === SystemBackup::TRIGGER_SCHEDULED && $scope !== SystemBackup::SCOPE_DATABASE) {
             throw new RuntimeException('Scheduled backups must contain only the database.');
         }
 
@@ -88,7 +81,7 @@ class SystemBackupService
         }
 
         try {
-            return $this->createUnlocked($creator, $trigger, applyRetention: $applyRetention, scope: $scope);
+            return $this->createUnlocked($creator, $trigger, scope: $scope);
         } finally {
             $lock->release();
         }
@@ -238,13 +231,7 @@ class SystemBackupService
         $backup->delete();
     }
 
-    public function restore(
-        SystemBackup $backup,
-        ?User $actor = null,
-        bool $createSafetyBackup = true,
-        bool $useMaintenanceMode = true,
-        bool $replaceFiles = false,
-    ): void
+    public function restore(SystemBackup $backup, ?User $actor = null): void
     {
         if (! $backup->isUsable()) {
             throw new RuntimeException('Only completed and verified backups can be restored.');
@@ -286,14 +273,10 @@ class SystemBackupService
             }
             // Do not prune retention while restoring: the selected recovery point
             // and its new safety copy must remain available throughout the operation.
-            $safetyBackup = $createSafetyBackup
-                ? $this->createUnlocked($actor, SystemBackup::TRIGGER_PRE_RESTORE, false, $scope)
-                : null;
+            $safetyBackup = $this->createUnlocked($actor, SystemBackup::TRIGGER_PRE_RESTORE, false, $scope);
             $backupHistory = SystemBackup::query()->get()->map(fn (SystemBackup $item): array => $item->getAttributes())->all();
 
-            if ($useMaintenanceMode) {
-                Artisan::call('down');
-            }
+            Artisan::call('down');
 
             try {
                 if ($hasDatabase) {
@@ -301,9 +284,6 @@ class SystemBackupService
                     $this->restoreBackupHistory($backupHistory);
                 }
                 if ($scope !== SystemBackup::SCOPE_DATABASE) {
-                    if ($replaceFiles) {
-                        $this->clearRestoreDataRoots();
-                    }
                     $this->restoreFiles($prepared['zip'], $prepared['manifest']);
                 }
 
@@ -316,15 +296,11 @@ class SystemBackupService
                     'error_message' => null,
                 ])->save();
 
-                if ($safetyBackup) {
-                    SystemBackup::query()
-                        ->where('uuid', $safetyBackup->uuid)
-                        ->update(['error_message' => null]);
-                }
+                SystemBackup::query()
+                    ->where('uuid', $safetyBackup->uuid)
+                    ->update(['error_message' => null]);
             } finally {
-                if ($useMaintenanceMode) {
-                    Artisan::call('up');
-                }
+                Artisan::call('up');
             }
         } finally {
             if (isset($prepared['zip']) && $prepared['zip'] instanceof ZipArchive) {
@@ -666,22 +642,9 @@ class SystemBackupService
      */
     private function databaseTableNames(string $connectionName): array
     {
-        $connection = DB::connection($connectionName);
-        $driver = $connection->getDriverName();
-
-        if (in_array($driver, ['mysql', 'mariadb'], true)) {
-            $tables = array_map(
-                static fn (object $row): string => (string) $row->name,
-                $connection->select(
-                    'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = ? AND table_type = ?',
-                    [$connection->getDatabaseName(), 'BASE TABLE'],
-                ),
-            );
-        } else {
-            $tables = $connection
-                ->getSchemaBuilder()
-                ->getTableListing(schemaQualified: false);
-        }
+        $tables = DB::connection($connectionName)
+            ->getSchemaBuilder()
+            ->getTableListing(schemaQualified: false);
 
         sort($tables, SORT_STRING);
 
@@ -1206,14 +1169,6 @@ class SystemBackupService
         }
     }
 
-    private function clearRestoreDataRoots(): void
-    {
-        foreach ($this->dataRoots() as $root) {
-            File::deleteDirectory($root);
-            File::ensureDirectoryExists($root);
-        }
-    }
-
     private function restoreBackupHistory(array $backupHistory): void
     {
         // Older full backups predate separated backup scopes.
@@ -1317,63 +1272,7 @@ class SystemBackupService
     private function runProcess(Process $process): void
     {
         $process->setTimeout(max(60, (int) config('backups.process_timeout_seconds', 3600)));
-
-        if (PHP_OS_FAMILY === 'Windows' && PHP_SAPI === 'cli-server') {
-            $this->runProcessThroughWindowsShell($process);
-
-            return;
-        }
-
         $process->mustRun();
-    }
-
-    /**
-     * MySQL clients launched through proc_open can fail to initialise Winsock
-     * under PHP's Windows development server. The command shell avoids that
-     * development-server limitation.
-     */
-    private function runProcessThroughWindowsShell(Process $process): void
-    {
-        if (! function_exists('exec')) {
-            $process->mustRun();
-
-            return;
-        }
-
-        $command = $process->getCommandLine();
-        $input = $process->getInput();
-        if (is_resource($input)) {
-            $metadata = stream_get_meta_data($input);
-            $inputPath = $metadata['uri'] ?? null;
-            if (! is_string($inputPath) || ! is_file($inputPath)) {
-                throw new RuntimeException('The database process input file is unavailable.');
-            }
-            $command .= ' < '.escapeshellarg($inputPath);
-        } elseif ($input !== null) {
-            throw new RuntimeException('The Windows database process requires file-backed input.');
-        }
-
-        $previousEnvironment = [];
-        foreach ($process->getEnv() as $name => $value) {
-            $previousEnvironment[$name] = getenv($name);
-            $value === false ? putenv($name) : putenv($name.'='.$value);
-        }
-
-        try {
-            $output = [];
-            $exitCode = 0;
-            exec($command.' 2>&1', $output, $exitCode);
-        } finally {
-            foreach ($previousEnvironment as $name => $value) {
-                $value === false ? putenv($name) : putenv($name.'='.$value);
-            }
-        }
-
-        if ($exitCode !== 0) {
-            throw new RuntimeException(
-                'The database process failed with exit code '.$exitCode.'. '.Str::limit(implode("\n", $output), 2000),
-            );
-        }
     }
 
     private function writeToStream(mixed $stream, string $contents): void

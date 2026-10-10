@@ -198,19 +198,17 @@ class RecordsController extends Controller
         $validated = $request->validate([
             'invoice_type' => ['nullable', 'string', 'max:50'],
             'parent_id' => ['nullable', 'integer', 'exists:parents,id'],
-            'student_id' => ['nullable', 'integer', 'exists:students,id'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'status' => ['nullable', 'string', 'max:50'],
         ]);
 
         return app(AccessScopeService::class)
-            ->scopeInvoices(Invoice::query()->whereNotNull('student_id')->where('invoice_type', '!=', 'finance'), $request->user())
-            ->with(['parentProfile', 'student'])
+            ->scopeInvoices(Invoice::query(), $request->user())
+            ->with('parentProfile')
             ->withCount('items')
             ->withSum(['payments as paid_total' => fn (Builder $query) => $query->whereNull('voided_at')], 'amount')
             ->when($validated['invoice_type'] ?? null, fn (Builder $query, string $type) => $query->where('invoice_type', $type))
             ->when($validated['parent_id'] ?? null, fn (Builder $query, int $parentId) => $query->where('parent_id', $parentId))
-            ->when($validated['student_id'] ?? null, fn (Builder $query, int $studentId) => $query->where('student_id', $studentId))
             ->when($validated['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->orderByDesc('issue_date')
             ->orderByDesc('id')
@@ -227,8 +225,6 @@ class RecordsController extends Controller
                 'parent' => $invoice->parentProfile?->father_name,
                 'paid_total' => round((float) ($invoice->paid_total ?? 0), 2),
                 'status' => $invoice->status,
-                'student_id' => $invoice->student_id,
-                'student' => $invoice->student?->full_name,
                 'total' => (float) $invoice->total,
             ]);
     }

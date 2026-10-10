@@ -20,7 +20,6 @@ use App\Models\StudentAttendanceRecord;
 use App\Models\StudentNote;
 use App\Services\ActivityAudienceService;
 use App\Services\FinanceService;
-use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -73,13 +72,7 @@ class ParentMobileController extends Controller
 
         $invoiceTotals = Invoice::query()
             ->with(['payments' => fn ($query) => $query->whereNull('voided_at')])
-            ->where(function (Builder $query) use ($parent, $studentIds): void {
-                $query->whereIn('student_id', $studentIds)
-                    ->orWhere(function (Builder $legacy) use ($parent): void {
-                        $legacy->whereNull('student_id')->where('parent_id', $parent->id);
-                    });
-            })
-            ->where('invoice_type', '!=', 'finance')
+            ->where('parent_id', $parent->id)
             ->get()
             ->reduce(fn (array $carry, Invoice $invoice): array => [
                 'total' => $carry['total'] + (float) $invoice->total,
@@ -91,8 +84,7 @@ class ParentMobileController extends Controller
                 'children' => $studentIds->count(),
                 'active_enrollments' => $activeEnrollments->count(),
                 'memorized_pages' => (int) $activeEnrollments->sum('memorized_pages_cached'),
-                'points' => (int) $activeEnrollments->sum('final_points_cached')
-                    + (int) PointTransaction::query()->whereIn('student_id', $studentIds)->whereNull('enrollment_id')->notVoided()->sum('points'),
+                'points' => (int) $activeEnrollments->sum('final_points_cached'),
                 'invoice_total' => round($invoiceTotals['total'], 2),
                 'paid_total' => round($invoiceTotals['paid'], 2),
                 'balance' => round($invoiceTotals['total'] - $invoiceTotals['paid'], 2),
@@ -328,20 +320,13 @@ class ParentMobileController extends Controller
     public function invoices(Request $request): JsonResponse
     {
         $parent = $this->parentProfile($request);
-        $studentIds = $this->childrenQuery($parent)->pluck('id');
         $filters = $this->dateFilters($request, [
             'status' => ['nullable', 'string', 'max:30'],
         ]);
 
         $invoices = Invoice::query()
             ->with(['payments' => fn ($query) => $query->whereNull('voided_at')])
-            ->where(function (Builder $query) use ($parent, $studentIds): void {
-                $query->whereIn('student_id', $studentIds)
-                    ->orWhere(function (Builder $legacy) use ($parent): void {
-                        $legacy->whereNull('student_id')->where('parent_id', $parent->id);
-                    });
-            })
-            ->where('invoice_type', '!=', 'finance')
+            ->where('parent_id', $parent->id)
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('issue_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereDate('issue_date', '<=', $date))
@@ -355,14 +340,8 @@ class ParentMobileController extends Controller
     public function invoice(Request $request, Invoice $invoice): JsonResponse
     {
         $parent = $this->parentProfile($request);
-        $studentIds = $this->childrenQuery($parent)->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        abort_unless(
-            ($invoice->student_id && in_array((int) $invoice->student_id, $studentIds, true))
-            || (! $invoice->student_id && (int) $invoice->parent_id === (int) $parent->id),
-            404,
-        );
-        abort_if($invoice->invoice_type === 'finance', 404);
+        abort_unless((int) $invoice->parent_id === (int) $parent->id, 404);
 
         $invoice->load([
             'items.activity',
@@ -422,9 +401,7 @@ class ParentMobileController extends Controller
 
         $registration->fill([
             'enrollment_id' => $enrollment->id,
-            'fee_amount' => app(CurrentModuleAccess::class)->enabled('finance')
-                ? ($registration->exists ? $registration->fee_amount : ($activity->fee_amount ?? 0))
-                : 0,
+            'fee_amount' => $registration->exists ? $registration->fee_amount : ($activity->fee_amount ?? 0),
             'status' => $validated['response'],
             'notes' => $registration->notes,
         ])->save();
@@ -499,8 +476,7 @@ class ParentMobileController extends Controller
             'school_name' => $student->school_name,
             'joined_at' => $this->date($student->joined_at),
             'memorized_pages' => (int) $activeEnrollments->sum('memorized_pages_cached'),
-            'points' => (int) $activeEnrollments->sum('final_points_cached')
-                + (int) PointTransaction::query()->where('student_id', $student->id)->whereNull('enrollment_id')->notVoided()->sum('points'),
+            'points' => (int) $activeEnrollments->sum('final_points_cached'),
             'active_enrollments' => $activeEnrollments
                 ->map(fn (Enrollment $enrollment): array => $this->enrollmentSummary($enrollment))
                 ->values(),
@@ -558,7 +534,6 @@ class ParentMobileController extends Controller
             'id' => $invoice->id,
             'invoice_no' => $invoice->invoice_no,
             'invoice_type' => $invoice->invoice_type,
-            'student_id' => $invoice->student_id,
             'issue_date' => $this->date($invoice->issue_date),
             'due_date' => $this->date($invoice->due_date),
             'status' => $invoice->status,

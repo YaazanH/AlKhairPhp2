@@ -15,7 +15,7 @@
     <div class="header">
         <div>
             <h1 class="title">{{ __('print.invoice.title') }}</h1>
-            <div class="subtitle">{{ $organization['name'] ?: app(\App\Support\BrandIdentity::class)->currentName() }}</div>
+            <div class="subtitle">{{ $organization['name'] ?: 'Alkhair' }}</div>
             @if ($organization['address'] || $organization['phone'] || $organization['email'])
                 <div class="subtitle">
                     {{ $organization['address'] ?: '' }}

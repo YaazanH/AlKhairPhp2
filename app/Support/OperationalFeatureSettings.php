@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\AppSetting;
-use App\Services\Landlord\CurrentModuleAccess;
 use Illuminate\Validation\ValidationException;
 
 class OperationalFeatureSettings
@@ -25,24 +24,6 @@ class OperationalFeatureSettings
                 'feature' => __('settings.organization.features.memorization_disabled'),
             ]);
         }
-    }
-
-    public static function ensureQuranTestsEnabled(): void
-    {
-        if (! app(CurrentModuleAccess::class)->enabled('quran_tests')) {
-            throw ValidationException::withMessages([
-                'feature' => 'module_disabled: quran_tests',
-            ]);
-        }
-    }
-
-    public static function quranTestsRequireMemorizationProgress(): bool
-    {
-        if (! app(CurrentModuleAccess::class)->enabled('memorization')) {
-            return false;
-        }
-
-        return (bool) (AppSetting::groupValues('quran_tests')->get('require_memorization_progress') ?? true);
     }
 
     public static function ensureActivitiesEnabled(): void

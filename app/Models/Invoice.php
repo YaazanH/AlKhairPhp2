@@ -17,7 +17,6 @@ class Invoice extends Model
 
     protected $fillable = [
         'parent_id',
-        'student_id',
         'invoice_no',
         'original_invoice_no',
         'invoicer_name',
@@ -91,11 +90,6 @@ class Invoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
-    }
-
-    public function student(): BelongsTo
-    {
-        return $this->belongsTo(Student::class);
     }
 
     public function pointMarketCourseLinks(): HasMany

@@ -5,7 +5,6 @@ use App\Livewire\Concerns\SupportsCreateAndNew;
 use App\Models\Activity;
 use App\Models\Group;
 use App\Services\ActivityAudienceService;
-use App\Services\Landlord\CurrentModuleAccess;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -44,7 +43,6 @@ new class extends Component {
             ->orderBy('title');
 
         return [
-            'financeEnabled' => app(CurrentModuleAccess::class)->enabled('finance'),
             'activities' => $activityQuery->paginate($this->perPage),
             'groups' => Group::query()
                 ->with(['course', 'academicYear'])
@@ -115,7 +113,7 @@ new class extends Component {
                 'activity_date' => $validated['activity_date'],
                 'audience_scope' => $validated['audience_scope'],
                 'group_id' => $validated['audience_scope'] === ActivityAudienceService::SCOPE_SINGLE_GROUP ? ($validated['group_id'] ?: null) : null,
-                'fee_amount' => app(CurrentModuleAccess::class)->enabled('finance') && $validated['fee_amount'] !== '' ? $validated['fee_amount'] : null,
+                'fee_amount' => $validated['fee_amount'] !== '' ? $validated['fee_amount'] : null,
                 'is_active' => in_array($validated['status'], ['planned', 'active'], true),
                 'status' => $validated['status'],
             ],
@@ -258,7 +256,6 @@ new class extends Component {
                             @enderror
                         </div>
 
-                        @if ($financeEnabled)
                         <div>
                             <label for="activity-fee" class="mb-1 block text-sm font-medium">{{ __('activities.index.form.fields.fee_amount') }}</label>
                             <input id="activity-fee" wire:model="fee_amount" type="number" min="0" step="0.01" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
@@ -266,7 +263,6 @@ new class extends Component {
                                 <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
                             @enderror
                         </div>
-                        @endif
                     </div>
 
                     <div>
@@ -390,7 +386,7 @@ new class extends Component {
                                 <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.audience') }}</th>
                                 <th class="table-cell-compact px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.date') }}</th>
                                 <th class="table-cell-compact px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.registrations') }}</th>
-                                @if ($financeEnabled)<th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.financials') }}</th>@endif
+                                <th class="px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.financials') }}</th>
                                 <th class="table-cell-compact px-5 py-3 text-left font-medium">{{ __('activities.index.table.headers.status') }}</th>
                                 @if (auth()->user()->can('activities.finance.view') || auth()->user()->can('activities.update') || auth()->user()->can('activities.delete'))
                                     <th class="table-cell-compact admin-actions-column px-5 py-3 text-center font-medium">{{ __('activities.index.table.headers.actions') }}</th>
@@ -420,10 +416,10 @@ new class extends Component {
                                     </td>
                                     <td class="table-cell-compact px-5 py-3">{{ \App\Support\DateDisplay::html($activity->activity_date?->format('d-m-Y')) }}</td>
                                     <td class="table-cell-compact px-5 py-3">{{ number_format($activity->registrations_count) }}</td>
-                                    @if ($financeEnabled)<td class="px-5 py-3">
+                                    <td class="px-5 py-3">
                                         <div>{{ __('activities.index.table.financials.expected', ['amount' => number_format((float) $activity->expected_revenue_cached, 2)]) }}</div>
                                         <div class="text-xs text-neutral-500">{{ __('activities.index.table.financials.breakdown', ['collected' => number_format((float) $activity->collected_revenue_cached, 2), 'expenses' => number_format((float) $activity->expense_total_cached, 2)]) }}</div>
-                                    </td>@endif
+                                    </td>
                                     <td class="table-cell-compact px-5 py-3">
                                         <span class="status-chip {{ $activity->is_active ? 'status-chip--emerald' : 'status-chip--rose' }}">
                                             {{ \Illuminate\Support\Str::headline((string) ($activity->status ?: ($activity->is_active ? 'active' : 'inactive'))) }}
@@ -432,11 +428,11 @@ new class extends Component {
                                     @if (auth()->user()->can('activities.finance.view') || auth()->user()->can('activities.update') || auth()->user()->can('activities.delete'))
                                         <td class="table-cell-compact px-5 py-3">
                                             <div class="admin-action-cluster admin-action-cluster--end">
-                                                @if ($financeEnabled && auth()->user()->can('activities.finance.view'))
+                                                @can('activities.finance.view')
                                                     <a href="{{ route('activities.finance', $activity) }}" wire:navigate class="pill-link pill-link--compact">
                                                         {{ __('activities.common.actions.finance') }}
                                                     </a>
-                                                @endif
+                                                @endcan
                                                 @can('activities.update')
                                                     <button type="button" wire:click="edit({{ $activity->id }})" class="pill-link pill-link--compact">
                                                         {{ __('activities.common.actions.edit') }}

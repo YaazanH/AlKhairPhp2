@@ -1,14 +1,9 @@
 @php
-    $brandName = app(\App\Support\BrandIdentity::class)->currentName();
-    $pageTitle = isset($title) && $title && $title !== $brandName ? $title.' | '.$brandName : $brandName;
+    $pageTitle = isset($title) && $title ? $title.' | '.__('ui.app.name') : __('ui.app.name');
     $pageDescription = $metaDescription ?? __('ui.app.workspace_tagline');
     $pageUrl = $metaUrl ?? url()->current();
     $pageImage = $metaImage ?? null;
-    $tenantLogoUrl = app(\App\Support\BrandIdentity::class)->currentLogoUrl();
-    $faviconImage = $faviconUrl ?? $pageImage ?? $tenantLogoUrl ?? app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
-    $tenantTheme = app(\App\Support\TenantTheme::class);
-    $tenantThemeCss = $tenantTheme->isTenantRequest() ? $tenantTheme->cssVariables() : null;
-    $resolvedThemeColor = $themeColor ?? ($tenantTheme->isTenantRequest() ? $tenantTheme->primaryColor() : '#17120e');
+    $faviconImage = $faviconUrl ?? $pageImage ?? app(\App\Services\WebsiteService::class)->siteSettings()['logo_url'] ?? null;
     $dubaiFontVersion = '2017-20220205-r2';
     $dubaiFontUrl = fn (string $weight, string $format): string => route('web-fonts.dubai', [
         'weight' => $weight,
@@ -27,11 +22,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="csrf-token" content="{{ csrf_token() }}" />
-<meta name="theme-color" content="{{ $resolvedThemeColor }}" />
+<meta name="theme-color" content="{{ $themeColor ?? '#17120e' }}" />
 <meta name="description" content="{{ $pageDescription }}" />
 
 <meta property="og:type" content="{{ $metaType ?? 'website' }}" />
-<meta property="og:site_name" content="{{ $metaSiteName ?? $brandName }}" />
+<meta property="og:site_name" content="{{ $metaSiteName ?? __('ui.app.name') }}" />
 <meta property="og:title" content="{{ $pageTitle }}" />
 <meta property="og:description" content="{{ $pageDescription }}" />
 <meta property="og:url" content="{{ $pageUrl }}" />
@@ -67,7 +62,4 @@
 
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
-@if($tenantThemeCss)
-<style data-tenant-theme>{!! $tenantThemeCss !!}</style>
-@endif
 @fluxAppearance

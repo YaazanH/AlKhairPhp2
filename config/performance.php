@@ -23,6 +23,4 @@ return [
     'slow_query_ms' => (float) env('PERFORMANCE_SLOW_QUERY_MS', 50),
 
     'report_cache_ttl_seconds' => (int) env('PERFORMANCE_REPORT_CACHE_TTL_SECONDS', 30),
-
-    'report_query_timeout_ms' => (int) env('PERFORMANCE_REPORT_QUERY_TIMEOUT_MS', 5000),
 ];

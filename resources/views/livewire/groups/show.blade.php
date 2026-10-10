@@ -13,7 +13,6 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
-use App\Services\Landlord\CurrentModuleAccess;
 use App\Support\RoleRegistry;
 use App\Support\ScheduleTimeSlots;
 use Illuminate\Support\Facades\DB;
@@ -82,9 +81,7 @@ new class extends Component {
                 )
                 ->orderBy('name')
                 ->get(),
-            'dashboardCardTemplates' => app(CurrentModuleAccess::class)->enabled('custom_templates')
-                ? PrintTemplate::query()->where('is_active', true)->orderBy('name')->get()
-                : collect(),
+            'dashboardCardTemplates' => PrintTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'days' => collect(range(0, 6))->mapWithKeys(fn ($day) => [$day => __('schedules.group.days.'.$day)]),
             'timeSlots' => ScheduleTimeSlots::options(),
         ];
@@ -144,9 +141,7 @@ new class extends Component {
                     ->whereNull('course_id')
                     ->orWhere('course_id', $this->course_id)))],
             'capacity' => ['nullable','integer','min:0'],
-            'dashboard_card_template_id' => app(CurrentModuleAccess::class)->enabled('custom_templates')
-                ? ['nullable','integer', Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true))]
-                : ['nullable'],
+            'dashboard_card_template_id' => ['nullable','integer', Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
         $templateId = $data['dashboard_card_template_id'] ?: null;
         unset($data['dashboard_card_template_id']);
@@ -156,11 +151,9 @@ new class extends Component {
         if ($data['teacher_id'] && ! $this->teacherIsAvailable((int) $data['teacher_id'])) { $this->addError('teacher_id', __('crud.groups.errors.teacher_unavailable')); return; }
         if ($data['assistant_teacher_id'] && ! $this->teacherIsAvailable((int) $data['assistant_teacher_id'])) { $this->addError('assistant_teacher_id', __('crud.groups.errors.assistant_teacher_unavailable')); return; }
         $this->currentGroup->update($data);
-        if (app(CurrentModuleAccess::class)->enabled('custom_templates')) {
-            $map = (array) AppSetting::groupValues('general')->get('student_dashboard_card_templates', []);
-            if ($templateId) $map[(string) $this->currentGroup->id] = (int) $templateId; else unset($map[(string) $this->currentGroup->id]);
-            AppSetting::storeValue('general', 'student_dashboard_card_templates', $map, 'array');
-        }
+        $map = (array) AppSetting::groupValues('general')->get('student_dashboard_card_templates', []);
+        if ($templateId) $map[(string) $this->currentGroup->id] = (int) $templateId; else unset($map[(string) $this->currentGroup->id]);
+        AppSetting::storeValue('general', 'student_dashboard_card_templates', $map, 'array');
         $this->showEditModal = false;
         session()->flash('status', __('crud.groups.messages.updated'));
     }
@@ -672,9 +665,7 @@ new class extends Component {
             </div>
             <div class="grid gap-4 md:grid-cols-2" data-group-form-row="capacity-template">
                 <label class="block text-sm">{{ __('crud.groups.form.fields.capacity') }}<input wire:model="capacity" type="number" min="0" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                @if (app(CurrentModuleAccess::class)->enabled('custom_templates'))
-                    <label class="block text-sm">{{ __('crud.groups.dashboard_card.fields.template') }}<select wire:model="dashboard_card_template_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>@foreach($dashboardCardTemplates as $template)<option value="{{ $template->id }}">{{ $template->name }}</option>@endforeach</select></label>
-                @endif
+                <label class="block text-sm">{{ __('crud.groups.dashboard_card.fields.template') }}<select wire:model="dashboard_card_template_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('crud.groups.dashboard_card.placeholders.none') }}</option>@foreach($dashboardCardTemplates as $template)<option value="{{ $template->id }}">{{ $template->name }}</option>@endforeach</select></label>
             </div>
             @error('delete')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
             <div class="admin-action-cluster admin-action-cluster--end">

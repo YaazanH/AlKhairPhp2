@@ -71,7 +71,6 @@ new class extends Component
     public function openAttemptModal(): void
     {
         $this->authorizePermission('quran-final-tests.record');
-        OperationalFeatureSettings::ensureQuranTestsEnabled();
         OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         if ($this->finalTest->status === 'passed') {
@@ -107,7 +106,6 @@ new class extends Component
         }
 
         if (! $this->editingAttemptId) {
-            OperationalFeatureSettings::ensureQuranTestsEnabled();
             OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
 

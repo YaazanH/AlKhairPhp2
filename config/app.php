@@ -15,8 +15,6 @@ return [
 
     'name' => env('APP_NAME', 'AlKhair'),
 
-    'version' => env('APP_VERSION', 'unknown'),
-
     /*
     |--------------------------------------------------------------------------
     | Application Environment

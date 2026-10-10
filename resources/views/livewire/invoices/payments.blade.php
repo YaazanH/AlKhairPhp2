@@ -7,7 +7,6 @@ use App\Models\FinanceRequest;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
-use App\Models\PaymentMethod;
 use App\Services\FinanceService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -43,12 +42,11 @@ new class extends Component {
 
     public function mount(Invoice $invoice): void
     {
-        $this->currentInvoice = Invoice::query()->with(['parentProfile', 'student'])->findOrFail($invoice->id);
-        $this->authorizePermission($this->currentInvoice->invoice_type === 'finance' ? 'finance.expense-requests.view' : 'invoices.view');
-        $this->maintenanceMode = $this->currentInvoice->invoice_type === 'finance' && request()->boolean('maintenance') && (auth()->user()?->can('finance.entries.update') ?? false);
+        $this->authorizePermission('invoices.view');
+        $this->maintenanceMode = request()->boolean('maintenance') && (auth()->user()?->can('finance.entries.update') ?? false);
+        $this->currentInvoice = Invoice::query()->with(['parentProfile'])->findOrFail($invoice->id);
         $this->authorizeScopedInvoiceAccess($this->currentInvoice);
         $this->paid_at = now()->toDateString();
-        $this->payment_method_id = PaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
         $this->invoice_deduction = $this->formatFinanceNumberForInput($this->currentInvoice->discount);
         $this->invoice_no = $this->currentInvoice->invoice_no;
         $this->original_invoice_no = $this->currentInvoice->original_invoice_no ?? '';
@@ -62,15 +60,14 @@ new class extends Component {
     public function with(): array
     {
         return [
-            'invoiceRecord' => $this->currentInvoice->fresh(['financeRequest.pullRequestKind', 'invoiceKind', 'parentProfile', 'student', 'payments.paymentMethod']),
+            'invoiceRecord' => $this->currentInvoice->fresh(['financeRequest.pullRequestKind', 'invoiceKind', 'parentProfile']),
             'items' => InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->orderBy('line_no')->orderBy('id')->get(),
-            'paymentMethods' => PaymentMethod::query()->where('is_active', true)->orderBy('name')->get(),
         ];
     }
 
     public function saveItem(): void
     {
-        $this->authorizeInvoiceChange();
+        $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('item_quantity');
         $this->normalizeFinanceNumberProperty('item_unit_price');
 
@@ -91,7 +88,6 @@ new class extends Component {
                 'invoice_id' => $this->currentInvoice->id,
                 'line_no' => $lineNo,
                 'item_name' => $validated['item_name'],
-                'student_id' => $this->currentInvoice->invoice_type === 'finance' ? null : $this->currentInvoice->student_id,
                 'description' => $validated['item_name'],
                 'quantity' => $validated['item_quantity'],
                 'unit_price' => $validated['item_unit_price'],
@@ -106,7 +102,7 @@ new class extends Component {
 
     public function saveDeduction(): void
     {
-        $this->authorizeInvoiceChange();
+        $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('invoice_deduction');
         $validated = $this->validate(['invoice_deduction' => ['required', 'numeric', 'min:0']]);
         $subtotal = (float) InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->sum('amount');
@@ -124,7 +120,7 @@ new class extends Component {
 
     public function saveInvoiceBasics(): void
     {
-        $this->authorizeInvoiceChange();
+        $this->authorizePermission('finance.entries.update');
         $this->normalizeFinanceNumberProperty('invoice_deduction');
         $this->original_invoice_no = Invoice::formatOriginalInvoiceNumber($this->original_invoice_no) ?? '';
         $validated = $this->validate([
@@ -167,7 +163,7 @@ new class extends Component {
 
     public function editItem(int $itemId): void
     {
-        $this->authorizeInvoiceChange();
+        $this->authorizePermission('finance.entries.update');
         $item = InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->findOrFail($itemId);
         $this->editingItemId = $item->id;
         $this->item_name = $item->item_name ?: $item->description;
@@ -178,7 +174,7 @@ new class extends Component {
 
     public function deleteItem(int $itemId): void
     {
-        $this->authorizeInvoiceChange();
+        $this->authorizePermission('finance.entries.update');
         $item = InvoiceItem::query()->where('invoice_id', $this->currentInvoice->id)->findOrFail($itemId);
         $item->delete();
         if ($this->editingItemId === $itemId) {
@@ -260,11 +256,6 @@ new class extends Component {
         $this->item_unit_price = '0';
         $this->resetValidation();
     }
-
-    protected function authorizeInvoiceChange(): void
-    {
-        $this->authorizePermission($this->currentInvoice->invoice_type === 'finance' ? 'finance.entries.update' : 'invoices.update');
-    }
 }; ?>
 
 @php
@@ -275,16 +266,13 @@ new class extends Component {
         ?: (trans()->has('print.invoice.types.'.$invoiceRecord->invoice_type)
             ? __('print.invoice.types.'.$invoiceRecord->invoice_type)
             : \Illuminate\Support\Str::headline((string) $invoiceRecord->invoice_type));
-    $canModifyItems = $invoiceRecord->invoice_type === 'finance'
-        ? auth()->user()->can('finance.entries.update')
-        : auth()->user()->can('invoices.update');
 @endphp
 
 <div class="page-stack">
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-            @unless ($maintenanceMode)<x-back-link :href="$invoiceRecord->invoice_type === 'finance' ? route('invoices.index') : route('student-billing.index')" navigate />@endunless
+            @unless ($maintenanceMode)<x-back-link :href="route('invoices.index')" navigate />@endunless
             <div class="eyebrow {{ $maintenanceMode ? '' : 'mt-4' }}">{{ __('ui.nav.finance') }}</div>
             <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('invoices.detail.heading') }}</h1>
             @unless ($maintenanceMode)<p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('invoices.detail.subheading') }}</p>@endunless
@@ -339,7 +327,7 @@ new class extends Component {
 
     <div class="grid gap-6 xl:grid-cols-[23rem_minmax(0,1fr)]">
         <section class="space-y-6">
-            @if ($canModifyItems && ($maintenanceMode || $invoiceRecord->invoice_type !== 'finance'))
+            @if ($maintenanceMode)
             <div class="surface-panel p-5 lg:p-6">
                 <div class="admin-section-card__title">{{ $editingItemId ? __('invoices.detail.item_form.edit_title') : __('invoices.detail.item_form.create_title') }}</div>
                 <form wire:submit="saveItem" class="mt-5 space-y-4">
@@ -373,20 +361,6 @@ new class extends Component {
 
             @endif
 
-            @if ($invoiceRecord->invoice_type !== 'finance' && auth()->user()->can('payments.create'))
-            <div class="surface-panel p-5 lg:p-6">
-                <div class="admin-section-card__title">{{ __('invoices.detail.payment_form.title') }}</div>
-                <form wire:submit="savePayment" class="mt-5 space-y-4">
-                    <label class="block text-sm">{{ __('invoices.detail.payment_form.fields.method') }}<select wire:model="payment_method_id" class="mt-1 w-full rounded-xl px-4 py-3"><option value="">{{ __('invoices.detail.payment_form.placeholders.method') }}</option>@foreach($paymentMethods as $method)<option value="{{ $method->id }}">{{ $method->name }}</option>@endforeach</select>@error('payment_method_id')<span class="mt-1 block text-red-400">{{ $message }}</span>@enderror</label>
-                    <label class="block text-sm">{{ __('invoices.detail.payment_form.fields.paid_at') }}<input wire:model="paid_at" type="date" class="mt-1 w-full rounded-xl px-4 py-3">@error('paid_at')<span class="mt-1 block text-red-400">{{ $message }}</span>@enderror</label>
-                    <label class="block text-sm">{{ __('invoices.detail.payment_form.fields.amount') }}<input wire:model="payment_amount" type="text" inputmode="decimal" class="mt-1 w-full rounded-xl px-4 py-3">@error('payment_amount')<span class="mt-1 block text-red-400">{{ $message }}</span>@enderror</label>
-                    <label class="block text-sm">{{ __('invoices.detail.payment_form.fields.reference') }}<input wire:model="payment_reference_no" class="mt-1 w-full rounded-xl px-4 py-3"></label>
-                    <label class="block text-sm">{{ __('invoices.detail.payment_form.fields.notes') }}<textarea wire:model="payment_notes" rows="2" class="mt-1 w-full rounded-xl px-4 py-3"></textarea></label>
-                    <button class="pill-link pill-link--accent">{{ __('invoices.detail.payment_form.save') }}</button>
-                </form>
-            </div>
-            @endif
-
             @if ($invoiceRecord->financeRequest && $invoiceRecord->financeRequest->status === \App\Models\FinanceRequest::STATUS_ACCEPTED)
                 <div class="surface-panel p-5 lg:p-6">
                     <div class="admin-section-card__title">{{ __('finance.pull_requests.close_invoice_cycle') }}</div>
@@ -406,7 +380,7 @@ new class extends Component {
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table-content text-sm">
-                        <thead><tr><th data-table-number-column class="px-5 py-4 text-left lg:px-6">#</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.item_name') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.unit_price') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th>@if($canModifyItems)<th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th>@endif</tr></thead>
+                        <thead><tr><th data-table-number-column class="px-5 py-4 text-left lg:px-6">#</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.item_name') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.qty') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('finance.fields.unit_price') }}</th><th class="px-5 py-4 text-left lg:px-6">{{ __('invoices.detail.tables.items.headers.amount') }}</th><th class="admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('invoices.detail.tables.items.headers.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-white/6">
                             @forelse ($items as $item)
                                 <tr>
@@ -415,7 +389,7 @@ new class extends Component {
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((float) $item->quantity, 2) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((float) $item->unit_price, 2) }}</td>
                                     <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ number_format((float) $item->amount, 2) }}</td>
-                                    @if($canModifyItems)<td class="px-5 py-4 lg:px-6"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editItem({{ $item->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteItem({{ $item->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button></div></td>@endif
+                                    <td class="px-5 py-4 lg:px-6"><div class="admin-action-cluster admin-action-cluster--end"><button type="button" wire:click="editItem({{ $item->id }})" class="pill-link pill-link--compact">{{ __('crud.common.actions.edit') }}</button><button type="button" wire:click="deleteItem({{ $item->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact border-red-400/25 text-red-200 hover:border-red-300/35 hover:bg-red-500/12">{{ __('crud.common.actions.delete') }}</button></div></td>
                                 </tr>
                             @empty
                                 <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">{{ __('invoices.detail.item_form.empty') }}</td></tr>
@@ -424,15 +398,6 @@ new class extends Component {
                     </table>
                 </div>
             </div>
-
-            @if ($invoiceRecord->invoice_type !== 'finance')
-            <div class="surface-table">
-                <div class="admin-grid-meta"><div class="admin-grid-meta__title">{{ __('invoices.detail.tables.payments.title') }}</div></div>
-                <div class="overflow-x-auto"><table class="text-sm"><thead><tr><th class="px-5 py-4 text-left">{{ __('invoices.detail.tables.payments.headers.date') }}</th><th class="px-5 py-4 text-left">{{ __('invoices.detail.tables.payments.headers.method') }}</th><th class="px-5 py-4 text-left">{{ __('invoices.detail.tables.payments.headers.amount') }}</th><th class="px-5 py-4 text-left">{{ __('invoices.detail.tables.payments.headers.state') }}</th><th></th></tr></thead><tbody class="divide-y divide-white/6">
-                    @forelse($invoiceRecord->payments->sortByDesc('paid_at') as $payment)<tr><td class="px-5 py-4">{{ $payment->paid_at?->format('d-m-Y') }}</td><td class="px-5 py-4">{{ $payment->paymentMethod?->name }}</td><td class="px-5 py-4">{{ number_format((float)$payment->amount, 2) }}</td><td class="px-5 py-4">{{ $payment->voided_at ? __('invoices.detail.tables.payments.void') : $invoiceRecord->status }}</td><td class="px-5 py-4"><div class="admin-action-cluster admin-action-cluster--end"><a href="{{ route('payments.receipt', $payment) }}" target="_blank" class="pill-link pill-link--compact">{{ __('invoices.detail.tables.payments.receipt') }}</a>@if(!$payment->voided_at && auth()->user()->can('payments.void'))<button wire:click="voidPayment({{ $payment->id }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="pill-link pill-link--compact">{{ __('invoices.detail.tables.payments.void') }}</button>@endif</div></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('invoices.detail.tables.payments.empty') }}</td></tr>@endforelse
-                </tbody></table></div>
-            </div>
-            @endif
         </section>
     </div>
 </div>

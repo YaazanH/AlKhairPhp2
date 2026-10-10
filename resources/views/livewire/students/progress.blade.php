@@ -20,8 +20,6 @@ use App\Models\Teacher;
 use App\Services\AccessScopeService;
 use App\Services\CourseCompletionRuleService;
 use App\Services\CourseEndService;
-use App\Services\LearningProgressionService;
-use App\Services\LessonLevelProgressionService;
 use App\Services\PointLedgerService;
 use App\Services\QuranProgressionService;
 use Illuminate\Database\Eloquent\Builder;
@@ -64,10 +62,6 @@ new class extends Component
     public string $awqafStatus = 'passed';
 
     public string $awqafNotes = '';
-
-    public bool $showManualPromotionModal = false;
-
-    public string $manualPromotionReason = '';
 
     public function mount(?Student $student = null): void
     {
@@ -128,9 +122,6 @@ new class extends Component
 
     public function showDetails(string $section): void
     {
-        if ($section === 'parent') {
-            app(\App\Services\Landlord\CurrentModuleAccess::class)->ensure('parents');
-        }
         if (in_array($section, ['parent', 'memorization', 'points', 'assessments', 'final-assessments', 'enrollments', 'notes'], true)) {
             $this->openDetails = $section;
             $this->resetPage('studentProgressDetailsPage');
@@ -280,55 +271,6 @@ new class extends Component
         session()->flash('status', __('workflow.quran_tests.messages.saved'));
     }
 
-    public function assignLessonProgression(): void
-    {
-        $this->authorizePermission('learning-progression.manage');
-        abort_unless($this->currentStudent, 404);
-
-        $student = Student::query()->findOrFail($this->currentStudent->id);
-        $this->authorizeScopedStudentAccess($student);
-        app(LessonLevelProgressionService::class)->assign($student, auth()->user());
-        session()->flash('status', __('learning_progression.lesson_summary.assigned'));
-    }
-
-    public function openManualPromotion(): void
-    {
-        $this->authorizePermission('learning-progression.manual-promote');
-        abort_unless($this->currentStudent, 404);
-        $this->manualPromotionReason = '';
-        $this->showManualPromotionModal = true;
-        $this->resetValidation('manualPromotionReason');
-    }
-
-    public function closeManualPromotion(): void
-    {
-        $this->showManualPromotionModal = false;
-        $this->manualPromotionReason = '';
-        $this->resetValidation('manualPromotionReason');
-    }
-
-    public function manuallyPromoteLessonLevel(): void
-    {
-        $this->authorizePermission('learning-progression.manual-promote');
-        abort_unless($this->currentStudent, 404);
-        $validated = $this->validate([
-            'manualPromotionReason' => ['required', 'string', 'min:10', 'max:2000'],
-        ], attributes: [
-            'manualPromotionReason' => __('learning_progression.manual_promotion.reason'),
-        ]);
-
-        $student = Student::query()->findOrFail($this->currentStudent->id);
-        $this->authorizeScopedStudentAccess($student);
-        app(LessonLevelProgressionService::class)->manuallyPromote(
-            $student,
-            auth()->user(),
-            $validated['manualPromotionReason'],
-        );
-
-        $this->closeManualPromotion();
-        session()->flash('status', __('learning_progression.manual_promotion.saved'));
-    }
-
     public function with(): array
     {
         $this->authorizePermission('students.view');
@@ -472,15 +414,13 @@ new class extends Component
             )->get()
             : collect();
 
-        $pointTransactions = $this->canViewProgressSection('points.view')
+        $pointTransactions = $this->canViewProgressSection('points.view') && $highlightEnrollmentIds !== []
             ? $this->scopeProgressDataQuery(
                 'scopePointTransactionsQuery',
                 PointTransaction::query()
                     ->with(['pointType'])
                     ->where('student_id', $studentRecord->id)
-                    ->where(fn (Builder $query) => $query
-                        ->whereNull('enrollment_id')
-                        ->when($highlightEnrollmentIds !== [], fn (Builder $enrollmentQuery) => $enrollmentQuery->orWhereIn('enrollment_id', $highlightEnrollmentIds)))
+                    ->whereIn('enrollment_id', $highlightEnrollmentIds)
             )->latest('entered_at')->latest('id')->get()->filter(fn (PointTransaction $transaction) => $transaction->isEffectivelyActive())->values()
             : collect();
 
@@ -503,18 +443,13 @@ new class extends Component
 
         $pageSet = $generalPages->flip();
         $externalJuzIds = $studentRecord->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $learningProgression = app(LearningProgressionService::class)->settings();
-        $lessonLevelSummary = $learningProgression['profile'] === LearningProgressionService::PROFILE_LESSON_LEVEL
-            ? app(LessonLevelProgressionService::class)->summary($studentRecord)
-            : null;
         $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
-            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz, $externalJuzIds, $learningProgression) {
+            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz, $externalJuzIds) {
                 $memorizedExternally = in_array((int) $juz->id, $externalJuzIds, true);
                 $pages = collect(range((int) $juz->from_page, (int) $juz->to_page));
                 $missingPages = $pages->reject(fn (int $page) => $pageSet->has($page))->values();
                 $juzPartialTests = $partialTests->where('juz_id', $juz->id);
                 $passedParts = $juzPartialTests->flatMap->parts->where('status', 'passed')->pluck('part_number')->unique()->count();
-                $partialPassed = $juzPartialTests->contains('status', 'passed') || $passedParts >= 4;
                 $juzFinalTests = $finalTests->where('juz_id', $juz->id);
                 $latestFinalAttempt = $juzFinalTests->flatMap->attempts
                     ->sortByDesc(fn ($attempt) => sprintf('%010d-%010d', $attempt->tested_on?->timestamp ?? 0, $attempt->id))
@@ -522,23 +457,7 @@ new class extends Component
                 $latestAwqafTest = $passedAwqafTestsByJuz->get($juz->id, collect())->sortByDesc('tested_on')->first();
                 $finalMade = $latestFinalAttempt !== null;
                 $finalPassed = $juzFinalTests->contains('status', 'passed') || $juzFinalTests->flatMap->attempts->contains('status', 'passed');
-                $memorizationComplete = $memorizedExternally || $missingPages->isEmpty();
-                $pathComplete = $learningProgression['awqaf_test_enabled']
-                    ? $latestAwqafTest !== null
-                    : ($learningProgression['final_test_enabled']
-                        ? $finalPassed
-                        : ($learningProgression['partial_test_enabled'] && $partialPassed));
-                $nextStage = match (true) {
-                    $pathComplete => 'complete',
-                    $learningProgression['awqaf_test_enabled'] && ($finalPassed || $memorizedExternally || (! $learningProgression['final_test_required_for_awqaf'] && $memorizationComplete)) => 'awqaf',
-                    $learningProgression['final_test_enabled'] && (! $learningProgression['partial_test_required_for_final'] || $partialPassed) => 'final',
-                    $memorizationComplete && $learningProgression['partial_test_enabled'] => 'partial',
-                    ! $memorizationComplete => 'memorization',
-                    $learningProgression['final_test_enabled'] => 'final',
-                    $learningProgression['awqaf_test_enabled'] => 'awqaf',
-                    default => 'complete',
-                };
-                $status = $pathComplete ? 'finished' : ($nextStage === 'memorization' ? 'missing' : 'awaiting');
+                $status = $finalPassed ? 'finished' : ($missingPages->isNotEmpty() ? 'missing' : 'awaiting');
 
                 return (object) [
                     'juz' => $juz,
@@ -546,7 +465,6 @@ new class extends Component
                     'memorized_pages' => $pages->count() - $missingPages->count(),
                     'missing_pages' => $missingPages,
                     'passed_parts' => $passedParts,
-                    'partial_passed' => $partialPassed,
                     'partial_test_created' => $juzPartialTests->isNotEmpty(),
                     'latest_final_score' => $latestFinalAttempt?->score,
                     'latest_final_date' => $latestFinalAttempt?->tested_on,
@@ -555,37 +473,12 @@ new class extends Component
                     'final_passed' => $finalPassed,
                     'awqaf_passed' => $latestAwqafTest !== null,
                     'awqaf_passed_on' => $latestAwqafTest?->tested_on,
-                    'next_stage' => $nextStage,
-                    'path_complete' => $pathComplete,
                     'status' => $memorizedExternally ? 'memorized_before' : $status,
                     'enrollment' => $juzFinalTests->first()?->enrollment ?: $juzPartialTests->first()?->enrollment ?: $enrollments->first(),
                 ];
             })
             ->filter(fn ($row) => $row->memorized_externally || $row->memorized_pages > 0 || $row->passed_parts > 0 || $row->latest_final_score !== null)
             ->values();
-        $currentProgress = $studentRecord->quran_current_juz_id
-            ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $studentRecord->quran_current_juz_id)
-            : null;
-        $currentProgress ??= $quranJuzProgress->first(fn ($row) => $row->next_stage !== 'complete') ?: $quranJuzProgress->last();
-        $configuredStages = collect(['memorization'])
-            ->when($learningProgression['partial_test_enabled'], fn ($stages) => $stages->push('partial'))
-            ->when($learningProgression['final_test_enabled'], fn ($stages) => $stages->push('final'))
-            ->when($learningProgression['awqaf_test_enabled'], fn ($stages) => $stages->push('awqaf'))
-            ->values();
-        $quranProgressionSummary = [
-            'configured' => $learningProgression['configured'],
-            'stages' => $configuredStages,
-            'current_stage' => $currentProgress?->next_stage,
-            'current_juz_number' => $currentProgress?->juz?->juz_number,
-            'completed_juz_count' => $quranJuzProgress->where('path_complete', true)->count(),
-            'active_juz_count' => $quranJuzProgress->where('path_complete', false)->count(),
-        ];
-        $progressStats = collect([
-            'attendance_days' => 'attendance_days',
-            'memorized_pages' => 'memorized_pages',
-        ])->when($learningProgression['partial_test_enabled'], fn ($items) => $items->put('quran_partial_tests', 'quran_partial_tests'))
-            ->when($learningProgression['final_test_enabled'], fn ($items) => $items->put('quran_final_tests', 'quran_final_tests'))
-            ->put('points', 'points');
         $selectedMissingJuz = $this->missingJuzId
             ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
             : null;
@@ -610,14 +503,14 @@ new class extends Component
 
         $completionSettings = app(CourseCompletionRuleService::class)->settings();
         $courseEnd = app(CourseEndService::class);
-        $enrollmentTotalPoints = $this->canViewProgressSection('points.view') ? $visibleEnrollments->take(5)
+        $enrollmentTotalPoints = $visibleEnrollments->take(5)
             ->concat($this->openDetails === 'enrollments' ? $paginatedDetails->items() : [])
             ->unique('id')
             ->mapWithKeys(function (Enrollment $enrollment) use ($studentRecord, $courseEnd, $completionSettings): array {
                 $enrollment->setRelation('student', $studentRecord);
 
                 return [$enrollment->id => $courseEnd->enrollmentTotalPoints($enrollment, $completionSettings)];
-            }) : collect();
+            });
 
         return [
             'studentOptions' => $studentOptions,
@@ -633,10 +526,6 @@ new class extends Component
             'pointTransactions' => $pointTransactions,
             'parentVisibleNotes' => $parentVisibleNotes,
             'quranJuzProgress' => $quranJuzProgress,
-            'quranProgressionSettings' => $learningProgression,
-            'quranProgressionSummary' => $quranProgressionSummary,
-            'lessonLevelSummary' => $lessonLevelSummary,
-            'progressStats' => $progressStats,
             'selectedMissingJuz' => $selectedMissingJuz,
             'paginatedDetails' => $paginatedDetails,
             'stats' => [
@@ -644,8 +533,7 @@ new class extends Component
                 'memorized_pages' => $highlightPages->count(),
                 'quran_partial_tests' => $partialTests->whereIn('enrollment_id', $highlightEnrollmentIds)->count(),
                 'quran_final_tests' => $finalTests->whereIn('enrollment_id', $highlightEnrollmentIds)->count(),
-                'points' => (int) $highlightEnrollments->sum('final_points_cached')
-                    + (int) $pointTransactions->whereNull('enrollment_id')->sum('points'),
+                'points' => (int) $highlightEnrollments->sum('final_points_cached'),
             ],
         ];
     }
@@ -683,8 +571,7 @@ new class extends Component
 
     protected function canViewProgressSection(string $permission): bool
     {
-        return app(\App\Services\Landlord\CurrentModuleAccess::class)->permissionAvailable($permission)
-            && ($this->canViewFullProgress() || auth()->user()->can($permission));
+        return $this->canViewFullProgress() || auth()->user()->can($permission);
     }
 
     protected function scopeProgressDataQuery(string $scopeMethod, Builder $query): Builder
@@ -763,9 +650,7 @@ new class extends Component
                 <div class="student-progress-profile__fields grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_no') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->student_number ?: __('crud.common.not_available') }}</div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.student_name') }}</div><div class="record-person-name mt-2 text-sm font-semibold text-white">{{ $studentRecord->full_name }}</div></div>
-                    @if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents'))
                     <div class="relative rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label pe-7">{{ __('workflow.student_progress.profile.father_name') }}</div>@if ($studentRecord->parentProfile)<button type="button" wire:click="showDetails('parent')" class="absolute end-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-neutral-300 transition hover:bg-white/10 hover:text-white" title="{{ __('workflow.student_progress.actions.details') }}" aria-label="{{ __('workflow.student_progress.actions.details') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-3.5 w-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z"/><circle cx="12" cy="12" r="2.25"/></svg></button>@endif<div class="record-person-name mt-2 text-sm font-semibold text-white">{{ $studentRecord->parentProfile?->father_name ?: __('crud.common.not_available') }}</div></div>
-                    @endif
                     <div class="grid grid-cols-2 overflow-hidden rounded-2xl border border-white/8 bg-white/4"><div class="min-w-0 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.grade') }}</div><div class="mt-2 truncate text-sm font-semibold text-white">{{ $studentRecord->gradeLevel?->name ?: __('crud.common.not_available') }}</div></div><div class="student-progress-profile__birth-year min-w-0 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.birth_year') }}</div><div class="mt-2 truncate text-sm font-semibold text-white">{{ $studentRecord->birth_date?->format('Y') ?: __('crud.common.not_available') }}</div></div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.phone') }}</div><div class="mt-2 text-sm font-semibold text-white"><bdi dir="ltr" class="record-phone">{{ $studentRecord->user?->phone ?: __('crud.common.not_available') }}</bdi></div></div>
                     <div class="rounded-2xl border border-white/8 bg-white/4 p-3"><div class="kpi-label">{{ __('workflow.student_progress.profile.school') }}</div><div class="mt-2 text-sm font-semibold text-white">{{ $studentRecord->school_name ?: __('crud.common.not_available') }}</div></div>
@@ -779,142 +664,16 @@ new class extends Component
             @error('progressPhotoUpload')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
         </section>
 
-        <section class="mobile-compact-highlights {{ $progressStats->count() === 4 ? 'mobile-compact-highlights--four' : ($progressStats->count() === 5 ? 'mobile-compact-highlights--five' : '') }} grid gap-4 md:grid-cols-2 {{ $progressStats->count() === 3 ? 'xl:grid-cols-3' : ($progressStats->count() === 4 ? 'xl:grid-cols-4' : 'xl:grid-cols-5') }}">
-            @foreach ($progressStats as $key => $label)
+        <section class="mobile-compact-highlights mobile-compact-highlights--five grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            @foreach ([
+                'attendance_days' => 'attendance_days',
+                'memorized_pages' => 'memorized_pages',
+                'quran_partial_tests' => 'quran_partial_tests',
+                'quran_final_tests' => 'quran_final_tests',
+                'points' => 'points',
+            ] as $key => $label)
                 <article class="stat-card"><div class="kpi-label">{{ __('workflow.student_progress.stats.'.$label) }}</div><div class="metric-value mt-3">{{ number_format($stats[$key]) }}</div></article>
             @endforeach
-        </section>
-
-        @if ($quranProgressionSettings['profile'] === \App\Services\LearningProgressionService::PROFILE_LESSON_LEVEL)
-            @php($lessonState = $lessonLevelSummary['progression'])
-            @php($lessonEvidence = $lessonLevelSummary['evidence'])
-            <section class="surface-panel overflow-hidden" data-lesson-level-progression-summary>
-                <div class="border-b border-white/8 p-5 lg:p-6">
-                    <div class="eyebrow">{{ __('learning_progression.lesson_summary.eyebrow') }}</div>
-                    <div class="mt-2 flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                            <h2 class="font-display text-2xl font-semibold text-white">{{ __('learning_progression.lesson_summary.title') }}</h2>
-                            <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('learning_progression.lesson_summary.copy') }}</p>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            @if (! $lessonState && auth()->user()->can('learning-progression.manage'))
-                                <button type="button" wire:click="assignLessonProgression" class="pill-link pill-link--accent">{{ __('learning_progression.lesson_summary.assign') }}</button>
-                            @elseif ($lessonState?->status === 'active' && auth()->user()->can('learning-progression.manual-promote'))
-                                <button type="button" wire:click="openManualPromotion" class="pill-link">{{ __('learning_progression.manual_promotion.action') }}</button>
-                            @endif
-                        </div>
-                    </div>
-                    @error('progression')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
-                </div>
-
-                @if (! $lessonState)
-                    <div class="m-5 rounded-2xl border border-sky-300/20 bg-sky-300/10 px-4 py-4 text-sm leading-7 text-sky-100 lg:m-6">{{ __('learning_progression.lesson_summary.not_assigned') }}</div>
-                @elseif ($lessonState->status === 'completed')
-                    <div class="m-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-sm leading-7 text-emerald-100 lg:m-6">
-                        <strong>{{ __('learning_progression.lesson_summary.completed') }}</strong>
-                        <div>{{ __('learning_progression.lesson_summary.completed_copy', ['level' => $lessonState->currentLevel->name]) }}</div>
-                    </div>
-                @else
-                    <div class="grid gap-px bg-white/8 md:grid-cols-3">
-                        <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.lesson_summary.current_level') }}</div><div class="mt-2 text-lg font-semibold text-white">{{ $lessonState->currentLevel->name }}</div><div class="mt-1 text-xs text-neutral-500">{{ __('learning_progression.lesson_summary.since', ['date' => \App\Support\DateDisplay::text($lessonState->level_started_at->format('d-m-Y'))]) }}</div></div>
-                        <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.lesson_summary.lessons') }}</div><div class="metric-value mt-2"><bdi dir="ltr">{{ number_format($lessonEvidence['delivered_lessons']) }}/{{ number_format($lessonEvidence['required_lessons']) }}</bdi></div><div class="mt-1 text-xs {{ $lessonEvidence['lessons_complete'] ? 'text-emerald-300' : 'text-amber-300' }}">{{ __('learning_progression.lesson_summary.'.($lessonEvidence['lessons_complete'] ? 'requirement_met' : 'requirement_pending')) }}</div></div>
-                        <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.lesson_summary.attendance') }}</div><div class="metric-value mt-2">{{ number_format($lessonEvidence['attendance_percentage'], 1) }}%</div><div class="mt-1 text-xs {{ $lessonEvidence['attendance_passed'] ? 'text-emerald-300' : 'text-amber-300' }}">{{ __('learning_progression.lesson_summary.required_percentage', ['percentage' => number_format($lessonEvidence['attendance_required'], 1)]) }}</div></div>
-                    </div>
-                    <div class="border-t border-white/8 p-5 lg:p-6">
-                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 p-4">
-                            <div><div class="text-sm font-semibold text-white">{{ __('learning_progression.lesson_summary.final_assessment') }}</div><div class="mt-1 text-sm text-neutral-400">{{ $lessonState->currentLevel->finalAssessment?->title }} · {{ __('learning_progression.lesson_summary.required_score', ['score' => number_format($lessonEvidence['assessment_required'], 2)]) }}</div></div>
-                            <span class="status-chip {{ $lessonEvidence['assessment_passed'] ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : 'border-amber-300/25 bg-amber-300/10 text-amber-200' }}">{{ $lessonEvidence['assessment_score'] !== null ? number_format($lessonEvidence['assessment_score'], 2) : __('learning_progression.lesson_summary.no_score') }}</span>
-                        </div>
-                    </div>
-                @endif
-
-                @if ($lessonState)
-                    <div class="border-t border-white/8 p-5 lg:p-6" data-learning-progression-history>
-                        <h3 class="text-base font-semibold text-white">{{ __('learning_progression.history.title') }}</h3>
-                        <p class="mt-1 text-sm text-neutral-400">{{ __('learning_progression.history.copy') }}</p>
-                        <div class="mt-4 space-y-3">
-                            @foreach ($lessonState->history as $entry)
-                                @php($snapshot = $entry->evidence ?? [])
-                                <article class="rounded-2xl border border-white/8 bg-white/4 p-4" wire:key="learning-progression-history-{{ $entry->id }}">
-                                    <div class="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <div class="font-semibold text-white">{{ __('learning_progression.history.events.'.$entry->event) }}</div>
-                                            <div class="mt-1 text-sm text-neutral-400">
-                                                @if ($entry->event === 'assigned')
-                                                    {{ __('learning_progression.history.started_level', ['level' => $entry->toLevel?->name]) }}
-                                                @elseif ($entry->event === 'assessment_attempted')
-                                                    {{ __('learning_progression.history.assessment_for_level', ['level' => $entry->fromLevel?->name]) }}
-                                                @else
-                                                    {{ __('learning_progression.history.transition', ['from' => $entry->fromLevel?->name, 'to' => $entry->toLevel?->name ?? __('learning_progression.history.path_complete')]) }}
-                                                @endif
-                                            </div>
-                                        </div>
-                                        <div class="text-end text-xs text-neutral-500">
-                                            <div>{{ \App\Support\DateDisplay::html($entry->occurred_at?->format('d-m-Y H:i')) }}</div>
-                                            <div class="mt-1">{{ $entry->performer?->username ?: __('learning_progression.history.system') }}</div>
-                                        </div>
-                                    </div>
-
-                                    @if ($snapshot !== [])
-                                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
-                                            @if (array_key_exists('delivered_lessons', $snapshot))<span class="status-chip">{{ __('learning_progression.history.lesson_evidence', ['delivered' => number_format($snapshot['delivered_lessons']), 'required' => number_format($snapshot['required_lessons'] ?? 0)]) }}</span>@endif
-                                            @if (array_key_exists('attendance_percentage', $snapshot))<span class="status-chip">{{ __('learning_progression.history.attendance_evidence', ['actual' => number_format((float) $snapshot['attendance_percentage'], 1), 'required' => number_format((float) ($snapshot['attendance_required'] ?? 0), 1)]) }}</span>@endif
-                                            @if (array_key_exists('assessment_score', $snapshot))<span class="status-chip">{{ __('learning_progression.history.assessment_evidence', ['score' => $snapshot['assessment_score'] !== null ? number_format((float) $snapshot['assessment_score'], 2) : __('learning_progression.lesson_summary.no_score'), 'required' => number_format((float) ($snapshot['assessment_required'] ?? 0), 2)]) }}</span>@endif
-                                        </div>
-                                    @endif
-
-                                    @if ($entry->reason)
-                                        <div class="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/10 px-3 py-2 text-sm leading-6 text-amber-100"><strong>{{ __('learning_progression.history.reason') }}</strong> {{ $entry->reason }}</div>
-                                    @endif
-                                </article>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-            </section>
-        @else
-        <section class="surface-panel overflow-hidden" data-learning-progression-summary>
-            <div class="border-b border-white/8 p-5 lg:p-6">
-                <div class="eyebrow">{{ __('learning_progression.summary.eyebrow') }}</div>
-                <div class="mt-2 flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h2 class="font-display text-2xl font-semibold text-white">{{ __('learning_progression.summary.title') }}</h2>
-                        @if ($quranProgressionSummary['configured'])
-                            <div class="mt-3 flex flex-wrap items-center gap-2" aria-label="{{ __('learning_progression.summary.path') }}">
-                                @foreach ($quranProgressionSummary['stages'] as $stage)
-                                    <span class="status-chip border-sky-300/20 bg-sky-300/10 text-sky-100">{{ __('learning_progression.stages.'.$stage) }}</span>
-                                    @unless($loop->last)<span class="text-neutral-600" aria-hidden="true">→</span>@endunless
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
-                    @if (! $quranProgressionSummary['configured'] && auth()->user()->can('learning-progression.manage'))
-                        <a href="{{ route('settings.learning-progression') }}" wire:navigate class="pill-link pill-link--accent">{{ __('learning_progression.summary.configure') }}</a>
-                    @endif
-                </div>
-            </div>
-
-            @if (! $quranProgressionSummary['configured'])
-                <div class="m-5 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-4 text-sm leading-7 text-amber-100 lg:m-6">{{ __('learning_progression.summary.not_configured') }}</div>
-            @else
-                <div class="grid gap-px bg-white/8 sm:grid-cols-3">
-                    <div class="bg-neutral-950/60 p-5">
-                        <div class="kpi-label">{{ __('learning_progression.summary.current_stage') }}</div>
-                        <div class="mt-2 text-base font-semibold text-white">
-                            @if ($quranProgressionSummary['current_stage'])
-                                {{ __('learning_progression.stages.'.$quranProgressionSummary['current_stage']) }}
-                                @if ($quranProgressionSummary['current_juz_number'])
-                                    <span class="text-neutral-400">· {{ __('workflow.common.labels.juz_number', ['number' => $quranProgressionSummary['current_juz_number']]) }}</span>
-                                @endif
-                            @else
-                                {{ __('learning_progression.summary.no_progress') }}
-                            @endif
-                        </div>
-                    </div>
-                    <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.summary.completed_juz') }}</div><div class="metric-value mt-2">{{ number_format($quranProgressionSummary['completed_juz_count']) }}</div></div>
-                    <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.summary.active_juz') }}</div><div class="metric-value mt-2">{{ number_format($quranProgressionSummary['active_juz_count']) }}</div></div>
-                </div>
-            @endif
         </section>
 
         <section class="surface-table student-juz-progress-table">
@@ -924,17 +683,17 @@ new class extends Component
                 <div class="table-scroll-region overflow-x-auto" data-table-scroll-region><table class="table-content text-sm" data-student-progress-juz-table><thead><tr>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
-                    @if ($quranProgressionSettings['partial_test_enabled'])<th class="px-5 py-4 text-left" data-progression-stage-column="partial">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>@endif
-                    @if ($quranProgressionSettings['final_test_enabled'])<th class="px-5 py-4 text-left" data-progression-stage-column="final">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>@endif
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
+                    <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.final_test') }}</th>
                     <th class="px-5 py-4 text-left" data-juz-progress-status-heading>{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
                 </tr></thead><tbody class="divide-y divide-white/6">
                     @foreach ($quranJuzProgress as $row)<tr>
                         <td class="px-5 py-4 text-white">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
                         <td class="px-5 py-4">{{ $row->memorized_externally ? '' : number_format($row->memorized_pages) }}</td>
-                        @if ($quranProgressionSettings['partial_test_enabled'])<td class="px-5 py-4">@if (! $row->memorized_externally && $row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>@endif
-                        @if ($quranProgressionSettings['final_test_enabled'])<td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ \App\Support\DateDisplay::text(trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? ''))) }}" @endif>{{ ! $row->memorized_externally && $row->latest_final_score !== null ? \App\Support\PercentageFormatter::format($row->latest_final_score) : '' }}</td>@endif
-                        @php($showMissingPagesAction = ! $row->memorized_externally && $row->next_stage === 'memorization' && $row->missing_pages->isNotEmpty())
-                        @php($showAwqafAction = $quranProgressionSettings['awqaf_test_enabled'] && $row->enrollment && app(AccessScopeService::class)->canAccessEnrollment(auth()->user(), $row->enrollment) && $row->next_stage === 'awqaf' && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
+                        <td class="px-5 py-4">@if (! $row->memorized_externally && $row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
+                        <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ \App\Support\DateDisplay::text(trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? ''))) }}" @endif>{{ ! $row->memorized_externally && $row->latest_final_score !== null ? \App\Support\PercentageFormatter::format($row->latest_final_score) : '' }}</td>
+                        @php($showMissingPagesAction = ! $row->memorized_externally && $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
+                        @php($showAwqafAction = $row->enrollment && app(AccessScopeService::class)->canAccessEnrollment(auth()->user(), $row->enrollment) && ($row->final_passed || $row->memorized_externally) && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
                         @php($juzStatusClass = $row->memorized_externally ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status))
                         @php($juzStatusLabel = $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)))
                         <td class="px-5 py-4" data-juz-progress-status-cell>
@@ -956,7 +715,6 @@ new class extends Component
                 </tbody></table></div>
             @endif
         </section>
-        @endif
 
         <section class="grid gap-6 xl:grid-cols-2">
             @if($this->canViewProgressSection('memorization.view'))
@@ -1002,7 +760,7 @@ new class extends Component
 
 
         <x-admin.modal :show="$openDetails !== ''" :title="$openDetails === 'parent' ? __('workflow.student_progress.parent_details.title') : __('workflow.student_progress.actions.view_all')" close-method="closeDetails" max-width="fit" compact>
-            @if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents') && $openDetails === 'parent' && $studentRecord->parentProfile)
+            @if ($openDetails === 'parent' && $studentRecord->parentProfile)
                 @php($parent = $studentRecord->parentProfile)
                 <div class="space-y-4"><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-3"><div><div class="kpi-label">{{ __('workflow.student_progress.profile.father_name') }}</div><div class="record-person-name mt-1 text-white">{{ $parent->father_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_work') }}</div><div class="mt-1 text-white">{{ $parent->father_work ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.father_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr" class="record-phone">{{ $parent->father_phone ?: '-' }}</bdi></div></div></div><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_name') }}</div><div class="record-person-name mt-1 text-white">{{ $parent->mother_name ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.mother_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr" class="record-phone">{{ $parent->mother_phone ?: '-' }}</bdi></div></div></div><div class="student-parent-details__row grid gap-4 rounded-2xl border border-white/8 bg-white/4 p-4 md:grid-cols-2"><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.address') }}</div><div class="mt-1 text-white">{{ $parent->address ?: '-' }}</div></div><div><div class="kpi-label">{{ __('workflow.student_progress.parent_details.home_phone') }}</div><div class="mt-1 text-white"><bdi dir="ltr" class="record-phone">{{ $parent->home_phone ?: '-' }}</bdi></div></div></div></div>
             @elseif ($openDetails === 'memorization')
@@ -1014,7 +772,7 @@ new class extends Component
             @elseif ($openDetails === 'final-assessments')
                 <div class="surface-table" data-student-progress-generic-table data-student-progress-assessments><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-3 py-2 text-center" data-student-progress-number-column>#</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-3 py-2 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-3 py-2" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-3 py-2 font-medium">{{ $row->assessment?->title ?: '-' }}</td><td class="px-3 py-2">{{ $row->score !== null ? number_format((float) $row->score, 2) : '-' }}</td><td class="px-3 py-2">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'enrollments')
-                <div class="surface-table" data-student-progress-generic-table data-student-progress-enrollments><div class="overflow-x-auto" data-table-scroll-region><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th>@if($this->canViewProgressSection('points.view'))<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.total_points') }}</th>@endif<th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr data-student-progress-enrollment-row="{{ $row->id }}"><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3"><span class="record-course-name">{{ $row->group?->course?->name ?: '-' }}</span></td><td class="px-4 py-3" data-enrollment-group-name>{{ $row->group?->name ?: '-' }}</td><td class="record-person-name px-4 py-3" data-enrollment-teacher-name>{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : '-' }}</td>@if($this->canViewProgressSection('points.view'))<td class="whitespace-nowrap px-4 py-3" data-enrollment-total-points="{{ $row->id }}">{{ number_format($enrollmentTotalPoints[$row->id]) }}</td>@endif<td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}" data-enrollment-status="{{ $row->status }}">{{ __('crud.common.status_options.'.$row->status) }}</span></td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table data-student-progress-enrollments><div class="overflow-x-auto" data-table-scroll-region><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.course') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.group') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.teacher') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.total_points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.enrollments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr data-student-progress-enrollment-row="{{ $row->id }}"><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3"><span class="record-course-name">{{ $row->group?->course?->name ?: '-' }}</span></td><td class="px-4 py-3" data-enrollment-group-name>{{ $row->group?->name ?: '-' }}</td><td class="record-person-name px-4 py-3" data-enrollment-teacher-name>{{ $row->group?->teacher ? trim($row->group->teacher->first_name.' '.$row->group->teacher->last_name) : '-' }}</td><td class="whitespace-nowrap px-4 py-3" data-enrollment-total-points="{{ $row->id }}">{{ number_format($enrollmentTotalPoints[$row->id]) }}</td><td class="px-4 py-3"><span class="status-chip {{ $statusClass($row->status) }}" data-enrollment-status="{{ $row->status }}">{{ __('crud.common.status_options.'.$row->status) }}</span></td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'notes')
                 <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.source') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.notes.headers.body') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->noted_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->source }}</td><td class="px-4 py-3">{{ $row->body }}</td></tr>@endforeach</tbody></table></div></div>
             @endif
@@ -1043,18 +801,6 @@ new class extends Component
                 </div>
                 @error('awqafEnrollmentId')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                 <div class="flex justify-end gap-3"><x-admin.save-button :label="__('workflow.common.actions.save_quran_test')" data-student-progress-awqaf-save-action /></div>
-            </form>
-        </x-admin.modal>
-
-        <x-admin.modal :show="$showManualPromotionModal" :title="__('learning_progression.manual_promotion.title')" :description="__('learning_progression.manual_promotion.copy')" close-method="closeManualPromotion" max-width="xl">
-            <form wire:submit="manuallyPromoteLessonLevel" class="space-y-4">
-                <div class="rounded-xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100">{{ __('learning_progression.manual_promotion.warning') }}</div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('learning_progression.manual_promotion.reason') }}</label>
-                    <textarea wire:model="manualPromotionReason" rows="4" maxlength="2000" class="w-full rounded-xl" placeholder="{{ __('learning_progression.manual_promotion.reason_placeholder') }}"></textarea>
-                    @error('manualPromotionReason')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
-                </div>
-                <div class="flex justify-end"><x-admin.save-button :label="__('learning_progression.manual_promotion.confirm')" /></div>
             </form>
         </x-admin.modal>
 
