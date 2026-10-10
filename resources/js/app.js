@@ -2833,12 +2833,13 @@ function synchronizeAppLogoPeriodTypography() {
             return;
         }
 
+        // A short tenant name must never make the period label unreadably small.
+        // Only justify shorter labels out to the title width; keep longer labels
+        // at their natural, accessible size.
         if (sourceWidth > targetWidth) {
-            const naturalFontSize = Number.parseFloat(window.getComputedStyle(subtitle).fontSize);
-            const fittedFontSize = naturalFontSize * (targetWidth / sourceWidth) * 0.965;
+            subtitle.style.width = `${sourceWidth}px`;
 
-            subtitle.style.fontSize = `${fittedFontSize}px`;
-            sourceWidth = measureAppLogoText(subtitle);
+            return;
         }
 
         let justifiedText = source;

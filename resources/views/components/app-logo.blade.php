@@ -24,13 +24,11 @@
     @endif
 </div>
 <div @class(['grid flex-1 text-left leading-tight', 'app-logo-period-lockup' => $measureArabicSubtitleToTitle]) @if($measureArabicSubtitleToTitle) data-app-logo-period-lockup @endif>
-    <span @class(['font-display truncate text-base text-white', 'app-logo-period-title' => $measureArabicSubtitleToTitle]) @if($measureArabicSubtitleToTitle) data-app-logo-period-title @endif>{{ $title }}</span>
+    <span @class(['app-logo-title font-display truncate text-base', 'app-logo-period-title' => $measureArabicSubtitleToTitle]) @if($measureArabicSubtitleToTitle) data-app-logo-period-title @endif>{{ $title }}</span>
     <span
         @class([
-            'mt-1 truncate font-semibold text-neutral-400',
-            'text-[0.72rem]' => $useJustifiedArabicSubtitle,
-            'app-logo-period-subtitle text-[0.64rem]' => $measureArabicSubtitleToTitle,
-            'text-[0.68rem]' => ! $useJustifiedArabicSubtitle && ! $measureArabicSubtitleToTitle,
+            'app-logo-subtitle mt-1 truncate font-semibold',
+            'app-logo-period-subtitle' => $measureArabicSubtitleToTitle,
         ])
         @if ($useJustifiedArabicSubtitle) aria-label="{{ $subtitle }}" data-app-logo-kashida-subtitle @endif
         @if ($measureArabicSubtitleToTitle) aria-label="{{ $subtitle }}" data-app-logo-period-subtitle @endif

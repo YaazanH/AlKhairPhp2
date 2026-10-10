@@ -159,6 +159,19 @@ class PlatformAdministrationTest extends TestCase
             ->assertDontSee('class="dark" data-platform-auth', false);
     }
 
+    public function test_platform_login_uses_semantic_foregrounds_instead_of_dark_mode_opacity_text(): void
+    {
+        $login = file_get_contents(resource_path('views/platform/auth/login.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('platform-login-text', $login);
+        $this->assertStringContainsString('platform-login-muted', $login);
+        $this->assertStringContainsString('platform-login-subtle', $login);
+        $this->assertDoesNotMatchRegularExpression('/text-white\/(?:40|45|50|60|75|80)/', $login);
+        $this->assertStringContainsString('--platform-login-text: #123326;', $styles);
+        $this->assertStringContainsString('html.dark[data-platform-auth]', $styles);
+    }
+
     public function test_stale_tenant_support_session_does_not_redirect_platform_login_to_tenant_login(): void
     {
         $this->withSession([
