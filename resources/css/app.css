@@ -14762,3 +14762,276 @@ select[data-group-option-columns] + .searchable-select .searchable-select__optio
 .tenant-app-body :is(button, a, input[type='button'], input[type='submit'])[class*='bg-emerald-']:hover {
     background: var(--tenant-action-hover) !important;
 }
+
+/* Platform palette contract. Platform views predate the semantic application
+   surfaces and still use utility colours directly. Keep the mapping scoped to
+   the Platform shell so every current and future administration page gets the
+   same readable light and dark surfaces without affecting tenant branding. */
+.platform-body {
+    --platform-page: #edf1e8;
+    --platform-surface: #fffdf8;
+    --platform-surface-soft: #f1f4ed;
+    --platform-surface-strong: #ffffff;
+    --platform-border: #b8c8ba;
+    --platform-control-border: #8ca18f;
+    --platform-text: #13271b;
+    --platform-muted: #4f6355;
+    --platform-subtle: #647569;
+    --platform-control: #fffefb;
+    --platform-accent: #075f32;
+    --platform-accent-hover: #054c28;
+    --platform-on-accent: #ffffff;
+    --platform-accent-soft: #e3f3e7;
+    --platform-danger: #a9231a;
+    --platform-danger-soft: #fff0ee;
+    --platform-warning: #765000;
+    --platform-warning-soft: #fff5d9;
+    --platform-info: #075985;
+    --platform-info-soft: #e7f5fb;
+    --platform-violet: #6d28d9;
+    --platform-violet-soft: #f1eafe;
+    --app-bg: var(--platform-page);
+    --app-panel: var(--platform-surface);
+    --app-panel-soft: var(--platform-surface-soft);
+    --app-panel-strong: var(--platform-surface-strong);
+    --app-border: var(--platform-border);
+    --app-control-border: var(--platform-control-border);
+    --app-text: var(--platform-text);
+    --app-muted: var(--platform-muted);
+    --app-placeholder: var(--platform-subtle);
+    --app-control-background: var(--platform-control);
+    color: var(--platform-text);
+    background:
+        radial-gradient(circle at 8% 0%, rgba(8, 115, 58, 0.1), transparent 28rem),
+        linear-gradient(180deg, #f4f6ef 0%, var(--platform-page) 100%) !important;
+}
+
+html.dark .platform-body {
+    --platform-page: #07100b;
+    --platform-surface: #0e1812;
+    --platform-surface-soft: #152219;
+    --platform-surface-strong: #19271e;
+    --platform-border: #3a4c3f;
+    --platform-control-border: #506558;
+    --platform-text: #f2f7f3;
+    --platform-muted: #b4c2b8;
+    --platform-subtle: #98a99d;
+    --platform-control: #101c15;
+    --platform-accent: #2ebd70;
+    --platform-accent-hover: #43cf82;
+    --platform-on-accent: #07170d;
+    --platform-accent-soft: #123823;
+    --platform-danger: #ffaaa3;
+    --platform-danger-soft: #3a1716;
+    --platform-warning: #f2cf79;
+    --platform-warning-soft: #352a12;
+    --platform-info: #8bd3f7;
+    --platform-info-soft: #112e3b;
+    --platform-violet: #c9b1ff;
+    --platform-violet-soft: #2b2143;
+    background:
+        radial-gradient(circle at 8% 0%, rgba(46, 189, 112, 0.12), transparent 28rem),
+        linear-gradient(180deg, #0a1710 0%, var(--platform-page) 100%) !important;
+}
+
+.platform-body :is(.app-sidebar-shell, .app-mobile-header) {
+    border-color: var(--platform-border) !important;
+    background: var(--platform-surface) !important;
+}
+
+.platform-body :is(.bg-white, [class~='bg-white/95'], [class~='bg-white/85'], [class~='bg-white/75']) {
+    background-color: var(--platform-surface) !important;
+}
+
+.platform-body .bg-zinc-50 {
+    background-color: var(--platform-surface-soft) !important;
+}
+
+.platform-body .bg-zinc-100 {
+    background-color: var(--platform-surface-strong) !important;
+}
+
+.platform-body :is(.border, .border-b, .border-t, .border-e, .border-zinc-200, .border-zinc-300, .divide-zinc-100, .divide-zinc-200) {
+    border-color: var(--platform-border) !important;
+}
+
+.platform-body .divide-y > :not([hidden]) ~ :not([hidden]),
+.platform-body :is(.divide-zinc-100, .divide-zinc-200) > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--platform-border) !important;
+}
+
+.platform-body :is(.text-zinc-950, .text-zinc-900, .text-zinc-800, .text-zinc-700) {
+    color: var(--platform-text) !important;
+}
+
+.platform-body :is(.text-zinc-600, .text-zinc-500) {
+    color: var(--platform-muted) !important;
+}
+
+.platform-body :is(.text-zinc-400, .text-zinc-300) {
+    color: var(--platform-subtle) !important;
+}
+
+.platform-body :is(input, select, textarea) {
+    border-color: var(--platform-control-border) !important;
+    background-color: var(--platform-control) !important;
+    color: var(--platform-text) !important;
+}
+
+.platform-body :is(input, textarea)::placeholder {
+    color: var(--platform-subtle) !important;
+    opacity: 1;
+}
+
+.platform-body [class*='hover:bg-zinc-50']:hover,
+.platform-body [class*='hover:bg-zinc-100']:hover,
+.platform-body [class*='hover:bg-white']:hover {
+    background-color: var(--platform-surface-soft) !important;
+}
+
+.platform-body [class*='hover:text-zinc-950']:hover {
+    color: var(--platform-text) !important;
+}
+
+.platform-body .text-xs {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+}
+
+.platform-body :is(.bg-emerald-50, .bg-emerald-100) {
+    background-color: var(--platform-accent-soft) !important;
+}
+
+.platform-body :is(.text-emerald-200, .text-emerald-300, .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900, .text-emerald-950) {
+    color: var(--platform-accent) !important;
+}
+
+.platform-body :is(.border-emerald-200, .border-emerald-300, .border-emerald-400, .border-emerald-500, .border-emerald-700, [class~='border-emerald-900/10']) {
+    border-color: color-mix(in srgb, var(--platform-accent) 45%, var(--platform-border)) !important;
+}
+
+.platform-body :is(.bg-amber-50, .bg-amber-100) {
+    background-color: var(--platform-warning-soft) !important;
+}
+
+.platform-body :is(.text-amber-200, .text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900) {
+    color: var(--platform-warning) !important;
+}
+
+.platform-body :is(.border-amber-200, .border-amber-300) {
+    border-color: color-mix(in srgb, var(--platform-warning) 42%, var(--platform-border)) !important;
+}
+
+.platform-body :is(.bg-red-50, .bg-red-100) {
+    background-color: var(--platform-danger-soft) !important;
+}
+
+.platform-body :is(.text-red-300, .text-red-600, .text-red-700, .text-red-800) {
+    color: var(--platform-danger) !important;
+}
+
+.platform-body :is(.border-red-200, .border-red-300, .border-red-400) {
+    border-color: color-mix(in srgb, var(--platform-danger) 44%, var(--platform-border)) !important;
+}
+
+.platform-body :is(.bg-sky-50, .bg-sky-100) {
+    background-color: var(--platform-info-soft) !important;
+}
+
+.platform-body :is(.text-sky-800, .text-sky-950) {
+    color: var(--platform-info) !important;
+}
+
+.platform-body .border-sky-200 {
+    border-color: color-mix(in srgb, var(--platform-info) 40%, var(--platform-border)) !important;
+}
+
+.platform-body .text-violet-700 {
+    color: var(--platform-violet) !important;
+}
+
+.platform-body :is(button, input[type='button'], input[type='submit'])[class*='bg-emerald-'],
+.platform-body a[class*='bg-emerald-'][class*='text-white'] {
+    border-color: var(--platform-accent) !important;
+    background: var(--platform-accent) !important;
+    color: var(--platform-on-accent) !important;
+}
+
+.platform-body :is(button, input[type='button'], input[type='submit'])[class*='bg-emerald-']:hover,
+.platform-body a[class*='bg-emerald-'][class*='text-white']:hover {
+    background: var(--platform-accent-hover) !important;
+}
+
+.platform-body :is(a, button, input[type='button'], input[type='submit'])[class*='bg-zinc-9'][class*='text-white'] {
+    border-color: #26372b !important;
+    background: #26372b !important;
+    color: #ffffff !important;
+}
+
+.platform-body :is(a, button, input[type='button'], input[type='submit']).bg-red-700.text-white {
+    border-color: #a9231a !important;
+    background: #a9231a !important;
+    color: #ffffff !important;
+}
+
+/* The tenant workspace header should belong to the active appearance instead
+   of remaining almost black in an otherwise light Platform page. */
+html:not(.dark) body.platform-body .platform-tenant-header.bg-zinc-950.text-white {
+    border: 1px solid var(--platform-border);
+    background:
+        radial-gradient(circle at 10% 10%, rgba(8, 115, 58, 0.1), transparent 20rem),
+        linear-gradient(135deg, var(--platform-surface-strong), var(--platform-surface-soft)) !important;
+    color: var(--platform-text) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header :is(a.text-white, h1) {
+    color: var(--platform-text) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header :is(.text-zinc-300, .text-zinc-400) {
+    color: var(--platform-muted) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header :is([class~='border-white/15'], [class~='border-white/20']) {
+    border-color: var(--platform-border) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header [class~='bg-white/10'] {
+    background-color: var(--platform-accent-soft) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header [class*='hover:bg-white']:hover {
+    background-color: color-mix(in srgb, var(--platform-accent) 16%, var(--platform-surface)) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header .searchable-select__clear {
+    color: var(--platform-muted) !important;
+}
+
+html:not(.dark) .platform-body .platform-tenant-header .searchable-select__clear:is(:hover, :focus-visible) {
+    background: var(--platform-accent-soft) !important;
+    color: var(--platform-text) !important;
+}
+
+html.dark .platform-body .platform-tenant-header {
+    border: 1px solid var(--platform-border);
+    background:
+        radial-gradient(circle at 10% 10%, rgba(46, 189, 112, 0.12), transparent 20rem),
+        linear-gradient(135deg, #101d15, #08110c) !important;
+    color: var(--platform-text) !important;
+}
+
+html.dark .platform-body .platform-tenant-header :is(.text-white, h1) {
+    color: var(--platform-text) !important;
+}
+
+html.dark .platform-body .platform-tenant-header :is(.text-zinc-300, .text-zinc-400) {
+    color: var(--platform-muted) !important;
+}
+
+.platform-body .platform-tenant-header :is(button, input[type='button'], input[type='submit'])[class*='bg-emerald-'] {
+    border-color: var(--platform-accent) !important;
+    background: var(--platform-accent) !important;
+    color: var(--platform-on-accent) !important;
+}

@@ -25,6 +25,7 @@ use App\Services\LearningProgressionService;
 use App\Services\MemorizationService;
 use App\Services\QuranFinalTestService;
 use App\Services\QuranPartialTestService;
+use App\Services\SidebarNavigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
@@ -70,6 +71,26 @@ class LearningProgressionTest extends TestCase
             ->assertOk()
             ->assertSee(__('learning_progression.title'))
             ->assertDontSee(__('settings.navigation.organization.title'));
+    }
+
+    public function test_learning_progression_remains_in_settings_without_a_duplicate_sidebar_item(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create(['username' => 'progression-navigation-editor']);
+        $user->givePermissionTo('learning-progression.manage');
+
+        $item = collect(app(SidebarNavigationService::class)->sidebarFor($user))
+            ->pluck('items')
+            ->flatten(1)
+            ->firstWhere('key', 'learning_progression_settings');
+
+        $this->assertNull($item);
+
+        $this->actingAs($user)
+            ->get(route('settings.learning-progression', absolute: false))
+            ->assertOk()
+            ->assertSee(__('learning_progression.navigation'));
     }
 
     public function test_authorized_tenant_user_can_build_an_ordered_lesson_level_progression(): void

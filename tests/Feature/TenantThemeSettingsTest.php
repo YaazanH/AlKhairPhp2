@@ -103,7 +103,7 @@ class TenantThemeSettingsTest extends TestCase
             ->assertSessionHasErrors('light_text_color');
     }
 
-    public function test_tenant_administrator_can_discover_theme_settings_without_general_settings_permission(): void
+    public function test_tenant_administrator_can_access_theme_settings_without_a_duplicate_sidebar_item(): void
     {
         $administrator = User::factory()->create(['is_tenant_administrator' => true]);
         $this->selectTenant();
@@ -113,9 +113,12 @@ class TenantThemeSettingsTest extends TestCase
             ->flatten(1)
             ->firstWhere('key', 'tenant_theme_settings');
 
-        $this->assertNotNull($themeItem);
-        $this->assertSame(route('settings.theme.edit'), $themeItem['href']);
-        $this->assertSame(__('theme.navigation'), $themeItem['label']);
+        $this->assertNull($themeItem);
+
+        $this->actingAs($administrator)
+            ->get(route('settings.theme.edit'))
+            ->assertOk()
+            ->assertSee(route('settings.theme.edit'), false);
     }
 
     public function test_settings_manager_can_discover_and_change_the_tenant_theme(): void
@@ -130,7 +133,7 @@ class TenantThemeSettingsTest extends TestCase
             ->flatten(1)
             ->firstWhere('key', 'tenant_theme_settings');
 
-        $this->assertNotNull($themeItem);
+        $this->assertNull($themeItem);
 
         $this->actingAs($manager)
             ->get(route('settings.organization'))
