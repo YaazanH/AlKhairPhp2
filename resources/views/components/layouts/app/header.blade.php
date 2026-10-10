@@ -12,11 +12,11 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}" class="dark">
+<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}">
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body">
+    <body class="app-body tenant-app-body">
         <div class="app-backdrop">
             <div class="app-backdrop__orb app-backdrop__orb--gold"></div>
             <div class="app-backdrop__orb app-backdrop__orb--emerald"></div>

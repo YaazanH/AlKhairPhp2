@@ -14,6 +14,7 @@ use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GroupDailySummaryService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Support\ArabicSearch;
 use App\Support\RoleRegistry;
 use Illuminate\Support\Facades\DB;
@@ -179,7 +180,7 @@ new class extends Component
             'dashboardCardGroup' => $this->dashboardCardGroupId
                 ? $this->scopeGroupsQuery(Group::query()->with(['course', 'academicYear', 'teacher']))->find($this->dashboardCardGroupId)
                 : null,
-            'dashboardCardTemplates' => ($this->showDashboardCardTemplateModal || $this->showFormModal)
+            'dashboardCardTemplates' => app(CurrentModuleAccess::class)->enabled('custom_templates') && ($this->showDashboardCardTemplateModal || $this->showFormModal)
                 ? PrintTemplate::query()
                     ->where('is_active', true)
                     ->orderBy('name')
@@ -225,10 +226,10 @@ new class extends Component
 
     public function rules(): array
     {
-        return [
+        $rules = [
             'course_id' => ['required', 'exists:courses,id'],
             'academic_year_id' => ['required', 'exists:academic_years,id'],
-            'teacher_id' => ['required', 'exists:teachers,id'],
+            'teacher_id' => ['nullable', 'exists:teachers,id'],
             'assistant_teacher_id' => ['nullable', 'exists:teachers,id', 'different:teacher_id'],
             'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
             'curriculum_id' => ['nullable', Rule::exists('curricula', 'id')->where(fn ($query) => $query
@@ -249,12 +250,17 @@ new class extends Component
             ],
             'capacity' => ['required', 'integer', 'min:0'],
             'is_active' => ['boolean'],
-            'dashboard_card_template_id' => [
+        ];
+
+        if (app(CurrentModuleAccess::class)->enabled('custom_templates')) {
+            $rules['dashboard_card_template_id'] = [
                 'nullable',
                 'integer',
                 Rule::exists('print_templates', 'id')->where(fn ($query) => $query->where('is_active', true)),
-            ],
-        ];
+            ];
+        }
+
+        return $rules;
     }
 
     public function openCreateModal(): void
@@ -300,13 +306,15 @@ new class extends Component
         $validated = $this->validate();
         $dashboardCardTemplateId = $validated['dashboard_card_template_id'] ?? null;
         unset($validated['dashboard_card_template_id']);
-        $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['teacher_id']));
+        if ($validated['teacher_id']) {
+            $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['teacher_id']));
+        }
 
         if ($validated['assistant_teacher_id']) {
             $this->authorizeScopedTeacherAccess(Teacher::query()->findOrFail($validated['assistant_teacher_id']));
         }
 
-        if (! $this->teacherIsAvailable((int) $validated['teacher_id'])) {
+        if ($validated['teacher_id'] && ! $this->teacherIsAvailable((int) $validated['teacher_id'])) {
             $this->addError('teacher_id', __('crud.groups.errors.teacher_unavailable'));
 
             return;
@@ -318,6 +326,7 @@ new class extends Component
             return;
         }
 
+        $validated['teacher_id'] = $validated['teacher_id'] ?: null;
         $validated['assistant_teacher_id'] = $validated['assistant_teacher_id'] ?: null;
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['curriculum_id'] = $validated['curriculum_id'] ?: null;
@@ -327,13 +336,15 @@ new class extends Component
             $validated,
         );
 
-        $templateMap = $this->dashboardCardTemplateMap();
-        if ($dashboardCardTemplateId) {
-            $templateMap[(string) $group->id] = (int) $dashboardCardTemplateId;
-        } else {
-            unset($templateMap[(string) $group->id]);
+        if (app(CurrentModuleAccess::class)->enabled('custom_templates')) {
+            $templateMap = $this->dashboardCardTemplateMap();
+            if ($dashboardCardTemplateId) {
+                $templateMap[(string) $group->id] = (int) $dashboardCardTemplateId;
+            } else {
+                unset($templateMap[(string) $group->id]);
+            }
+            AppSetting::storeValue('general', 'student_dashboard_card_templates', $templateMap, 'array');
         }
-        AppSetting::storeValue('general', 'student_dashboard_card_templates', $templateMap, 'array');
 
         if (! $group->is_active) {
             $this->deactivateGroupEnrollments($group);
@@ -465,6 +476,7 @@ new class extends Component
 
     public function openDashboardCardTemplateModal(int $groupId): void
     {
+        app(CurrentModuleAccess::class)->ensure('custom_templates');
         $this->authorizePermission('groups.update');
 
         $group = Group::query()->findOrFail($groupId);
@@ -492,6 +504,7 @@ new class extends Component
 
     public function saveDashboardCardTemplate(): void
     {
+        app(CurrentModuleAccess::class)->ensure('custom_templates');
         $this->authorizePermission('groups.update');
 
         abort_unless($this->dashboardCardGroupId, 404);
@@ -948,7 +961,7 @@ new class extends Component
                 <div>
                     <label for="group-teacher" class="mb-1 block text-sm font-medium">{{ __('crud.groups.form.fields.teacher') }}</label>
                     <select id="group-teacher" wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person">
-                        <option value="">{{ __('crud.groups.form.placeholders.select_teacher') }}</option>
+                        <option value="">{{ __('crud.groups.form.placeholders.no_teacher_yet') }}</option>
                         @foreach ($teachers as $teacher)
                             <option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>
                         @endforeach
@@ -1009,6 +1022,7 @@ new class extends Component
                     @enderror
                 </div>
 
+                @if (app(CurrentModuleAccess::class)->enabled('custom_templates'))
                 <div>
                     <label for="group-card-template" class="mb-1 block text-sm font-medium">{{ __('crud.groups.dashboard_card.fields.template') }}</label>
                     <select id="group-card-template" wire:model="dashboard_card_template_id" class="w-full rounded-xl px-4 py-3 text-sm">
@@ -1019,6 +1033,7 @@ new class extends Component
                     </select>
                     @error('dashboard_card_template_id')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror
                 </div>
+                @endif
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
@@ -1032,6 +1047,7 @@ new class extends Component
         </form>
     </x-admin.modal>
 
+    @if (app(CurrentModuleAccess::class)->enabled('custom_templates'))
     <x-admin.modal
         :show="$showDashboardCardTemplateModal"
         :title="__('crud.groups.dashboard_card.title', ['group' => $dashboardCardGroup?->name ?? ''])"
@@ -1092,6 +1108,7 @@ new class extends Component
             @endif
         </div>
     </x-admin.modal>
+    @endif
 
     <x-admin.modal
         :show="$showQuickSummaryModal"

@@ -147,6 +147,7 @@ return [
         'route' => 'Route',
         'ip_address' => 'IP address',
         'system' => 'System',
+        'platform_management' => 'Platform Management',
         'empty' => 'No changes match the current search criteria.',
         'structure_fields' => [
             'value' => 'Value',
@@ -184,6 +185,13 @@ return [
             'database_size_bytes' => 'Database size in bytes',
             'files_count' => 'File count',
             'files_size_bytes' => 'File size in bytes',
+            'dashboard_placements' => 'Dashboard placements',
+            'export_format' => 'Export format',
+            'exported_rows' => 'Exported rows',
+            'matching_records' => 'Matching records',
+            'report_definition' => 'Report definition',
+            'restored_from_revision' => 'Restored from revision',
+            'new_revision' => 'New revision',
         ],
         'field_values' => [
             'group' => [
@@ -225,6 +233,9 @@ return [
             'updated' => 'Updated',
             'deleted' => 'Deleted',
             'restored' => 'Restored',
+            'report_dashboard_updated' => 'Dashboard placement updated',
+            'report_exported' => 'Report exported',
+            'report_revision_restored' => 'Report revision restored',
         ],
         'modules' => [
             'AcademicYear' => 'Academic Years', 'Activity' => 'Activities', 'AppSetting' => 'Settings',
@@ -239,6 +250,7 @@ return [
             'StudentNote' => 'Student Notes', 'Teacher' => 'Teachers', 'TeacherAttendanceDay' => 'Teacher Attendance',
             'TeacherAttendanceRecord' => 'Teacher Attendance Records', 'User' => 'Users',
             'SystemBackup' => 'Backups',
+            'ReportDefinition' => 'Custom Reports',
         ],
     ],
 ];

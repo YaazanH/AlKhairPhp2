@@ -92,6 +92,7 @@ new class extends Component
     public function with(): array
     {
         $filteredQuery = User::query()
+            ->tenantManaged()
             ->with(['roles', 'permissions', 'teacherProfile', 'parentProfile', 'studentProfile', 'scopeOverrides'])
             ->when(filled($this->search), function ($query) {
                 ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
@@ -115,7 +116,7 @@ new class extends Component
         $filteredCount = (clone $filteredQuery)->count();
 
         return [
-            'viewedAccount' => $this->viewingAccountId ? User::with(['roles', 'teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($this->viewingAccountId) : null,
+            'viewedAccount' => $this->viewingAccountId ? User::tenantManaged()->with(['roles', 'teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($this->viewingAccountId) : null,
             'users' => $filteredQuery->paginate($this->perPage),
             'filteredCount' => $filteredCount,
             'availableRoles' => RoleRegistry::sortCollection(Role::query()->whereNotIn('name', RoleRegistry::actorRoles())->get()),
@@ -190,7 +191,7 @@ new class extends Component
     public function save(): void
     {
         $this->authorizePermission($this->editingId ? 'users.update' : 'users.create');
-        $existingUser = $this->editingId ? User::query()->with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($this->editingId) : null;
+        $existingUser = $this->editingId ? User::query()->tenantManaged()->with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($this->editingId) : null;
         abort_if($existingUser && $this->isProfileAccount($existingUser), 403);
         $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
 
@@ -256,7 +257,7 @@ new class extends Component
     {
         $this->authorizePermission('users.update');
 
-        $user = User::query()->with(['roles', 'permissions', 'scopeOverrides', 'studentProfile', 'teacherProfile', 'parentProfile'])->findOrFail($userId);
+        $user = User::query()->tenantManaged()->with(['roles', 'permissions', 'scopeOverrides', 'studentProfile', 'teacherProfile', 'parentProfile'])->findOrFail($userId);
         abort_if($this->isProfileAccount($user), 403);
 
         $this->editingId = $user->id;
@@ -315,7 +316,7 @@ new class extends Component
     {
         $this->authorizePermission('users.delete');
 
-        $user = User::query()->with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($userId);
+        $user = User::query()->tenantManaged()->with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($userId);
 
         if (Auth::id() === $user->id) {
             $this->addError('delete', __('access.users.errors.delete_self'));
@@ -359,7 +360,7 @@ new class extends Component
     public function viewLinkedAccount(int $userId): void
     {
         $this->authorizePermission('users.view');
-        $user = User::with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($userId);
+        $user = User::tenantManaged()->with(['teacherProfile', 'parentProfile', 'studentProfile'])->findOrFail($userId);
         abort_unless($this->isProfileAccount($user), 403);
         $this->cancel();
         $this->viewingAccountId = $user->id;
@@ -374,7 +375,7 @@ new class extends Component
     {
         $this->authorizePermission('users.update');
         abort_unless($this->viewingAccountId, 404);
-        $user = User::with('permissions')->findOrFail($this->viewingAccountId);
+        $user = User::tenantManaged()->with('permissions')->findOrFail($this->viewingAccountId);
         $this->direct_permissions = $user->getDirectPermissions()->pluck('name')->all();
         $this->resetValidation();
         $this->showPermissionsModal = true;
@@ -395,7 +396,7 @@ new class extends Component
             'direct_permissions.*' => ['string', Rule::exists('permissions', 'name')],
         ]);
         DB::transaction(function () use ($validated): void {
-            $user = User::lockForUpdate()->findOrFail($this->viewingAccountId);
+            $user = User::tenantManaged()->lockForUpdate()->findOrFail($this->viewingAccountId);
             $user->syncPermissions($validated['direct_permissions'] ?? []);
         });
         $this->closeAccountPermissions();

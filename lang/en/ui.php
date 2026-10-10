@@ -2,7 +2,7 @@
 
 return [
     'app' => [
-        'name' => 'AlKhair Mosque',
+        'name' => 'AlKhair Platform',
         'quran_course' => 'Quran Course',
         'short_tagline' => 'Learning Hub',
         'workspace_tagline' => 'Quran tracking, school operations, finance, and reporting connected in one workspace.',
@@ -36,6 +36,8 @@ return [
         'platform' => 'Platform',
         'dashboard' => 'Dashboard',
         'reports' => 'Reports',
+        'report_library' => 'Report library',
+        'custom_reports' => 'Custom reports',
         'people' => 'People',
         'users' => 'Users',
         'parents' => 'Parents',
@@ -73,6 +75,7 @@ return [
         'activities' => 'Activities',
         'family_activities' => 'Family Activities',
         'invoices' => 'Invoices',
+        'student_billing' => 'Student billing',
         'finance_dashboard' => 'Financial Dashboard',
         'finance_reports' => 'Reports',
         'finance_pull_requests' => 'Withdrawal Requests',
@@ -93,6 +96,8 @@ return [
         'public_website_settings' => 'Website Settings',
         'data_quality' => 'Database Audit',
         'data_audit' => 'Database Movements',
+        'support' => 'Support',
+        'help_requests' => 'Help & Requests',
         'organization' => 'Organisation',
         'tracking_rules' => 'Tracking Rules',
         'points' => 'Points',

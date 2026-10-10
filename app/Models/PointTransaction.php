@@ -18,6 +18,7 @@ class PointTransaction extends Model
         'policy_id',
         'source_type',
         'source_id',
+        'idempotency_key',
         'points',
         'entered_by',
         'entered_at',
@@ -75,15 +76,18 @@ class PointTransaction extends Model
     {
         return $query
             ->notVoided()
-            ->whereHas('enrollment.group.course', fn (Builder $builder) => $builder
-                ->where('is_active', true)
-                ->where('awards_points', true));
+            ->where(fn (Builder $builder) => $builder
+                ->whereNull('enrollment_id')
+                ->orWhereHas('enrollment.group.course', fn (Builder $courseQuery) => $courseQuery
+                    ->where('is_active', true)
+                    ->where('awards_points', true)));
     }
 
     public function scopeInactiveSource(Builder $query): Builder
     {
         return $query
             ->notVoided()
+            ->whereNotNull('enrollment_id')
             ->where(function (Builder $builder) {
                 $builder
                     ->whereHas('enrollment.group.course', fn (Builder $courseQuery) => $courseQuery
@@ -107,6 +111,10 @@ class PointTransaction extends Model
     {
         if ($this->voided_at) {
             return false;
+        }
+
+        if ($this->enrollment_id === null) {
+            return true;
         }
 
         if (

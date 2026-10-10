@@ -1,10 +1,22 @@
 <?php
 
 use App\Http\Middleware\ApplyApplicationTimezone;
+use App\Http\Middleware\AuthenticatePlatform;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
+use App\Http\Middleware\EnforcePlatformSupportAccess;
+use App\Http\Middleware\EnforceTenantStorageQuota;
+use App\Http\Middleware\EnsureNoTenantContext;
+use App\Http\Middleware\EnsureTenantFeature;
+use App\Http\Middleware\EnsureTenantModules;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
+use App\Http\Middleware\RedirectToTenantSetup;
+use App\Http\Middleware\RequirePlatformOwner;
+use App\Http\Middleware\RequirePlatformPasswordChange;
+use App\Http\Middleware\RequirePlatformPermission;
+use App\Http\Middleware\RequireTenantPasswordChange;
+use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,20 +36,39 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([
+        __DIR__.'/../app/Console/Commands',
+    ])
     ->withMiddleware(function (Middleware $middleware) {
+        // The application has separate tenant and Platform guards. An already
+        // authenticated Platform administrator who follows the landing-page
+        // sign-in link must return to the landlord dashboard, never the tenant
+        // dashboard (which would then redirect them to the tenant login).
+        $middleware->redirectUsersTo(fn (Request $request): string => $request->is('platform') || $request->is('platform/*')
+            ? route('platform.dashboard')
+            : route('dashboard'));
+
         // Keep one browser-session origin in production. Serving both the www
         // and apex hosts creates separate cookies and inconsistent auth state.
         $middleware->prepend(RedirectToCanonicalHost::class);
 
         // Keep browser and API requests on the organization timezone. Console
         // and scheduled commands receive the same setting during provider boot.
+        $middleware->prepend(ResolveTenantFromHost::class);
         $middleware->append(ApplyApplicationTimezone::class);
 
         $middleware->web(append: [
             DiscardInvalidRememberCookie::class,
+            RequireTenantPasswordChange::class,
+            EnforcePlatformSupportAccess::class,
+            EnsureTenantModules::class,
+            EnforceTenantStorageQuota::class,
+            RedirectToTenantSetup::class,
             SetLocale::class,
             MeasurePerformance::class,
         ]);
+
+        $middleware->api(append: [EnforcePlatformSupportAccess::class, EnsureTenantModules::class]);
 
         // Resolve the selected language before CSRF checks, authentication,
         // and route bindings can reject a request.
@@ -45,6 +76,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'no-store' => PreventPageCaching::class,
+            'platform.auth' => AuthenticatePlatform::class,
+            'platform.permission' => RequirePlatformPermission::class,
+            'platform.password-change' => RequirePlatformPasswordChange::class,
+            'platform.owner' => RequirePlatformOwner::class,
+            'tenant.feature' => EnsureTenantFeature::class,
+            'no-tenant' => EnsureNoTenantContext::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

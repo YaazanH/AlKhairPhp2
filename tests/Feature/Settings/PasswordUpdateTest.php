@@ -16,6 +16,8 @@ class PasswordUpdateTest extends TestCase
     {
         $user = User::factory()->create([
             'password' => Hash::make('password'),
+            'must_change_password' => true,
+            'password_changed_at' => null,
         ]);
 
         $this->actingAs($user);
@@ -29,6 +31,8 @@ class PasswordUpdateTest extends TestCase
         $response->assertHasNoErrors();
 
         $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
+        $this->assertFalse($user->must_change_password);
+        $this->assertNotNull($user->password_changed_at);
     }
 
     public function test_correct_password_must_be_provided_to_update_password(): void

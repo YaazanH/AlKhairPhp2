@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'custom_reports' => [
+        'eyebrow' => 'لوحة معلومات الدور',
+        'title' => 'التقارير المخصصة',
+        'open' => 'فتح التقرير الكامل',
+    ],
     'roles' => [
         'manager' => 'مشرف اداري',
         'teacher' => 'المعلم',

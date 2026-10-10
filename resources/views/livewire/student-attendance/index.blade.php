@@ -7,6 +7,8 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\StudentAttendanceDay;
+use App\Models\Student;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PointLedgerService;
 use App\Services\StudentAttendanceDayService;
 use Illuminate\Database\Eloquent\Builder;
@@ -42,6 +44,8 @@ new class extends Component
 
     public bool $showExportModal = false;
 
+    public bool $classesEnabled = true;
+
     public string $export_course_id = '';
 
     public string $export_date_from = '';
@@ -51,6 +55,7 @@ new class extends Component
     public function mount(): void
     {
         $this->authorizePermission('attendance.student.view');
+        $this->classesEnabled = app(CurrentModuleAccess::class)->enabled('classes');
         $this->attendance_date = now()->toDateString();
         $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id')
             ?? $this->availableCoursesQuery()->value('courses.id')
@@ -65,6 +70,7 @@ new class extends Component
         $daysQuery = $this->scopeStudentAttendanceDaysQuery(
             StudentAttendanceDay::query()->with([
                 'course',
+                'centerRecords.status',
                 'groupAttendanceDays' => fn ($query) => $this->scopeGroupAttendanceDaysQuery(
                     $query->withCount([
                         'records',
@@ -78,6 +84,7 @@ new class extends Component
                 ),
             ])
         )
+            ->where('scope', $this->classesEnabled ? 'groups' : 'center')
             ->whereNull('course_finished_at');
 
         // Number visible days chronologically before search, status filters, or pagination.
@@ -94,17 +101,17 @@ new class extends Component
             ->latest('attendance_date')
             ->latest('id');
 
-        $scheduledGroupCount = filled($this->attendance_date) && $this->normalizedCourseId()
+        $scheduledGroupCount = $this->classesEnabled && filled($this->attendance_date) && $this->normalizedCourseId()
             ? $this->scheduledGroupsForDate($this->attendance_date, $this->normalizedCourseId())->count()
-            : 0;
+            : ($this->classesEnabled ? 0 : Student::query()->where('status', 'active')->count());
 
         return [
             'days' => $daysQuery->paginate($this->perPage),
             'dayNumbers' => $dayNumbers,
             'filteredCount' => (clone $daysQuery)->count(),
-            'courseOptions' => $this->availableCoursesQuery()
-                ->orderBy('name')
-                ->get(['id', 'name']),
+            'courseOptions' => $this->classesEnabled
+                ? $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name'])
+                : collect(),
             'scheduledGroupCount' => $scheduledGroupCount,
             'defaultStatusOptions' => AttendanceStatus::query()
                 ->where('is_active', true)
@@ -113,7 +120,7 @@ new class extends Component
                 ->orderByDesc('is_present')
                 ->orderBy('name')
                 ->get(),
-            'exportCourseOptions' => $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']),
+            'exportCourseOptions' => $this->classesEnabled ? $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']) : collect(),
         ];
     }
 
@@ -167,15 +174,30 @@ new class extends Component
             return null;
         }
 
-        $validated = $this->validate([
+        $rules = [
             'attendance_date' => ['required', 'date'],
-            'course_id' => ['required', 'integer', Rule::exists('courses', 'id')],
             'default_attendance_status_id' => [
                 'required',
                 'integer',
                 Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['student', 'both'])),
             ],
-        ]);
+        ];
+        if ($this->classesEnabled) {
+            $rules['course_id'] = ['required', 'integer', Rule::exists('courses', 'id')];
+        }
+        $validated = $this->validate($rules);
+
+        if (! $this->classesEnabled) {
+            $day = app(StudentAttendanceDayService::class)->createOrSyncCenterDay(
+                $validated['attendance_date'],
+                auth()->user(),
+                defaultAttendanceStatusId: (int) $validated['default_attendance_status_id'],
+            );
+            session()->flash('status', __('workflow.student_attendance.days.messages.created'));
+            $this->closeCreateModal();
+
+            return redirect()->route('student-attendance.center.show', $day);
+        }
 
         $course = $this->availableCoursesQuery()
             ->whereKey((int) $validated['course_id'])
@@ -329,7 +351,9 @@ new class extends Component
                     @can('attendance.student.take')
                         <x-add-action-button wire:click="openCreateModal" :label="__('workflow.student_attendance.days.create')" />
                     @endcan
-                    <x-export-action-button wire:click="openExportModal" :label="__('workflow.student_attendance.export.action')" />
+                    @if($classesEnabled)
+                        <x-export-action-button wire:click="openExportModal" :label="__('workflow.student_attendance.export.action')" />
+                    @endif
                     @can('barcode-scans.import')
                     @if ((bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true))
                         <a href="{{ route('barcode-actions.import') }}" wire:navigate class="pill-link">{{ __('ui.nav.scanner_import') }}</a>
@@ -339,6 +363,7 @@ new class extends Component
             </div>
         </div>
 
+    @if($classesEnabled)
     @teleport('body')
     <div class="admin-modal-portal">
         <x-admin.modal :show="$showExportModal" :title="__('workflow.student_attendance.export.title')" close-method="closeExportModal" max-width="2xl" full-viewport>
@@ -351,6 +376,7 @@ new class extends Component
         </x-admin.modal>
     </div>
     @endteleport
+    @endif
 
         @if ($days->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.student_attendance.days.table.empty') }}</div>
@@ -361,8 +387,8 @@ new class extends Component
                         <tr>
                             <th data-table-number-column scope="col" class="attendance-days-number px-5 py-4 text-center lg:px-6">#</th>
                             <th class="attendance-days-date px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.date') }}</th>
-                            <th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>
+                            @if($classesEnabled)<th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
+                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>@endif
                             <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
                             <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
                             <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
@@ -373,8 +399,12 @@ new class extends Component
                         @foreach ($days as $day)
                             @php
                                 $groupCount = $day->groupAttendanceDays->count();
-                                $studentCount = $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0));
-                                $attendedCount = $day->groupAttendanceDays->sum('present_records_count');
+                                $studentCount = $classesEnabled
+                                    ? $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0))
+                                    : $day->centerRecords->count();
+                                $attendedCount = $classesEnabled
+                                    ? $day->groupAttendanceDays->sum('present_records_count')
+                                    : $day->centerRecords->filter(fn ($record) => $record->status?->is_present)->count();
                             @endphp
                             <tr>
                                 <td class="attendance-days-number px-5 py-4 text-center text-neutral-300 lg:px-6">{{ $dayNumbers[$day->id] }}</td>
@@ -384,10 +414,10 @@ new class extends Component
                                         <span class="mt-1">{{ \App\Support\DateDisplay::html($day->attendance_date?->format('d-m-Y')) }}</span>
                                     </div>
                                 </td>
-                                <td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6">
+                                @if($classesEnabled)<td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6">
                                     <div><span class="record-course-name">{{ $day->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupCount) }}</td>
+                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupCount) }}</td>@endif
                                 <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($studentCount) }}</td>
                                 <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($attendedCount) }}</td>
                                 <td class="attendance-days-mobile-hidden px-5 py-4 lg:px-6">
@@ -397,7 +427,7 @@ new class extends Component
                                 </td>
                                 <td class="attendance-days-actions px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <x-open-action-button :href="route('student-attendance.show', $day)" :class="$day->status === 'open' ? 'admin-icon-button--accent' : ''" wire:navigate :label="__('workflow.student_attendance.days.table.view')" />
+                                        <x-open-action-button :href="$classesEnabled ? route('student-attendance.show', $day) : route('student-attendance.center.show', $day)" :class="$day->status === 'open' ? 'admin-icon-button--accent' : ''" wire:navigate :label="__('workflow.student_attendance.days.table.view')" />
                                     </div>
                                 </td>
                             </tr>
@@ -422,6 +452,7 @@ new class extends Component
         compact
     >
         <form wire:submit="saveDay" class="date-control-peer-group space-y-4">
+            @if($classesEnabled)
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label for="attendance-day-course" class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.days.form.course') }}</label>
@@ -440,6 +471,11 @@ new class extends Component
                     {{ __('counts.groups', ['count' => number_format($scheduledGroupCount)]) }}
                 </div>
             </div>
+            @else
+                <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200">
+                    {{ __('modules.center_attendance.students_included', ['count' => $scheduledGroupCount]) }}
+                </div>
+            @endif
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div>

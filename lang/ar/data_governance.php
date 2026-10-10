@@ -149,6 +149,7 @@ return [
         'route' => 'المسار',
         'ip_address' => 'عنوان الشبكة',
         'system' => 'النظام',
+        'platform_management' => 'إدارة المنصة',
         'empty' => 'لا توجد تغييرات مطابقة لمعايير البحث.',
         'structure_fields' => [
             'value' => 'القيمة',
@@ -186,6 +187,13 @@ return [
             'database_size_bytes' => 'حجم قاعدة البيانات بالبايت',
             'files_count' => 'عدد الملفات',
             'files_size_bytes' => 'حجم الملفات بالبايت',
+            'dashboard_placements' => 'مواضع لوحة المعلومات',
+            'export_format' => 'صيغة التصدير',
+            'exported_rows' => 'الصفوف المصدّرة',
+            'matching_records' => 'السجلات المطابقة',
+            'report_definition' => 'تعريف التقرير',
+            'restored_from_revision' => 'النسخة المستعادة',
+            'new_revision' => 'النسخة الجديدة',
         ],
         'field_values' => [
             'group' => [
@@ -227,6 +235,9 @@ return [
             'updated' => 'تعديل',
             'deleted' => 'حذف',
             'restored' => 'استعادة',
+            'report_dashboard_updated' => 'تعديل موضع لوحة المعلومات',
+            'report_exported' => 'تصدير التقرير',
+            'report_revision_restored' => 'استعادة نسخة التقرير',
         ],
         'modules' => [
             'AcademicYear' => 'السنوات الدراسية', 'Activity' => 'الأنشطة', 'AppSetting' => 'الإعدادات',
@@ -241,6 +252,7 @@ return [
             'StudentNote' => 'ملاحظات الطلاب', 'Teacher' => 'المشرفون', 'TeacherAttendanceDay' => 'حضور المشرفين',
             'TeacherAttendanceRecord' => 'سجلات حضور المشرفين', 'User' => 'المستخدمون',
             'SystemBackup' => 'النسخ الاحتياطية',
+            'ReportDefinition' => 'التقارير المخصصة',
         ],
     ],
 ];

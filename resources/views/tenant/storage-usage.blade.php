@@ -1,0 +1,30 @@
+@php($format = fn (int $bytes) => number_format($bytes / 1048576, 1).' MB')
+
+<x-layouts.app :title="__('storage.title')">
+    <div class="page-stack settings-admin-page">
+        <section class="page-hero p-6 lg:p-8">
+            <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('storage.title') }}</h1>
+            <p class="mt-3 text-sm text-white/75">{{ __('storage.subtitle', ['tenant' => $tenant->name]) }}</p>
+        </section>
+
+        <x-settings.admin-nav section="dashboard" current="settings.storage" />
+
+        <section class="surface-panel settings-dark-surface p-5 lg:p-6">
+            <div class="admin-toolbar">
+                <div>
+                    <div class="admin-toolbar__title">{{ __('storage.total', ['size' => $format($usage['total'])]) }}</div>
+                    <p class="admin-toolbar__subtitle">{{ __('storage.help') }}</p>
+                </div>
+            </div>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                @foreach(['media', 'documents', 'other_files', 'database', 'backups'] as $key)
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="text-xs text-neutral-400">{{ __('storage.categories.'.$key) }}</div>
+                        <div class="mt-2 text-lg font-semibold text-white">{{ $format($usage[$key]) }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    </div>
+</x-layouts.app>

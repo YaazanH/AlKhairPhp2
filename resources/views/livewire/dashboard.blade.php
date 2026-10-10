@@ -16,8 +16,11 @@ use App\Services\AccessScopeService;
 use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
+use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
 use App\Services\ReportingService;
+use App\Services\ReportDashboardService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -39,13 +42,51 @@ new class extends Component
         $user = Auth::user();
         $dashboardRole = $this->resolveDashboardRole();
 
-        return match ($dashboardRole) {
+        $data = match ($dashboardRole) {
             'manager' => $this->managerData($user),
             'teacher' => $this->teacherData($user),
             'parent' => $this->parentData($user),
             'student' => $this->studentData($user),
             default => $this->unassignedData($user),
         };
+
+        $data['subscriptionNotice'] = $this->subscriptionNotice($user);
+        $data['dashboardReports'] = app(ReportDashboardService::class)->widgetsFor($user);
+
+        return $data;
+    }
+
+    protected function subscriptionNotice($user): ?array
+    {
+        if (! $user?->is_tenant_administrator) {
+            return null;
+        }
+
+        $context = app(TenantContext::class);
+        if (! $context->hasTenant()) {
+            return null;
+        }
+
+        $subscription = $context->tenant()->subscription()->first();
+        if (! $subscription?->ends_at || ! in_array($subscription->status, ['active', 'trial'], true)) {
+            return null;
+        }
+
+        if ($subscription->grace_ends_at?->isFuture()) {
+            return [
+                'state' => 'grace',
+                'date' => $subscription->grace_ends_at->toDateString(),
+            ];
+        }
+
+        if ($subscription->ends_at->isFuture() && $subscription->ends_at->lessThanOrEqualTo(now()->addDays(7))) {
+            return [
+                'state' => 'expiring',
+                'date' => $subscription->ends_at->toDateString(),
+            ];
+        }
+
+        return null;
     }
 
     protected function resolveDashboardRole(): string
@@ -64,7 +105,7 @@ new class extends Component
             return 'teacher';
         }
 
-        if ($user->parentProfile || $user->can('dashboard.parent.view')) {
+        if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parent_portal') && ($user->parentProfile || $user->can('dashboard.parent.view'))) {
             return 'parent';
         }
 
@@ -322,9 +363,9 @@ new class extends Component
                     'title' => __('dashboard.manager.cards.tracking.title'),
                     'body' => __('dashboard.manager.cards.tracking.body'),
                     'links' => collect([
-                        ['label' => __('ui.nav.reports'), 'route' => auth()->user()->can('reports.view') ? route('reports.index') : null],
+                        ['label' => __('ui.nav.reports'), 'route' => ($reportsRoute = app(ReportDashboardService::class)->landingRouteNameFor(auth()->user())) ? route($reportsRoute) : null],
                         ['label' => __('ui.nav.assessments'), 'route' => auth()->user()->can('assessments.view') ? route('assessments.index') : null],
-                        ['label' => __('ui.nav.invoices'), 'route' => auth()->user()->can('invoices.view') ? route('invoices.index') : null],
+                        ['label' => __('ui.nav.student_billing'), 'route' => auth()->user()->can('invoices.view') ? route('student-billing.index') : null],
                     ])->filter(fn (array $link) => $link['route']),
                 ],
             ],
@@ -736,9 +777,9 @@ new class extends Component
             'profileMeta' => $parent->father_phone ?: ($parent->mother_phone ?: __('dashboard.parent.profile_meta_no_phone')),
             'stats' => [
                 ['label' => __('dashboard.parent.stats.students.label'), 'value' => $students->count(), 'hint' => __('dashboard.parent.stats.students.hint')],
-                ['label' => __('dashboard.parent.stats.active_enrollments.label'), 'value' => $activeEnrollmentCount, 'hint' => __('dashboard.parent.stats.active_enrollments.hint')],
-                ['label' => __('dashboard.parent.stats.cached_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.parent.stats.cached_points.hint')],
-                ['label' => __('dashboard.parent.stats.memorized_pages.label'), 'value' => $activeEnrollmentPages, 'hint' => __('dashboard.parent.stats.memorized_pages.hint')],
+                ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('classes') ? [['label' => __('dashboard.parent.stats.active_enrollments.label'), 'value' => $activeEnrollmentCount, 'hint' => __('dashboard.parent.stats.active_enrollments.hint')]] : []),
+                ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('points_rewards') ? [['label' => __('dashboard.parent.stats.cached_points.label'), 'value' => $activeEnrollmentPoints, 'hint' => __('dashboard.parent.stats.cached_points.hint')]] : []),
+                ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('memorization') ? [['label' => __('dashboard.parent.stats.memorized_pages.label'), 'value' => $activeEnrollmentPages, 'hint' => __('dashboard.parent.stats.memorized_pages.hint')]] : []),
             ],
             'cards' => [
                 [
@@ -749,7 +790,7 @@ new class extends Component
                         ['label' => __('ui.nav.students'), 'route' => auth()->user()->can('students.view') ? route('students.index') : null],
                         ['label' => __('ui.nav.enrollments'), 'route' => auth()->user()->can('enrollments.view') ? route('enrollments.index') : null],
                         ['label' => __('ui.nav.family_activities'), 'route' => auth()->user()->can('activities.responses.view') ? route('activities.family') : null],
-                        ['label' => __('ui.nav.invoices'), 'route' => auth()->user()->can('invoices.view') ? route('invoices.index') : null],
+                        ['label' => __('ui.nav.student_billing'), 'route' => auth()->user()->can('invoices.view') ? route('student-billing.index') : null],
                     ])->filter(fn (array $link) => $link['route']),
                 ],
             ],
@@ -758,7 +799,7 @@ new class extends Component
             'records' => $students->map(fn (Student $student) => [
                 'title' => $student->full_name,
                 'subtitle' => trim(($student->gradeLevel?->name ?: __('dashboard.common.no_grade')).' | '.($student->school_name ?: __('dashboard.common.no_school'))),
-                'meta' => __('dashboard.common.active_enrollments', ['count' => $student->enrollments_count]),
+                'meta' => app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('classes') ? __('dashboard.common.active_enrollments', ['count' => $student->enrollments_count]) : '',
             ]),
         ];
     }
@@ -830,6 +871,10 @@ new class extends Component
 
     protected function studentDashboardCardPreviews(Student $student, $user)
     {
+        if (! app(CurrentModuleAccess::class)->enabled('custom_templates')) {
+            return collect();
+        }
+
         $templateMap = AppSetting::groupValues('general')->get('student_dashboard_card_templates');
 
         if (! is_array($templateMap) || $templateMap === []) {
@@ -988,6 +1033,13 @@ new class extends Component
             </aside>
         </div>
     </section>
+
+    @if ($subscriptionNotice)
+        <section class="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-5 text-amber-50 shadow-sm">
+            <p class="text-sm font-semibold text-amber-200">{{ __('subscription.notice.'.$subscriptionNotice['state'].'.title') }}</p>
+            <p class="mt-1 text-sm leading-6 text-amber-50/90">{{ __('subscription.notice.'.$subscriptionNotice['state'].'.message', ['date' => $subscriptionNotice['date']]) }}</p>
+        </section>
+    @endif
 
     @if (! empty($stats))
         <div @class([
@@ -1532,6 +1584,57 @@ new class extends Component
                     @if ($teacherLatestMemorizations->hasPages())<div>{{ $teacherLatestMemorizations->links() }}</div>@endif
                 </div>
             </x-admin.modal>
+        @endif
+
+        @if ($dashboardReports->isNotEmpty())
+            <section class="mb-6" data-custom-report-widgets>
+                <div class="mb-4 flex items-end justify-between gap-4">
+                    <div>
+                        <div class="eyebrow">{{ __('dashboard.custom_reports.eyebrow') }}</div>
+                        <h2 class="font-display mt-2 text-2xl text-white">{{ __('dashboard.custom_reports.title') }}</h2>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                    @foreach($dashboardReports as $widget)
+                        @php
+                            $span = match($widget['size']) { 'small' => 'lg:col-span-4', 'wide' => 'lg:col-span-12', default => 'lg:col-span-6' };
+                            $preview = $widget['preview'];
+                        @endphp
+                        <article class="surface-panel min-w-0 p-5 {{ $span }}" data-report-widget="{{ $widget['report']->id }}" data-report-widget-size="{{ $widget['size'] }}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h3 class="truncate text-lg font-semibold text-white">{{ $widget['report']->name }}</h3>
+                                    @if(filled($widget['report']->description))<p class="mt-1 line-clamp-2 text-xs leading-5 text-neutral-400">{{ $widget['report']->description }}</p>@endif
+                                </div>
+                                <a href="{{ route('reports.designer.show', $widget['report']) }}" class="admin-icon-button shrink-0" title="{{ __('dashboard.custom_reports.open') }}"><x-admin-action-icon name="open" /></a>
+                            </div>
+
+                            @if(filled($preview['error'] ?? null))
+                                <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm leading-6 text-amber-100" data-report-widget-timeout>{{ $preview['error'] }}</div>
+                            @elseif($preview['calculations'] !== [])
+                                <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                                    @foreach($preview['calculations'] as $calculation)
+                                        <div class="rounded-xl border border-white/8 bg-white/4 p-3">
+                                            <div class="kpi-label">{{ $calculation['label'] }}</div>
+                                            <div class="mt-2 text-xl font-semibold text-white">{{ is_numeric($calculation['value']) ? number_format((float) $calculation['value'], 2) : '—' }}</div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if($preview['grouping'])
+                                <div class="mt-4 rounded-xl border border-white/8 p-3">
+                                    <x-reports.group-presentation :grouping="$preview['grouping']" :presentation="$widget['report']->presentation ?? []" compact />
+                                </div>
+                            @elseif($preview['rows'] !== [])
+                                <div class="mt-4 overflow-hidden rounded-xl border border-white/8">
+                                    <x-reports.detail-table :result="$preview" :presentation="$widget['report']->presentation ?? []" compact />
+                                </div>
+                            @endif
+                        </article>
+                    @endforeach
+                </div>
+            </section>
         @endif
 
         @if ($dashboardRole === 'student')

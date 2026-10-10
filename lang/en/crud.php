@@ -603,6 +603,7 @@ return [
                 'select_course' => 'Select course',
                 'select_academic_year' => 'Select academic year',
                 'select_teacher' => 'Select teacher',
+                'no_teacher_yet' => 'No teacher assigned yet',
                 'no_assistant' => 'No assistant',
                 'all_grade_levels' => 'All grade levels',
             ],

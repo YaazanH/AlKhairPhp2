@@ -20,6 +20,7 @@ use App\Services\StudentNumberService;
 use App\Support\ApplicationTimezone;
 use App\Support\AvatarDefaults;
 use App\Support\PhoneNumberFormatter;
+use App\Services\Landlord\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -76,6 +77,8 @@ new class extends Component
     public $default_parent_avatar_upload = null;
 
     public $pdf_logo_upload = null;
+
+    public $tenant_logo_upload = null;
 
     public bool $showOrganizationModal = false;
 
@@ -680,10 +683,12 @@ new class extends Component
         $this->authorizePermission('settings.manage');
         $this->validateOnly('pdf_logo_upload', [
             'pdf_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
+            'tenant_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
             'default_student_gender_id' => ['required', 'integer', Rule::exists('student_genders', 'id')->where('is_active', true)],
         ]);
 
         $this->persistPdfLogoUpload();
+        $this->persistTenantIdentity($validated['school_name']);
         session()->flash('status', __('settings.organization.messages.logo_saved'));
     }
 
@@ -1118,6 +1123,27 @@ new class extends Component
         }
     }
 
+    protected function persistTenantIdentity(string $name): void
+    {
+        $context = app(TenantContext::class);
+        if (! $context->hasTenant()) {
+            return;
+        }
+
+        $tenant = $context->tenant();
+        $logoPath = (string) AppSetting::groupValues('general')->get('tenant_logo_path');
+        if ($this->tenant_logo_upload) {
+            if ($logoPath) {
+                Storage::disk('public')->delete($logoPath);
+            }
+            $logoPath = $this->tenant_logo_upload->store('logo', 'public');
+            AppSetting::storeValue('general', 'tenant_logo_path', $logoPath);
+            $this->reset('tenant_logo_upload');
+        }
+
+        $tenant->update(['name' => trim($name), 'logo_path' => $logoPath ?: null]);
+    }
+
     public function removeDefaultAvatar(string $type): void
     {
         $this->authorizePermission('settings.manage');
@@ -1329,7 +1355,7 @@ new class extends Component
         $settings = AppSetting::groupValues('general');
         $media = AppSetting::groupValues('media');
 
-        $this->school_name = (string) ($settings['school_name'] ?? 'Alkhair');
+        $this->school_name = (string) ($settings['school_name'] ?? app(\App\Support\BrandIdentity::class)->currentName());
         $this->school_phone = (string) ($settings['school_phone'] ?? '');
         $this->school_email = (string) ($settings['school_email'] ?? '');
         $this->email_domain = (string) ($settings['email_domain'] ?? 'alkhair.local');
@@ -1876,6 +1902,14 @@ new class extends Component
                     <input wire:model="school_name" type="text" class="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">
                     @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
+                @if (app(\App\Services\Landlord\TenantContext::class)->hasTenant())
+                    <div class="mt-4">
+                        <label class="mb-1 block text-sm font-medium">Tenant logo</label>
+                        <input wire:model="tenant_logo_upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="block w-full text-sm">
+                        <p class="mt-1 text-xs text-neutral-500">This logo is used across the tenant app, public website, and Platform tenant list.</p>
+                        @error('tenant_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    </div>
+                @endif
                 <div class="mt-4 grid items-end gap-4 md:grid-cols-3" data-organization-contact-fields>
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.school_phone') }}</label>

@@ -199,6 +199,10 @@ new class extends Component {
 
     public function saveWebsite(): void
     {
+        if (app(\App\Services\Landlord\TenantContext::class)->hasTenant()) {
+            $this->site_name = app(\App\Support\BrandIdentity::class)->currentName();
+        }
+
         $validated = $this->validate([
             'site_name' => ['required', 'string', 'max:255'],
             'site_tagline_en' => ['required', 'string', 'max:255'],
@@ -363,6 +367,10 @@ new class extends Component {
             $this->{$key} = (string) ($settings->get($key) ?? $this->{$key});
         }
 
+        if (app(\App\Services\Landlord\TenantContext::class)->hasTenant()) {
+            $this->site_name = app(\App\Support\BrandIdentity::class)->currentName();
+        }
+
         $this->maintenance_enabled = (bool) ($settings->get('maintenance_enabled') ?? false);
         $this->teacher_signup_enabled = (bool) ($settings->get('teacher_signup_enabled') ?? true);
 
@@ -497,7 +505,7 @@ new class extends Component {
                 <p class="mt-2 text-sm text-neutral-400">{{ __('site.admin.website.sections.identity.copy') }}</p>
             </div>
             <div class="grid gap-4 lg:grid-cols-2">
-                <input wire:model="site_name" type="text" class="rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_name') }}">
+                <input wire:model="site_name" type="text" class="rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_name') }}" @readonly(app(\App\Services\Landlord\TenantContext::class)->hasTenant())>
                 <x-phone-input model="contact_phone" :value="$contact_phone" :placeholder="__('site.admin.website.fields.contact_phone')" />
                 <input wire:model="site_tagline_en" type="text" dir="ltr" class="admin-locale-field--en rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_tagline_en') }}">
                 <input wire:model="site_tagline_ar" type="text" dir="rtl" class="admin-locale-field--ar rounded-xl px-4 py-3 text-sm" placeholder="{{ __('site.admin.website.fields.site_tagline_ar') }}">

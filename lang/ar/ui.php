@@ -2,7 +2,7 @@
 
 return [
     'app' => [
-        'name' => 'جامع الخير',
+        'name' => 'منصة الخير',
         'quran_course' => 'دورة القران الكريم',
         'short_tagline' => 'منصة التعلم',
         'workspace_tagline' => 'متابعة القرآن وإدارة المدرسة والمالية والتقارير ضمن مساحة عمل واحدة.',
@@ -36,6 +36,8 @@ return [
         'platform' => 'المنصة',
         'dashboard' => 'الصفحة الرئيسية',
         'reports' => 'التقارير',
+        'report_library' => 'مكتبة التقارير',
+        'custom_reports' => 'التقارير المخصصة',
         'people' => 'الأشخاص',
         'users' => 'المستخدمون',
         'parents' => 'أولياء الأمور',
@@ -73,6 +75,7 @@ return [
         'activities' => 'الأنشطة',
         'family_activities' => 'أنشطة الأسرة',
         'invoices' => 'الفواتير',
+        'student_billing' => 'فواتير الطلاب',
         'finance_dashboard' => 'لوحة التحكم المالية',
         'finance_reports' => 'التقارير',
         'finance_pull_requests' => 'طلبات السحب',
@@ -93,6 +96,8 @@ return [
         'public_website_settings' => 'إعدادات الموقع',
         'data_quality' => 'تدقيق البيانات',
         'data_audit' => 'حركات البيانات',
+        'support' => 'الدعم',
+        'help_requests' => 'المساعدة والطلبات',
         'organization' => 'الهيكل',
         'tracking_rules' => 'قواعد المتابعة',
         'points' => 'النقاط',

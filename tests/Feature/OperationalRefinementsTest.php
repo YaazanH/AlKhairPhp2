@@ -126,7 +126,7 @@ class OperationalRefinementsTest extends TestCase
             'tracking_quran' => ['memorization', 'quran_partial_tests', 'quran_final_tests', 'quran_tests'],
             'tracking_performance' => ['assessments', 'point_ledger'],
             'tracking_tools' => ['student_notes'],
-            'finance' => ['finance_dashboard', 'finance_expense_requests', 'finance_revenue_requests', 'finance_exchange', 'finance_reports'],
+            'finance' => ['finance_dashboard', 'finance_expense_requests', 'finance_revenue_requests', 'finance_exchange', 'finance_reports', 'student_billing'],
             'identity_tools' => ['id_card_print'],
             'designs' => ['public_website_settings', 'print_templates'],
             'academics' => ['courses', 'groups'],

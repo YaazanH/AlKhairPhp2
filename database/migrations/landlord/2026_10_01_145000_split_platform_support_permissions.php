@@ -1,0 +1,3 @@
+<?php
+use Illuminate\Database\Migrations\Migration;use Illuminate\Support\Facades\DB;
+return new class extends Migration {protected $connection='landlord';public function up():void{foreach([['manage.support.problems','Manage support problems'],['manage.support.suggestions','Manage support suggestions']] as [$code,$name]){DB::connection('landlord')->table('platform_permissions')->insertOrIgnore(['code'=>$code,'name'=>$name,'description'=>'Manage forwarded tenant '.$name.'.','created_at'=>now(),'updated_at'=>now()]);}}public function down():void{DB::connection('landlord')->table('platform_permissions')->whereIn('code',['manage.support.problems','manage.support.suggestions'])->delete();}};

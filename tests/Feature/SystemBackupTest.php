@@ -52,6 +52,10 @@ class SystemBackupTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('settings.backups'))
+            ->assertRedirect(route('settings.system-backups'));
+
+        $this->actingAs($admin)
+            ->get(route('settings.system-backups'))
             ->assertOk()
             ->assertSee('data-backup-recovery-page', false)
             ->assertSee(__('backups.title'));
@@ -778,7 +782,7 @@ class SystemBackupTest extends TestCase
         $this->usableBackup($admin);
         $this->travelTo(CarbonImmutable::parse('2026-09-06 09:00:00', 'UTC'));
 
-        $this->actingAs($admin)->get(route('settings.backups'))
+        $this->actingAs($admin)->get(route('settings.system-backups'))
             ->assertOk()
             ->assertSee('05-09-2026 12:12')
             ->assertSee('11-09-2026 00:00')

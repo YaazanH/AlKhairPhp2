@@ -11,6 +11,7 @@ use App\Models\QuranPartialTestPart;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Support\OperationalFeatureSettings;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -19,6 +20,8 @@ class QuranPartialTestService
 {
     public function create(Enrollment $enrollment, QuranJuz $juz, bool $allowAnotherOpenCycle = false): QuranPartialTest
     {
+        app(LearningProgressionService::class)->ensureTestEnabled('partial');
+
         if (! $allowAnotherOpenCycle && $this->inProgressTestsForStudent($enrollment->student)->isNotEmpty()) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.open_cycle_exists'));
         }
@@ -49,6 +52,8 @@ class QuranPartialTestService
 
     public function createForExternalMemorization(Enrollment $enrollment, QuranJuz $juz): QuranPartialTest
     {
+        app(LearningProgressionService::class)->ensureTestEnabled('partial');
+
         if (! $enrollment->student->externalMemorizedJuzs()->whereKey($juz->id)->exists()) {
             throw new LogicException(__('workflow.quran_partial_tests.errors.juz_not_eligible'));
         }
@@ -72,17 +77,22 @@ class QuranPartialTestService
 
     public function eligibleJuzIdsForStudent(Student $student): Collection
     {
-        $completedPages = $student->pageAchievements()
-            ->pluck('page_no')
-            ->map(fn (int $pageNo) => (int) $pageNo)
-            ->flip();
+        $requiresMemorizationProgress = OperationalFeatureSettings::quranTestsRequireMemorizationProgress();
+        $completedPages = $requiresMemorizationProgress
+            ? $student->pageAchievements()
+                ->pluck('page_no')
+                ->map(fn (int $pageNo) => (int) $pageNo)
+                ->flip()
+            : collect();
 
         $existingJuzIds = QuranPartialTest::query()
             ->where('student_id', $student->id)
             ->pluck('juz_id')
             ->map(fn (int $juzId) => (int) $juzId)
             ->all();
-        $externalJuzIds = $student->externalMemorizedJuzs()->pluck('quran_juzs.id')->map(fn ($id) => (int) $id)->all();
+        $externalJuzIds = $requiresMemorizationProgress
+            ? $student->externalMemorizedJuzs()->pluck('quran_juzs.id')->map(fn ($id) => (int) $id)->all()
+            : [];
 
         $legacyBlockedJuzIds = QuranTest::query()
             ->where('student_id', $student->id)
@@ -103,13 +113,17 @@ class QuranPartialTestService
         return QuranJuz::query()
             ->orderBy('juz_number')
             ->get()
-            ->filter(function (QuranJuz $juz) use ($completedPages, $existingJuzIds, $externalJuzIds, $legacyBlockedJuzIds, $legacyPartialCounts): bool {
+            ->filter(function (QuranJuz $juz) use ($requiresMemorizationProgress, $completedPages, $existingJuzIds, $externalJuzIds, $legacyBlockedJuzIds, $legacyPartialCounts): bool {
                 if (in_array($juz->id, $existingJuzIds, true) || in_array($juz->id, $externalJuzIds, true) || in_array($juz->id, $legacyBlockedJuzIds, true)) {
                     return false;
                 }
 
                 if ((int) ($legacyPartialCounts[$juz->id] ?? 0) >= 4) {
                     return false;
+                }
+
+                if (! $requiresMemorizationProgress) {
+                    return true;
                 }
 
                 foreach (range($juz->from_page, $juz->to_page) as $pageNo) {

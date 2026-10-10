@@ -121,6 +121,10 @@ class AccessScopeService
             return false;
         }
 
+        if ($invoice->student_id && in_array((int) $invoice->student_id, $studentIds, true)) {
+            return true;
+        }
+
         return $invoice->items()
             ->where(function (Builder $query) use ($studentIds) {
                 $query
@@ -170,6 +174,10 @@ class AccessScopeService
     {
         if ($this->isUnrestricted($user)) {
             return true;
+        }
+
+        if ($studentAttendanceDay->scope === 'center') {
+            return $user?->can('attendance.student.view') || $user?->can('attendance.student.take');
         }
 
         $groupIds = $this->accessibleGroupIds($user);
@@ -522,13 +530,17 @@ class AccessScopeService
             }
 
             if ($studentIds !== []) {
-                $method = $parentIds !== [] ? 'orWhereHas' : 'whereHas';
-                $builder->{$method}('items', function (Builder $query) use ($studentIds) {
-                    $query->where(function (Builder $itemQuery) use ($studentIds) {
-                        $itemQuery
-                            ->whereIn('student_id', $studentIds)
-                            ->orWhereHas('enrollment', fn (Builder $builder) => $builder->whereIn('student_id', $studentIds));
-                    });
+                $method = $parentIds !== [] ? 'orWhere' : 'where';
+                $builder->{$method}(function (Builder $studentQuery) use ($studentIds) {
+                    $studentQuery
+                        ->whereIn('student_id', $studentIds)
+                        ->orWhereHas('items', function (Builder $query) use ($studentIds) {
+                            $query->where(function (Builder $itemQuery) use ($studentIds) {
+                                $itemQuery
+                                    ->whereIn('student_id', $studentIds)
+                                    ->orWhereHas('enrollment', fn (Builder $builder) => $builder->whereIn('student_id', $studentIds));
+                            });
+                        });
                 });
             }
         });
@@ -594,7 +606,25 @@ class AccessScopeService
             return $query;
         }
 
-        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+        $enrollmentIds = $this->accessibleEnrollmentIds($user);
+        $studentIds = $this->accessibleStudentIds($user);
+
+        if ($enrollmentIds === [] && $studentIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function (Builder $builder) use ($enrollmentIds, $studentIds): void {
+            if ($enrollmentIds !== []) {
+                $builder->whereIn('enrollment_id', $enrollmentIds);
+            }
+
+            if ($studentIds !== []) {
+                $method = $enrollmentIds === [] ? 'where' : 'orWhere';
+                $builder->{$method}(fn (Builder $studentBuilder) => $studentBuilder
+                    ->whereNull('enrollment_id')
+                    ->whereIn('student_id', $studentIds));
+            }
+        });
     }
 
     public function scopeStudentAttendanceRecords(Builder $query, ?User $user): Builder
@@ -603,7 +633,18 @@ class AccessScopeService
             return $query;
         }
 
-        return $this->applyScopedIds($query, 'enrollment_id', $this->accessibleEnrollmentIds($user));
+        $enrollmentIds = $this->accessibleEnrollmentIds($user);
+
+        if ($user?->can('attendance.student.view') || $user?->can('attendance.student.take')) {
+            return $query->where(function (Builder $builder) use ($enrollmentIds): void {
+                $builder->whereNotNull('student_attendance_day_id');
+                if ($enrollmentIds !== []) {
+                    $builder->orWhereIn('enrollment_id', $enrollmentIds);
+                }
+            });
+        }
+
+        return $this->applyScopedIds($query, 'enrollment_id', $enrollmentIds);
     }
 
     public function scopeStudentAttendanceDays(Builder $query, ?User $user): Builder
@@ -614,11 +655,16 @@ class AccessScopeService
 
         $groupIds = $this->accessibleGroupIds($user);
 
-        if ($groupIds === []) {
-            return $query->whereRaw('1 = 0');
+        if ($user?->can('attendance.student.view') || $user?->can('attendance.student.take')) {
+            return $query->where(function (Builder $builder) use ($groupIds): void {
+                $builder->where('scope', 'center');
+                if ($groupIds !== []) {
+                    $builder->orWhereHas('groupAttendanceDays', fn (Builder $groupBuilder) => $groupBuilder->whereIn('group_id', $groupIds));
+                }
+            });
         }
 
-        return $query->whereHas('groupAttendanceDays', fn (Builder $builder) => $builder->whereIn('group_id', $groupIds));
+        return $query->whereRaw('1 = 0');
     }
 
     public function scopeStudentNotes(Builder $query, ?User $user): Builder

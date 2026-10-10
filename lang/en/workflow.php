@@ -428,7 +428,7 @@ return [
             'form' => [
                 'title' => 'Memorisation entry',
                 'edit_title' => 'Edit memorisation entry',
-                'help' => 'Choose the student first, then select the active group only if the student has more than one active enrolment.',
+                'help' => 'Choose any registered student, a point type, and record the reason for the award or deduction.',
                 'student' => 'Student',
                 'group' => 'Group',
                 'select_student' => 'Select student',

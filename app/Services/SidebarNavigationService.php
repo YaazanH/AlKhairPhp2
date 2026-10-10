@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\AppSetting;
 use App\Models\Group;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
 
 class SidebarNavigationService
@@ -28,6 +30,7 @@ class SidebarNavigationService
             'academics' => ['title_key' => 'ui.nav.courses', 'sort_order' => 120],
             'people' => ['title_key' => 'ui.nav.users', 'sort_order' => 130],
             'database' => ['title_key' => 'ui.nav.database', 'sort_order' => 140],
+            'support' => ['title_key' => 'ui.nav.support', 'sort_order' => 145],
             'configuration' => ['title_key' => 'ui.nav.configuration', 'sort_order' => 150],
         ];
     }
@@ -37,6 +40,7 @@ class SidebarNavigationService
         return [
             'dashboard' => $this->item('ui.nav.dashboard', 'home', 'dashboard', ['dashboard'], 'platform', 10),
             'reports' => $this->item('ui.nav.reports', 'chart-bar', 'reports.index', ['reports.*'], 'platform', 30, ['reports.view']),
+            'report_library' => $this->item('ui.nav.report_library', 'book-open', 'reports.library.index', ['reports.library.*'], 'platform', 35, ['report-library.install']),
 
             'users' => $this->item('ui.nav.users', 'user-group', 'users.index', ['users.*'], 'people', 10, ['users.view']),
             'parents' => $this->item('ui.nav.parents', 'parents-couple', 'parents.index', ['parents.*'], 'people', 30, ['parents.view']),
@@ -71,14 +75,20 @@ class SidebarNavigationService
             'finance_revenue_requests' => $this->item('ui.nav.finance_income', 'income-hand', 'finance.revenue-requests.index', ['finance.revenue-requests.*'], 'finance', 30, ['finance.revenue-requests.view']),
             'finance_exchange' => $this->item('ui.nav.finance_exchange', 'arrows-right-left', 'finance.exchange.index', ['finance.exchange.*'], 'finance', 40, ['finance.exchange.view']),
             'finance_reports' => $this->item('ui.nav.finance_reports', 'document-chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 50, ['finance.reports.view']),
+            'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
+            'student_billing' => $this->item('ui.nav.student_billing', 'receipt-percent', 'student-billing.index', ['student-billing.*'], 'finance', 70, ['invoices.view']),
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
+            'tenant_theme_settings' => $this->item('theme.navigation', 'swatch', 'settings.theme.edit', ['settings.theme.*'], 'configuration', 11),
+            'learning_progression_settings' => $this->item('learning_progression.navigation', 'presentation-chart-line', 'settings.learning-progression', ['settings.learning-progression'], 'configuration', 12, ['learning-progression.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
             'public_website_settings' => $this->item('ui.nav.public_website_settings', 'globe-alt', 'settings.website', ['settings.website', 'settings.website.pages', 'settings.website.navigation'], 'designs', 10, ['website.manage']),
             'data_quality' => $this->item('ui.nav.data_quality', 'data-quality', 'data-quality.index', ['data-quality.*'], 'database', 10, ['data-quality.view']),
             'data_audit' => $this->item('ui.nav.data_audit', 'data-audit', 'data-audit.index', ['data-audit.*'], 'database', 20, ['data-audit.view']),
 
-            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'designs', 20, ['id-cards.view']),
+            'support' => $this->item('ui.nav.help_requests', 'chat-bubble-left-right', 'support.index', ['support.*'], 'support', 10, ['support.problems.submit', 'support.suggestions.submit', 'support.manage']),
+
+            'print_templates' => $this->item('ui.nav.print_templates', 'printing-template', 'print-templates.templates.index', ['print-templates.*'], 'designs', 20, ['print-templates.view']),
             'id_card_print' => $this->item('ui.nav.id_card_print', 'student-id-card', 'id-cards.print.create', ['id-cards.print.*'], 'identity_tools', 10, ['id-cards.print']),
         ];
     }
@@ -251,16 +261,27 @@ class SidebarNavigationService
         $groups = [];
         $defaultGroups = $this->defaultGroups();
         $activeTeacherGroup = $this->activeTeacherGroup($user);
+        $tenantContext = app(TenantContext::class);
 
         foreach ($settings['groups'] as $groupKey => $groupDefinition) {
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
+                if ($tenantContext->hasTenant()
+                    && collect($this->requiredTenantModules($itemKey))
+                        ->contains(fn (string $module) => ! app(CurrentModuleAccess::class)->enabled($module))) {
+                    continue;
+                }
+                if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
+                    continue;
+                }
+
                 if (in_array($itemKey, ['activities', 'family_activities'], true) && ! OperationalFeatureSettings::activitiesEnabled()) {
                     continue;
                 }
 
                 $isTeacherCurriculum = $itemKey === 'curricula' && ! $user->can('curricula.manage');
+                $isAssignedReports = $itemKey === 'reports' && ! $user->can('reports.view');
                 $teacherGroup = $itemKey === 'groups' ? $activeTeacherGroup : null;
                 $configuredGroupKey = $isTeacherCurriculum
                     ? 'platform'
@@ -274,10 +295,15 @@ class SidebarNavigationService
                     'key' => $itemKey,
                     'label' => $isTeacherCurriculum
                         ? __('ui.nav.my_curriculum')
-                        : ($teacherGroup ? __('ui.nav.my_group') : __($itemDefinition['label_key'])),
+                        : ($teacherGroup
+                            ? __('ui.nav.my_group')
+                            : ($isAssignedReports ? __('ui.nav.custom_reports') : __($itemDefinition['label_key']))),
                     'icon' => $itemDefinition['icon'],
-                    'href' => $teacherGroup ? route('groups.show', $teacherGroup) : route($itemDefinition['route_name']),
-                    'current' => request()->routeIs(...$itemDefinition['current_patterns']),
+                    'href' => $teacherGroup
+                        ? route('groups.show', $teacherGroup)
+                        : route($isAssignedReports ? 'reports.custom' : $itemDefinition['route_name']),
+                    'current' => request()->routeIs(...$itemDefinition['current_patterns'])
+                        && ! ($itemKey === 'reports' && request()->routeIs('reports.library.*')),
                     'sort_order' => $isTeacherCurriculum
                         ? 40
                         : ($settings['items'][$itemKey]['sort_order'] ?? $itemDefinition['sort_order']),
@@ -331,6 +357,14 @@ class SidebarNavigationService
 
     protected function userCanSeeItem(User $user, array $itemDefinition): bool
     {
+        if (($itemDefinition['route_name'] ?? null) === 'settings.theme.edit') {
+            return $user->is_tenant_administrator === true || $user->can('settings.manage');
+        }
+
+        if (($itemDefinition['route_name'] ?? null) === 'reports.index') {
+            return app(ReportDashboardService::class)->landingRouteNameFor($user) !== null;
+        }
+
         if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
             return app(CurriculumAccessService::class)->canView($user);
         }
@@ -354,6 +388,48 @@ class SidebarNavigationService
         }
 
         return false;
+    }
+
+    /** @return array<int, string> */
+    protected function requiredTenantModules(string $itemKey): array
+    {
+        $modules = [
+            'parents' => ['parents'],
+            'teachers' => ['teachers'],
+            'students' => ['students'],
+            'student_progress' => ['students'],
+            'student_notes' => ['students'],
+            'courses' => ['classes'],
+            'groups' => ['classes'],
+            'enrollments' => ['classes'],
+            'curricula' => ['curriculum'],
+            'student_attendance' => ['student_attendance'],
+            'teacher_attendance' => ['teacher_attendance'],
+            'memorization' => ['memorization'],
+            'enter_memorize' => ['memorization'],
+            'quran_tests_quick_entry' => ['quran_tests'],
+            'quran_partial_tests' => ['quran_tests'],
+            'quran_final_tests' => ['quran_tests'],
+            'quran_tests' => ['quran_tests'],
+            'assessments' => ['assessments'],
+            'point_ledger' => ['points_rewards'],
+            'activities' => ['activities'],
+            'family_activities' => ['parent_portal', 'activities'],
+            'student_billing' => ['student_billing'],
+            'public_website_settings' => ['public_website'],
+            'print_templates' => ['custom_templates'],
+            'id_card_print' => ['id_cards', 'students'],
+        ];
+
+        if (isset($modules[$itemKey])) {
+            return $modules[$itemKey];
+        }
+
+        if (str_starts_with($itemKey, 'finance_') || $itemKey === 'finance_settings') {
+            return ['finance'];
+        }
+
+        return [];
     }
 
     protected function activeTeacherGroup(User $user): ?Group

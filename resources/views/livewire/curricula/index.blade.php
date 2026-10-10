@@ -11,6 +11,7 @@ use App\Models\GroupCurriculumTopicProgress;
 use App\Models\GroupCustomCurriculumLesson;
 use App\Services\CurriculumAccessService;
 use App\Services\CurriculumProgressService;
+use App\Services\TeachingAssignmentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -195,7 +196,7 @@ new class extends Component
         $group = $this->teacherGroup();
         $data = $this->validate(['progressLessonId' => ['required', 'exists:curriculum_lessons,id'], 'progressDate' => ['required', 'date'], 'progressStatus' => ['required', Rule::in(['partial', 'taught'])]]);
         CurriculumLesson::query()->whereKey($data['progressLessonId'])->whereHas('subject', fn ($query) => $query->where('curriculum_id', $group->curriculum_id))->firstOrFail();
-        GroupCurriculumLessonProgress::query()->updateOrCreate(['group_id' => $group->id, 'curriculum_lesson_id' => $data['progressLessonId']], ['teacher_id' => Auth::user()->teacherProfile?->id, 'status' => $data['progressStatus'], 'taught_on' => $data['progressDate']]);
+        GroupCurriculumLessonProgress::query()->updateOrCreate(['group_id' => $group->id, 'curriculum_lesson_id' => $data['progressLessonId']], ['teacher_id' => $this->teachingTeacherId($group), 'status' => $data['progressStatus'], 'taught_on' => $data['progressDate']]);
         $this->showProgressModal = false;
         session()->flash('status', __('curricula.messages.progress_saved'));
     }
@@ -217,7 +218,7 @@ new class extends Component
         } else {
             GroupCurriculumLessonProgress::query()->updateOrCreate(
                 ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id],
-                ['teacher_id' => Auth::user()->teacherProfile?->id, 'status' => 'taught', 'taught_on' => now()->toDateString()],
+                ['teacher_id' => $this->teachingTeacherId($group), 'status' => 'taught', 'taught_on' => now()->toDateString()],
             );
         }
     }
@@ -242,7 +243,7 @@ new class extends Component
                 GroupCurriculumTopicProgress::query()->create([
                     'group_id' => $group->id,
                     'curriculum_lesson_topic_id' => $topic->id,
-                    'teacher_id' => Auth::user()->teacherProfile?->id,
+                    'teacher_id' => $this->teachingTeacherId($group),
                     'taught_on' => now()->toDateString(),
                 ]);
             }
@@ -252,7 +253,7 @@ new class extends Component
             if ($topicIds->isNotEmpty() && $completedCount === $topicIds->count()) {
                 GroupCurriculumLessonProgress::query()->updateOrCreate(
                     ['group_id' => $group->id, 'curriculum_lesson_id' => $topic->lesson->id],
-                    ['teacher_id' => Auth::user()->teacherProfile?->id, 'status' => 'taught', 'taught_on' => now()->toDateString()],
+                    ['teacher_id' => $this->teachingTeacherId($group), 'status' => 'taught', 'taught_on' => now()->toDateString()],
                 );
             } else {
                 GroupCurriculumLessonProgress::query()->where('group_id', $group->id)->where('curriculum_lesson_id', $topic->lesson->id)->delete();
@@ -293,13 +294,13 @@ new class extends Component
             foreach ($topicIds as $topicId) {
                 GroupCurriculumTopicProgress::query()->updateOrCreate(
                     ['group_id' => $group->id, 'curriculum_lesson_topic_id' => $topicId],
-                    ['teacher_id' => Auth::user()->teacherProfile?->id, 'taught_on' => now()->toDateString()],
+                    ['teacher_id' => $this->teachingTeacherId($group), 'taught_on' => now()->toDateString()],
                 );
             }
 
             GroupCurriculumLessonProgress::query()->updateOrCreate(
                 ['group_id' => $group->id, 'curriculum_lesson_id' => $lesson->id],
-                ['teacher_id' => Auth::user()->teacherProfile?->id, 'status' => 'taught', 'taught_on' => now()->toDateString()],
+                ['teacher_id' => $this->teachingTeacherId($group), 'status' => 'taught', 'taught_on' => now()->toDateString()],
             );
         });
     }
@@ -320,7 +321,7 @@ new class extends Component
         $group = $this->teacherGroup();
         $lesson = GroupCustomCurriculumLesson::query()->where('group_id', $group->id)->findOrFail($lessonId);
         $lesson->update([
-            'teacher_id' => Auth::user()->teacherProfile?->id,
+            'teacher_id' => $this->teachingTeacherId($group),
             'status' => $lesson->status === 'taught' ? 'untaught' : 'taught',
             'taught_on' => $lesson->status === 'taught' ? null : now()->toDateString(),
         ]);
@@ -353,7 +354,7 @@ new class extends Component
             'customImportance' => ['required', 'integer', 'between:1,3'],
             'customDate' => ['required', 'date'],
         ]);
-        GroupCustomCurriculumLesson::query()->updateOrCreate(['id' => $this->editingCustomId, 'group_id' => $group->id], ['teacher_id' => Auth::user()->teacherProfile?->id, 'subject_name' => $data['customSubjectName'], 'name' => $data['customLessonName'], 'importance' => $data['customImportance'], 'taught_on' => $data['customDate'], 'status' => 'taught']);
+        GroupCustomCurriculumLesson::query()->updateOrCreate(['id' => $this->editingCustomId, 'group_id' => $group->id], ['teacher_id' => $this->teachingTeacherId($group), 'subject_name' => $data['customSubjectName'], 'name' => $data['customLessonName'], 'importance' => $data['customImportance'], 'taught_on' => $data['customDate'], 'status' => 'taught']);
         $this->showCustomModal = false;
         session()->flash('status', __('curricula.messages.custom_saved'));
     }
@@ -361,8 +362,15 @@ new class extends Component
     protected function teacherGroup(): Group
     {
         abort_unless(app(CurriculumAccessService::class)->isGroupSupervisor(Auth::user()), 403);
+        $group = app(CurriculumAccessService::class)->groupsQuery(Auth::user())->whereKey($this->selectedGroupId)->whereNotNull('curriculum_id')->firstOrFail();
+        app(TeachingAssignmentService::class)->ensureAssigned($group);
 
-        return app(CurriculumAccessService::class)->groupsQuery(Auth::user())->whereKey($this->selectedGroupId)->whereNotNull('curriculum_id')->firstOrFail();
+        return $group;
+    }
+
+    protected function teachingTeacherId(Group $group): int
+    {
+        return app(TeachingAssignmentService::class)->attributedTeacherId($group, Auth::user());
     }
 
     protected function latestLessons(Group $group)

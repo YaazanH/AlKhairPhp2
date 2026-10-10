@@ -6,14 +6,22 @@ use App\Models\AppSetting;
 use App\Models\WebsiteMenu;
 use App\Models\WebsiteMenuItem;
 use App\Models\WebsitePage;
+use App\Services\Landlord\TenantContext;
+use App\Support\BrandIdentity;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class WebsiteService
 {
+    public function __construct(
+        private BrandIdentity $branding,
+    ) {}
+
     public function homePage(): WebsitePage
     {
+        $organisationName = $this->branding->currentName();
+
         return WebsitePage::query()
             ->published()
             ->where('is_home', true)
@@ -22,12 +30,12 @@ class WebsiteService
                 'slug' => 'home',
                 'template' => 'home',
                 'title' => [
-                    'en' => 'Masjid AlKhair',
-                    'ar' => 'مسجد الخير',
+                    'en' => $organisationName,
+                    'ar' => $organisationName,
                 ],
                 'excerpt' => [
-                    'en' => 'A welcoming mosque website connected to the AlKhair platform.',
-                    'ar' => 'واجهة مسجد مرحبة مرتبطة بمنصة الخير.',
+                    'en' => 'A welcoming public website for your organisation.',
+                    'ar' => 'موقع عام مرحب لمؤسستك.',
                 ],
                 'sections' => [
                     [
@@ -151,17 +159,20 @@ class WebsiteService
 
     public function siteSettings(): array
     {
-        $website = AppSetting::groupValues('website');
-        $general = AppSetting::groupValues('general');
+        $hasTenant = app(TenantContext::class)->hasTenant();
+        $website = $hasTenant ? AppSetting::groupValues('website') : collect();
+        $general = $hasTenant ? AppSetting::groupValues('general') : collect();
 
-        $siteName = $website->get('site_name') ?: $general->get('school_name') ?: __('ui.app.name');
+        $siteName = $hasTenant
+            ? $this->branding->currentName()
+            : $this->branding->platformName();
         $tagline = $website->get('site_tagline') ?: [
             'en' => 'Quran, community, and family learning under one roof.',
             'ar' => 'القرآن والمجتمع وتعلّم الأسرة تحت سقف واحد.',
         ];
         $description = $website->get('site_description') ?: [
-            'en' => 'A bilingual mosque website connected to the AlKhair platform.',
-            'ar' => 'موقع مسجد ثنائي اللغة مرتبط بمنصة الخير.',
+            'en' => 'A bilingual public website for your organisation.',
+            'ar' => 'موقع عام ثنائي اللغة لمؤسستك.',
         ];
         $address = $website->get('contact_address') ?: [
             'en' => (string) ($general->get('school_address') ?: 'Damascus'),
@@ -212,7 +223,7 @@ class WebsiteService
             'contact_address' => $address,
             'primary_color' => $website->get('primary_color') ?: '#006b2d',
             'accent_color' => $website->get('accent_color') ?: '#0b8f43',
-            'logo_path' => $website->get('logo_path'),
+            'logo_path' => $website->get('logo_path') ?: $general->get('tenant_logo_path'),
             'hero_image_path' => $website->get('hero_image_path'),
             'featured_video_path' => $website->get('featured_video_path'),
             'gallery_paths' => $website->get('gallery_paths') ?: [],
@@ -229,7 +240,7 @@ class WebsiteService
                 'ar' => __('site.public.maintenance.default_message', [], 'ar'),
             ],
             'maintenance_image_path' => $website->get('maintenance_image_path'),
-            'logo_url' => $this->mediaUrl($website->get('logo_path')),
+            'logo_url' => $this->mediaUrl($website->get('logo_path') ?: $general->get('tenant_logo_path')),
             'hero_image_url' => $this->mediaUrl($website->get('hero_image_path')),
             'featured_video_url' => $this->mediaUrl($website->get('featured_video_path')),
             'maintenance_image_url' => $this->mediaUrl($website->get('maintenance_image_path')),
@@ -239,6 +250,10 @@ class WebsiteService
 
     public function resolveMetaTitle(WebsitePage $page): string
     {
+        if ($page->is_home) {
+            return $this->siteSettings()['site_name'];
+        }
+
         return $page->localizedText('seo_title')
             ?: $page->localizedText('title')
             ?: $this->siteSettings()['site_name'];
@@ -263,6 +278,40 @@ class WebsiteService
         }
 
         return asset('storage/'.ltrim($path, '/'));
+    }
+
+    /** @return array<int, string> */
+    public function publicMediaPaths(): array
+    {
+        $website = AppSetting::groupValues('website');
+        $paths = collect([
+            'website/branding/logo.jpeg',
+            $website->get('logo_path'),
+            $website->get('hero_image_path'),
+            $website->get('featured_video_path'),
+            $website->get('maintenance_image_path'),
+        ]);
+
+        $paths = $paths
+            ->merge(collect($website->get('gallery_paths') ?: []))
+            ->merge(collect($website->get('gallery_items') ?: [])->pluck('path'));
+
+        WebsitePage::query()->published()->get(['hero_media_path', 'sections'])->each(
+            function (WebsitePage $page) use (&$paths): void {
+                $paths->push($page->hero_media_path);
+                $paths = $paths->merge(
+                    collect($page->sections ?? [])->pluck('image_path')
+                );
+            }
+        );
+
+        return $paths
+            ->filter(fn (mixed $path): bool => is_string($path) && filled($path))
+            ->map(fn (string $path): string => ltrim($path, '/'))
+            ->filter(fn (string $path): bool => ! Str::startsWith($path, ['http://', 'https://']) && ! str_contains($path, '..'))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function fallbackNavigationMenu(): array

@@ -42,6 +42,48 @@ return [
             'synchronous' => null,
         ],
 
+        /*
+         * The SaaS control plane. This stays separate from the application
+         * database that will become a tenant database in Sprint 2.
+         */
+        'landlord' => [
+            'driver' => env('LANDLORD_DB_CONNECTION', env('DB_CONNECTION', 'sqlite')),
+            'url' => env('LANDLORD_DB_URL', env('DB_URL')),
+            'host' => env('LANDLORD_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('LANDLORD_DB_PORT', env('DB_PORT', '3306')),
+            'database' => env('LANDLORD_DB_DATABASE', env('DB_DATABASE', database_path('database.sqlite'))),
+            'username' => env('LANDLORD_DB_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('LANDLORD_DB_PASSWORD', env('DB_PASSWORD', '')),
+            'unix_socket' => env('LANDLORD_DB_SOCKET', env('DB_SOCKET', '')),
+            'charset' => env('LANDLORD_DB_CHARSET', env('DB_CHARSET', 'utf8mb4')),
+            'collation' => env('LANDLORD_DB_COLLATION', env('DB_COLLATION', 'utf8mb4_unicode_ci')),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
+        /*
+         * A mutable connection template. Sprint 3 will set its database name
+         * after resolving the tenant from the request host.
+         */
+        'tenant' => [
+            'driver' => env('TENANT_DB_CONNECTION', env('DB_CONNECTION', 'sqlite')),
+            'url' => env('TENANT_DB_URL'),
+            'host' => env('TENANT_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('TENANT_DB_PORT', env('DB_PORT', '3306')),
+            'database' => env('TENANT_DB_DATABASE'),
+            'username' => env('TENANT_DB_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('TENANT_DB_PASSWORD', env('DB_PASSWORD', '')),
+            'unix_socket' => env('TENANT_DB_SOCKET', env('DB_SOCKET', '')),
+            'charset' => env('TENANT_DB_CHARSET', env('DB_CHARSET', 'utf8mb4')),
+            'collation' => env('TENANT_DB_COLLATION', env('DB_COLLATION', 'utf8mb4_unicode_ci')),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),

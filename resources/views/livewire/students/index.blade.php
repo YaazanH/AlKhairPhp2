@@ -228,7 +228,7 @@ new class extends Component
                 ParentProfile::query()
                     ->with(['students' => fn ($query) => $query->select('id', 'parent_id', 'last_name')->orderBy('last_name')])
                     ->where('is_active', true)
-            )->orderBy('father_name')->get(['id', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone']),
+            )->when(! app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents'), fn ($query) => $query->whereRaw('1 = 0'))->orderBy('father_name')->get(['id', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone']),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
             'enrollmentGroups' => $this->scopeGroupsQuery(
                 Group::query()
@@ -545,7 +545,7 @@ new class extends Component
     public function rules(?int $ignoredUserId = null): array
     {
         return [
-            'parent_id' => ['nullable', 'exists:parents,id'],
+            'parent_id' => app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents') ? ['nullable', 'exists:parents,id'] : ['exclude'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'student_phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($ignoredUserId ?? $this->linkedUserId() ?? $this->existingAccountId)],
@@ -738,7 +738,7 @@ new class extends Component
         }
 
         $validated['gender'] = $validated['gender'] ?: null;
-        $validated['parent_id'] = $validated['parent_id'] ?: null;
+        $validated['parent_id'] = app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents') ? ($validated['parent_id'] ?: null) : ($editingStudent?->parent_id ?? $duplicate?->parent_id);
         $validated['grade_level_id'] = $validated['grade_level_id'] ?: null;
         $validated['quran_current_juz_id'] = $validated['quran_current_juz_id'] ?: null;
         $validated['photo_path'] = $validated['photo_path'] ?: null;
@@ -843,6 +843,7 @@ new class extends Component
 
     public function openQuickParentForm(): void
     {
+        app(\App\Services\Landlord\CurrentModuleAccess::class)->ensure('parents');
         unset($this->acceptedDuplicateNames['parent']);
         abort_unless($this->canPermission('parents.create') || $this->canPermission('parents.update'), 403);
 
@@ -894,6 +895,7 @@ new class extends Component
 
     public function removeParentRelationship(): void
     {
+        app(\App\Services\Landlord\CurrentModuleAccess::class)->ensure('parents');
         $this->authorizePermission('students.update');
         abort_unless($this->editingId !== null, 404);
 
@@ -941,6 +943,7 @@ new class extends Component
 
     public function saveQuickParent(): void
     {
+        app(\App\Services\Landlord\CurrentModuleAccess::class)->ensure('parents');
         $updatingParent = $this->editingId && $this->parent_id;
 
         if (! $this->editingId) {
@@ -1053,7 +1056,7 @@ new class extends Component
         $this->editingStudentNeedsActiveCourseEnrollment = ! Enrollment::query()
             ->currentActiveForStudent($student->id)
             ->exists();
-        $this->parent_id = $student->parent_id;
+        $this->parent_id = app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents') ? $student->parent_id : null;
         $this->first_name = $student->first_name;
         $this->last_name = $student->last_name;
         $this->student_phone = $student->user?->phone ?? '';
@@ -1574,6 +1577,9 @@ new class extends Component
 
     protected function applyStudentSort(Builder $query): void
     {
+        if ($this->sortField === 'parent' && ! app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents')) {
+            $this->sortField = 'student';
+        }
         $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
 
         match ($this->sortField) {
@@ -2069,7 +2075,9 @@ new class extends Component
                                         <x-student-avatar :student="$student" size="sm" />
                                         <div class="student-inline__body">
                                             <div class="record-person-name student-inline__name">{{ $student->full_name }}</div>
-                                            <div class="student-inline__meta">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
+                                            @if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents'))
+                                                <div class="student-inline__meta">{{ $student->parentProfile?->father_name ?: __('crud.common.not_available') }}</div>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
@@ -2224,7 +2232,46 @@ new class extends Component
         </form>
     </x-admin.modal>
 
-
+    <x-admin.modal
+        :show="$showDuplicateStudentModal"
+        :title="__('crud.students.duplicate_active.title')"
+        :description="__('crud.students.duplicate_active.description')"
+        close-method="closeDuplicateStudentModal"
+        max-width="3xl"
+    >
+        @if ($duplicateStudent)
+            @php
+                $duplicateEnrollment = $duplicateStudent->enrollments->first();
+                $duplicateFields = [
+                    __('crud.students.form.fields.student_number') => ($duplicateStudent->student_number ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.first_name') => $duplicateStudent->first_name,
+                    __('crud.students.form.fields.last_name') => $duplicateStudent->last_name,
+                    __('crud.students.form.fields.phone') => ($duplicateStudent->user?->phone ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.birth_year') => ($duplicateStudent->birth_date?->format('Y') ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.gender') => ($duplicateStudent->gender ? __('crud.common.gender_options.'.$duplicateStudent->gender) : __('crud.common.not_available')),
+                    ...(app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents') ? [__('crud.students.form.fields.parent') => ($duplicateStudent->parentProfile?->father_name ?: __('crud.common.not_available'))] : []),
+                    __('crud.students.form.fields.school') => ($duplicateStudent->school_name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.grade_level') => ($duplicateStudent->gradeLevel?->name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.group') => ($duplicateEnrollment?->group?->name ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.current_juz') => ($duplicateStudent->quranCurrentJuz?->juz_number ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.status') => __('crud.common.status_options.'.$duplicateStudent->status),
+                    __('crud.students.form.fields.joined_at') => ($duplicateStudent->joined_at?->format('d-m-Y') ?: __('crud.common.not_available')),
+                    __('crud.students.form.fields.notes') => ($duplicateStudent->notes ?: __('crud.common.not_available')),
+                ];
+            @endphp
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($duplicateFields as $label => $value)
+                    <div class="rounded-2xl border border-white/8 bg-white/4 p-3">
+                        <div class="kpi-label">{{ $label }}</div>
+                        <div @class(['mt-2 text-sm font-semibold text-white', 'record-person-name' => in_array($label, [__('crud.students.form.fields.first_name'), __('crud.students.form.fields.last_name'), __('crud.students.form.fields.parent')], true), 'record-phone' => $label === __('crud.students.form.fields.phone')])>{{ $value }}</div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="button" wire:click="closeDuplicateStudentModal" class="pill-link pill-link--accent">{{ __('crud.common.actions.close') }}</button>
+            </div>
+        @endif
+    </x-admin.modal>
 
     <x-admin.modal
         :show="$showFormModal"
@@ -2267,6 +2314,7 @@ new class extends Component
                 </div>
             </div>
 
+            @if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('parents'))
             @php
                 $connectedParent = $parent_id ? $parents->firstWhere('id', (int) $parent_id) : null;
             @endphp
@@ -2444,6 +2492,7 @@ new class extends Component
                 </div>
             @endif
 
+            @endif
             <div class="grid gap-4 md:grid-cols-3">
                 <div>
                     <label for="student-birth-date" class="mb-1 block text-sm font-medium">{{ __('crud.students.form.fields.birth_year') }}</label>

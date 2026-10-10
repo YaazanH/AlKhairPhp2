@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
@@ -27,10 +26,7 @@ new class extends Component {
             throw $e;
         }
 
-        Auth::user()->update([
-            'password' => Hash::make($validated['password']),
-            'issued_password' => null,
-        ]);
+        Auth::user()->completePasswordChange($validated['password']);
 
         $this->reset('current_password', 'password', 'password_confirmation');
 

@@ -121,6 +121,31 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('contain: paint;', $css);
     }
 
+    public function test_quran_progress_summary_uses_the_tenant_configured_stages(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student] = $this->makeScopedProgressData();
+
+        AppSetting::storeValue('learning_progression', 'configured', true, 'boolean');
+        AppSetting::storeValue('learning_progression', 'partial_test_enabled', false, 'boolean');
+        AppSetting::storeValue('learning_progression', 'partial_test_required_for_final', false, 'boolean');
+        AppSetting::storeValue('learning_progression', 'final_test_enabled', true, 'boolean');
+        AppSetting::storeValue('learning_progression', 'final_test_required_for_awqaf', false, 'boolean');
+        AppSetting::storeValue('learning_progression', 'awqaf_test_enabled', false, 'boolean');
+        $student->externalMemorizedJuzs()->syncWithoutDetaching([QuranJuz::query()->firstOrFail()->id]);
+
+        $manager = User::factory()->create(['username' => 'progress-summary-manager']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSee('data-learning-progression-summary', false)
+            ->assertViewHas('quranProgressionSummary', fn (array $summary): bool => $summary['configured']
+                && $summary['stages']->all() === ['memorization', 'final'])
+            ->assertDontSee('data-progression-stage-column="partial"', false)
+            ->assertSee('data-progression-stage-column="final"', false);
+    }
+
     public function test_manager_can_replace_a_student_photo_from_the_progress_profile(): void
     {
         $this->seed(RoleSeeder::class);
@@ -601,7 +626,7 @@ class StudentProgressPageTest extends TestCase
             ->assertDontSeeText('Cancelled Progress Group');
     }
 
-    public function test_juz_is_only_finished_after_the_final_test_is_passed(): void
+    public function test_juz_follows_the_configured_final_and_awqaf_progression(): void
     {
         $this->seed(RoleSeeder::class);
         [, $student] = $this->makeScopedProgressData();
@@ -677,8 +702,10 @@ class StudentProgressPageTest extends TestCase
 
         $component
             ->call('$refresh')
-            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'finished')
-            ->assertDontSee('wire:click="showMissingPages(', false)
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->status === 'awaiting'
+                && $rows->first()?->next_stage === 'awqaf'
+                && $rows->first()?->path_complete === false)
+            ->assertDontSeeText(__('workflow.student_progress.juz_progress.show_missing'))
             ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
@@ -698,6 +725,7 @@ class StudentProgressPageTest extends TestCase
             ->set('awqafStatus', 'passed')
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->first()?->path_complete === true)
             ->assertDontSee('wire:click="openAwqafTest(', false);
 
         $this->assertDatabaseHas('quran_tests', [

@@ -21,7 +21,8 @@ class DiscardInvalidRememberCookie
             return $next($request);
         }
 
-        $guard = Auth::guard();
+        // Browser requests must use the session guard even after Sanctum/API traffic.
+        $guard = Auth::guard('web');
 
         if (! $guard instanceof SessionGuard) {
             return $next($request);

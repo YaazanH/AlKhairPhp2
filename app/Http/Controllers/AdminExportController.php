@@ -12,6 +12,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PdfBrandingService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
@@ -122,10 +123,10 @@ class AdminExportController extends Controller
             ArabicSearch::whereAllTokens($query, $search, function ($builder, string $token): void {
                 $pattern = '%'.$token.'%';
                 $builder
-                    ->whereMatchesSearchToken($token)
+                    ->whereMatchesSearchToken($token, app(CurrentModuleAccess::class)->enabled('parents'))
                     ->orWhere('school_name', 'like', $pattern)
-                    ->orWhereHas('parentProfile', fn ($parentQuery) => $parentQuery
-                        ->where('mother_name', 'like', $pattern));
+                    ->when(app(CurrentModuleAccess::class)->enabled('parents'), fn ($query) => $query->orWhereHas('parentProfile', fn ($parentQuery) => $parentQuery
+                        ->where('mother_name', 'like', $pattern)));
             });
         }
 
@@ -133,12 +134,12 @@ class AdminExportController extends Controller
             $query->where('status', $request->string('status')->value());
         }
 
-        return $this->streamXlsx('students', ['Student', 'Student Number', 'Username', 'Password', 'Parent', 'School', 'Grade', 'Current Juz', 'Enrolments', 'Status'], $query->get()->map(fn (Student $student) => [
+        return $this->streamXlsx('students', ['Student', 'Student Number', 'Username', 'Password', ...(app(CurrentModuleAccess::class)->enabled('parents') ? ['Parent'] : []), 'School', 'Grade', 'Current Juz', 'Enrolments', 'Status'], $query->get()->map(fn (Student $student) => [
             $student->full_name,
             $student->student_number,
             $student->user?->username,
             $student->user?->issued_password,
-            $student->parentProfile?->father_name,
+            ...(app(CurrentModuleAccess::class)->enabled('parents') ? [$student->parentProfile?->father_name] : []),
             $student->school_name,
             $student->gradeLevel?->name,
             $student->quranCurrentJuz?->juz_number,
@@ -422,6 +423,7 @@ class AdminExportController extends Controller
         abort_unless($request->user()?->can('users.view'), 403);
 
         $query = User::query()
+            ->tenantManaged()
             ->with(['roles', 'permissions', 'teacherProfile', 'parentProfile', 'studentProfile'])
             ->orderBy('name');
 
