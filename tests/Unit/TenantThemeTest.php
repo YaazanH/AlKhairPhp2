@@ -32,7 +32,26 @@ class TenantThemeTest extends TestCase
         $variables = app(TenantTheme::class)->cssVariables();
 
         $this->assertStringContainsString('--tenant-primary:', $variables);
+        $this->assertStringContainsString('--tenant-action:', $variables);
+        $this->assertStringContainsString('--app-bg:', $variables);
+        $this->assertStringContainsString('--app-panel:', $variables);
+        $this->assertStringContainsString('--app-text:', $variables);
         $this->assertStringContainsString('--tenant-accent-text:', $variables);
         $this->assertStringNotContainsString('--color-emerald-', $variables);
+    }
+
+    public function test_custom_text_must_contrast_with_page_and_surface_colours(): void
+    {
+        $theme = app(TenantTheme::class);
+        $colors = TenantTheme::DEFAULT_COLORS;
+        $colors['light_text_color'] = '#eeeeee';
+        $colors['light_background_color'] = '#ffffff';
+        $colors['light_surface_color'] = '#f8f8f8';
+
+        $this->assertArrayHasKey('light_text_color', $theme->readabilityErrors($colors));
+
+        $colors['light_text_color'] = '#111111';
+
+        $this->assertSame([], $theme->readabilityErrors($colors));
     }
 }

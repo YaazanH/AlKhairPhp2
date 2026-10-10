@@ -9,9 +9,22 @@ class TenantTheme
 {
     public const DEFAULT_PRIMARY = '#0b8f43';
 
+    public const DEFAULT_COLORS = [
+        'primary_color' => self::DEFAULT_PRIMARY,
+        'action_color' => '#0b8f43',
+        'light_background_color' => '#e8ebdf',
+        'light_surface_color' => '#fbfaf4',
+        'light_text_color' => '#112b1c',
+        'dark_background_color' => '#04160b',
+        'dark_surface_color' => '#072714',
+        'dark_text_color' => '#f3fff6',
+    ];
+
     private ?array $palette = null;
 
     private ?string $primaryColor = null;
+
+    private ?array $colors = null;
 
     public function __construct(private readonly TenantContext $tenantContext) {}
 
@@ -30,9 +43,27 @@ class TenantTheme
             return $this->primaryColor;
         }
 
-        $configured = AppSetting::groupValues('theme')->get('primary_color');
+        return $this->primaryColor = $this->colors()['primary_color'];
+    }
 
-        return $this->primaryColor = $this->normalize((string) $configured) ?? self::DEFAULT_PRIMARY;
+    /** @return array<string, string> */
+    public function colors(): array
+    {
+        if (! $this->isTenantRequest()) {
+            return self::DEFAULT_COLORS;
+        }
+
+        if ($this->colors !== null) {
+            return $this->colors;
+        }
+
+        $configured = AppSetting::groupValues('theme');
+
+        return $this->colors = collect(self::DEFAULT_COLORS)
+            ->mapWithKeys(fn (string $default, string $key): array => [
+                $key => $this->normalize((string) $configured->get($key)) ?? $default,
+            ])
+            ->all();
     }
 
     public function palette(?string $primary = null): array
@@ -91,14 +122,110 @@ class TenantTheme
             && $this->contrast($this->toRgb($palette['dark_accent']), [4, 22, 11]) >= 4.5;
     }
 
+    /** @param array<string, string> $colors
+     * @return array<string, string>
+     */
+    public function readabilityErrors(array $colors): array
+    {
+        $colors = array_replace(self::DEFAULT_COLORS, $colors);
+        foreach ($colors as $key => $color) {
+            if ($this->normalize($color) === null) {
+                return [$key => __('theme.validation.format')];
+            }
+        }
+
+        $errors = [];
+        foreach (['light', 'dark'] as $appearance) {
+            $textKey = $appearance.'_text_color';
+            $text = $this->toRgb($colors[$textKey]);
+
+            foreach ([$appearance.'_background_color', $appearance.'_surface_color'] as $surfaceKey) {
+                if ($this->contrast($text, $this->toRgb($colors[$surfaceKey])) < 4.5) {
+                    $errors[$textKey] = __('theme.validation.text_contrast', [
+                        'appearance' => __('theme.'.$appearance.'_mode'),
+                    ]);
+                    break;
+                }
+            }
+        }
+
+        return $errors;
+    }
+
     public function cssVariables(): string
     {
-        $palette = $this->palette();
+        $colors = $this->colors();
+        $palette = $this->palette($colors['primary_color']);
+        $actionRgb = $this->toRgb($colors['action_color']);
+        $actionForeground = $this->toHex($this->readableForeground($actionRgb));
+        $actionHoverTarget = $actionForeground === '#000000' ? [255, 255, 255] : [0, 0, 0];
+        $actionHover = $this->toHex($this->mix($actionRgb, $actionHoverTarget, 0.14));
+        $light = $this->appearancePalette($colors, 'light');
+        $dark = $this->appearancePalette($colors, 'dark');
 
         // Brand colour and semantic colours are deliberately separate. Replacing
         // Tailwind's emerald scale made success/status text inherit arbitrary
         // tenant shades that were not readable on their surrounding surfaces.
-        return ":root { --tenant-primary: {$palette['primary']}; --tenant-primary-rgb: {$palette['primary_rgb']}; --tenant-primary-hover: {$palette['light_hover']}; --tenant-on-primary: {$palette['foreground']}; --tenant-accent-text: {$palette['light_accent']}; --tenant-accent-soft: {$palette['light_soft']}; --color-accent: {$palette['primary']}; --color-accent-content: {$palette['light_accent']}; --color-accent-foreground: {$palette['foreground']}; --app-accent: {$palette['light_accent']}; --app-accent-soft: {$palette['light_soft']}; } .dark { --tenant-primary-hover: {$palette['dark_hover']}; --tenant-accent-text: {$palette['dark_accent']}; --tenant-accent-soft: rgb({$palette['dark_soft_rgb']} / 0.16); --color-accent: {$palette['primary']}; --color-accent-content: {$palette['dark_accent']}; --color-accent-foreground: {$palette['foreground']}; --app-accent: {$palette['dark_accent']}; --app-accent-soft: rgb({$palette['dark_soft_rgb']} / 0.16); }";
+        return ":root { --tenant-primary: {$palette['primary']}; --tenant-primary-rgb: {$palette['primary_rgb']}; --tenant-primary-hover: {$palette['light_hover']}; --tenant-on-primary: {$palette['foreground']}; --tenant-action: {$colors['action_color']}; --tenant-action-hover: {$actionHover}; --tenant-on-action: {$actionForeground}; --tenant-accent-text: {$light['accent']}; --tenant-accent-soft: {$light['accent_soft']}; --color-accent: {$colors['action_color']}; --color-accent-content: {$light['accent']}; --color-accent-foreground: {$actionForeground}; {$this->appearanceCss($light)} } .dark { --tenant-primary-hover: {$palette['dark_hover']}; --tenant-action-hover: {$actionHover}; --tenant-accent-text: {$dark['accent']}; --tenant-accent-soft: {$dark['accent_soft']}; --color-accent: {$colors['action_color']}; --color-accent-content: {$dark['accent']}; --color-accent-foreground: {$actionForeground}; {$this->appearanceCss($dark)} }";
+    }
+
+    /** @param array<string, string> $colors
+     * @return array<string, string>
+     */
+    private function appearancePalette(array $colors, string $appearance): array
+    {
+        $background = $this->toRgb($colors[$appearance.'_background_color']);
+        $surface = $this->toRgb($colors[$appearance.'_surface_color']);
+        $text = $this->toRgb($colors[$appearance.'_text_color']);
+        $primary = $this->toRgb($colors['primary_color']);
+        $muted = $this->mix($text, $background, 0.22);
+
+        if ($this->contrast($muted, $background) < 4.5 || $this->contrast($muted, $surface) < 4.5) {
+            $muted = $text;
+        }
+
+        return [
+            'background' => $this->toHex($background),
+            'surface' => $this->toHex($surface),
+            'surface_soft' => $this->toHex($this->mix($surface, $background, 0.34)),
+            'surface_strong' => $this->toHex($this->mix($surface, $text, 0.04)),
+            'border' => $this->toHex($this->mix($text, $surface, 0.72)),
+            'text' => $this->toHex($text),
+            'muted' => $this->toHex($muted),
+            'accent' => $this->toHex($this->ensureContrastOnSurfaces($primary, [$background, $surface], $text)),
+            'accent_soft' => $this->toHex($this->mix($primary, $surface, 0.86)),
+        ];
+    }
+
+    /** @param array<string, string> $palette */
+    private function appearanceCss(array $palette): string
+    {
+        return "--app-bg: {$palette['background']}; --app-panel: {$palette['surface']}; --app-panel-soft: {$palette['surface_soft']}; --app-panel-strong: {$palette['surface_strong']}; --app-border: {$palette['border']}; --app-control-border: {$palette['border']}; --app-text: {$palette['text']}; --app-muted: {$palette['muted']}; --app-control-background: {$palette['surface']}; --app-page-gradient-start: {$palette['surface']}; --app-accent: {$palette['accent']}; --app-accent-soft: {$palette['accent_soft']};";
+    }
+
+    /** @param array<int, array<int, int>> $surfaces
+     * @param  array<int, int>  $fallback
+     * @return array<int, int>
+     */
+    private function ensureContrastOnSurfaces(array $color, array $surfaces, array $fallback): array
+    {
+        $isReadable = fn (array $candidate): bool => collect($surfaces)
+            ->every(fn (array $surface): bool => $this->contrast($candidate, $surface) >= 4.5);
+
+        if ($isReadable($color)) {
+            return $color;
+        }
+
+        foreach ([[0, 0, 0], [255, 255, 255]] as $target) {
+            for ($amount = 0.05; $amount <= 1; $amount += 0.05) {
+                $candidate = $this->mix($color, $target, $amount);
+                if ($isReadable($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return $fallback;
     }
 
     private function normalize(string $color): ?string

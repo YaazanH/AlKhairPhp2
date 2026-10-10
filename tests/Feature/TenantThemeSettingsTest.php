@@ -52,6 +52,57 @@ class TenantThemeSettingsTest extends TestCase
         $this->assertDatabaseMissing('app_settings', ['group' => 'theme', 'key' => 'primary_color']);
     }
 
+    public function test_tenant_administrator_can_customize_light_dark_surface_text_and_action_colours(): void
+    {
+        $administrator = User::factory()->create(['is_tenant_administrator' => true]);
+        $this->selectTenant();
+        $colors = [
+            'primary_color' => '#7452d6',
+            'action_color' => '#d97706',
+            'light_background_color' => '#f7f4ed',
+            'light_surface_color' => '#ffffff',
+            'light_text_color' => '#252018',
+            'dark_background_color' => '#10131a',
+            'dark_surface_color' => '#1b2130',
+            'dark_text_color' => '#f4f7ff',
+        ];
+
+        $this->actingAs($administrator)
+            ->put(route('settings.theme.update'), $colors)
+            ->assertRedirect()
+            ->assertSessionHas('status', __('theme.saved'));
+
+        foreach ($colors as $key => $value) {
+            $this->assertSame($value, AppSetting::groupValues('theme')->get($key));
+        }
+
+        $this->withoutMiddleware(RedirectToTenantSetup::class)
+            ->actingAs($administrator)
+            ->get(route('settings.theme.edit'))
+            ->assertOk()
+            ->assertSee('--tenant-action: #d97706', false)
+            ->assertSee('--app-bg: #f7f4ed', false)
+            ->assertSee('--app-panel: #ffffff', false)
+            ->assertSee('--app-text: #252018', false)
+            ->assertSee('name="dark_background_color"', false);
+    }
+
+    public function test_theme_rejects_text_without_enough_surface_contrast(): void
+    {
+        $administrator = User::factory()->create(['is_tenant_administrator' => true]);
+        $this->selectTenant();
+
+        $this->actingAs($administrator)
+            ->from(route('settings.theme.edit'))
+            ->put(route('settings.theme.update'), [
+                'light_background_color' => '#ffffff',
+                'light_surface_color' => '#f8f8f8',
+                'light_text_color' => '#eeeeee',
+            ])
+            ->assertRedirect(route('settings.theme.edit'))
+            ->assertSessionHasErrors('light_text_color');
+    }
+
     public function test_tenant_administrator_can_discover_theme_settings_without_general_settings_permission(): void
     {
         $administrator = User::factory()->create(['is_tenant_administrator' => true]);

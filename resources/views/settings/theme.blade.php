@@ -1,3 +1,17 @@
+@php
+    $themeFields = [
+        'primary_color' => ['label' => __('theme.fields.primary'), 'help' => __('theme.fields.primary_help')],
+        'action_color' => ['label' => __('theme.fields.action'), 'help' => __('theme.fields.action_help')],
+        'light_background_color' => ['label' => __('theme.fields.light_background'), 'help' => __('theme.fields.background_help')],
+        'light_surface_color' => ['label' => __('theme.fields.light_surface'), 'help' => __('theme.fields.surface_help')],
+        'light_text_color' => ['label' => __('theme.fields.light_text'), 'help' => __('theme.fields.text_help')],
+        'dark_background_color' => ['label' => __('theme.fields.dark_background'), 'help' => __('theme.fields.background_help')],
+        'dark_surface_color' => ['label' => __('theme.fields.dark_surface'), 'help' => __('theme.fields.surface_help')],
+        'dark_text_color' => ['label' => __('theme.fields.dark_text'), 'help' => __('theme.fields.text_help')],
+    ];
+    $initialColors = collect($colors)->mapWithKeys(fn ($value, $key) => [$key => old($key, $value)])->all();
+@endphp
+
 <x-layouts.app :title="__('theme.title')">
     <div class="page-stack">
         <x-settings.admin-nav current="settings.theme.edit" />
@@ -11,10 +25,10 @@
         <section
             class="surface-panel overflow-hidden"
             x-data="{
-                colour: @js(old('primary_color', $primaryColor)),
+                colors: @js($initialColors),
                 rgb(hex) {
                     const value = hex.replace('#', '');
-                    if (!/^[0-9a-fA-F]{6}$/.test(value)) return [11, 143, 67];
+                    if (!/^[0-9a-fA-F]{6}$/.test(value)) return [0, 0, 0];
                     return [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16));
                 },
                 luminance(hex) {
@@ -25,30 +39,10 @@
                     return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
                 },
                 foreground(hex) { return this.luminance(hex) > 0.179 ? '#000000' : '#ffffff'; },
-                contrast(first, second) {
-                    const lighter = Math.max(this.luminance(first), this.luminance(second));
-                    const darker = Math.min(this.luminance(first), this.luminance(second));
-                    return (lighter + 0.05) / (darker + 0.05);
-                },
-                mix(hex, target, amount) {
-                    const source = this.rgb(hex);
-                    const destination = this.rgb(target);
-                    const channels = source.map((channel, index) => Math.round(channel + (destination[index] - channel) * amount));
-                    return '#' + channels.map(channel => channel.toString(16).padStart(2, '0')).join('');
-                },
-                accent(hex, background) {
-                    if (this.contrast(hex, background) >= 4.5) return hex;
-                    const target = this.luminance(background) > 0.5 ? '#000000' : '#ffffff';
-                    for (let amount = 0.05; amount <= 1; amount += 0.05) {
-                        const candidate = this.mix(hex, target, amount);
-                        if (this.contrast(candidate, background) >= 4.5) return candidate;
-                    }
-                    return target;
-                },
-                normalise() {
-                    let value = this.colour.trim();
+                normalise(key) {
+                    let value = this.colors[key].trim();
                     if (value && !value.startsWith('#')) value = '#' + value;
-                    this.colour = value.toLowerCase();
+                    this.colors[key] = value.toLowerCase();
                 }
             }"
         >
@@ -58,21 +52,25 @@
                 <p class="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">{{ __('theme.subtitle') }}</p>
             </div>
 
-            <div class="grid gap-7 p-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:p-7">
-                <form method="POST" action="{{ route('settings.theme.update') }}" class="space-y-5">
+            <div class="grid gap-7 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] lg:p-7">
+                <form method="POST" action="{{ route('settings.theme.update') }}" class="space-y-6">
                     @csrf
                     @method('PUT')
 
-                    <div>
-                        <label for="tenant-primary-colour" class="block text-sm font-semibold text-white">{{ __('theme.primary_label') }}</label>
-                        <p class="mt-1 text-xs leading-6 text-neutral-400">{{ __('theme.primary_help') }}</p>
-                        <div class="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/10 p-3">
-                            <input id="tenant-primary-colour" type="color" x-model="colour" class="h-12 w-16 cursor-pointer rounded-xl border-0 bg-transparent p-0" aria-label="{{ __('theme.picker_label') }}">
-                            <input name="primary_color" type="text" x-model="colour" x-on:blur="normalise" maxlength="7" dir="ltr" class="min-w-0 flex-1 rounded-xl border px-4 py-3 font-mono text-sm" placeholder="#0b8f43" autocomplete="off">
-                        </div>
-                        @error('primary_color')
-                            <p class="mt-2 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200" role="alert">{{ $message }}</p>
-                        @enderror
+                    <div class="grid gap-4 md:grid-cols-2">
+                        @foreach($themeFields as $key => $field)
+                            <label class="rounded-2xl border border-white/10 bg-black/10 p-4" for="tenant-theme-{{ $key }}">
+                                <span class="block text-sm font-semibold text-white">{{ $field['label'] }}</span>
+                                <span class="mt-1 block text-xs leading-5 text-neutral-400">{{ $field['help'] }}</span>
+                                <span class="mt-3 flex items-center gap-3">
+                                    <input id="tenant-theme-{{ $key }}" type="color" x-model="colors.{{ $key }}" class="h-11 w-14 shrink-0 cursor-pointer rounded-lg border-0 bg-transparent p-0" aria-label="{{ $field['label'] }}">
+                                    <input name="{{ $key }}" type="text" x-model="colors.{{ $key }}" x-on:blur="normalise('{{ $key }}')" maxlength="7" dir="ltr" class="min-w-0 flex-1 rounded-xl border px-3 py-2.5 font-mono text-sm" autocomplete="off">
+                                </span>
+                                @error($key)
+                                    <span class="mt-2 block rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200" role="alert">{{ $message }}</span>
+                                @enderror
+                            </label>
+                        @endforeach
                     </div>
 
                     <div class="theme-readability-note rounded-2xl border p-4 text-sm leading-6">
@@ -80,49 +78,30 @@
                         {{ __('theme.readability_message') }}
                     </div>
 
-                    <div class="flex flex-col gap-3 sm:flex-row">
-                        <button type="submit" class="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white transition hover:bg-emerald-800">{{ __('theme.save') }}</button>
-                    </div>
+                    <button type="submit" class="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white transition hover:bg-emerald-800">{{ __('theme.save') }}</button>
                 </form>
 
                 <div>
-                    <div class="flex items-end justify-between gap-4">
-                        <div>
-                            <h2 class="text-lg font-semibold text-white">{{ __('theme.preview_title') }}</h2>
-                            <p class="mt-1 text-xs text-neutral-400">{{ __('theme.preview_help') }}</p>
-                        </div>
-                        <span class="rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-neutral-300" x-text="colour"></span>
-                    </div>
+                    <h2 class="text-lg font-semibold text-white">{{ __('theme.preview_title') }}</h2>
+                    <p class="mt-1 text-xs text-neutral-400">{{ __('theme.preview_help') }}</p>
 
-                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                        <article class="overflow-hidden rounded-3xl border border-black/10 bg-[#fbfaf4] text-[#112b1c] shadow-xl">
-                            <div class="h-2" x-bind:style="`background:${colour}`"></div>
-                            <div class="p-5">
-                                <p class="text-xs font-bold uppercase tracking-wider" x-bind:style="`color:${accent(colour, '#fbfaf4')}`">{{ __('theme.light_mode') }}</p>
-                                <h3 class="mt-3 text-xl font-bold">{{ __('theme.preview_heading') }}</h3>
-                                <p class="mt-2 text-sm text-[#48614f]">{{ __('theme.preview_copy') }}</p>
-                                <button type="button" class="mt-5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm" x-bind:style="`background:${colour};color:${foreground(colour)}`">{{ __('theme.preview_action') }}</button>
-                            </div>
-                        </article>
-
-                        <article class="overflow-hidden rounded-3xl border border-white/10 bg-[#04160b] text-[#f3fff6] shadow-xl">
-                            <div class="h-2" x-bind:style="`background:${colour}`"></div>
-                            <div class="p-5">
-                                <p class="text-xs font-bold uppercase tracking-wider" x-bind:style="`color:${accent(colour, '#04160b')}`">{{ __('theme.dark_mode') }}</p>
-                                <h3 class="mt-3 text-xl font-bold">{{ __('theme.preview_heading') }}</h3>
-                                <p class="mt-2 text-sm text-[#accdb5]">{{ __('theme.preview_copy') }}</p>
-                                <button type="button" class="mt-5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm" x-bind:style="`background:${colour};color:${foreground(colour)}`">{{ __('theme.preview_action') }}</button>
-                            </div>
-                        </article>
-                    </div>
-
-                    <div class="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-neutral-400">{{ __('theme.derived_palette') }}</p>
-                        <div class="mt-3 grid grid-cols-6 overflow-hidden rounded-xl" aria-hidden="true">
-                            @foreach([92, 76, 58, 38, 18, 0] as $whiteMix)
-                                <span class="h-10" x-bind:style="`background:color-mix(in srgb, ${colour} ${100 - {{ $whiteMix }}}%, white {{ $whiteMix }}%)`"></span>
-                            @endforeach
-                        </div>
+                    <div class="mt-4 grid gap-4">
+                        @foreach(['light', 'dark'] as $appearance)
+                            <article
+                                class="overflow-hidden rounded-3xl border shadow-xl"
+                                x-bind:style="`background:${colors.{{ $appearance }}_background_color};color:${colors.{{ $appearance }}_text_color};border-color:${colors.primary_color}`"
+                            >
+                                <div class="h-2" x-bind:style="`background:${colors.primary_color}`"></div>
+                                <div class="p-5">
+                                    <p class="text-xs font-bold uppercase tracking-wider">{{ __('theme.'.$appearance.'_mode') }}</p>
+                                    <div class="mt-3 rounded-2xl border p-4" x-bind:style="`background:${colors.{{ $appearance }}_surface_color};border-color:${colors.primary_color}`">
+                                        <h3 class="text-xl font-bold">{{ __('theme.preview_heading') }}</h3>
+                                        <p class="mt-2 text-sm">{{ __('theme.preview_copy') }}</p>
+                                        <button type="button" class="mt-5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm" x-bind:style="`background:${colors.action_color};color:${foreground(colors.action_color)}`">{{ __('theme.preview_action') }}</button>
+                                    </div>
+                                </div>
+                            </article>
+                        @endforeach
                     </div>
                 </div>
             </div>

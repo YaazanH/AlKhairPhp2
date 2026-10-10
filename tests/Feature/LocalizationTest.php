@@ -226,7 +226,7 @@ class LocalizationTest extends TestCase
         $this->assertStringNotContainsString('margin-inline-end: 1.5rem;', implode("\n", $mobileHeaderRules[1]));
         $this->assertStringNotContainsString('html:not(.dark) .mobile-header-mark {', $styles);
         $this->assertStringContainsString('.app-logo-period-subtitle {', $styles);
-        $this->assertStringContainsString(".app-logo-subtitle {\n    color: var(--app-muted);\n    font-size: 0.75rem;", $styles);
+        $this->assertStringContainsString(".app-logo-subtitle {\n    color: var(--app-muted);\n    font-size: 0.875rem;", $styles);
 
         $script = file_get_contents(resource_path('js/app.js'));
         $this->assertStringContainsString('function synchronizeAppLogoPeriodTypography()', $script);
