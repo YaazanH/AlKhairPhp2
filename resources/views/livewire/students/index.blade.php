@@ -1983,6 +1983,7 @@ new class extends Component
 
                 <div class="admin-toolbar__actions">
                     @can('students.create')
+                        <a href="{{ route('students.import') }}" wire:navigate class="pill-link">{{ __('crud.students.import.action') }}</a>
                         <x-add-action-button wire:click="openCreateModal" :label="__('crud.common.actions.create')" />
                     @endcan
                     <x-export-action-button :href="route('students.export', ['search' => $search, 'status' => $statusFilter])" :label="__('crud.common.actions.export')" />

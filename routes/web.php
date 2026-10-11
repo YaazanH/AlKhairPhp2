@@ -47,6 +47,7 @@ use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\ReportLibraryInstallController;
 use App\Http\Controllers\RequiredPasswordChangeController;
 use App\Http\Controllers\StudentAttendanceExportController;
+use App\Http\Controllers\StudentImportTemplateController;
 use App\Http\Controllers\SystemBackupDownloadController;
 use App\Http\Controllers\TeacherAttendanceExportController;
 use App\Http\Controllers\TenantBackupController;
@@ -301,6 +302,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('teachers/export', [AdminExportController::class, 'teachers'])->middleware('permission:teachers.view')->name('teachers.export');
     Volt::route('students', 'students.index')->middleware('permission:students.view')->name('students.index');
     Route::get('students/export', [AdminExportController::class, 'students'])->middleware('permission:students.view')->name('students.export');
+    Volt::route('students/import', 'students.import')->middleware('permission:students.create')->name('students.import');
+    Route::get('students/import/template', StudentImportTemplateController::class)->middleware('permission:students.create')->name('students.import.template');
     Volt::route('students/photos/bulk', 'students.bulk-photos')->middleware('permission:students.update')->name('students.bulk-photos');
     Volt::route('students/progress/{student?}', 'students.progress')->middleware('permission:students.view')->name('students.progress');
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
