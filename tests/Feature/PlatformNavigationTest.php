@@ -18,6 +18,7 @@ class PlatformNavigationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        app()->setLocale('en');
         config()->set('database.connections.landlord', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true]);
         DB::purge('landlord');
         Artisan::call('migrate', ['--database' => 'landlord', '--path' => database_path('migrations/landlord'), '--realpath' => true, '--force' => true]);
@@ -32,10 +33,11 @@ class PlatformNavigationTest extends TestCase
     public function test_owner_sees_the_same_complete_navigation_on_platform_pages(): void
     {
         $owner = $this->administrator('owner@example.test');
-        $expected = ['Tenants overview', 'New tenant', 'Packages', 'Subscriptions', 'Backups', 'Storage', __('support.platform.navigation'), 'Landing page', 'Report library', 'Platform users'];
+        $expected = ['Tenants overview', 'Platform metrics', 'New tenant', 'Packages', 'Subscriptions', 'Backups', 'Storage', __('support.platform.navigation'), 'Landing page', 'Report library', 'Platform users'];
 
         foreach ([
             route('platform.dashboard'),
+            route('platform.metrics'),
             route('platform.backups.index'),
             route('platform.storage.index'),
             route('platform.landing.edit'),
@@ -58,6 +60,7 @@ class PlatformNavigationTest extends TestCase
         $this->actingAs($editor, 'platform')->get(route('platform.landing.edit'))
             ->assertOk()
             ->assertSee('Tenants overview')
+            ->assertSee('Platform metrics')
             ->assertSee('Landing page')
             ->assertDontSee('>Backups</div>', false)
             ->assertDontSee('>Storage</div>', false)

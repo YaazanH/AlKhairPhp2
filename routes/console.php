@@ -21,6 +21,11 @@ Schedule::command('backup:health')
     ->hourly()
     ->withoutOverlapping(30);
 
+Schedule::command('saas:refresh-platform-metrics')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->onOneServer();
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();

@@ -8,6 +8,7 @@
     <flux:navlist variant="outline" class="mt-6">
         @if($platformUser->hasPlatformPermission('view.dashboard'))
             <flux:navlist.item icon="squares-2x2" href="{{ route('platform.dashboard') }}" :current="request()->routeIs('platform.dashboard')">{{ __('platform.ui.navigation.tenants') }}</flux:navlist.item>
+            <flux:navlist.item icon="chart-bar" href="{{ route('platform.metrics') }}" :current="request()->routeIs('platform.metrics')">{{ __('platform.ui.navigation.metrics') }}</flux:navlist.item>
         @endif
         @if($platformUser->hasPlatformPermission('manage.tenants'))
             <flux:navlist.item icon="plus-circle" href="{{ route('platform.tenants.create') }}" :current="request()->routeIs('platform.tenants.create')">{{ __('platform.ui.navigation.new_tenant') }}</flux:navlist.item>

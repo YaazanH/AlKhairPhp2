@@ -20,6 +20,7 @@ use App\Http\Controllers\Platform\PlatformAccessController;
 use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
 use App\Http\Controllers\Platform\PlatformLandingPageController;
+use App\Http\Controllers\Platform\PlatformMetricsController;
 use App\Http\Controllers\Platform\PlatformRequiredPasswordChangeController;
 use App\Http\Controllers\Platform\PlatformSubscriptionSettingController;
 use App\Http\Controllers\Platform\PlatformSupportAttachmentController;
@@ -89,6 +90,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::delete('access/roles/{role}', [PlatformAccessController::class, 'destroyRole'])->middleware('platform.owner')->name('access.roles.destroy');
         Route::put('access/users/{administrator}/roles', [PlatformAccessController::class, 'syncAdministratorRoles'])->middleware('platform.owner')->name('access.users.roles');
         Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
+        Route::get('metrics', PlatformMetricsController::class)->middleware('platform.permission:view.dashboard')->name('metrics');
         Route::get('landing-page', [PlatformLandingPageController::class, 'edit'])->middleware('platform.permission:manage.landing-page,publish.landing-page')->name('landing.edit');
         Route::put('landing-page', [PlatformLandingPageController::class, 'update'])->middleware('platform.permission:manage.landing-page')->name('landing.update');
         Route::post('landing-page/publish', [PlatformLandingPageController::class, 'publish'])->middleware('platform.permission:publish.landing-page')->name('landing.publish');

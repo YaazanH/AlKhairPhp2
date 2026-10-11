@@ -7,6 +7,12 @@ return [
         'url' => env('PHOTON_API_URL', 'https://photon.komoot.io/api/'),
     ],
 
+    'hostinger' => [
+        'token' => env('HOSTINGER_API_TOKEN'),
+        'virtual_machine_id' => env('HOSTINGER_VPS_ID'),
+        'base_url' => env('HOSTINGER_API_URL', 'https://developers.hostinger.com/api'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

@@ -91,6 +91,8 @@ class PlatformAdministrationTest extends TestCase
         $this->get(route('platform.dashboard'))
             ->assertOk()
             ->assertSee('Tenant overview')
+            ->assertSee('Platform metrics')
+            ->assertDontSee('data-platform-management-metrics', false)
             ->assertSee('Al Noor Centre')
             ->assertSee('Manage')
             ->assertSee('href="http://open-centre.localhost:8000"', false)
@@ -100,6 +102,18 @@ class PlatformAdministrationTest extends TestCase
             ->assertSee('x-on:click="$flux.appearance = \'light\'"', false)
             ->assertSee('x-on:click="$flux.appearance = \'dark\'"', false)
             ->assertSee('x-on:click="$flux.appearance = \'system\'"', false);
+
+        $this->get(route('platform.metrics'))
+            ->assertOk()
+            ->assertSee('Platform metrics')
+            ->assertSee('Platform health')
+            ->assertSee('Tenant data')
+            ->assertSee('Server disk')
+            ->assertSee('Backup health')
+            ->assertSee('Hostinger infrastructure')
+            ->assertSee('data-platform-management-metrics', false)
+            ->assertSee('data-platform-alert="backup_missing"', false)
+            ->assertDontSee('Al Noor Centre');
     }
 
     public function test_inactive_platform_administrator_cannot_sign_in(): void
@@ -141,6 +155,9 @@ class PlatformAdministrationTest extends TestCase
             ->assertDontSee('href="'.route('platform.login').'"', false);
 
         $this->get(route('platform.dashboard'))
+            ->assertRedirect(route('platform.login'));
+
+        $this->get(route('platform.metrics'))
             ->assertRedirect(route('platform.login'));
     }
 
