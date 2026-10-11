@@ -21,8 +21,8 @@ Schedule::command('backup:health')
     ->hourly()
     ->withoutOverlapping(30);
 
-Schedule::command('saas:refresh-platform-metrics')
-    ->everyFiveMinutes()
+Schedule::command('saas:refresh-platform-metrics --scheduled')
+    ->everyMinute()
     ->withoutOverlapping(10)
     ->onOneServer();
 

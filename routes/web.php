@@ -90,7 +90,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::delete('access/roles/{role}', [PlatformAccessController::class, 'destroyRole'])->middleware('platform.owner')->name('access.roles.destroy');
         Route::put('access/users/{administrator}/roles', [PlatformAccessController::class, 'syncAdministratorRoles'])->middleware('platform.owner')->name('access.users.roles');
         Route::get('/', PlatformDashboardController::class)->middleware('platform.permission:view.dashboard')->name('dashboard');
-        Route::get('metrics', PlatformMetricsController::class)->middleware('platform.permission:view.dashboard')->name('metrics');
+        Route::get('metrics', [PlatformMetricsController::class, 'index'])->middleware('platform.permission:view.dashboard')->name('metrics');
+        Route::put('metrics/settings', [PlatformMetricsController::class, 'update'])->middleware('platform.owner')->name('metrics.settings.update');
         Route::get('landing-page', [PlatformLandingPageController::class, 'edit'])->middleware('platform.permission:manage.landing-page,publish.landing-page')->name('landing.edit');
         Route::put('landing-page', [PlatformLandingPageController::class, 'update'])->middleware('platform.permission:manage.landing-page')->name('landing.update');
         Route::post('landing-page/publish', [PlatformLandingPageController::class, 'publish'])->middleware('platform.permission:publish.landing-page')->name('landing.publish');

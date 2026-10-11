@@ -43,6 +43,35 @@
         <p class="mt-1 text-zinc-500">{{ __('platform.ui.metrics.description') }}</p>
     </header>
 
+    @if(session('status'))
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>
+    @endif
+
+    @if(auth('platform')->user()->isPlatformOwner())
+        <section class="rounded-2xl border bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" data-platform-metric-settings>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h2 class="text-lg font-bold">{{ __('platform.ui.metrics.settings_title') }}</h2>
+                    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('platform.ui.metrics.settings_description') }}</p>
+                </div>
+                <form method="POST" action="{{ route('platform.metrics.settings.update') }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    @csrf
+                    @method('PUT')
+                    <label class="grid gap-1 text-sm font-medium">
+                        <span>{{ __('platform.ui.metrics.refresh_interval') }}</span>
+                        <select name="metrics_refresh_minutes" class="rounded-xl border px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950">
+                            @foreach([1, 5, 10, 15, 30] as $minutes)
+                                <option value="{{ $minutes }}" @selected((int) $metricSettings->metrics_refresh_minutes === $minutes)>{{ trans_choice('platform.ui.metrics.minutes', $minutes, ['count' => $minutes]) }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <button class="rounded-xl bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800">{{ __('platform.ui.metrics.save_settings') }}</button>
+                </form>
+            </div>
+            @error('metrics_refresh_minutes')<p class="mt-3 text-sm font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+        </section>
+    @endif
+
     @if($alerts !== [])
         <section class="space-y-3" aria-labelledby="platform-alerts-title" data-platform-alerts>
             <h2 id="platform-alerts-title" class="text-xl font-bold">{{ __('platform.ui.dashboard.alerts_title') }}</h2>
@@ -162,5 +191,48 @@
                 </div>
             @endif
         </article>
+    </section>
+
+    @php
+        $historyPoints = $metricHistory['points'];
+        $networkSuffix = filled($metricHistory['network_unit']) ? ' '.$metricHistory['network_unit'] : '';
+    @endphp
+    <section class="space-y-4" data-platform-metric-history>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <h2 class="text-xl font-bold">{{ __('platform.ui.metrics.history_title') }}</h2>
+                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('platform.ui.metrics.history_description') }}</p>
+            </div>
+            <nav class="inline-flex rounded-xl border bg-white p-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="{{ __('platform.ui.metrics.range') }}">
+                @foreach(['24h', '7d', '30d'] as $range)
+                    <a href="{{ route('platform.metrics', ['range' => $range]) }}" class="rounded-lg px-3 py-2 {{ $metricHistory['range'] === $range ? 'bg-emerald-700 font-semibold text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800' }}">{{ __('platform.ui.metrics.ranges.'.$range) }}</a>
+                @endforeach
+            </nav>
+        </div>
+
+        <div class="grid gap-4 xl:grid-cols-2">
+            <x-platform-metric-chart :title="__('platform.ui.metrics.resource_chart')" :description="__('platform.ui.metrics.resource_chart_help')" :points="$historyPoints" format="percent" suffix="%" :series="[
+                ['label' => __('platform.ui.metrics.cpu'), 'key' => 'cpu_average', 'colour' => '#059669'],
+                ['label' => __('platform.ui.metrics.ram'), 'key' => 'ram_average', 'colour' => '#0284c7'],
+            ]" />
+            <x-platform-metric-chart :title="__('platform.ui.metrics.disk_chart')" :points="$historyPoints" format="percent" suffix="%" :series="[
+                ['label' => __('platform.ui.metrics.server_disk'), 'key' => 'server_used_percent', 'colour' => '#d97706'],
+            ]" />
+            <x-platform-metric-chart :title="__('platform.ui.metrics.storage_chart')" :points="$historyPoints" format="bytes" :series="[
+                ['label' => __('platform.ui.metrics.tenant_storage'), 'key' => 'tenant_storage_bytes', 'colour' => '#7c3aed'],
+            ]" />
+            <x-platform-metric-chart :title="__('platform.ui.metrics.network_chart')" :points="$historyPoints" format="decimal" :suffix="$networkSuffix" :series="[
+                ['label' => __('platform.ui.metrics.incoming'), 'key' => 'incoming_total', 'colour' => '#0891b2'],
+                ['label' => __('platform.ui.metrics.outgoing'), 'key' => 'outgoing_total', 'colour' => '#e11d48'],
+            ]" />
+            <div class="xl:col-span-2">
+                <x-platform-metric-chart :title="__('platform.ui.metrics.tenant_chart')" :points="$historyPoints" :series="[
+                    ['label' => __('platform.ui.dashboard.active_tenants'), 'key' => 'tenant_active', 'colour' => '#059669'],
+                    ['label' => __('platform.ui.dashboard.trial_tenants'), 'key' => 'tenant_trial', 'colour' => '#0284c7'],
+                    ['label' => __('platform.ui.dashboard.suspended_tenants'), 'key' => 'tenant_suspended', 'colour' => '#d97706'],
+                    ['label' => __('platform.ui.dashboard.failed_tenants'), 'key' => 'tenant_failed', 'colour' => '#dc2626'],
+                ]" />
+            </div>
+        </div>
     </section>
 </x-platform-layout>

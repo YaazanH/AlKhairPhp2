@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Models\Landlord\PlatformPermission;
+use App\Models\Landlord\PlatformRole;
 use App\Models\Landlord\PlatformSubscriptionLedgerEntry;
 use App\Models\Landlord\SaasPlatformSetting;
 use App\Models\Landlord\SubscriptionVoucher;
@@ -112,6 +114,8 @@ class PlatformAdministrationTest extends TestCase
             ->assertSee('Backup health')
             ->assertSee('Hostinger infrastructure')
             ->assertSee('data-platform-management-metrics', false)
+            ->assertSee('data-platform-metric-settings', false)
+            ->assertSee('data-platform-metric-history', false)
             ->assertSee('data-platform-alert="backup_missing"', false)
             ->assertDontSee('Al Noor Centre');
     }
@@ -492,6 +496,62 @@ class PlatformAdministrationTest extends TestCase
             'platform_administrator_id' => $administrator->id,
             'event' => 'subscription_retention_setting_updated',
         ], 'landlord');
+    }
+
+    public function test_platform_owner_can_update_the_metrics_refresh_interval(): void
+    {
+        $this->seed(LandlordCatalogSeeder::class);
+        $administrator = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Owner',
+            'email' => 'metrics-owner@example.test',
+            'password' => 'secret-password',
+        ]);
+
+        $this->actingAs($administrator, 'platform')
+            ->from(route('platform.metrics'))
+            ->put(route('platform.metrics.settings.update'), [
+                'metrics_refresh_minutes' => 10,
+            ])
+            ->assertRedirect(route('platform.metrics'))
+            ->assertSessionHas('status');
+
+        $this->assertSame(10, SaasPlatformSetting::current()->fresh()->metrics_refresh_minutes);
+        $this->assertDatabaseHas('platform_audit_events', [
+            'platform_administrator_id' => $administrator->id,
+            'event' => 'platform_metrics_refresh_interval_updated',
+        ], 'landlord');
+    }
+
+    public function test_non_owner_cannot_update_the_metrics_refresh_interval(): void
+    {
+        $owner = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Platform Owner',
+            'email' => 'owner-before-metrics-viewer@example.test',
+            'password' => 'secret-password',
+        ]);
+        $this->assertTrue($owner->isPlatformOwner());
+
+        $role = PlatformRole::query()->create(['name' => 'Metrics viewer']);
+        $role->permissions()->sync([
+            PlatformPermission::query()->where('code', 'view.dashboard')->value('id'),
+        ]);
+        $viewer = PlatformAdministrator::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Metrics Viewer',
+            'email' => 'metrics-viewer@example.test',
+            'password' => 'secret-password',
+        ]);
+        $viewer->roles()->sync([$role->id]);
+
+        $this->actingAs($viewer, 'platform')
+            ->put(route('platform.metrics.settings.update'), [
+                'metrics_refresh_minutes' => 1,
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(5, SaasPlatformSetting::current()->metrics_refresh_minutes);
     }
 
     public function test_platform_owner_can_record_an_offline_payment_and_view_or_download_its_receipt(): void

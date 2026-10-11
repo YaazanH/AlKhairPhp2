@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\Landlord\PlatformManagementMetrics;
+use App\Services\Landlord\PlatformMetricHistory;
 use Mockery;
 use Tests\TestCase;
 
@@ -17,6 +18,9 @@ class RefreshPlatformMetricsCommandTest extends TestCase
             'infrastructure' => ['status' => 'unconfigured'],
         ]);
         $this->app->instance(PlatformManagementMetrics::class, $metrics);
+        $history = Mockery::mock(PlatformMetricHistory::class);
+        $history->shouldReceive('record')->once()->with(Mockery::type('array'));
+        $this->app->instance(PlatformMetricHistory::class, $history);
 
         $this->artisan('saas:refresh-platform-metrics')
             ->expectsOutputToContain('Platform metrics refreshed. 3 tenant(s); 0 unavailable storage scan(s).')
@@ -33,6 +37,9 @@ class RefreshPlatformMetricsCommandTest extends TestCase
             'infrastructure' => ['status' => 'unavailable'],
         ]);
         $this->app->instance(PlatformManagementMetrics::class, $metrics);
+        $history = Mockery::mock(PlatformMetricHistory::class);
+        $history->shouldReceive('record')->once()->with(Mockery::type('array'));
+        $this->app->instance(PlatformMetricHistory::class, $history);
 
         $this->artisan('saas:refresh-platform-metrics')
             ->expectsOutputToContain('Hostinger metrics are unavailable.')

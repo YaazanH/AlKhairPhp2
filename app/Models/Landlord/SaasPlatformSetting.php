@@ -7,6 +7,7 @@ class SaasPlatformSetting extends LandlordModel
     protected $fillable = [
         'suspended_data_retention_months',
         'support_request_options',
+        'metrics_refresh_minutes',
     ];
 
     protected function casts(): array
@@ -14,6 +15,7 @@ class SaasPlatformSetting extends LandlordModel
         return [
             'suspended_data_retention_months' => 'integer',
             'support_request_options' => 'array',
+            'metrics_refresh_minutes' => 'integer',
         ];
     }
 
@@ -21,6 +23,7 @@ class SaasPlatformSetting extends LandlordModel
     {
         return static::query()->firstOrCreate([], [
             'suspended_data_retention_months' => 12,
+            'metrics_refresh_minutes' => 5,
         ]);
     }
 }
