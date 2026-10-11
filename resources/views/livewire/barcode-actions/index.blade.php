@@ -193,9 +193,11 @@ new class extends Component {
                         <p>{{ __('barcodes.actions.sync.points_source') }}</p>
                         <p>{{ __('barcodes.actions.sync.attendance_source') }}</p>
                     </div>
-                    <div class="mt-5">
-                        <a href="{{ route('settings.points') }}" wire:navigate class="pill-link pill-link--accent">{{ __('barcodes.actions.sync.manage_points') }}</a>
-                    </div>
+                    @if (app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('points_rewards'))
+                        <div class="mt-5">
+                            <a href="{{ route('settings.points') }}" wire:navigate class="pill-link pill-link--accent">{{ __('barcodes.actions.sync.manage_points') }}</a>
+                        </div>
+                    @endif
                 </section>
             @endcan
 

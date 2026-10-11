@@ -84,6 +84,8 @@ class EnsureTenantModules
             'quran-tests.' => 'quran_tests',
             'assessments.' => 'assessments',
             'points.' => 'points_rewards',
+            'settings.points' => 'points_rewards',
+            'settings.tracking' => 'points_rewards',
             'curricula.' => 'curriculum',
             'curriculum-resources.' => 'curriculum',
             'settings.curriculum-subjects' => 'curriculum',

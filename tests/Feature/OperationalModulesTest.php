@@ -111,6 +111,25 @@ class OperationalModulesTest extends TestCase
         $this->assertNotContains('point_ledger', $keys);
     }
 
+    public function test_disabled_points_module_hides_settings_links_and_rejects_settings_routes(): void
+    {
+        $this->modules(['students']);
+        $this->admin();
+
+        $pointsSettingsUrl = route('settings.points');
+
+        $this->get(route('settings.organization'))
+            ->assertOk()
+            ->assertDontSee('href="'.$pointsSettingsUrl.'"', false);
+
+        $this->get(route('barcode-actions.index'))
+            ->assertOk()
+            ->assertDontSee('href="'.$pointsSettingsUrl.'"', false);
+
+        $this->get($pointsSettingsUrl)->assertForbidden();
+        $this->get(route('settings.tracking'))->assertForbidden();
+    }
+
     public function test_center_student_attendance_works_without_classes(): void
     {
         $this->modules(['student_attendance']);

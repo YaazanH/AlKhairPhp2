@@ -11,6 +11,7 @@
     $showBarcodeSettings = ! $showWebsiteSettings
         && auth()->user()?->can('barcode-actions.view')
         && (bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
+    $showPointsSettings = app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('points_rewards');
 @endphp
 
 <div class="surface-panel p-4">
@@ -29,9 +30,11 @@
                     </a>
                 @endif
                 @can('settings.manage')
-                    <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
-                    </a>
+                    @if ($showPointsSettings)
+                        <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
+                            <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
+                        </a>
+                    @endif
                 @endcan
                 @can('learning-progression.manage')
                     <a href="{{ route('settings.learning-progression') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.learning-progression' ? 'is-active' : '' }}">
