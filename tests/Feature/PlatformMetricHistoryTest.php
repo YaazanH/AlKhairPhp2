@@ -99,8 +99,8 @@ class PlatformMetricHistoryTest extends TestCase
             'infrastructure' => [
                 'status' => 'available',
                 'state' => 'running',
-                'cpu' => ['average' => $cpu, 'unit' => '%'],
-                'ram' => ['average' => 60, 'unit' => '%'],
+                'cpu' => ['average' => $cpu, 'percentage' => $cpu, 'unit' => '%'],
+                'ram' => ['average' => 60, 'percentage' => 60, 'unit' => '%'],
                 'incoming' => ['total' => 12, 'unit' => 'MB'],
                 'outgoing' => ['total' => 7, 'unit' => 'MB'],
             ],

@@ -109,8 +109,8 @@ class PlatformManagementMetricsTest extends TestCase
         $hostinger->shouldReceive('snapshot')->once()->andReturn([
             'status' => 'available',
             'state' => 'stopped',
-            'cpu' => ['unit' => '%', 'average' => 95],
-            'ram' => ['unit' => '%', 'average' => 85],
+            'cpu' => ['unit' => '%', 'average' => 95, 'percentage' => 95],
+            'ram' => ['unit' => 'bytes', 'average' => 7_300_000_000, 'percentage' => 85],
         ]);
 
         $snapshot = (new PlatformManagementMetrics($usage, $hostinger))->snapshot();

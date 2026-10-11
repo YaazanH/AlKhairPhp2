@@ -67,7 +67,9 @@ class HostingerVpsMetricsTest extends TestCase
         $this->assertSame('available', $snapshot['status']);
         $this->assertSame('running', $snapshot['state']);
         $this->assertSame(30.0, $snapshot['cpu']['average']);
+        $this->assertSame(30.0, $snapshot['cpu']['percentage']);
         $this->assertSame(60.0, $snapshot['ram']['average']);
+        $this->assertSame(60.0, $snapshot['ram']['percentage']);
         $this->assertSame(12.0, $snapshot['incoming']['total']);
         $this->assertSame(7.0, $snapshot['outgoing']['total']);
         $this->assertSame(2, $snapshot['capacity']['cpus']);
@@ -75,6 +77,22 @@ class HostingerVpsMetricsTest extends TestCase
 
         Http::assertSentCount(3);
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer test-token'));
+    }
+
+    public function test_it_normalizes_byte_based_ram_usage_to_a_percentage(): void
+    {
+        config()->set('services.hostinger.token', 'test-token');
+        config()->set('services.hostinger.virtual_machine_id', 12345);
+
+        Http::fakeSequence()
+            ->push(['state' => 'running', 'memory' => 4096])
+            ->push(['cpu_usage' => ['unit' => '%', 'usage' => [10]], 'ram_usage' => ['unit' => 'bytes', 'usage' => [2 * 1024 * 1024 * 1024]]])
+            ->push([]);
+
+        $snapshot = app(HostingerVpsMetrics::class)->snapshot();
+
+        $this->assertSame(50.0, $snapshot['ram']['percentage']);
+        $this->assertSame(2 * 1024 * 1024 * 1024.0, $snapshot['ram']['average']);
     }
 
     public function test_an_api_failure_never_breaks_the_platform_dashboard(): void

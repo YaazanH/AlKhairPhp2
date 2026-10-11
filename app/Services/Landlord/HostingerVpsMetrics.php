@@ -66,6 +66,11 @@ class HostingerVpsMetrics
         $details = $client->get($endpoint)->throw()->json();
         $daily = $this->metrics($client, $endpoint, $now->copy()->subDay(), $now);
         $monthly = $this->metrics($client, $endpoint, $now->copy()->startOfMonth(), $now);
+        $memoryBytes = isset($details['memory']) ? (int) $details['memory'] * 1024 * 1024 : null;
+        $cpu = $this->summarize($this->metric($daily, 'cpu_usage', 'cpuUsage'));
+        $ram = $this->summarize($this->metric($daily, 'ram_usage', 'ramUsage'));
+        $cpu['percentage'] = $this->percentage($cpu);
+        $ram['percentage'] = $this->percentage($ram, $memoryBytes);
 
         return [
             'status' => 'available',
@@ -75,12 +80,12 @@ class HostingerVpsMetrics
             'plan' => $details['plan'] ?? null,
             'capacity' => [
                 'cpus' => isset($details['cpus']) ? (int) $details['cpus'] : null,
-                'memory_bytes' => isset($details['memory']) ? (int) $details['memory'] * 1024 * 1024 : null,
+                'memory_bytes' => $memoryBytes,
                 'disk_bytes' => isset($details['disk']) ? (int) $details['disk'] * 1024 * 1024 : null,
                 'bandwidth_bytes' => isset($details['bandwidth']) ? (int) $details['bandwidth'] * 1024 * 1024 : null,
             ],
-            'cpu' => $this->summarize($this->metric($daily, 'cpu_usage', 'cpuUsage')),
-            'ram' => $this->summarize($this->metric($daily, 'ram_usage', 'ramUsage')),
+            'cpu' => $cpu,
+            'ram' => $ram,
             'disk' => $this->summarize($this->metric($daily, 'disk_space', 'diskSpace')),
             'incoming' => $this->summarize($this->metric($monthly, 'incoming_traffic', 'incomingTraffic')),
             'outgoing' => $this->summarize($this->metric($monthly, 'outgoing_traffic', 'outgoingTraffic')),
@@ -128,5 +133,25 @@ class HostingerVpsMetrics
             'total' => $usage->isEmpty() ? null : $usage->sum(),
             'maximum' => $usage->isEmpty() ? null : $usage->max(),
         ];
+    }
+
+    /** @param array<string, mixed> $metric */
+    private function percentage(array $metric, ?int $capacityBytes = null): ?float
+    {
+        $average = $metric['average'] ?? null;
+        if (! is_numeric($average)) {
+            return null;
+        }
+
+        $unit = strtolower(trim((string) ($metric['unit'] ?? '')));
+        if (in_array($unit, ['%', 'percent', 'percentage'], true)) {
+            return round((float) $average, 2);
+        }
+
+        if (in_array($unit, ['b', 'byte', 'bytes'], true) && $capacityBytes > 0) {
+            return round(min(100, ((float) $average / $capacityBytes) * 100), 2);
+        }
+
+        return null;
     }
 }

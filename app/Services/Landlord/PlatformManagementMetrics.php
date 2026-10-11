@@ -196,11 +196,7 @@ class PlatformManagementMetrics
     /** @param array<int, array{code: string, severity: string}> $alerts */
     private function addPercentageAlert(array &$alerts, array $metric, string $name): void
     {
-        if (! in_array(strtolower((string) ($metric['unit'] ?? '')), ['%', 'percent', 'percentage'], true)) {
-            return;
-        }
-
-        $average = $metric['average'] ?? null;
+        $average = $metric['percentage'] ?? null;
         if (! is_numeric($average)) {
             return;
         }
