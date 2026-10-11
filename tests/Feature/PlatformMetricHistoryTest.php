@@ -74,6 +74,26 @@ class PlatformMetricHistoryTest extends TestCase
         $this->assertTrue($history->isRefreshDue(1));
     }
 
+    public function test_metric_chart_renders_multiple_history_points(): void
+    {
+        $html = view('components.platform-metric-chart', [
+            'title' => 'CPU history',
+            'points' => [
+                ['label' => '11:55', 'cpu_average' => 20],
+                ['label' => '12:00', 'cpu_average' => 40],
+            ],
+            'series' => [
+                ['key' => 'cpu_average', 'label' => 'CPU', 'colour' => '#059669'],
+            ],
+            'format' => 'percent',
+            'suffix' => '%',
+        ])->render();
+
+        $this->assertStringContainsString('<line x1="34"', $html);
+        $this->assertStringContainsString('<path d="M34,171.6 L686,137.2"', $html);
+        $this->assertStringContainsString('<circle cx="686" cy="137.2"', $html);
+    }
+
     public function test_scheduled_command_skips_collection_until_the_interval_is_due(): void
     {
         $history = Mockery::mock(PlatformMetricHistory::class);

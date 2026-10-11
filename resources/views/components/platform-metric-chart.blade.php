@@ -55,7 +55,9 @@
 
         <svg viewBox="0 0 {{ $width }} {{ $height }}" class="mt-4 h-auto w-full overflow-visible text-zinc-500" role="img" aria-label="{{ $title }}" dir="ltr">
             @foreach([0, .5, 1] as $step)
-                @php($gridY = $padding + (($height - ($padding * 2)) * $step))
+                @php
+                    $gridY = $padding + (($height - ($padding * 2)) * $step);
+                @endphp
                 <line x1="{{ $padding }}" x2="{{ $width - $padding }}" y1="{{ $gridY }}" y2="{{ $gridY }}" stroke="currentColor" stroke-opacity=".15" />
             @endforeach
 
@@ -80,7 +82,9 @@
                 <path d="{{ $path }}" fill="none" stroke="{{ $item['colour'] }}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
                 @foreach($points as $index => $point)
                     @if(is_numeric($point[$item['key']] ?? null))
-                        @php([$x, $y] = $coordinate($index, $point[$item['key']]))
+                        @php
+                            [$x, $y] = $coordinate($index, $point[$item['key']]);
+                        @endphp
                         <circle cx="{{ $x }}" cy="{{ $y }}" r="3.5" fill="{{ $item['colour'] }}">
                             <title>{{ $item['label'] }} · {{ $point['label'] }} · {{ $formatValue($point[$item['key']]) }}</title>
                         </circle>
