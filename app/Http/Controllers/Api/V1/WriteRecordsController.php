@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\ParentProfile;
 use App\Models\Student;
+use App\Models\Teacher;
+use App\Services\AccessScopeService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -17,8 +20,10 @@ class WriteRecordsController extends Controller
     public function storeStudent(Request $request)
     {
         $this->authorizePermission($request, 'students.create');
+        $validated = $this->validatedStudentData($request);
+        $this->authorizeRelatedStudentScope($request, $validated);
 
-        $student = Student::create($this->validatedStudentData($request));
+        $student = Student::create($validated);
 
         return response()->json($this->studentPayload($student->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])), 201);
     }
@@ -29,8 +34,11 @@ class WriteRecordsController extends Controller
     public function updateStudent(Request $request, Student $student)
     {
         $this->authorizePermission($request, 'students.update');
+        $this->authorizeScope($request, 'canAccessStudent', $student);
+        $validated = $this->validatedStudentData($request, $student);
+        $this->authorizeRelatedStudentScope($request, $validated);
 
-        $student->update($this->validatedStudentData($request, $student));
+        $student->update($validated);
 
         return response()->json($this->studentPayload($student->fresh(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])));
     }
@@ -41,6 +49,7 @@ class WriteRecordsController extends Controller
     public function destroyStudent(Request $request, Student $student)
     {
         $this->authorizePermission($request, 'students.delete');
+        $this->authorizeScope($request, 'canAccessStudent', $student);
 
         if ($student->enrollments()->count() > 0) {
             return response()->json([
@@ -59,8 +68,10 @@ class WriteRecordsController extends Controller
     public function storeGroup(Request $request)
     {
         $this->authorizePermission($request, 'groups.create');
+        $validated = $this->validatedGroupData($request);
+        $this->authorizeRelatedGroupScope($request, $validated);
 
-        $group = Group::create($this->validatedGroupData($request));
+        $group = Group::create($validated);
 
         return response()->json($this->groupPayload($group->fresh(['academicYear', 'course', 'teacher', 'assistantTeacher', 'gradeLevel'])), 201);
     }
@@ -71,8 +82,11 @@ class WriteRecordsController extends Controller
     public function updateGroup(Request $request, Group $group)
     {
         $this->authorizePermission($request, 'groups.update');
+        $this->authorizeScope($request, 'canAccessGroup', $group);
+        $validated = $this->validatedGroupData($request, $group);
+        $this->authorizeRelatedGroupScope($request, $validated);
 
-        $group->update($this->validatedGroupData($request, $group));
+        $group->update($validated);
 
         return response()->json($this->groupPayload($group->fresh(['academicYear', 'course', 'teacher', 'assistantTeacher', 'gradeLevel'])));
     }
@@ -83,6 +97,7 @@ class WriteRecordsController extends Controller
     public function destroyGroup(Request $request, Group $group)
     {
         $this->authorizePermission($request, 'groups.delete');
+        $this->authorizeScope($request, 'canAccessGroup', $group);
 
         if ($group->enrollments()->count() > 0 || $group->schedules()->count() > 0) {
             return response()->json([
@@ -101,8 +116,10 @@ class WriteRecordsController extends Controller
     public function storeEnrollment(Request $request)
     {
         $this->authorizePermission($request, 'enrollments.create');
+        $validated = $this->validatedEnrollmentData($request);
+        $this->authorizeRelatedEnrollmentScope($request, $validated);
 
-        $enrollment = Enrollment::create($this->validatedEnrollmentData($request));
+        $enrollment = Enrollment::create($validated);
 
         return response()->json($this->enrollmentPayload($enrollment->fresh(['group.course', 'student.parentProfile'])), 201);
     }
@@ -113,8 +130,11 @@ class WriteRecordsController extends Controller
     public function updateEnrollment(Request $request, Enrollment $enrollment)
     {
         $this->authorizePermission($request, 'enrollments.update');
+        $this->authorizeScope($request, 'canAccessEnrollment', $enrollment);
+        $validated = $this->validatedEnrollmentData($request, $enrollment);
+        $this->authorizeRelatedEnrollmentScope($request, $validated);
 
-        $enrollment->update($this->validatedEnrollmentData($request, $enrollment));
+        $enrollment->update($validated);
 
         return response()->json($this->enrollmentPayload($enrollment->fresh(['group.course', 'student.parentProfile'])));
     }
@@ -125,6 +145,7 @@ class WriteRecordsController extends Controller
     public function destroyEnrollment(Request $request, Enrollment $enrollment)
     {
         $this->authorizePermission($request, 'enrollments.delete');
+        $this->authorizeScope($request, 'canAccessEnrollment', $enrollment);
 
         $enrollment->delete();
 
@@ -134,6 +155,46 @@ class WriteRecordsController extends Controller
     protected function authorizePermission(Request $request, string $permission): void
     {
         abort_unless($request->user()?->can($permission), 403);
+    }
+
+    protected function authorizeScope(Request $request, string $method, Student|Group|Enrollment $record): void
+    {
+        abort_unless(app(AccessScopeService::class)->{$method}($request->user(), $record), 403);
+    }
+
+    protected function authorizeRelatedStudentScope(Request $request, array $validated): void
+    {
+        $scopes = app(AccessScopeService::class);
+        if ($scopes->isUnrestricted($request->user())) {
+            return;
+        }
+
+        $parent = ParentProfile::query()->findOrFail($validated['parent_id']);
+        abort_unless($scopes->canAccessParent($request->user(), $parent), 403);
+    }
+
+    protected function authorizeRelatedGroupScope(Request $request, array $validated): void
+    {
+        $scopes = app(AccessScopeService::class);
+        if ($scopes->isUnrestricted($request->user())) {
+            return;
+        }
+
+        $teacherIds = collect([$validated['teacher_id'], $validated['assistant_teacher_id'] ?? null])->filter();
+        foreach (Teacher::query()->whereIn('id', $teacherIds)->get() as $teacher) {
+            abort_unless($scopes->canAccessTeacher($request->user(), $teacher), 403);
+        }
+    }
+
+    protected function authorizeRelatedEnrollmentScope(Request $request, array $validated): void
+    {
+        $scopes = app(AccessScopeService::class);
+        if ($scopes->isUnrestricted($request->user())) {
+            return;
+        }
+
+        abort_unless($scopes->canAccessStudent($request->user(), Student::query()->findOrFail($validated['student_id'])), 403);
+        abort_unless($scopes->canAccessGroup($request->user(), Group::query()->findOrFail($validated['group_id'])), 403);
     }
 
     protected function enrollmentPayload(Enrollment $enrollment): array

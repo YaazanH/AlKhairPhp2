@@ -17,6 +17,94 @@ use Illuminate\Http\Request;
 
 class RecordsController extends Controller
 {
+    public function student(Request $request, Student $student)
+    {
+        abort_unless($request->user()?->can('students.view'), 403);
+        abort_unless(app(AccessScopeService::class)->canAccessStudent($request->user(), $student), 403);
+
+        $student->load(['gradeLevel', 'parentProfile', 'quranCurrentJuz'])
+            ->loadCount('enrollments');
+
+        return response()->json(['data' => [
+            'birth_date' => $student->birth_date?->format('Y-m-d'),
+            'enrollments_count' => $student->enrollments_count,
+            'first_name' => $student->first_name,
+            'gender' => $student->gender,
+            'grade_level' => $student->gradeLevel?->name,
+            'grade_level_id' => $student->grade_level_id,
+            'id' => $student->id,
+            'joined_at' => $student->joined_at?->format('Y-m-d'),
+            'last_name' => $student->last_name,
+            'notes' => $student->notes,
+            'parent' => $student->parentProfile ? [
+                'father_name' => $student->parentProfile->father_name,
+                'id' => $student->parentProfile->id,
+            ] : null,
+            'photo_url' => $student->photoUrl(),
+            'quran_current_juz' => $student->quranCurrentJuz?->juz_number,
+            'quran_current_juz_id' => $student->quran_current_juz_id,
+            'school_name' => $student->school_name,
+            'status' => $student->status,
+            'student_number' => $student->student_number,
+        ]]);
+    }
+
+    public function group(Request $request, Group $group)
+    {
+        abort_unless($request->user()?->can('groups.view'), 403);
+        abort_unless(app(AccessScopeService::class)->canAccessGroup($request->user(), $group), 403);
+
+        $group->load(['academicYear', 'assistantTeacher', 'course', 'gradeLevel', 'teacher'])
+            ->loadCount('enrollments');
+
+        return response()->json(['data' => [
+            'academic_year' => $group->academicYear?->name,
+            'academic_year_id' => $group->academic_year_id,
+            'assistant_teacher' => $group->assistantTeacher ? ['id' => $group->assistantTeacher->id, 'name' => trim($group->assistantTeacher->first_name.' '.$group->assistantTeacher->last_name)] : null,
+            'capacity' => $group->capacity,
+            'course' => $group->course ? ['id' => $group->course->id, 'name' => $group->course->name] : null,
+            'ends_on' => $group->ends_on?->format('Y-m-d'),
+            'enrollments_count' => $group->enrollments_count,
+            'grade_level' => $group->gradeLevel?->name,
+            'grade_level_id' => $group->grade_level_id,
+            'id' => $group->id,
+            'is_active' => $group->is_active,
+            'monthly_fee' => $group->monthly_fee !== null ? (float) $group->monthly_fee : null,
+            'name' => $group->name,
+            'starts_on' => $group->starts_on?->format('Y-m-d'),
+            'teacher' => $group->teacher ? ['id' => $group->teacher->id, 'name' => trim($group->teacher->first_name.' '.$group->teacher->last_name)] : null,
+        ]]);
+    }
+
+    public function enrollment(Request $request, Enrollment $enrollment)
+    {
+        abort_unless($request->user()?->can('enrollments.view'), 403);
+        abort_unless(app(AccessScopeService::class)->canAccessEnrollment($request->user(), $enrollment), 403);
+
+        $enrollment->load(['group.course', 'group.teacher', 'student.parentProfile']);
+
+        return response()->json(['data' => [
+            'enrolled_at' => $enrollment->enrolled_at?->format('Y-m-d'),
+            'final_points' => $enrollment->final_points_cached,
+            'group' => $enrollment->group ? [
+                'course_name' => $enrollment->group->course?->name,
+                'id' => $enrollment->group->id,
+                'name' => $enrollment->group->name,
+                'teacher_name' => $enrollment->group->teacher ? trim($enrollment->group->teacher->first_name.' '.$enrollment->group->teacher->last_name) : null,
+            ] : null,
+            'id' => $enrollment->id,
+            'left_at' => $enrollment->left_at?->format('Y-m-d'),
+            'memorized_pages' => $enrollment->memorized_pages_cached,
+            'notes' => $enrollment->notes,
+            'status' => $enrollment->status,
+            'student' => $enrollment->student ? [
+                'full_name' => $enrollment->student->full_name,
+                'id' => $enrollment->student->id,
+                'parent_name' => $enrollment->student->parentProfile?->father_name,
+            ] : null,
+        ]]);
+    }
+
     /**
      * Return paginated activity records for integrations.
      */

@@ -1,6 +1,6 @@
 # AlKhair API Reference
 
-This document reflects the API routes currently defined in the codebase as of 2026-09-01.
+This document reflects the API routes currently defined in the codebase as of 2026-10-11.
 
 ## Base URL
 
@@ -21,6 +21,8 @@ Versioned endpoints currently use:
 ## Authentication
 
 The API uses Laravel Sanctum bearer tokens.
+
+Tokens are accepted only while their owning account remains active. Disabling an account immediately blocks its previously issued tokens from every protected API route.
 
 ### Login and get token
 
@@ -73,11 +75,67 @@ Authorization: Bearer plain-text-token
 
 Response: `204 No Content`
 
+### Logout from every device
+
+`DELETE /api/v1/auth/tokens`
+
+Revokes every Sanctum token belonging to the authenticated user, including the token used for this request.
+
+Response: `204 No Content`
+
 ### Authenticated user
 
-`GET /api/user`
+`GET /api/v1/me`
 
-Response: the authenticated Laravel user object.
+Returns the mobile-safe authenticated user payload, including roles, permissions, linked profile IDs, profile-photo URL, and whether the username is editable.
+
+`GET /api/user` remains available as the legacy raw-user endpoint.
+
+## Mobile Application Startup
+
+### Bootstrap
+
+`GET /api/v1/bootstrap`
+
+Returns the authenticated user, effective permissions, mobile navigation, organization branding, supported locales, and feature flags. Mobile clients should call this after login and when returning from a long-lived background session.
+
+### Dashboard
+
+`GET /api/v1/dashboard`
+
+Returns role-aware metrics restricted to the records accessible to the authenticated user.
+
+## Mobile Profile
+
+### Update username
+
+`PATCH /api/v1/me`
+
+Send `username` as JSON. Parent and student usernames are immutable. When an editable username changes, the application derives the email address using the same account rule as the website.
+
+### Update profile photo
+
+`POST /api/v1/me/profile-photo`
+
+Send `profile_photo` as multipart form data. The configured image-size limit and the website's linked student/teacher photo rules also apply to mobile uploads.
+
+### Change password
+
+`PATCH /api/v1/me/password`
+
+```json
+{
+  "current_password": "current-password",
+  "password": "new-password",
+  "password_confirmation": "new-password"
+}
+```
+
+A successful password change keeps the current token and revokes tokens belonging to other devices.
+
+## Localization
+
+Send either `X-Locale: ar` or `X-Locale: en`. When `X-Locale` is absent, the API uses `Accept-Language`, followed by the configured application locale.
 
 ## Important Auth Note
 
@@ -88,11 +146,43 @@ Current API controllers authorize requests against the user's current applicatio
 ## Common Behaviour
 
 - Most list endpoints return Laravel paginator JSON.
+- All `/api` errors are returned as JSON, including requests that omit the `Accept` header.
 - Common errors:
   - `401` unauthenticated
   - `403` forbidden or inactive account
   - `422` validation or business-rule error
 - Most protected endpoints are also scope-aware, so a user may have permission but still be blocked from records outside their scope.
+- Native mobile clients should store the bearer token in the platform's secure credential storage, never in plain preferences or application logs.
+- Production traffic must use HTTPS. The default bearer-token CORS policy does not use browser credentials or cookies.
+
+## Reference Data
+
+Reference endpoints return compact, non-paginated `data` arrays for mobile selectors. They require authentication and at least one permission related to the catalog's workflow.
+
+Common optional parameters:
+
+| Name | Type | Notes |
+| --- | --- | --- |
+| `q` | string | Searches supported name/code fields. |
+| `include_inactive` | boolean | Defaults to `false`. Enable when editing historical records. |
+
+Available catalogs:
+
+| Endpoint | Important fields or filters |
+| --- | --- |
+| `GET /api/v1/reference/academic-years` | Dates, current and active flags. |
+| `GET /api/v1/reference/grade-levels` | Sort order and active flag. |
+| `GET /api/v1/reference/attendance-statuses` | `scope=student`, `teacher`, or `both`; presence/default behavior and points. |
+| `GET /api/v1/reference/assessment-types` | Code and scored flag. |
+| `GET /api/v1/reference/assessment-score-bands` | Optional `assessment_type_id`; nested assessment and point types. |
+| `GET /api/v1/reference/quran-juz` | Juz number and page boundaries. |
+| `GET /api/v1/reference/quran-test-types` | Code and sort order. |
+| `GET /api/v1/reference/point-types` | Optional `manual_only=1`; category and negative/manual-entry rules. |
+| `GET /api/v1/reference/payment-methods` | Name, code and active flag. |
+| `GET /api/v1/reference/expense-categories` | Name, code and active flag. |
+| `GET /api/v1/reference/currencies` | Optional `include_hidden=1`; rate, precision and base/local flags. |
+| `GET /api/v1/reference/teacher-job-titles` | Sort order and active flag. |
+| `GET /api/v1/reference/schools` | Name and active flag. |
 
 ## Standard Paginated Response Shape
 
@@ -115,6 +205,58 @@ List endpoints return a paginator like this:
   "total": 38
 }
 ```
+
+## Core People and Academics
+
+All core record endpoints require Sanctum authentication, their matching website permission, and (where applicable) the authenticated user's record scope. Passwords are never included in parent or teacher responses.
+
+### Parents
+
+| Method | Endpoint | Permission | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/parents` | `parents.view` | Paginated; supports `search`, `is_active`, and `per_page`. |
+| `GET` | `/api/v1/parents/{parent}` | `parents.view` | Includes contact fields and student count. |
+| `POST` | `/api/v1/parents` | `parents.create` | Creates the profile and linked parent login in one transaction. |
+| `PUT/PATCH` | `/api/v1/parents/{parent}` | `parents.update` | Synchronizes the linked login name, phones, and status. |
+| `DELETE` | `/api/v1/parents/{parent}` | `parents.delete` | Blocked while students are linked. |
+
+Parent writes accept `father_name`, `father_work`, `father_phone`, `mother_name`, `mother_phone`, `home_phone`, `address`, `notes`, and `is_active`. The three phone fields are normalized using the same rules as the website, and duplicate profiles are rejected.
+
+### Teachers
+
+| Method | Endpoint | Permission | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/teachers` | `teachers.view` | Paginated; supports `search`, `status`, `course_id`, `is_helping`, and `per_page`. |
+| `GET` | `/api/v1/teachers/{teacher}` | `teachers.view` | Includes course, job title, and assigned/assisted group counts. |
+| `POST` | `/api/v1/teachers` | `teachers.create` | Creates the profile and linked teacher login transactionally. |
+| `PUT/PATCH` | `/api/v1/teachers/{teacher}` | `teachers.update` | Updates the core profile and linked login. |
+| `DELETE` | `/api/v1/teachers/{teacher}` | `teachers.delete` | Blocked while assigned or assisted groups exist. |
+
+Teacher writes accept core profile fields plus optional `account_username`, `account_password`, and `account_is_active`. The profile status follows the linked account's active state, matching the website workflow. Advanced role assignment, direct permissions, scope administration, approval decisions, photos, and finance signatures remain website-only administrative workflows in V1.
+
+### Courses
+
+| Method | Endpoint | Permission | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/courses` | `courses.view` | Paginated; supports `search`, `academic_year_id`, `is_active`, and `per_page`. |
+| `GET` | `/api/v1/courses/{course}` | `courses.view` | Includes academic year and group/enrollment counts. |
+| `POST` | `/api/v1/courses` | `courses.create` | Automatically becomes default when no default course exists. |
+| `PUT/PATCH` | `/api/v1/courses/{course}` | `courses.update` | Finished courses are read-only; academic-year changes propagate to their groups. |
+| `DELETE` | `/api/v1/courses/{course}` | `courses.delete` | Uses the website's linked-record deletion blockers. |
+| `POST` | `/api/v1/courses/{course}/finish` | `courses.update` | Runs the full course lifecycle service. |
+| `POST` | `/api/v1/courses/{course}/reactivate` | `courses.update` | Restores lifecycle-managed group, enrollment, assessment, and attendance state. |
+
+Course schedule/calendar editing and course-copy workflows are not part of Phase 3.
+
+### Record details
+
+The existing scoped collections now have matching detail endpoints:
+
+- `GET /api/v1/students/{student}` (`students.view`)
+- `GET /api/v1/groups/{group}` (`groups.view`)
+- `GET /api/v1/enrollments/{enrollment}` (`enrollments.view`)
+
+Existing student, group, and enrollment update/delete endpoints now reject records outside the authenticated user's access scope with `403`.
 
 ## Read Endpoints
 
@@ -609,6 +751,25 @@ Response: `204 No Content`
 
 ## Operational Endpoints
 
+Phase 4 adds scoped read models for mobile working screens. Every list supports `per_page` from 1 to 100 and the applicable `date_from`/`date_to` filters.
+
+| Method | Endpoint | Permission | Important filters or behavior |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/student-attendance/days` | `attendance.student.view` | `course_id`, `group_id`, `status`, dates; returns scoped group and record counts. |
+| `GET` | `/api/v1/student-attendance/days/{day}` | `attendance.student.view` | Returns only accessible groups and their student records. |
+| `PATCH` | `/api/v1/student-attendance/days/{day}/status` | `attendance.student.toggle-day-status` | Body: `status=open` or `closed`; archived course days remain read-only. |
+| `GET` | `/api/v1/teacher-attendance/days` | `attendance.teacher.view` | `course_id`, `teacher_id`, `status`, dates. |
+| `GET` | `/api/v1/teacher-attendance/days/{day}` | `attendance.teacher.view` | Scoped teacher attendance records. |
+| `GET` | `/api/v1/memorization` | `memorization.view` | `student_id`, `group_id`, `entry_type`, dates. |
+| `GET` | `/api/v1/enrollments/{enrollment}/memorization` | `memorization.view` | History for one accessible enrollment. |
+| `GET` | `/api/v1/quran-tests` | `quran-tests.view` or `quran-awqaf-tests.view` | `student_id`, `group_id`, `juz_id`, `status`, dates. |
+| `GET` | `/api/v1/enrollments/{enrollment}/quran-tests` | Same as above | Quran-test history for one accessible enrollment. |
+| `GET` | `/api/v1/points` | `points.view` | `student_id`, `group_id`, `point_type_id`, `state`, dates. State is `active`, `voided`, or `inactive_source`. |
+| `GET` | `/api/v1/enrollments/{enrollment}/points` | `points.view` | Point ledger for one accessible enrollment. |
+| `GET` | `/api/v1/assessments/{assessment}` | `assessments.view` | Assessment definition, groups, and scope-filtered results. |
+
+The global and enrollment-specific history endpoints return standard paginated responses. Attendance and assessment detail endpoints return `{ "data": ... }` objects.
+
 ### `POST /api/v1/groups/{group}/attendance`
 
 Permission: `attendance.student.take`
@@ -891,7 +1052,91 @@ Response:
 }
 ```
 
+## Student Progress and File Endpoints
+
+Phase 8 provides a consolidated learner snapshot and authenticated document/photo access. Student and enrollment scope checks match the website, and enrollment course data is resolved through each enrollment's group.
+
+| Method | Endpoint | Permission | Result |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/students/{student}/progress` | `students.view` | Profile, scoped enrollments, and permission-aware progress metrics |
+| `GET` | `/api/v1/students/{student}/files` | `students.view` | Protected student file metadata |
+| `POST` | `/api/v1/students/{student}/files` | `students.files.manage` | Upload a student document |
+| `GET` | `/api/v1/students/{student}/files/{studentFile}/download` | `students.view` | Protected binary download |
+| `DELETE` | `/api/v1/students/{student}/files/{studentFile}` | `students.files.manage` | Remove the database record and stored file |
+| `GET` | `/api/v1/students/{student}/photo` | `students.view` | Protected student image response |
+| `POST` | `/api/v1/students/{student}/photo` | `students.photo.update` | Replace the student photo |
+| `DELETE` | `/api/v1/students/{student}/photo` | `students.photo.update` | Remove the student photo |
+
+The progress response always includes the student profile and scoped enrollment history. Metrics for attendance, assessment results, points, notes, and structured Quran tests are returned as `null` when the authenticated user lacks the matching module permission; they are never inferred from inaccessible records.
+
+File uploads use multipart fields `file_type` and `file`, with a 10 MB maximum. Photo uploads use multipart field `photo`, accept JPG, JPEG, PNG, or WebP, and use the configured image-size limit. Uploaded blobs are cleaned up if database persistence fails, and old photos are removed only after the replacement path is committed.
+
+## Advanced Quran Evaluation Endpoints
+
+Phase 7 exposes the website's structured partial and final Quran-test workflow. These endpoints call the existing domain services, so eligibility, attempt numbering, pass rules, point awards, and progression dates remain identical between web and mobile.
+
+| Method | Endpoint | Permission | Result |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/quran-partial-tests` | `quran-partial-tests.view` | Paginated scoped partial-test cycles |
+| `GET` | `/api/v1/quran-partial-tests/{partialTest}` | `quran-partial-tests.view` | Four parts and their attempt history |
+| `GET` | `/api/v1/enrollments/{enrollment}/quran-partial-tests/eligible-juz` | `quran-partial-tests.record` | Juz values eligible to start |
+| `POST` | `/api/v1/enrollments/{enrollment}/quran-partial-tests` | `quran-partial-tests.record` | Start a four-part cycle |
+| `POST` | `/api/v1/quran-partial-tests/{partialTest}/parts/{part}/attempts` | `quran-partial-tests.record` | Record and evaluate a part attempt |
+| `GET` | `/api/v1/quran-final-tests` | `quran-final-tests.view` | Paginated scoped final-test cycles |
+| `GET` | `/api/v1/quran-final-tests/{finalTest}` | `quran-final-tests.view` | Final-test attempt history |
+| `GET` | `/api/v1/enrollments/{enrollment}/quran-final-tests/eligible-juz` | `quran-final-tests.record` | Juz values unlocked by passed partial cycles |
+| `POST` | `/api/v1/enrollments/{enrollment}/quran-final-tests` | `quran-final-tests.record` | Start a final-test cycle |
+| `POST` | `/api/v1/quran-final-tests/{finalTest}/attempts` | `quran-final-tests.record` | Record and evaluate a final attempt |
+
+List endpoints accept `student_id`, `group_id`, `juz_id`, `status=in_progress|passed`, and `per_page`. Starting a partial cycle accepts `juz_id` and optional `allow_parallel_cycle`; the latter should only be enabled after the user explicitly confirms the website-equivalent open-cycle warning.
+
+Partial attempts require `tested_on` and `mistake_count` from 0 to 999. Final attempts require `tested_on` and `score` from 0 to 100. Both accept optional `notes` and `teacher_id`. A teacher-authenticated token always records its own teacher profile; a manager must supply an active teacher who can record the matching test type.
+
+A partial cycle is passed only after all four parts pass. A final cycle is passed only when an attempt reaches the configured passing range. The services set `passed_on` from the qualifying attempt date and create the same point-ledger entries used by the website.
+
+## Academic Support Endpoints
+
+Phase 6 exposes the remaining academic-support workflows used by teachers and managers. Group, student, enrollment, note-visibility, and curriculum access rules match the website.
+
+| Method | Endpoint | Permission | Result |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/groups/{group}/schedules` | `groups.view` | Ordered group schedule |
+| `POST` | `/api/v1/groups/{group}/schedules` | `group-schedules.manage` | Create a schedule slot |
+| `PUT|PATCH` | `/api/v1/groups/{group}/schedules/{schedule}` | `group-schedules.manage` | Update a schedule slot |
+| `DELETE` | `/api/v1/groups/{group}/schedules/{schedule}` | `group-schedules.manage` | Delete a schedule slot |
+| `GET` | `/api/v1/student-notes` | `student-notes.view` | Paginated notes visible to the user |
+| `GET` | `/api/v1/student-notes/{studentNote}` | `student-notes.view` | One visible student note |
+| `POST` | `/api/v1/student-notes` | `student-notes.create` | Create a student note |
+| `PUT|PATCH` | `/api/v1/student-notes/{studentNote}` | `student-notes.update` | Update an owned or manager-accessible note |
+| `DELETE` | `/api/v1/student-notes/{studentNote}` | `student-notes.delete` | Delete an owned or manager-accessible note |
+| `GET` | `/api/v1/curricula` | Curriculum access | Paginated curriculum catalog |
+| `GET` | `/api/v1/curricula/{curriculum}` | Curriculum access | Subjects, lessons, topics, and resources |
+| `GET` | `/api/v1/groups/{group}/curriculum` | Curriculum access | Group curriculum and teaching progress |
+| `GET` | `/api/v1/curriculum-resources/{resource}/download` | Curriculum access | Protected PDF download |
+
+Schedule bodies contain `day_of_week` from 0 through 6 and one of the configured `time_slot` keys. A group must retain at least one schedule, and archived-course groups cannot be edited.
+
+Student-note lists accept `student_id`, `enrollment_id`, `source`, `visibility`, `date_from`, `date_to`, and `per_page`. Teachers can only create teacher-source notes, cannot use management-only visibility, cannot see private management notes, and can update or delete only their own notes. A note's student and enrollment cannot be reassigned during an update.
+
+Curriculum catalog lists accept `search`, `grade_level_id`, `is_active`, and `per_page`. Managers can access all curricula; eligible curriculum-recording teachers can access only curricula assigned to their scoped groups.
+
 ## Finance Endpoints
+
+Phase 5 adds the finance reads needed by the mobile application. Results are limited by the authenticated user's group and student access. Managers retain full access; scoped users receive `403` when they request an activity or invoice outside their allowed records.
+
+| Method | Endpoint | Permission | Result |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/activities/{activity}` | `activities.view` | Activity, audience, target groups, and cached finance totals |
+| `GET` | `/api/v1/activities/{activity}/registrations` | `activities.finance.view` or `activities.registrations.manage` | Paginated registrations with paid totals and balances |
+| `GET` | `/api/v1/activities/{activity}/payments` | `activities.finance.view` or `activities.payments.manage` | Paginated activity payments |
+| `GET` | `/api/v1/activities/{activity}/expenses` | `activities.finance.view` or `activities.expenses.manage` | Paginated activity expenses |
+| `GET` | `/api/v1/invoices/{invoice}` | `invoices.view` | Invoice detail with scoped items, payments, paid total, and balance |
+| `GET` | `/api/v1/invoices/{invoice}/payments` | `invoices.view` | Paginated payments for one invoice |
+| `GET` | `/api/v1/payments` | `payments.view` | Paginated invoice payments available to the user |
+
+Activity registration lists accept `status` and `student_id`. Payment lists accept `state=active|voided`, `date_from`, and `date_to`; the global payment list also accepts `invoice_id` and `payment_method_id`. Expense lists accept `expense_category_id`, `date_from`, and `date_to`. Every list accepts `per_page` from 1 to 100.
+
+Finance write endpoints below enforce the same record scopes as their matching reads. Their existing domain services remain responsible for recalculating totals and synchronizing finance ledger entries.
 
 ### `POST /api/v1/activities/{activity}/registrations`
 
@@ -1141,66 +1386,36 @@ Response:
 }
 ```
 
-## Route Summary
+## Finance Operations Endpoints
 
-Current API routes defined in `routes/api.php`:
+Phase 9 exposes the website's central cash-management workflow. Balances and history come from `finance_transactions`; finance requests describe approval workflow and do not replace the ledger.
 
-```text
-GET     /api/user
-POST    /api/v1/auth/token
-DELETE  /api/v1/auth/token
+| Method | Endpoint | Permission | Result |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/finance/summary` | `finance.reports.view` or `finance.cash-box.view` | Cash-box balances, totals by currency, and visible pending request counts |
+| `GET` | `/api/v1/finance/cash-boxes` | `finance.cash-box.view` | Accessible boxes with per-currency balances and local equivalents |
+| `GET` | `/api/v1/finance/transactions` | `finance.cash-box.view` | Paginated unified ledger |
+| `GET` | `/api/v1/finance/transactions/{transaction}` | `finance.cash-box.view` | One accessible ledger row |
+| `POST` | `/api/v1/finance/adjustments` | `finance.cash-box.adjust` | Post a manual in/out adjustment |
+| `GET` | `/api/v1/finance/transfers` | `finance.cash-box.view` | Paginated cash-box transfer history |
+| `POST` | `/api/v1/finance/transfers` | `finance.cash-box.transfer` | Transfer one currency between two boxes |
+| `GET` | `/api/v1/finance/exchanges` | `finance.exchange.view` | Paginated currency-exchange history |
+| `POST` | `/api/v1/finance/exchanges` | `finance.exchange.create` | Exchange currencies, optionally using a manually supplied destination amount |
+| `GET` | `/api/v1/finance/requests` | Matching request `view` permission | Paginated pull, expense, revenue, and return workflow records |
+| `GET` | `/api/v1/finance/requests/{financeRequest}` | Matching request `view` permission | One finance request |
 
-GET     /api/v1/reports/overview
-GET     /api/v1/reports/teachers/daily-summary
+Transaction filters are `cash_box_id`, `currency_id`, `type`, `direction=in|out`, `date_from`, `date_to`, and `per_page`. Transfer and exchange lists accept the date and pagination filters. Finance-request lists accept `type`, `status`, and `per_page`.
 
-GET     /api/v1/students
-GET     /api/v1/groups
-GET     /api/v1/enrollments
-GET     /api/v1/assessments
-GET     /api/v1/activities
-GET     /api/v1/invoices
+Adjustment bodies require `cash_box_id`, `currency_id`, `direction`, `amount`, and `description`; `transaction_date` defaults to today. Transfers require different source and destination boxes, a currency supported by both boxes, a positive amount, and `transfer_date`. Exchanges require source/destination boxes, different currencies supported by their selected boxes, a positive `from_amount`, and `exchange_date`. If `to_amount` is omitted, the configured rates calculate it.
 
-POST    /api/v1/students
-PUT     /api/v1/students/{student}
-PATCH   /api/v1/students/{student}
-DELETE  /api/v1/students/{student}
+The existing finance feature settings can disable manual adjustments or cash-box transfers. Service-level balance checks, currency compatibility, normalization, numbering, snapshots, and paired ledger entries remain authoritative, so invalid outgoing operations return validation errors without partial writes.
 
-POST    /api/v1/groups
-PUT     /api/v1/groups/{group}
-PATCH   /api/v1/groups/{group}
-DELETE  /api/v1/groups/{group}
+## Route Discovery
 
-POST    /api/v1/enrollments
-PUT     /api/v1/enrollments/{enrollment}
-PATCH   /api/v1/enrollments/{enrollment}
-DELETE  /api/v1/enrollments/{enrollment}
+The importable Postman collection is checked against the routes registered by Laravel. To inspect the authoritative current route list directly, run:
 
-POST    /api/v1/groups/{group}/attendance
-POST    /api/v1/teacher-attendance
-POST    /api/v1/enrollments/{enrollment}/memorization
-POST    /api/v1/enrollments/{enrollment}/quran-tests
-POST    /api/v1/enrollments/{enrollment}/points/manual
-POST    /api/v1/points/{pointTransaction}/void
-POST    /api/v1/assessments/{assessment}/results
-
-POST    /api/v1/activities/{activity}/registrations
-PUT     /api/v1/activities/{activity}/registrations/{registration}
-PATCH   /api/v1/activities/{activity}/registrations/{registration}
-DELETE  /api/v1/activities/{activity}/registrations/{registration}
-
-POST    /api/v1/activities/{activity}/payments
-POST    /api/v1/activities/{activity}/payments/{activityPayment}/void
-
-POST    /api/v1/activities/{activity}/expenses
-PUT     /api/v1/activities/{activity}/expenses/{activityExpense}
-PATCH   /api/v1/activities/{activity}/expenses/{activityExpense}
-DELETE  /api/v1/activities/{activity}/expenses/{activityExpense}
-
-POST    /api/v1/invoices/{invoice}/items
-PUT     /api/v1/invoices/{invoice}/items/{invoiceItem}
-PATCH   /api/v1/invoices/{invoice}/items/{invoiceItem}
-DELETE  /api/v1/invoices/{invoice}/items/{invoiceItem}
-
-POST    /api/v1/invoices/{invoice}/payments
-POST    /api/v1/invoices/{invoice}/payments/{payment}/void
+```powershell
+php artisan route:list --path=api/v1
 ```
+
+The collection also contains the legacy `/api/user` request and two API-documentation links.

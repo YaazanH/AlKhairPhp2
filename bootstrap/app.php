@@ -2,9 +2,12 @@
 
 use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
+use App\Http\Middleware\EnsureApiUserIsActive;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
+use App\Http\Middleware\SetApiLocale;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -39,11 +42,17 @@ return Application::configure(basePath: dirname(__DIR__))
             MeasurePerformance::class,
         ]);
 
+        $middleware->api(prepend: [
+            ForceJsonResponse::class,
+            SetApiLocale::class,
+        ]);
+
         // Resolve the selected language before CSRF checks, authentication,
         // and route bindings can reject a request.
         $middleware->appendToPriorityList(StartSession::class, SetLocale::class);
 
         $middleware->alias([
+            'api.active' => EnsureApiUserIsActive::class,
             'no-store' => PreventPageCaching::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
