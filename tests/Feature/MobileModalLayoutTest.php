@@ -81,7 +81,8 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("modal.closest('[hidden], [aria-hidden=\"true\"]') === null", $script);
         $this->assertStringContainsString("document.addEventListener('livewire:navigated', startApplicationModalScrollLock);", $script);
         $this->assertStringContainsString("attributeFilter: ['hidden', 'open', 'aria-hidden']", $script);
-        $this->assertStringContainsString("body.application-modal-open {\n    position: fixed;\n    top: calc(-1 * var(--application-modal-scroll-y, 0px));", $styles);
+        $this->assertStringContainsString("body.application-modal-open {\n        position: fixed;\n        top: calc(-1 * var(--application-modal-scroll-y, 0px));", $styles);
+        $this->assertStringContainsString("@media (max-width: 699px) {\n    html.application-modal-open,\n    body.application-modal-open {\n        overflow: hidden !important;", $styles);
 
         $this->assertStringContainsString('.admin-modal .admin-modal__dialog {', $styles);
         $this->assertStringContainsString('.admin-modal .admin-modal__body {', $styles);

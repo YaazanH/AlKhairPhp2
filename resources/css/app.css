@@ -4448,18 +4448,20 @@ html[dir='rtl'] .surface-table .attendance-days-table :is(th, td):is(.attendance
     display: contents;
 }
 
-html.application-modal-open,
-body.application-modal-open {
-    overflow: hidden !important;
-    overscroll-behavior: none;
-}
+@media (max-width: 699px) {
+    html.application-modal-open,
+    body.application-modal-open {
+        overflow: hidden !important;
+        overscroll-behavior: none;
+    }
 
-body.application-modal-open {
-    position: fixed;
-    top: calc(-1 * var(--application-modal-scroll-y, 0px));
-    right: 0;
-    left: 0;
-    width: 100%;
+    body.application-modal-open {
+        position: fixed;
+        top: calc(-1 * var(--application-modal-scroll-y, 0px));
+        right: 0;
+        left: 0;
+        width: 100%;
+    }
 }
 
 html[dir='rtl'] .admin-grid-meta {
