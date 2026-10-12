@@ -13,6 +13,10 @@ new class extends Component
     use AuthorizesPermissions;
     use AuthorizesTeacherAssignments;
 
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
     public ?int $editingId = null;
 
     public string $editingStudentName = '';
@@ -41,9 +45,11 @@ new class extends Component
 
     public bool $showForm = false;
 
-    public function mount(): void
+    public function mount(?int $archiveCourseId = null, bool $archiveReadOnly = false): void
     {
         $this->authorizePermission('student-notes.view');
+        $this->archiveCourseId = $archiveCourseId;
+        $this->archiveReadOnly = $archiveReadOnly;
         $this->applyRequestedContext();
         $this->cancel();
     }
@@ -100,6 +106,7 @@ new class extends Component
 
     public function create(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('student-notes.create');
 
         $this->cancel(closeForm: false);
@@ -108,6 +115,7 @@ new class extends Component
 
     public function save(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission($this->editingId ? 'student-notes.update' : 'student-notes.create');
 
         $note = $this->editingId
@@ -149,6 +157,7 @@ new class extends Component
 
     public function edit(int $noteId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('student-notes.update');
 
         $note = $this->findAvailableNote($noteId);
@@ -198,6 +207,7 @@ new class extends Component
 
     public function delete(int $noteId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('student-notes.delete');
 
         $note = $this->findAvailableNote($noteId);
@@ -243,7 +253,8 @@ new class extends Component
 
     protected function availableEnrollmentsQuery()
     {
-        return $this->scopeEnrollmentsQuery(Enrollment::query());
+        return $this->scopeEnrollmentsQuery(Enrollment::query())
+            ->when($this->archiveCourseId, fn ($query) => $query->whereHas('group', fn ($group) => $group->where('course_id', $this->archiveCourseId)));
     }
 
     protected function availableNotesQuery()
@@ -251,6 +262,7 @@ new class extends Component
         return $this->scopeStudentNotesQuery(
             StudentNote::query()
                 ->with('student.parentProfile')
+                ->when($this->archiveCourseId, fn ($query) => $query->whereHas('enrollment.group', fn ($group) => $group->where('course_id', $this->archiveCourseId)))
                 ->latest('noted_at')
                 ->latest('id')
         );
@@ -258,7 +270,8 @@ new class extends Component
 
     protected function availableStudentsQuery()
     {
-        return $this->scopeStudentsQuery(Student::query());
+        return $this->scopeStudentsQuery(Student::query())
+            ->when($this->archiveCourseId, fn ($query) => $query->whereHas('enrollments.group', fn ($group) => $group->where('course_id', $this->archiveCourseId)));
     }
 
     protected function defaultSource(): string
@@ -491,11 +504,11 @@ new class extends Component
                         </select>
                     </div>
 
-                    @can('student-notes.create')
+                    @if (! $archiveReadOnly && auth()->user()->can('student-notes.create'))
                         <div class="admin-toolbar__actions">
                             <x-add-action-button wire:click="create" :label="__('notes.form.create_title')" />
                         </div>
-                    @endcan
+                    @endif
                 </div>
             </div>
 
@@ -525,7 +538,7 @@ new class extends Component
                         <tbody class="divide-y divide-white/6">
                             @foreach ($notes as $note)
                                 @php
-                                    $canMutate = auth()->user()->can('student-notes.update') && (! $teacherMode || $note->author_id === auth()->id());
+                                    $canMutate = ! $archiveReadOnly && auth()->user()->can('student-notes.update') && (! $teacherMode || $note->author_id === auth()->id());
                                 @endphp
                                 <tr>
                                     <td class="px-4 py-4">{{ $loop->iteration }}</td>

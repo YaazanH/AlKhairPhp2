@@ -56,15 +56,19 @@ new class extends Component
     public function with(): array
     {
         $canReview = auth()->user()?->can('finance.revenue-requests.review') ?? false;
+        $canChooseCashBox = auth()->user()?->can('finance.entries.update') ?? false;
+        $financeService = app(FinanceService::class);
 
         return [
-            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->get(),
+            'cashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
             'cashBoxesByCurrency' => FinanceCurrency::query()
                 ->where('is_active', true)
                 ->pluck('id')
-                ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
+                ->mapWithKeys(fn ($currencyId) => [(int) $currencyId => $financeService->accessibleCashBoxesForCurrency(auth()->user(), (int) $currencyId)->get()])
                 ->all(),
-            'currencies' => app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->get(),
+            'currencies' => $financeService->currenciesForCashBox($canChooseCashBox ? $this->cash_box_id : null)
+                ->when($canChooseCashBox && ! $this->cash_box_id, fn ($query) => $query->whereRaw('1 = 0'))
+                ->get(),
             'revenueCategories' => FinanceCategory::query()
                 ->where('is_active', true)
                 ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
@@ -111,6 +115,11 @@ new class extends Component
             ->whereIn('type', [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN])
             ->firstOrFail();
         $requestType = $category->type;
+        $requestedReason = trim((string) ($validated['requested_reason'] ?? ''));
+
+        if ($category->is_donation && $requestedReason === '') {
+            $requestedReason = $this->donationDefaultReason();
+        }
 
         $request = FinanceRequest::query()->create([
             'request_no' => app(FinanceService::class)->nextRequestNumber($requestType),
@@ -121,7 +130,7 @@ new class extends Component
             'finance_category_id' => $category->id,
             'counterparty_name' => $category->is_donation ? ($validated['counterparty_name'] ?: null) : null,
             'requested_by' => auth()->id(),
-            'requested_reason' => $validated['requested_reason'] ?: null,
+            'requested_reason' => $requestedReason !== '' ? $requestedReason : null,
         ]);
 
         if ($canReview) {
@@ -129,7 +138,7 @@ new class extends Component
                 ? app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user())
                 : app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), (int) $validated['currency_id']);
 
-            if (! $postingCashBox) {
+            if (! $postingCashBox || ! app(FinanceService::class)->currenciesForCashBox($postingCashBox->id)->whereKey($validated['currency_id'])->exists()) {
                 $request->delete();
                 $this->addError('currency_id', __('finance.validation.cash_box_currency_mismatch'));
 
@@ -175,15 +184,23 @@ new class extends Component
 
     public function updatedCashBoxId(): void
     {
-        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->whereKey($this->currency_id)->exists()) {
-            $this->currency_id = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->value('id');
+        if (! $this->cash_box_id) {
+            $this->currency_id = null;
+
+            return;
+        }
+
+        $currencies = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id);
+
+        if (! $this->currency_id || ! (clone $currencies)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = (clone $currencies)->value('id');
         }
     }
 
     public function updatedCurrencyId(): void
     {
-        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->currency_id)->whereKey($this->cash_box_id)->exists()) {
-            $this->cash_box_id = null;
+        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->value('id');
         }
     }
 
@@ -194,16 +211,25 @@ new class extends Component
 
     public function updatedFinanceCategoryId(): void
     {
-        $categoryType = FinanceCategory::query()
+        $category = FinanceCategory::query()
             ->whereKey($this->finance_category_id)
-            ->value('type');
+            ->first();
+        $categoryType = $category?->type;
 
         if (in_array($categoryType, [FinanceRequest::TYPE_REVENUE, FinanceRequest::TYPE_RETURN], true)) {
             $this->request_type = $categoryType;
         }
 
-        if (! FinanceCategory::query()->whereKey($this->finance_category_id)->where('is_donation', true)->exists()) {
+        if ($category?->is_donation) {
+            if (blank($this->requested_reason)) {
+                $this->requested_reason = $this->donationDefaultReason();
+            }
+        } else {
             $this->counterparty_name = '';
+
+            if ($this->requested_reason === $this->donationDefaultReason()) {
+                $this->requested_reason = '';
+            }
         }
     }
 
@@ -260,10 +286,15 @@ new class extends Component
         $this->currency_id = app(FinanceService::class)->localCurrency()->id;
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->currency_id)?->id;
         $this->finance_category_id = app(FinanceService::class)->defaultRevenueCategoryId();
-        $this->updatedFinanceCategoryId();
         $this->counterparty_name = '';
         $this->requested_reason = '';
+        $this->updatedFinanceCategoryId();
         $this->resetValidation();
+    }
+
+    protected function donationDefaultReason(): string
+    {
+        return __('finance.descriptions.donation_income_default', [], 'ar');
     }
 
     protected function defaultCategoryIdForType(string $type): ?int
@@ -310,14 +341,18 @@ new class extends Component
         close-method="closeCreateModal"
         max-width="3xl"
     >
-        <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-6" data-finance-entry-create-form>
-            <div class="lg:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_kind') }}</label><select wire:model.live="finance_category_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($revenueCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            @if ($selectedRevenueCategory?->is_donation)<div class="lg:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label><input wire:model="counterparty_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">@error('counterparty_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endif
-            <div @class(['lg:col-span-2' => $selectedRevenueCategory?->is_donation, 'lg:col-span-4' => ! $selectedRevenueCategory?->is_donation]) data-finance-entry-amount data-donor-row-compact="{{ $selectedRevenueCategory?->is_donation ? 'true' : 'false' }}"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="amount" currency-model="currency_id" :currencies="$currencies" />@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror @error('currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>@endcan
-            @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-            <div class="lg:col-span-6" data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div class="lg:col-span-6 flex flex-wrap justify-end gap-3">
+        <form wire:submit="submitRequest" class="space-y-4" data-finance-entry-create-form>
+            <div class="finance-entry-form__row grid gap-4 lg:grid-cols-2" data-finance-entry-primary-row>
+                <div data-finance-entry-type><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_kind') }}</label><select wire:model.live="finance_category_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_category') }}</option>@foreach ($revenueCategories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('finance_category_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                @can('finance.entries.update')<div data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
+            </div>
+            @if ($selectedRevenueCategory?->is_donation)<div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label><input wire:model="counterparty_name" type="text" placeholder="{{ __('finance.fields.revenue_name') }}" class="w-full rounded-xl px-4 py-3 text-sm">@error('counterparty_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endif
+            <div class="finance-entry-form__row grid gap-4 lg:grid-cols-2" data-finance-entry-value-row>
+                @can('finance.entries.update')<div data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="cash_box_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
+                <div data-finance-entry-amount data-donor-row-compact="{{ $selectedRevenueCategory?->is_donation ? 'true' : 'false' }}"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="amount" currency-model="currency_id" :currencies="$currencies" />@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror @error('currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            </div>
+            <div data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" placeholder="{{ __('finance.common.description') }}" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div class="flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                 <button
                     type="submit"

@@ -1,7 +1,7 @@
 @props(['name'])
 
 @php
-    $isSuppliedFilledIcon = in_array($name, ['save', 'save-new', 'backup-upload', 'database-restore', 'delete', 'unlink', 'financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit', 'review', 'restore-point', 'restore-defaults', 'past', 'filter-include', 'filter-exclude'], true);
+    $isSuppliedFilledIcon = in_array($name, ['save', 'save-new', 'backup-upload', 'documents-backup', 'database-restore', 'delete', 'unlink', 'financial-report-open', 'financial-report-create', 'expense-invoice-view', 'transaction-invoice-edit', 'review', 'restore-point', 'restore-defaults', 'past', 'filter-include', 'filter-exclude'], true);
     $viewBox = match ($name) {
         'save' => '300 280 720 720',
         'save-new' => '250 230 760 760',
@@ -20,7 +20,7 @@
         'review' => '-8 -8 146.03 146.35',
         'restore-point' => '0 0 734.23 688.56',
         'restore-defaults' => '-24 -24 782.2 736.6',
-        'documents-backup' => '0 0 30 30',
+        'documents-backup' => '0 0 570.36 639.17',
         'past' => '0 0 189.99 190.27',
         'filter-include' => '0 0 490.71 428.05',
         'filter-exclude' => '0 0 506.39 430.3',
@@ -54,6 +54,11 @@
         @case('camera')
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.25 7.75h3l1.5-2.25h6.5l1.5 2.25h3A1.75 1.75 0 0 1 21 9.5v8.25a1.75 1.75 0 0 1-1.75 1.75H4.75A1.75 1.75 0 0 1 3 17.75V9.5a1.75 1.75 0 0 1 1.25-1.75Z" />
             <circle cx="12" cy="13.25" r="3.25" />
+            @break
+        @case('gallery')
+            <rect x="3" y="4" width="18" height="16" rx="2.5" />
+            <circle cx="8.25" cy="9" r="1.5" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="m5.5 17 4.25-4.25 2.75 2.75 2.25-2.25L18.5 17" />
             @break
         @case('camera-off')
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.25 7.75h3l1.5-2.25h6.5l1.5 2.25h3A1.75 1.75 0 0 1 21 9.5v8.25a1.75 1.75 0 0 1-1.75 1.75H4.75A1.75 1.75 0 0 1 3 17.75V9.5a1.75 1.75 0 0 1 1.25-1.75Z" />
@@ -135,11 +140,29 @@
             </g>
             @break
         @case('documents-backup')
-            <g stroke-linecap="round" stroke-linejoin="round" data-media-backup-icon="image-circular-arrow">
-                <path d="M10 20H4.5a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2H18a2 2 0 0 1 2 2v6" />
-                <circle cx="7.5" cy="7.5" r="1.5" />
-                <path d="m2.5 16 5-5 3.5 3.5 3.5-4 2 2" />
-                <path d="M16.06 25.74A6.7 6.7 0 1 0 14.1 21m-2.3-2.5 2.3 2.5 2.3-2.5" />
+            <g data-media-backup-icon="database-image" data-backup-documents-composite>
+                <defs>
+                    <mask id="documents-backup-clearance-mask">
+                        <rect width="570.36" height="639.17" fill="white" />
+                        <rect x="267" y="389" width="311" height="277" rx="43" fill="black" data-backup-documents-clearance />
+                    </mask>
+                </defs>
+                <g mask="url(#documents-backup-clearance-mask)">
+                    <x-admin-action-icon name="backup-upload" x="0" y="0" width="570.36" height="639.17" data-backup-documents-base />
+                </g>
+                <g
+                    transform="translate(215 320) scale(17.28)"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.1"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    data-backup-documents-image
+                >
+                    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                    <circle cx="8.25" cy="9" r="1.5" />
+                    <path d="m5.5 17 4.25-4.25 2.75 2.75 2.25-2.25L18.5 17" />
+                </g>
             </g>
             @break
         @case('restore-defaults')

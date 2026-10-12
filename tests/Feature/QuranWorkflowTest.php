@@ -111,7 +111,7 @@ class QuranWorkflowTest extends TestCase
 
         Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
             ->assertSee(__('workflow.teacher_attendance.table.headers.percentage'))
-            ->assertSee('class="attendance-desktop-only px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="50"', false)
+            ->assertSee('class="attendance-desktop-only teacher-attendance-percentage-column px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="50"', false)
             ->assertDontSee(__('crud.common.status_options.active'));
 
         Volt::test('teachers.attendance')
@@ -203,6 +203,7 @@ class QuranWorkflowTest extends TestCase
         $openDayComponent
             ->call('openManualTeacherModal')
             ->assertSee('admin-modal__dialog--xl admin-modal__dialog--compact', false)
+            ->assertSee('data-teacher-attendance-manual-save', false)
             ->set('manual_teacher_id', (string) $extraTeacher->id)
             ->call('addManualTeacher')
             ->assertHasNoErrors();

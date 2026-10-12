@@ -127,7 +127,7 @@ class CurriculumModuleTest extends TestCase
             $styles,
         );
         $this->assertMatchesRegularExpression(
-            '/@media \(max-width: 767px\).*?\[data-curricula-progress-card\]\s*\{\s*display: none !important;/s',
+            '/@media \(max-width: 699px\).*?\[data-curricula-progress-card\]\s*\{\s*display: none !important;/s',
             $styles,
         );
         $this->assertStringNotContainsString('lg:grid-cols-4 xl:grid-cols-6', $source);

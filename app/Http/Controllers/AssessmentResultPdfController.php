@@ -25,6 +25,14 @@ class AssessmentResultPdfController extends Controller
             $groupIds->push($assessment->group_id);
         }
 
+        $archiveCourseId = $request->integer('archive_course_id') ?: null;
+        if ($archiveCourseId !== null) {
+            abort_unless(
+                Group::query()->whereIn('id', $groupIds)->where('course_id', $archiveCourseId)->exists(),
+                404,
+            );
+        }
+
         $selectedGroupId = $request->integer('group_id');
         if ($selectedGroupId !== 0) {
             abort_unless($groupIds->contains($selectedGroupId), 404);
@@ -33,7 +41,7 @@ class AssessmentResultPdfController extends Controller
 
         $groups = $scopes->scopeGroups(Group::query()->whereIn('id', $groupIds), $request->user())
             ->with(['enrollments' => fn ($query) => $query
-                ->where('status', 'active')
+                ->whereIn('status', $archiveCourseId !== null ? ['active', 'completed'] : ['active'])
                 ->with([
                     'student',
                     'assessmentResults' => fn ($results) => $results->where('assessment_id', $assessment->id),

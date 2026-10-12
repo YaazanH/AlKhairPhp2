@@ -31,6 +31,8 @@ new class extends Component
 
     public string $notes = '';
 
+    public string $default_notes = '';
+
     public bool $showExchangeModal = false;
 
     public function mount(): void
@@ -44,6 +46,7 @@ new class extends Component
         $this->to_currency_id = $localCurrency->id;
         $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
         $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
+        $this->syncDefaultNotes();
     }
 
     public function with(): array
@@ -53,9 +56,11 @@ new class extends Component
         return [
             'baseCurrency' => $financeService->baseCurrency(),
             'localCurrency' => $financeService->localCurrency(),
-            'fromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->get(),
-            'toCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->get(),
-            'fromCurrencies' => $financeService->currenciesForCashBox($this->from_cash_box_id)->get(),
+            'fromCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
+            'toCashBoxes' => $this->destinationCashBoxes()->get(),
+            'fromCurrencies' => $financeService->currenciesForCashBox($this->from_cash_box_id)
+                ->when(! $this->from_cash_box_id, fn ($query) => $query->whereRaw('1 = 0'))
+                ->get(),
             'toCurrencies' => $this->destinationCurrencies()->get(),
             'exchanges' => FinanceCurrencyExchange::query()->with(['fromCashBox', 'toCashBox', 'fromCurrency', 'toCurrency', 'enteredBy'])->latest('exchange_date')->latest('id')->limit(50)->get(),
         ];
@@ -87,12 +92,30 @@ new class extends Component
             return;
         }
 
-        app(FinanceService::class)->recordCurrencyExchange(
-            app(FinanceService::class)->cashBoxForUser((int) $validated['from_cash_box_id'], auth()->user()),
-            FinanceCurrency::query()->findOrFail($validated['from_currency_id']),
+        $financeService = app(FinanceService::class);
+        $fromCashBox = $financeService->cashBoxForUser((int) $validated['from_cash_box_id'], auth()->user());
+        $toCashBox = $financeService->cashBoxForUser((int) $validated['to_cash_box_id'], auth()->user());
+        $fromCurrency = FinanceCurrency::query()->findOrFail($validated['from_currency_id']);
+        $toCurrency = FinanceCurrency::query()->findOrFail($validated['to_currency_id']);
+
+        if (! $financeService->currenciesForCashBox($fromCashBox->id)->whereKey($fromCurrency->id)->exists()) {
+            $this->addError('from_currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+            return;
+        }
+
+        if (! $financeService->currenciesForCashBox($toCashBox->id)->whereKey($toCurrency->id)->exists()) {
+            $this->addError('to_currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+            return;
+        }
+
+        $financeService->recordCurrencyExchange(
+            $fromCashBox,
+            $fromCurrency,
             (float) $validated['from_amount'],
-            app(FinanceService::class)->cashBoxForUser((int) $validated['to_cash_box_id'], auth()->user()),
-            FinanceCurrency::query()->findOrFail($validated['to_currency_id']),
+            $toCashBox,
+            $toCurrency,
             (float) $this->normalizeFinanceNumber($this->to_amount),
             $validated['exchange_date'],
             auth()->user(),
@@ -107,6 +130,7 @@ new class extends Component
         $this->from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $baseCurrency->id)?->id;
         $this->to_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
         $this->exchange_date = now()->toDateString();
+        $this->syncDefaultNotes();
         $this->showExchangeModal = false;
         session()->flash('status', __('finance.messages.exchange_posted'));
     }
@@ -115,6 +139,7 @@ new class extends Component
     {
         $this->authorizePermission('finance.exchange.create');
         $this->resetValidation();
+        $this->syncDefaultNotes();
         $this->showExchangeModal = true;
     }
 
@@ -126,33 +151,41 @@ new class extends Component
 
     public function updated($property): void
     {
-        if (in_array($property, ['from_amount', 'from_currency_id', 'to_currency_id'], true)) {
+        if ($property === 'from_amount') {
             $this->to_amount_is_manual = false;
             $this->calculateToAmount();
         }
 
-        if ($property === 'from_currency_id' && $this->from_cash_box_id && $this->from_currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->from_currency_id)->whereKey($this->from_cash_box_id)->exists()) {
-            $this->from_cash_box_id = null;
+        if ($property === 'from_cash_box_id') {
+            $this->syncSourceCurrency();
+            $this->syncDestinationCashBox();
+            $this->syncDestinationCurrency();
+            $this->to_amount_is_manual = false;
+            $this->calculateToAmount();
         }
 
         if ($property === 'from_currency_id') {
+            $this->syncSourceCurrency();
+            $this->syncDestinationCashBox();
             $this->syncDestinationCurrency();
+            $this->to_amount_is_manual = false;
             $this->calculateToAmount();
         }
 
-        if ($property === 'to_currency_id' && $this->to_cash_box_id && $this->to_currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->to_currency_id)->whereKey($this->to_cash_box_id)->exists()) {
-            $this->to_cash_box_id = null;
-        }
-
-        if ($property === 'from_cash_box_id' && $this->from_cash_box_id && $this->from_currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->from_cash_box_id)->whereKey($this->from_currency_id)->exists()) {
-            $this->from_currency_id = app(FinanceService::class)->currenciesForCashBox($this->from_cash_box_id)->value('id');
+        if ($property === 'to_cash_box_id') {
             $this->syncDestinationCurrency();
+            $this->to_amount_is_manual = false;
             $this->calculateToAmount();
         }
 
-        if ($property === 'to_cash_box_id' && (! $this->to_currency_id || ! (clone $this->destinationCurrencies())->whereKey($this->to_currency_id)->exists())) {
+        if ($property === 'to_currency_id') {
             $this->syncDestinationCurrency();
+            $this->to_amount_is_manual = false;
             $this->calculateToAmount();
+        }
+
+        if (in_array($property, ['from_cash_box_id', 'from_currency_id', 'to_cash_box_id', 'to_currency_id'], true)) {
+            $this->syncDefaultNotes();
         }
     }
 
@@ -165,7 +198,42 @@ new class extends Component
     {
         return app(FinanceService::class)
             ->currenciesForCashBox($this->to_cash_box_id)
+            ->when(! $this->to_cash_box_id, fn ($query) => $query->whereRaw('1 = 0'))
             ->when($this->from_currency_id, fn ($query) => $query->where('finance_currencies.id', '!=', $this->from_currency_id));
+    }
+
+    protected function destinationCashBoxes()
+    {
+        return app(FinanceService::class)
+            ->accessibleCashBoxes(auth()->user())
+            ->when(
+                $this->from_currency_id,
+                fn ($query) => $query->whereHas('currencies', fn ($currencyQuery) => $currencyQuery
+                    ->where('finance_currencies.is_active', true)
+                    ->where('finance_currencies.show_in_dropdowns', true)
+                    ->where('finance_currencies.id', '!=', $this->from_currency_id)),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            );
+    }
+
+    protected function syncSourceCurrency(): void
+    {
+        $availableCurrencies = app(FinanceService::class)
+            ->currenciesForCashBox($this->from_cash_box_id)
+            ->when(! $this->from_cash_box_id, fn ($query) => $query->whereRaw('1 = 0'));
+
+        if (! $this->from_currency_id || ! (clone $availableCurrencies)->whereKey($this->from_currency_id)->exists()) {
+            $this->from_currency_id = (clone $availableCurrencies)->value('id');
+        }
+    }
+
+    protected function syncDestinationCashBox(): void
+    {
+        $availableCashBoxes = $this->destinationCashBoxes();
+
+        if (! $this->to_cash_box_id || ! (clone $availableCashBoxes)->whereKey($this->to_cash_box_id)->exists()) {
+            $this->to_cash_box_id = (clone $availableCashBoxes)->value('id');
+        }
     }
 
     protected function syncDestinationCurrency(): void
@@ -191,6 +259,24 @@ new class extends Component
         }
 
         $this->to_amount = $this->formatFinanceNumberForInput(app(FinanceService::class)->calculateExchangeToAmount($fromCurrency, $toCurrency, $fromAmount));
+    }
+
+    protected function syncDefaultNotes(): void
+    {
+        $fromCurrency = $this->from_currency_id ? FinanceCurrency::query()->find($this->from_currency_id) : null;
+        $toCurrency = $this->to_currency_id ? FinanceCurrency::query()->find($this->to_currency_id) : null;
+
+        if (! $fromCurrency || ! $toCurrency) {
+            return;
+        }
+
+        $nextDefault = app(FinanceService::class)->defaultExchangeDescription($fromCurrency, $toCurrency);
+
+        if (blank($this->notes) || $this->notes === $this->default_notes) {
+            $this->notes = $nextDefault;
+        }
+
+        $this->default_notes = $nextDefault;
     }
 }; ?>
 
@@ -233,7 +319,7 @@ new class extends Component
                             <div class="finance-amount-input" dir="ltr" data-exchange-total-amount>
                                 <select wire:model.live="to_currency_id" class="finance-amount-input__currency rounded-xl px-3 text-sm" data-clearable="false" data-finance-currency-required="true" data-search-placeholder="" aria-label="{{ __('finance.exchange.to_currency') }}">@foreach ($toCurrencies as $currency)<option value="{{ $currency->id }}">{{ $currency->code }}</option>@endforeach</select>
                                 <div class="exchange-to-amount-control relative min-w-0" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
-                                <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator @readonly(! $to_amount_is_manual) class="finance-amount-input__value exchange-to-amount-value w-full rounded-xl px-4 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
+                                <input wire:model="to_amount" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ __('finance.exchange.to_amount') }}" @readonly(! $to_amount_is_manual) class="finance-amount-input__value exchange-to-amount-value w-full rounded-xl px-4 text-sm {{ $to_amount_is_manual ? '' : 'opacity-75' }}">
                                 @if (filled($from_amount) && filled($to_amount) && ! $to_amount_is_manual)
                                     <button type="button" wire:click="enableManualToAmount" class="exchange-to-amount-edit" title="{{ __('finance.exchange.edit_to_amount') }}" aria-label="{{ __('finance.exchange.edit_to_amount') }}" data-exchange-to-amount-edit data-modal-action-icon-ignore>
                                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 3.487 3.651 3.651M5.25 18.75l4.224-.845a2.25 2.25 0 0 0 1.075-.59L19.72 8.143a2.582 2.582 0 0 0-3.652-3.652L6.897 13.663a2.25 2.25 0 0 0-.59 1.075L5.25 18.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 5.25 18.75 9"/></svg>
@@ -247,7 +333,7 @@ new class extends Component
 
                 <div class="exchange-entry-form__meta">
                     <div><label class="exchange-entry-form__label">{{ __('finance.common.date') }}</label><input wire:model="exchange_date" type="date" class="w-full rounded-xl px-4 text-sm"></div>
-                    <div class="min-w-0"><label class="exchange-entry-form__label">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" class="w-full rounded-xl px-4 text-sm"></div>
+                    <div class="min-w-0"><label class="exchange-entry-form__label">{{ __('finance.common.notes') }}</label><input wire:model="notes" type="text" placeholder="{{ __('finance.common.notes') }}" class="w-full rounded-xl px-4 text-sm"></div>
                 </div>
                 @error('from_currency_id') <div class="exchange-entry-form__error text-sm text-red-400">{{ $message }}</div> @enderror
 

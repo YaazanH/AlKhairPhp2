@@ -509,6 +509,7 @@ return [
             'delete_memorization' => 'This student cannot be deleted because memorisation or Quran page progress exists.',
             'duplicate_profile' => 'A similar student already exists: :name (:number). Open that record instead of creating a duplicate.',
             'juz_number_range' => 'Please choose a number between 1 and 30.',
+            'finished_juz_cannot_be_previous' => 'A completed juz cannot be added as previously memorised.',
         ],
         'duplicate_active' => [
             'title' => 'Student already exists',
@@ -743,13 +744,16 @@ return [
             'memorization_unavailable' => 'Memorisation data unavailable',
             'memorized_pages' => 'Pages :pages',
             'copy_sections' => [
+                'lesson' => 'Lesson title:',
                 'attendance' => 'Attendance:',
                 'memorization' => 'Memorisation:',
+                'saber' => 'Saber:',
                 'partial_tests' => 'Trial test:',
                 'final_tests' => 'Final saber:',
                 'closing' => 'May Allah accept from us and from you 🌺',
             ],
             'copy_lines' => [
+                'day' => ':day :date',
                 'group' => 'Group: :value',
                 'student' => 'Student: :value',
                 'course' => 'Course: :value',

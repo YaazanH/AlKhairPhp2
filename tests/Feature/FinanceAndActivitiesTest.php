@@ -772,7 +772,38 @@ class FinanceAndActivitiesTest extends TestCase
         ]);
     }
 
-    public function test_revenue_requests_filter_cash_boxes_and_currencies_by_supported_assignments(): void
+    public function test_donation_income_uses_the_default_arabic_comment(): void
+    {
+        $this->signIn();
+
+        $cashBox = FinanceCashBox::query()->firstOrFail();
+        $currency = app(FinanceService::class)->localCurrency();
+        $category = FinanceCategory::query()->create([
+            'code' => 'course-donations',
+            'is_active' => true,
+            'is_donation' => true,
+            'name' => 'تبرعات',
+            'type' => FinanceRequest::TYPE_REVENUE,
+        ]);
+
+        Volt::test('finance.revenue-requests')
+            ->call('openCreateModal')
+            ->set('finance_category_id', $category->id)
+            ->assertSet('requested_reason', 'تبرعات لدورة القرآن الكريم')
+            ->set('counterparty_name', 'متبرع')
+            ->set('amount', '45')
+            ->set('currency_id', $currency->id)
+            ->set('cash_box_id', $cashBox->id)
+            ->call('submitRequest')
+            ->assertHasNoErrors();
+
+        $request = FinanceRequest::query()->where('finance_category_id', $category->id)->firstOrFail();
+
+        $this->assertSame('تبرعات لدورة القرآن الكريم', $request->requested_reason);
+        $this->assertSame('تبرعات لدورة القرآن الكريم', $request->postedTransaction?->description);
+    }
+
+    public function test_revenue_requests_choose_the_fund_before_its_supported_currency(): void
     {
         $this->signIn();
 
@@ -798,13 +829,13 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-icon-name="save"', false)
             ->assertDontSee('data-create-and-new-action', false)
             ->assertSee($localOnlyBox->name)
-            ->assertDontSee($baseOnlyBox->name)
-            ->set('cash_box_id', $localOnlyBox->id)
-            ->assertSee($localCurrency->code)
-            ->assertDontSee($baseCurrency->code)
-            ->set('currency_id', $baseCurrency->id)
             ->assertSee($baseOnlyBox->name)
-            ->assertDontSee($localOnlyBox->name);
+            ->set('cash_box_id', $baseOnlyBox->id)
+            ->assertSet('currency_id', $baseCurrency->id)
+            ->assertViewHas('currencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id])
+            ->set('currency_id', $localCurrency->id)
+            ->assertSet('currency_id', $baseCurrency->id)
+            ->assertSet('cash_box_id', $baseOnlyBox->id);
     }
 
     public function test_request_attachments_are_removed_from_income_and_expenses_but_remain_on_invoices(): void
@@ -825,6 +856,25 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString("->store('finance/invoices', 'public')", $expenseSource);
         $this->assertStringContainsString('wire:model="invoice_scan"', $invoiceSource);
         $this->assertStringContainsString("->store('finance/invoices/scans', 'public')", $invoiceSource);
+    }
+
+    public function test_financial_request_forms_share_the_same_primary_and_value_field_order(): void
+    {
+        foreach ([
+            'income' => resource_path('views/livewire/finance/revenue-requests.blade.php'),
+            'expense' => resource_path('views/livewire/finance/expense-requests.blade.php'),
+            'withdrawal' => resource_path('views/livewire/finance/pull-requests.blade.php'),
+        ] as $form => $path) {
+            $source = file_get_contents($path);
+
+            $this->assertMatchesRegularExpression(
+                '/data-finance-entry-primary-row.*?data-finance-entry-type.*?data-finance-entry-date.*?data-finance-entry-value-row.*?data-finance-entry-fund.*?data-finance-entry-amount.*?data-finance-entry-description/s',
+                $source,
+                "The {$form} form must keep type/date first and fund/amount second.",
+            );
+            $this->assertSame(2, substr_count($source, 'class="finance-entry-form__row grid gap-4 lg:grid-cols-2"'));
+            $this->assertSame(2, substr_count($source, 'required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true"'));
+        }
     }
 
     public function test_expense_requests_allow_empty_reason_and_edit_posted_amount_details(): void
@@ -852,6 +902,9 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee('data-finance-entry-date', false)
             ->assertSee('data-finance-entry-fund', false)
             ->assertSee('data-finance-entry-description', false)
+            ->assertSee('class="space-y-4" data-finance-entry-create-form', false)
+            ->assertSee('data-finance-entry-primary-row', false)
+            ->assertSee('data-finance-entry-value-row', false)
             ->assertDontSee('data-finance-entry-attachments', false)
             ->assertSee('data-expense-request-save', false)
             ->assertSee('data-icon-name="save"', false)
@@ -912,48 +965,85 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertSee($ledgerOnlyExpense->transaction_no);
     }
 
-    public function test_expenses_can_use_any_active_fund_and_active_dropdown_currency(): void
+    public function test_expenses_choose_the_fund_before_its_supported_currency(): void
     {
         $this->signIn();
 
         $service = app(FinanceService::class);
-        $fund = FinanceCashBox::query()->firstOrFail();
+        $localOnlyFund = FinanceCashBox::query()->firstOrFail();
         $localCurrency = $service->localCurrency();
-        $otherCurrency = FinanceCurrency::query()
-            ->where('is_active', true)
-            ->where('show_in_dropdowns', true)
-            ->whereKeyNot($localCurrency->id)
-            ->firstOrFail();
+        $baseCurrency = $service->baseCurrency();
         $pullKind = FinancePullRequestKind::query()->where('is_active', true)->firstOrFail();
-
-        $fund->currencies()->syncWithoutDetaching([$otherCurrency->id]);
+        $baseOnlyFund = FinanceCashBox::query()->create([
+            'code' => 'base-only-expense',
+            'is_active' => true,
+            'name' => 'Base Only Expense Box',
+        ]);
+        $localOnlyFund->currencies()->sync([$localCurrency->id]);
+        $baseOnlyFund->currencies()->sync([$baseCurrency->id]);
         $service->postTransaction([
             'amount' => 100,
-            'cash_box_id' => $fund->id,
-            'currency_id' => $otherCurrency->id,
+            'cash_box_id' => $baseOnlyFund->id,
+            'currency_id' => $baseCurrency->id,
             'direction' => 'in',
             'type' => 'opening_balance',
         ]);
-        $fund->currencies()->sync([$localCurrency->id]);
 
         Volt::test('finance.expense-requests')
             ->call('openCreateModal')
-            ->assertSee($fund->name)
-            ->assertSee($otherCurrency->code)
+            ->assertSee($localOnlyFund->name)
+            ->assertSee($baseOnlyFund->name)
+            ->set('cash_box_id', $baseOnlyFund->id)
+            ->assertSet('currency_id', $baseCurrency->id)
+            ->assertViewHas('currencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id])
             ->set('amount', '25')
-            ->set('currency_id', $otherCurrency->id)
-            ->set('cash_box_id', $fund->id)
             ->set('finance_pull_request_kind_id', $pullKind->id)
             ->call('submitRequest')
             ->assertHasNoErrors();
 
-        $this->assertTrue($fund->currencies()->whereKey($otherCurrency->id)->exists());
+        $this->assertFalse($localOnlyFund->currencies()->whereKey($baseCurrency->id)->exists());
         $this->assertDatabaseHas('finance_transactions', [
-            'cash_box_id' => $fund->id,
-            'currency_id' => $otherCurrency->id,
+            'cash_box_id' => $baseOnlyFund->id,
+            'currency_id' => $baseCurrency->id,
             'signed_amount' => -25,
             'type' => 'expense',
         ]);
+    }
+
+    public function test_withdrawal_requests_choose_the_fund_before_its_supported_currency(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $localCurrency = $service->localCurrency();
+        $baseCurrency = $service->baseCurrency();
+        $localOnlyFund = FinanceCashBox::query()->firstOrFail();
+        $baseOnlyFund = FinanceCashBox::query()->create([
+            'code' => 'base-only-withdrawal',
+            'is_active' => true,
+            'name' => 'Base Only Withdrawal Box',
+        ]);
+        $localOnlyFund->currencies()->sync([$localCurrency->id]);
+        $baseOnlyFund->currencies()->sync([$baseCurrency->id]);
+
+        Volt::test('finance.dashboard')
+            ->assertViewHas('requestCashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $localOnlyFund->id) && $cashBoxes->contains('id', $baseOnlyFund->id))
+            ->set('request_cash_box_id', $baseOnlyFund->id)
+            ->assertSet('request_currency_id', $baseCurrency->id)
+            ->assertViewHas('requestCurrencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id])
+            ->set('request_currency_id', $localCurrency->id)
+            ->assertSet('request_currency_id', $baseCurrency->id)
+            ->assertSet('request_cash_box_id', $baseOnlyFund->id);
+
+        Volt::test('finance.pull-requests')
+            ->call('openCreateModal')
+            ->assertViewHas('cashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $localOnlyFund->id) && $cashBoxes->contains('id', $baseOnlyFund->id))
+            ->set('cash_box_id', $baseOnlyFund->id)
+            ->assertSet('currency_id', $baseCurrency->id)
+            ->assertViewHas('currencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id])
+            ->set('currency_id', $localCurrency->id)
+            ->assertSet('currency_id', $baseCurrency->id)
+            ->assertSet('cash_box_id', $baseOnlyFund->id);
     }
 
     public function test_finance_revenue_entries_can_be_named_edited_and_reversed(): void
@@ -980,6 +1070,7 @@ class FinanceAndActivitiesTest extends TestCase
         Volt::test('finance.revenue-requests')
             ->call('openCreateModal')
             ->set('finance_category_id', $category->id)
+            ->assertSet('requested_reason', 'تبرعات لدورة القرآن الكريم')
             ->assertSee('data-donor-row-compact="true"', false)
             ->assertDontSee(__('finance.messages.revenue_name_mask_help'))
             ->set('counterparty_name', 'Yazan Al Hamwi')
@@ -1296,6 +1387,7 @@ class FinanceAndActivitiesTest extends TestCase
 
         $this->assertSame(128000.0, $toAmount);
         $this->assertSame('1 USD = 12,800 SYP', $service->exchangeRateLabel((float) $usd->rate_to_base, (float) $syp->rate_to_base, 'USD', 'SYP'));
+        $this->assertSame('صرافة دولار أمريكي إلى ليرة سورية', $service->defaultExchangeDescription($usd, $syp));
         $manualToAmount = 127000.0;
 
         $exchange = $service->recordCurrencyExchange(
@@ -1374,6 +1466,7 @@ class FinanceAndActivitiesTest extends TestCase
             ->assertDontSee('data-exchange-create-form', false)
             ->call('openExchangeModal')
             ->assertSet('showExchangeModal', true)
+            ->assertSet('notes', 'صرافة دولار أمريكي إلى ليرة سورية')
             ->assertSee('data-exchange-create-form', false)
             ->assertSee('dir="ltr" data-exchange-total-amount', false)
             ->assertSee('class="exchange-to-amount-control relative min-w-0" dir="rtl"', false)
@@ -2172,6 +2265,22 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertSame('[خارج] Rebalance funds', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->value('description'));
         $this->assertSame('[داخل] Rebalance funds', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'in')->value('description'));
 
+        $defaultComment = "نقل من {$from->name} إلى {$to->name} بـ الليرة السورية";
+        $this->assertSame($defaultComment, $service->defaultFundTransferDescription($from, $to, $currency));
+
+        Volt::test('finance.dashboard')
+            ->call('openTransferModal')
+            ->set('transfer_from_cash_box_id', $from->id)
+            ->set('transfer_currency_id', $currency->id)
+            ->set('transfer_to_cash_box_id', $to->id)
+            ->assertSet('transfer_notes', $defaultComment);
+
+        Volt::test('finance.cash-box')
+            ->set('transfer_from_cash_box_id', $from->id)
+            ->set('transfer_currency_id', $currency->id)
+            ->set('transfer_to_cash_box_id', $to->id)
+            ->assertSet('transfer_notes', $defaultComment);
+
         $out = FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->firstOrFail();
         $service->updateTransaction($out, [
             'amount' => 30,
@@ -2193,6 +2302,54 @@ class FinanceAndActivitiesTest extends TestCase
         ));
         $this->assertSame('[خارج] Updated transfer', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'out')->value('description'));
         $this->assertSame('[داخل] Updated transfer', FinanceTransaction::query()->where('pair_uuid', $transfer->pair_uuid)->where('direction', 'in')->value('description'));
+
+        $defaultTransfer = $service->recordCashBoxTransfer($from, $to, $currency, 5, now()->toDateString(), auth()->user());
+        $this->assertSame($defaultComment, $defaultTransfer->notes);
+        $this->assertSame('[خارج] '.$defaultComment, FinanceTransaction::query()->where('pair_uuid', $defaultTransfer->pair_uuid)->where('direction', 'out')->value('description'));
+        $this->assertSame('[داخل] '.$defaultComment, FinanceTransaction::query()->where('pair_uuid', $defaultTransfer->pair_uuid)->where('direction', 'in')->value('description'));
+    }
+
+    public function test_exchange_and_transfer_forms_follow_the_selected_fund_currency_chain(): void
+    {
+        $this->signIn();
+
+        $service = app(FinanceService::class);
+        $localCurrency = $service->localCurrency();
+        $baseCurrency = $service->baseCurrency();
+        $localSource = FinanceCashBox::query()->create(['code' => 'local-source', 'name' => 'Local source', 'is_active' => true]);
+        $localTarget = FinanceCashBox::query()->create(['code' => 'local-target', 'name' => 'Local target', 'is_active' => true]);
+        $baseSource = FinanceCashBox::query()->create(['code' => 'base-source', 'name' => 'Base source', 'is_active' => true]);
+        $baseTarget = FinanceCashBox::query()->create(['code' => 'base-target', 'name' => 'Base target', 'is_active' => true]);
+        $localSource->currencies()->sync([$localCurrency->id]);
+        $localTarget->currencies()->sync([$localCurrency->id]);
+        $baseSource->currencies()->sync([$baseCurrency->id]);
+        $baseTarget->currencies()->sync([$baseCurrency->id]);
+
+        Volt::test('finance.exchange')
+            ->call('openExchangeModal')
+            ->assertViewHas('fromCashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $localSource->id) && $cashBoxes->contains('id', $baseSource->id))
+            ->set('from_cash_box_id', $localSource->id)
+            ->assertSet('from_currency_id', $localCurrency->id)
+            ->assertViewHas('fromCurrencies', fn ($currencies) => $currencies->pluck('id')->all() === [$localCurrency->id])
+            ->assertViewHas('toCashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $baseTarget->id) && ! $cashBoxes->contains('id', $localTarget->id))
+            ->set('to_cash_box_id', $baseTarget->id)
+            ->assertSet('to_currency_id', $baseCurrency->id)
+            ->assertViewHas('toCurrencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id]);
+
+        Volt::test('finance.cash-box')
+            ->assertViewHas('transferFromCashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $baseSource->id))
+            ->set('transfer_from_cash_box_id', $baseSource->id)
+            ->assertSet('transfer_currency_id', $baseCurrency->id)
+            ->assertViewHas('transferCurrencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id])
+            ->assertViewHas('transferToCashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $baseTarget->id) && ! $cashBoxes->contains('id', $localTarget->id) && ! $cashBoxes->contains('id', $baseSource->id));
+
+        Volt::test('finance.dashboard')
+            ->call('openTransferModal')
+            ->assertViewHas('cashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $baseSource->id))
+            ->set('transfer_from_cash_box_id', $baseSource->id)
+            ->assertSet('transfer_currency_id', $baseCurrency->id)
+            ->assertViewHas('transferCurrencies', fn ($currencies) => $currencies->pluck('id')->all() === [$baseCurrency->id])
+            ->assertViewHas('transferToCashBoxes', fn ($cashBoxes) => $cashBoxes->contains('id', $baseTarget->id) && ! $cashBoxes->contains('id', $localTarget->id) && ! $cashBoxes->contains('id', $baseSource->id));
     }
 
     public function test_exchange_ledger_rows_use_direction_markers_and_edits_sync_to_the_exchange(): void
@@ -2755,6 +2912,10 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('.finance-dashboard .finance-dashboard-table-header {', $financeTableCss);
         $this->assertStringContainsString('flex-wrap: nowrap;', $financeTableCss);
         $this->assertStringContainsString('align-items: center;', $financeTableCss);
+        $this->assertMatchesRegularExpression(
+            '/\.surface-table > :is\(\.overflow-x-auto, \.table-scroll-region\)\s*\{[^}]*border-bottom-left-radius:\s*0;[^}]*border-bottom-right-radius:\s*0;/s',
+            $financeTableCss,
+        );
         $this->assertStringNotContainsString('[data-finance-generic-table] thead {', $financeTableCss);
         $this->assertStringContainsString('.admin-modal__dialog:has([data-withdrawal-history-table])', $financeTableCss);
         $this->assertStringContainsString('data-finance-dashboard-request-history><x-admin-action-icon name="past" />', $financeDashboardSource);
@@ -3277,7 +3438,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', $response->getContent());
     }
 
-    public function test_standalone_withdrawal_page_and_navigation_are_removed(): void
+    public function test_withdrawal_navigation_is_available_to_teachers_but_hidden_from_finance_admins(): void
     {
         $this->seed();
         $teacherUser = User::factory()->create();
@@ -3290,10 +3451,21 @@ class FinanceAndActivitiesTest extends TestCase
             'status' => 'active',
         ]);
 
-        $this->actingAs($teacherUser)->get('/finance/pull-requests')->assertNotFound();
+        $this->actingAs($teacherUser)->get(route('finance.pull-requests.index'))->assertOk();
         $teacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
-        $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
+        $this->assertTrue($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
         $this->assertFalse($teacherItems->contains(fn (array $item) => $item['key'] === 'finance_dashboard'));
+        Volt::test('sidebar-navigation-menu')
+            ->assertSee('data-app-sidebar-navigation-item="finance_pull_requests"', false);
+
+        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', false, 'boolean');
+        $disabledTeacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser))->pluck('items')->flatten(1);
+        $this->assertFalse($disabledTeacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
+        AppSetting::storeValue('finance', 'withdrawal_requests_enabled', true, 'boolean');
+
+        $teacherUser->givePermissionTo('finance.pull-requests.review');
+        $reviewingTeacherItems = collect(app(SidebarNavigationService::class)->sidebarFor($teacherUser->fresh()))->pluck('items')->flatten(1);
+        $this->assertTrue($reviewingTeacherItems->contains(fn (array $item) => $item['key'] === 'finance_pull_requests'));
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');

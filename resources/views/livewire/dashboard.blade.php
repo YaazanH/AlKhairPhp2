@@ -13,7 +13,6 @@ use App\Models\QuranFinalTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Services\AccessScopeService;
-use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
 use App\Services\PrintTemplates\PrintTemplateRenderService;
@@ -29,6 +28,8 @@ new class extends Component
     use WithPagination;
 
     public ?int $selectedManagerStudentId = null;
+
+    public ?int $selectedManagerCurriculumGroupId = null;
 
     public bool $showTeacherLeaderboardModal = false;
 
@@ -185,33 +186,39 @@ new class extends Component
             ->whereIn('enrollment_id', $activeEnrollmentIds)
             ->where('status', 'passed')
             ->count();
-        $courseEndPointTotals = $defaultCourse
-            ? app(CourseEndService::class)
-                ->studentRows($defaultCourse)
-                ->whereIn('enrollment_id', $activeEnrollmentIds)
-                ->groupBy('student_id')
-                ->map(fn ($rows): array => [
-                    'points_before' => (int) $rows->sum('points_before'),
-                    'points_after' => (int) $rows->sum('points_after'),
-                ])
-            : collect();
         $students = Student::query()->whereIn('id', $studentTotals->pluck('student_id'))->get()->keyBy('id');
         $studentPerformance = $studentTotals->values()
-            ->map(function ($row) use ($courseEndPointTotals, $students): array {
-                $projectedPoints = $courseEndPointTotals->get($row->student_id);
+            ->map(function ($row) use ($students): array {
+                $points = (int) $row->points;
+                $pages = (int) $row->pages;
 
                 return [
                     'student' => $students->get($row->student_id),
-                    'points_before' => (int) ($projectedPoints['points_before'] ?? $row->points),
-                    'points' => (int) ($projectedPoints['points_after'] ?? $row->points),
-                    'pages' => (int) $row->pages,
+                    'points_before' => $points,
+                    'points' => $points,
+                    'pages' => $pages,
                 ];
             })
             ->filter(fn (array $row) => $row['student'])
             ->values();
+        $performanceRankingMaximumPoints = max(1, (int) $studentPerformance->max('points'));
+        $performanceRankingMaximumPages = max(1, (int) $studentPerformance->max('pages'));
+        $studentPerformance = $studentPerformance->map(function (array $row) use ($performanceRankingMaximumPoints, $performanceRankingMaximumPages): array {
+            $pointsRatio = max(0, $row['points']) / $performanceRankingMaximumPoints;
+            $pagesRatio = max(0, $row['pages']) / $performanceRankingMaximumPages;
+            $ratioSum = $pointsRatio + $pagesRatio;
+
+            return [
+                ...$row,
+                'points_ratio' => $pointsRatio,
+                'pages_ratio' => $pagesRatio,
+                'pages_points_balance' => $ratioSum > 0 ? (2 * $pointsRatio * $pagesRatio) / $ratioSum : 0.0,
+            ];
+        });
         $studentPerformanceRanks = $studentPerformance
-            ->sort(fn (array $left, array $right): int => ($right['points'] <=> $left['points'])
+            ->sort(fn (array $left, array $right): int => ($right['pages_points_balance'] <=> $left['pages_points_balance'])
                 ?: ($right['pages'] <=> $left['pages'])
+                ?: ($right['points'] <=> $left['points'])
                 ?: ($left['student']->id <=> $right['student']->id))
             ->take(3)
             ->values()
@@ -234,11 +241,11 @@ new class extends Component
                     ->where('student_id', $selectedStudentModel->id)
                     ->where('status', 'active')
                     ->whereHas('group', fn ($query) => $query->where('course_id', $courseId));
-                $selectedProjectedPoints = $courseEndPointTotals->get($selectedStudentModel->id);
+                $selectedPoints = (int) (clone $selectedEnrollments)->sum('final_points_cached');
                 $selectedStudent = [
                     'student' => $selectedStudentModel,
-                    'points' => (int) ($selectedProjectedPoints['points_after'] ?? (clone $selectedEnrollments)->sum('final_points_cached')),
-                    'points_before' => (int) ($selectedProjectedPoints['points_before'] ?? (clone $selectedEnrollments)->sum('final_points_cached')),
+                    'points' => $selectedPoints,
+                    'points_before' => $selectedPoints,
                     'pages' => (int) (clone $selectedEnrollments)->sum('memorized_pages_cached'),
                     'final_tests' => QuranFinalTest::query()
                         ->where('student_id', $selectedStudentModel->id)
@@ -287,6 +294,16 @@ new class extends Component
                 'tone' => $percentageGap > 15 ? 'danger' : ($percentageGap > 5 ? 'warning' : 'success'),
             ];
         });
+        $selectedManagerCurriculumRow = $this->selectedManagerCurriculumGroupId
+            ? $curriculumProgress->first(fn (array $row): bool => $row['group']->id === $this->selectedManagerCurriculumGroupId)
+            : null;
+        $selectedManagerCurriculumGroup = $selectedManagerCurriculumRow['group'] ?? null;
+        if ($this->selectedManagerCurriculumGroupId && ! $selectedManagerCurriculumGroup) {
+            $this->selectedManagerCurriculumGroupId = null;
+        }
+        $selectedManagerCurriculumSubjects = $selectedManagerCurriculumGroup
+            ? app(CurriculumProgressService::class)->subjects($selectedManagerCurriculumGroup)
+            : collect();
 
         return [
             'dashboardRole' => 'manager',
@@ -338,6 +355,8 @@ new class extends Component
             'groupPageTotals' => $groupPageTotals,
             'selectedManagerStudent' => $selectedStudent,
             'curriculumProgress' => $curriculumProgress,
+            'selectedManagerCurriculumGroup' => $selectedManagerCurriculumGroup,
+            'selectedManagerCurriculumSubjects' => $selectedManagerCurriculumSubjects,
         ];
     }
 
@@ -353,6 +372,25 @@ new class extends Component
     public function closeManagerStudent(): void
     {
         $this->selectedManagerStudentId = null;
+    }
+
+    public function showManagerCurriculumGroup(int $groupId): void
+    {
+        abort_unless($this->canUseManagerDashboard(Auth::user()), 403);
+        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        abort_unless($defaultCourseId && Group::query()
+            ->whereKey($groupId)
+            ->where('course_id', $defaultCourseId)
+            ->where('is_active', true)
+            ->whereNotNull('curriculum_id')
+            ->exists(), 404);
+
+        $this->selectedManagerCurriculumGroupId = $groupId;
+    }
+
+    public function closeManagerCurriculumGroup(): void
+    {
+        $this->selectedManagerCurriculumGroupId = null;
     }
 
     public function copyTeacherLatestAttendanceSummary(int $groupId): void
@@ -383,7 +421,7 @@ new class extends Component
 
         $date = $latestAttendanceDay->attendance_date->toDateString();
 
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($group, $date, $user));
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentDailyCopyTextForUser($group, $date, $user));
     }
 
     protected function teacherData($user): array
@@ -993,6 +1031,7 @@ new class extends Component
         <div @class([
             'mobile-compact-highlights grid md:grid-cols-2 xl:grid-cols-4',
             'dashboard-manager-highlights gap-3' => $dashboardRole === 'manager',
+            'dashboard-group-highlights' => $teacherGroupDashboard,
             'gap-4' => $dashboardRole !== 'manager',
             'mobile-compact-highlights--two' => count($stats) === 2,
             'mobile-compact-highlights--four' => count($stats) === 4,
@@ -1002,7 +1041,7 @@ new class extends Component
                 <article class="stat-card">
                     <div class="kpi-label">{{ $stat['label'] }}</div>
                     @if (filled($stat['action'] ?? null))
-                        <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent mt-3 w-full justify-center">
+                        <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent w-full justify-center" data-dashboard-stat-action>
                             {{ $stat['value'] }}
                         </button>
                     @else
@@ -1370,10 +1409,22 @@ new class extends Component
                                 </div>
                                 <div class="dashboard-curriculum-hotbar__track">
                                     <span class="dashboard-curriculum-hotbar__fill dashboard-curriculum-hotbar__fill--{{ $row['tone'] }}" style="width: {{ $row['percentage'] }}%" aria-hidden="true"></span>
-                                    <span
-                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance"
+                                    <button
+                                        type="button"
+                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance hidden lg:block"
                                         style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
-                                        tabindex="0"
+                                        wire:click="showManagerCurriculumGroup({{ $row['group']->id }})"
+                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}"
+                                        data-dashboard-curriculum-progress-open
+                                    >
+                                        <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
+                                            <strong>{{ number_format($row['percentage'], 1) }}%</strong>
+                                            <span>{{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}</span>
+                                        </span>
+                                    </button>
+                                    <span
+                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance lg:hidden"
+                                        style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
                                         role="img"
                                         aria-label="{{ number_format($row['percentage'], 1) }}% · {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}"
                                     >
@@ -1388,6 +1439,48 @@ new class extends Component
                     </div>
                 @endif
             </section>
+
+            <x-admin.modal
+                :show="$selectedManagerCurriculumGroupId !== null"
+                :title="__('curricula.progress.group_details', ['group' => $selectedManagerCurriculumGroup?->name])"
+                close-method="closeManagerCurriculumGroup"
+                max-width="6xl"
+            >
+                <div class="space-y-3" data-dashboard-curriculum-progress-modal data-curriculum-group-details-tables>
+                    @foreach ($selectedManagerCurriculumSubjects as $subject)
+                        <details class="surface-table" data-curriculum-group-details-table>
+                            <summary class="admin-grid-meta cursor-pointer list-none select-none" data-curriculum-group-details-toggle>
+                                <div class="min-w-0" data-curriculum-group-details-heading>
+                                    <div class="admin-grid-meta__title">{{ $subject['name'] }}</div>
+                                    <div class="admin-grid-meta__summary" dir="ltr">{{ number_format($subject['percentage'], 0) }}%</div>
+                                </div>
+                                <span class="admin-icon-button shrink-0" aria-hidden="true" data-curriculum-group-details-collapse>
+                                    <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" data-curriculum-group-details-chevron><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 6 6 6-6" /></svg>
+                                </span>
+                            </summary>
+
+                            <div class="overflow-x-auto" data-table-scroll-region>
+                                <table class="table-content text-sm">
+                                    <thead><tr>
+                                        <th class="px-5 py-3 text-left">{{ __('curricula.fields.lesson') }}</th>
+                                        <th class="px-5 py-3 text-left">{{ __('curricula.fields.status') }}</th>
+                                        <th class="px-5 py-3 text-left">{{ __('curricula.fields.date') }}</th>
+                                    </tr></thead>
+                                    <tbody class="divide-y divide-white/6">
+                                        @foreach ($subject['lessons'] as $lesson)
+                                            <tr>
+                                                <td class="px-5 py-3 font-semibold text-white">{{ $lesson['name'] }}</td>
+                                                <td class="px-5 py-3">{{ __('curricula.status.'.$lesson['status']) }}</td>
+                                                <td class="px-5 py-3" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    @endforeach
+                </div>
+            </x-admin.modal>
 
         @endif
 

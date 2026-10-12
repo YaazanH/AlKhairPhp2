@@ -1149,20 +1149,24 @@ new class extends Component
                     </thead>
                     <tbody>
                         @foreach($calendarRows as $index => $row)
-                            <tr wire:key="course-calendar-entry-{{ $row['id'] ?? 'new-'.$index }}-{{ $editingCalendarRow === $index ? 'edit' : 'view' }}" data-course-calendar-entry-row>
+                            <tr wire:key="course-calendar-entry-{{ $row['id'] ?? 'new-'.$index }}-{{ $editingCalendarRow === $index ? 'edit' : 'view' }}" data-course-calendar-entry-row data-calendar-entry-kind="{{ $editingCalendarRow === $index ? 'form' : 'record' }}" style="--calendar-entry-color: {{ $row['color'] }};">
                                 @if($editingCalendarRow === $index)
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="px-4 py-3 align-top" data-calendar-entry-cell="date">
+                                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.date') }}</span>
                                         <x-course-calendar-date-range :course="$calendarCourse" />
                                     </td>
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="px-4 py-3 align-top" data-calendar-entry-cell="name">
+                                        <span class="calendar-entry-mobile-heading">{{ __('crud.common.actions.edit') }}</span>
+                                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.name') }}</span>
                                         <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
                                         @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                                     </td>
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="px-4 py-3 align-top" data-calendar-entry-cell="color">
+                                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.color') }}</span>
                                         <x-course-calendar-color-picker :colors="$calendarColors" />
                                         @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                                     </td>
-                                    <td class="px-2 py-3 align-top">
+                                    <td class="px-2 py-3 align-top" data-calendar-entry-cell="actions">
                                         <div class="flex flex-nowrap items-center justify-center gap-2">
                                             <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-course-calendar-entry-update>
                                                 <x-admin-action-icon name="save" />
@@ -1173,14 +1177,14 @@ new class extends Component
                                         </div>
                                     </td>
                                 @else
-                                    <td class="px-4 py-3"><div class="calendar-entry-dates"><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y')) }}</bdi>@if(! empty($row['end_date']) && $row['end_date'] !== $row['date'])<span>{{ __('course_calendar.manager.fields.end_date') }}</span><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['end_date'])->format('d-m-Y')) }}</bdi>@endif</div></td>
-                                    <td class="px-4 py-3 font-medium text-white">{{ $row['name'] }}</td>
-                                    <td class="px-4 py-3">
+                                    <td class="px-4 py-3" data-calendar-entry-cell="date"><div class="calendar-entry-dates"><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y')) }}</bdi>@if(! empty($row['end_date']) && $row['end_date'] !== $row['date'])<span aria-hidden="true">←</span><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['end_date'])->format('d-m-Y')) }}</bdi>@endif</div></td>
+                                    <td class="px-4 py-3 font-medium text-white" data-calendar-entry-cell="name">{{ $row['name'] }}</td>
+                                    <td class="px-4 py-3" data-calendar-entry-cell="color">
                                         <span class="inline-flex items-center gap-2">
                                             <span class="size-5 rounded-full border border-white/20" style="background-color: {{ $row['color'] }}" aria-hidden="true"></span>
                                         </span>
                                     </td>
-                                    <td class="px-2 py-3">
+                                    <td class="px-2 py-3" data-calendar-entry-cell="actions">
                                         <div class="flex flex-nowrap items-center justify-center gap-2">
                                             <button type="button" wire:click="editCalendarRow({{ $index }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-course-calendar-entry-edit>
                                                 <x-admin-action-icon name="edit" />
@@ -1191,22 +1195,26 @@ new class extends Component
                             </tr>
                         @endforeach
                         @if($calendarRows === [])
-                            <tr><td colspan="4" class="admin-empty-state">{{ __('course_calendar.manager.empty') }}</td></tr>
+                            <tr data-calendar-entry-kind="empty"><td colspan="4" class="admin-empty-state">{{ __('course_calendar.manager.empty') }}</td></tr>
                         @endif
                         @if($editingCalendarRow === null)
-                        <tr class="schedule-add-row" data-course-calendar-entry-add-row>
-                            <td class="px-4 py-3 align-top">
+                        <tr class="schedule-add-row" data-course-calendar-entry-add-row data-calendar-entry-kind="form">
+                            <td class="px-4 py-3 align-top" data-calendar-entry-cell="date">
+                                <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.date') }}</span>
                                 <x-course-calendar-date-range :course="$calendarCourse" />
                             </td>
-                            <td class="px-4 py-3 align-top">
+                            <td class="px-4 py-3 align-top" data-calendar-entry-cell="name">
+                                <span class="calendar-entry-mobile-heading">{{ __('course_calendar.manager.actions.add') }}</span>
+                                <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.name') }}</span>
                                 <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
                                 @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                             </td>
-                            <td class="px-4 py-3 align-top">
+                            <td class="px-4 py-3 align-top" data-calendar-entry-cell="color">
+                                <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.color') }}</span>
                                 <x-course-calendar-color-picker :colors="$calendarColors" />
                                 @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                             </td>
-                            <td class="px-2 py-3 text-center align-top">
+                            <td class="px-2 py-3 text-center align-top" data-calendar-entry-cell="actions">
                                 <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_calendar.manager.actions.add') }}" aria-label="{{ __('course_calendar.manager.actions.add') }}" data-course-calendar-entry-save>
                                     <x-admin-action-icon name="add" />
                                 </button>
@@ -1215,6 +1223,35 @@ new class extends Component
                         @endif
                     </tbody>
                 </table>
+            </div>
+            <div class="course-calendar-mobile-form" data-course-calendar-mobile-form>
+                <div>
+                    <span class="calendar-entry-mobile-heading">{{ $editingCalendarRow === null ? __('course_calendar.manager.actions.add') : __('crud.common.actions.edit') }}</span>
+                    <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.name') }}</span>
+                    <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
+                    @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.date') }}</span>
+                    <x-course-calendar-date-range :course="$calendarCourse" />
+                </div>
+                <div class="course-calendar-mobile-form__footer">
+                    <div>
+                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.color') }}</span>
+                        <x-course-calendar-color-picker :colors="$calendarColors" />
+                        @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="flex flex-nowrap items-end gap-2">
+                        <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ $editingCalendarRow === null ? __('course_calendar.manager.actions.add') : __('crud.common.actions.update') }}" aria-label="{{ $editingCalendarRow === null ? __('course_calendar.manager.actions.add') : __('crud.common.actions.update') }}" data-course-calendar-mobile-save>
+                            <x-admin-action-icon :name="$editingCalendarRow === null ? 'add' : 'save'" />
+                        </button>
+                        @if($editingCalendarRow !== null)
+                            <button type="button" wire:click="deleteCalendarRow({{ $editingCalendarRow }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-course-calendar-mobile-delete>
+                                <x-icons.trash class="size-5" />
+                            </button>
+                        @endif
+                    </div>
+                </div>
             </div>
         </section>
                     @error('calendarRows')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
@@ -1295,6 +1332,7 @@ new class extends Component
                             <x-admin-action-icon name="reactivate" class="admin-modal-action__icon" />
                         </button>
                     @endif
+                    <x-open-action-button :href="route('courses.archive-overview', $archivedCourse)" wire:navigate class="admin-modal-action-button hidden xl:inline-flex" :label="__('course_archive_overview.action')" data-course-archive-view-action />
                     @can('courses.create')
                         @if ($currentActiveAcademicYearId)
                             <button type="button" wire:click="duplicateArchived({{ $archivedCourse->id }})" wire:confirm="{{ __('crud.courses.copy.confirm_archive') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-archive-copy-action>

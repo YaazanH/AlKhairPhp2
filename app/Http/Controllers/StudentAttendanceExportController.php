@@ -26,7 +26,9 @@ class StudentAttendanceExportController extends Controller
         ]);
 
         $course = Course::query()->findOrFail($validated['course_id']);
-        $groups = Group::query()->with('course')->where('course_id', $course->id)->where('is_active', true)->orderBy('name')->get()
+        $groups = Group::query()->with('course')->where('course_id', $course->id)
+            ->when($course->is_active, fn ($query) => $query->where('is_active', true))
+            ->orderBy('name')->get()
             ->filter(fn (Group $group) => app(AccessScopeService::class)->canAccessGroup($request->user(), $group))->values();
         abort_if($groups->isEmpty(), 403);
 

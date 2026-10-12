@@ -125,6 +125,10 @@ class SystemBackupTest extends TestCase
         $this->assertStringContainsString("'database-restore' => '-12 -12 649.64 643.81'", $iconSource);
         $this->assertStringContainsString('data-supplied-backup-database="asset-10"', $iconSource);
         $this->assertStringContainsString('data-supplied-backup-asterisk="asset-10"', $iconSource);
+        $this->assertStringContainsString('data-media-backup-icon="database-image"', $iconSource);
+        $this->assertStringContainsString('data-backup-documents-image', $iconSource);
+        $this->assertStringContainsString('transform="translate(215 320) scale(17.28)"', $iconSource);
+        $this->assertStringContainsString('<rect x="267" y="389" width="311" height="277" rx="43" fill="black" data-backup-documents-clearance />', $iconSource);
         $this->assertStringContainsString('data-supplied-backup-restore="asset-1"', $iconSource);
         $this->assertStringContainsString("'restore-point' => '0 0 734.23 688.56'", $iconSource);
         $this->assertStringContainsString('data-restore-point-history-icon="supplied-circular-clock"', $iconSource);
@@ -138,6 +142,8 @@ class SystemBackupTest extends TestCase
 
         $styles = file_get_contents(resource_path('css/app.css'));
         $this->assertStringNotContainsString("svg[data-icon-name='backup-upload']", $styles);
+        $this->assertStringNotContainsString("svg[data-icon-name='documents-backup'] [data-backup-new-asterisk]", $styles);
+        $this->assertMatchesRegularExpression("/svg\[data-icon-name='documents-backup'\]\s*\{[^}]*overflow:\s*visible;/s", $styles);
         $this->assertStringContainsString("svg[data-icon-name='database-restore']", $styles);
         $this->assertStringContainsString('transform: translateX(0.13rem);', $styles);
         $this->assertStringNotContainsString('.backup-status-chip::before', $styles);
@@ -147,6 +153,18 @@ class SystemBackupTest extends TestCase
         $this->assertStringContainsString('justify-content: flex-end;', $styles);
         $this->assertStringContainsString("[data-backup-schedule-select] + .searchable-select,\n[data-backup-weekday-select] + .searchable-select {", $styles);
         $this->assertStringContainsString("[data-backup-schedule-select] + .searchable-select .searchable-select__search--trigger,\n[data-backup-weekday-select] + .searchable-select .searchable-select__search--trigger,\n[data-backup-time-input]", $styles);
+
+        $serviceSource = file_get_contents(app_path('Services/SystemBackupService.php'));
+        $backupConfig = file_get_contents(config_path('backups.php'));
+        $environmentExample = file_get_contents(base_path('.env.example'));
+        $this->assertSame(4, substr_count($serviceSource, '$this->prepareLongRunningRequest();'));
+        $this->assertStringContainsString('ignore_user_abort(true);', $serviceSource);
+        $this->assertStringContainsString("@set_time_limit(max(60, (int) config('backups.process_timeout_seconds', 3600)));", $serviceSource);
+        $this->assertStringContainsString('register_shutdown_function(static function () use ($owner): void {', $serviceSource);
+        $this->assertStringContainsString('Cache::restoreLock(self::OPERATION_LOCK, $owner)->release();', $serviceSource);
+        $this->assertStringNotContainsString("Cache::lock('system-backup:operation', 7200)", $serviceSource);
+        $this->assertStringContainsString("'operation_lock_seconds' => (int) env('BACKUP_OPERATION_LOCK_SECONDS', 3900)", $backupConfig);
+        $this->assertStringContainsString('BACKUP_OPERATION_LOCK_SECONDS=3900', $environmentExample);
 
         Volt::test('settings.backups')
             ->assertSee('data-settings-dark-surface="backup-health"', false)
@@ -163,6 +181,9 @@ class SystemBackupTest extends TestCase
             ->assertSee('data-supplied-backup-asterisk="asset-10"', false)
             ->assertSee('data-backup-new-asterisk', false)
             ->assertDontSee('data-backup-create-asterisk-clearance', false)
+            ->assertSee('data-backup-files-create-action', false)
+            ->assertSee('data-media-backup-icon="database-image"', false)
+            ->assertSee('data-backup-documents-image', false)
             ->assertSee('data-backup-download-action', false)
             ->assertSee('data-icon-name="download"', false)
             ->assertSee('data-download-icon="outlined-arrow-tray"', false)

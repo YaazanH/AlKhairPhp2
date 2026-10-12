@@ -144,7 +144,6 @@ class DashboardTest extends TestCase
             'capacity' => 20,
             'is_active' => true,
         ]);
-
         $student = Student::create([
             'parent_id' => ParentProfile::query()->firstOrFail()->id,
             'first_name' => 'Omar',
@@ -290,6 +289,12 @@ class DashboardTest extends TestCase
         $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
         $this->assertStringNotContainsString("\$loop->even ? 'badge-soft--emerald' : ''", $dashboardSource);
         $this->assertStringContainsString('.dashboard-performance-map__plot {', $dashboardCss);
+        $this->assertStringContainsString('container-type: inline-size;', $dashboardCss);
+        $this->assertStringContainsString(".dashboard-performance-map__average-line--vertical {\n    top: 0;\n    bottom: 0;\n    left: 7cqi;", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-performance-map__average-line--horizontal {\n    right: 0;\n    bottom: 7cqi;", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-performance-map__zone--high-points {\n    top: 0.75rem;\n    left: 0.9rem;\n    writing-mode: vertical-rl;\n    text-orientation: sideways;", $dashboardCss);
+        $this->assertStringNotContainsString('data-performance-coordinate-plane', $dashboardSource);
+        $this->assertStringContainsString('$performanceX = fn (int $pages) => 7 + ((max(0, $pages) / $performanceMaximumPages) * 86);', $dashboardSource);
         $this->assertStringContainsString('.dashboard-performance-map__average-line--vertical {', $dashboardCss);
         $this->assertStringContainsString('background-size: 20% 100%, 100% 20%', $dashboardCss);
         $this->assertStringContainsString('.dashboard-performance-map__point--below-average {', $dashboardCss);
@@ -319,7 +324,7 @@ class DashboardTest extends TestCase
             ->assertSee('18');
     }
 
-    public function test_manager_performance_map_ranks_projected_course_end_points_but_keeps_the_original_average(): void
+    public function test_manager_performance_map_uses_current_points_and_balances_pages_with_points_for_ranking(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -440,13 +445,15 @@ class DashboardTest extends TestCase
 
                 return $rowsByStudent[$students[0]['student']->id]['points_before'] === 900
                     && $rowsByStudent[$students[0]['student']->id]['points'] === 900
+                    && abs($rowsByStudent[$students[0]['student']->id]['pages_points_balance'] - ((2 * .9 * 1) / 1.9)) < 0.000001
                     && $rowsByStudent[$students[0]['student']->id]['rank'] === 1
                     && $rowsByStudent[$students[1]['student']->id]['points_before'] === 1000
-                    && $rowsByStudent[$students[1]['student']->id]['points'] === 500
+                    && $rowsByStudent[$students[1]['student']->id]['points'] === 1000
+                    && abs($rowsByStudent[$students[1]['student']->id]['pages_points_balance'] - ((2 * 1 * .75) / 1.75)) < 0.000001
                     && $rowsByStudent[$students[1]['student']->id]['rank'] === 2
-                    && $rowsByStudent[$students[2]['student']->id]['points'] === 400
+                    && $rowsByStudent[$students[2]['student']->id]['points'] === 800
                     && $rowsByStudent[$students[2]['student']->id]['rank'] === 3
-                    && $rowsByStudent[$students[3]['student']->id]['points'] === 300
+                    && $rowsByStudent[$students[3]['student']->id]['points'] === 600
                     && $rowsByStudent[$students[3]['student']->id]['rank'] === null;
             })
             ->assertSee('data-points-average-before-rules="825"', false)
@@ -457,6 +464,8 @@ class DashboardTest extends TestCase
 
         $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString("\$right['pages_points_balance'] <=> \$left['pages_points_balance']", $dashboardSource);
+        $this->assertStringContainsString('(2 * $pointsRatio * $pagesRatio) / $ratioSum', $dashboardSource);
         $this->assertStringContainsString('$performanceRankPositions', $dashboardSource);
         $this->assertStringContainsString("? [['x' => -0.9, 'y' => 0.9], ['x' => 0.9, 'y' => -0.9]]", $dashboardSource);
         $this->assertStringContainsString('.dashboard-performance-map__point--rank-1 .dashboard-performance-map__dot {', $dashboardCss);
@@ -582,7 +591,21 @@ class DashboardTest extends TestCase
             ->assertSee('data-lessons-behind="1"', false)
             ->assertSee('data-lessons-behind="5"', false)
             ->assertSee('dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip', false)
+            ->assertSee('data-dashboard-curriculum-progress-open', false)
+            ->assertSee('wire:click="showManagerCurriculumGroup('.$groups[2]->id.')"', false)
             ->assertSee('Hassan Teacher');
+
+        Volt::test('dashboard')
+            ->call('showManagerCurriculumGroup', $groups[2]->id)
+            ->assertSet('selectedManagerCurriculumGroupId', $groups[2]->id)
+            ->assertSee('منهاج مجموعة Group C')
+            ->assertSee('Peer Progress Subject')
+            ->assertSee('60%')
+            ->assertSee('data-dashboard-curriculum-progress-modal', false)
+            ->assertSee('data-curriculum-group-details-toggle', false)
+            ->call('closeManagerCurriculumGroup')
+            ->assertSet('selectedManagerCurriculumGroupId', null)
+            ->assertDontSee('data-dashboard-curriculum-progress-modal', false);
 
         $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
@@ -725,6 +748,28 @@ class DashboardTest extends TestCase
             'capacity' => 20,
             'is_active' => true,
         ]);
+        $curriculum = Curriculum::create([
+            'course_id' => $assignedCourse->id,
+            'name' => 'Supervisor Curriculum',
+            'is_active' => true,
+        ]);
+        $subjectDefinition = CurriculumSubjectDefinition::create(['name' => 'Daily lesson']);
+        $subject = CurriculumSubject::create([
+            'curriculum_id' => $curriculum->id,
+            'subject_definition_id' => $subjectDefinition->id,
+        ]);
+        $lesson = CurriculumLesson::create([
+            'curriculum_subject_id' => $subject->id,
+            'name' => 'Mercy and good character',
+        ]);
+        $group->update(['curriculum_id' => $curriculum->id]);
+        GroupCurriculumLessonProgress::create([
+            'group_id' => $group->id,
+            'curriculum_lesson_id' => $lesson->id,
+            'teacher_id' => $teacher->id,
+            'status' => 'taught',
+            'taught_on' => '2026-09-10',
+        ]);
         $student = Student::create([
             'first_name' => 'Ranked',
             'last_name' => 'Student',
@@ -775,7 +820,10 @@ class DashboardTest extends TestCase
             ->assertSee('dashboard-course-context__group', false)
             ->assertDontSee('Hidden Academic Year')
             ->assertSee('Supervisor Group')
-            ->assertSee('Copy latest attendance-day summary')
+            ->assertSee('Copy daily summary')
+            ->assertSee('dashboard-group-highlights', false)
+            ->assertSee('data-dashboard-stat-action', false)
+            ->assertSee('w-full justify-center', false)
             ->assertSee('Average attendance percentage')
             ->assertSee('100.0%')
             ->assertSee('Top 5 Students by Memorisation')
@@ -792,6 +840,8 @@ class DashboardTest extends TestCase
             ->assertSee('teacher-curriculum-card', false);
 
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString(".dashboard-group-highlights {\n    grid-auto-rows: minmax(0, 1fr);", $dashboardCss);
+        $this->assertStringContainsString(".dashboard-group-highlights [data-dashboard-stat-action] {\n    width: 100%;", $dashboardCss);
         $this->assertStringContainsString('.teacher-points-card {', $dashboardCss);
         $this->assertStringContainsString('overflow: hidden !important;', $dashboardCss);
         $this->assertStringContainsString('.teacher-points-table table {', $dashboardCss);
@@ -799,16 +849,27 @@ class DashboardTest extends TestCase
         $this->assertStringNotContainsString('.teacher-points-mobile {', $dashboardCss);
         $this->assertStringContainsString('.teacher-memorization-ranking-row {', $dashboardCss);
 
+        $expectedSummary = implode(PHP_EOL, [
+            'Supervisor Group',
+            'Thursday 10-9-2026',
+            'Assigned Special Course',
+            '',
+            '*Lesson title:*',
+            'Mercy and good character',
+            '',
+            '*Attendance:*',
+            'Ranked Student',
+            '',
+            '*Memorisation:*',
+            'Ranked Student 10-12',
+            '',
+            'May Allah accept from us and from you 🌺',
+        ]);
+
         Volt::test('dashboard')
             ->call('copyTeacherLatestAttendanceSummary', $group->id)
-            ->assertDispatched('admin-copy-text', fn ($event, $params) => str_contains($params['text'], 'Supervisor Group')
-                && str_contains($params['text'], '2026-09-10')
-                && str_contains($params['text'], 'Attendance:')
-                && str_contains($params['text'], 'Ranked Student')
-                && str_contains($params['text'], 'Memorisation:')
-                && str_contains($params['text'], '10-12')
-                && str_contains($params['text'], 'Assigned Special Course')
-                && str_contains($params['text'], 'May Allah accept from us and from you 🌺'))
+            ->assertDispatched('admin-copy-text', fn ($event, $params) => $params['text'] === $expectedSummary
+                && ! str_contains($params['text'], '*Saber:*'))
             ->call('openTeacherLeaderboard')
             ->assertSet('showTeacherLeaderboardModal', true)
             ->call('openTeacherMemorizations')

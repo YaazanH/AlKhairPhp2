@@ -1,10 +1,90 @@
 import { addressInput } from './address-completion';
 import jsQR from 'jsqr';
-import { attachCameraStream, prepareInlineCameraVideo, requestCameraStream } from './quick-attendance-camera';
+import {
+    attachCameraStream,
+    prepareInlineCameraVideo,
+    requestCameraStream,
+    shouldUseCanvasCameraPreview,
+} from './quick-attendance-camera';
 import { debounceSearch } from './search-debounce';
-import { groupOptionColumns, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
+import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
+import './offline-attendance';
 
 window.addressInput = addressInput;
+
+const clearableTextboxSelector = [
+    'input:not([type])',
+    'input[type="text"]',
+    'input[type="search"]',
+    'input[type="email"]',
+    'input[type="tel"]',
+    'input[type="url"]',
+    'input[type="number"]',
+    'textarea',
+].join(',');
+
+function normalizedTextboxLabel(label) {
+    if (!label) return '';
+
+    const copy = label.cloneNode(true);
+    copy.querySelectorAll('input, select, textarea, button, svg').forEach((element) => element.remove());
+
+    return copy.textContent
+        .replace(/[＊*]\s*$/u, '')
+        .replace(/\s+/gu, ' ')
+        .trim();
+}
+
+function textboxLabel(control) {
+    const ariaLabel = control.getAttribute('aria-label')?.trim();
+    if (ariaLabel) return ariaLabel;
+
+    if (control.id) {
+        const explicitLabel = document.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+        const labelText = normalizedTextboxLabel(explicitLabel);
+        if (labelText) return labelText;
+    }
+
+    const wrappingLabel = control.closest('label');
+    const wrappingLabelText = normalizedTextboxLabel(wrappingLabel);
+    if (wrappingLabelText) return wrappingLabelText;
+
+    let container = control.parentElement;
+    for (let depth = 0; container && depth < 4; depth += 1, container = container.parentElement) {
+        const nearbyLabel = Array.from(container.children)
+            .find((child) => child instanceof HTMLLabelElement);
+        const labelText = normalizedTextboxLabel(nearbyLabel);
+        if (labelText) return labelText;
+    }
+
+    return '';
+}
+
+function initializeClearableTextboxPlaceholders(root = document) {
+    const controls = [];
+
+    if (root.matches?.(clearableTextboxSelector)) controls.push(root);
+    controls.push(...(root.querySelectorAll?.(clearableTextboxSelector) || []));
+
+    controls.forEach((control) => {
+        if (
+            control.disabled
+            || control.readOnly
+            || control.matches('[data-clearable="false"], [data-no-auto-placeholder]')
+            || control.getAttribute('placeholder')?.trim()
+        ) return;
+
+        const label = textboxLabel(control);
+        if (label) control.setAttribute('placeholder', label);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => initializeClearableTextboxPlaceholders());
+document.addEventListener('livewire:navigated', () => initializeClearableTextboxPlaceholders());
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => initializeClearableTextboxPlaceholders(el));
+    window.Livewire?.hook('morph.added', ({ el }) => initializeClearableTextboxPlaceholders(el));
+});
 
 const delayedSearchInputs = new WeakMap();
 document.addEventListener('input', (event) => {
@@ -29,6 +109,58 @@ const adminConfirmState = {
 };
 const confirmedAdminForms = new WeakSet();
 let adminConfirmDelegatedListenersBound = false;
+let applicationModalScrollY = null;
+let applicationModalObserverStarted = false;
+
+function hasOpenApplicationModal() {
+    return Array.from(document.querySelectorAll('.admin-modal, dialog[open], [role="dialog"][aria-modal="true"]'))
+        .some((modal) => (
+            !modal.matches('.mobile-table-filters, [data-mobile-table-filters]')
+            && modal.closest('[hidden], [aria-hidden="true"]') === null
+        ));
+}
+
+function syncApplicationModalScrollLock() {
+    const shouldLock = hasOpenApplicationModal();
+
+    if (shouldLock && applicationModalScrollY === null) {
+        applicationModalScrollY = window.scrollY;
+        document.body.style.setProperty('--application-modal-scroll-y', `${applicationModalScrollY}px`);
+        document.documentElement.classList.add('application-modal-open');
+        document.body.classList.add('application-modal-open');
+
+        return;
+    }
+
+    if (shouldLock || applicationModalScrollY === null) {
+        return;
+    }
+
+    const scrollY = applicationModalScrollY;
+    applicationModalScrollY = null;
+    document.documentElement.classList.remove('application-modal-open');
+    document.body.classList.remove('application-modal-open');
+    document.body.style.removeProperty('--application-modal-scroll-y');
+    window.requestAnimationFrame(() => window.scrollTo(window.scrollX, scrollY));
+}
+
+function startApplicationModalScrollLock() {
+    syncApplicationModalScrollLock();
+
+    if (applicationModalObserverStarted || !document.body) return;
+
+    const observer = new MutationObserver(syncApplicationModalScrollLock);
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['hidden', 'open', 'aria-hidden'],
+    });
+    applicationModalObserverStarted = true;
+}
+
+document.addEventListener('DOMContentLoaded', startApplicationModalScrollLock);
+document.addEventListener('livewire:navigated', startApplicationModalScrollLock);
 
 function parseLivewireAction(expression) {
     if (!expression) {
@@ -116,7 +248,7 @@ function closeAdminConfirm() {
 
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('app-body--modal-open');
+    syncApplicationModalScrollLock();
 
     const activeElement = adminConfirmState.activeElement;
     resetAdminConfirmState();
@@ -159,7 +291,7 @@ function openAdminConfirm(options = {}) {
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('app-body--modal-open');
+    syncApplicationModalScrollLock();
 
     requestAnimationFrame(() => {
         accept.focus();
@@ -307,7 +439,7 @@ window.AdminConfirm = {
 document.addEventListener('DOMContentLoaded', registerAdminConfirmListeners);
 document.addEventListener('livewire:navigated', registerAdminConfirmListeners);
 
-const SEARCHABLE_SELECT_BINDING_VERSION = '15';
+const SEARCHABLE_SELECT_BINDING_VERSION = '16';
 const STUDENT_PROGRESS_SELECTION_MINIMUM_VISIBLE_MS = 650;
 const deferredSearchableSelectSelections = new Map();
 let searchableSelectOpenSuppressedUntil = 0;
@@ -389,7 +521,7 @@ function restoreSearchableSelectClear(clear) {
 function selectedOptionText(select) {
     const option = select.options[select.selectedIndex];
 
-    if (option?.dataset.optionColumns && window.matchMedia('(max-width: 767px)').matches) {
+    if (option?.dataset.optionColumns && window.matchMedia('(max-width: 699px)').matches) {
         return groupOptionColumns(option.dataset.optionColumns, true)[0] || '';
     }
 
@@ -414,7 +546,7 @@ const searchableSelectOverflowHosts = new WeakMap();
 
 function positionPhoneGroupDropdown(wrapper) {
     if (wrapper.previousElementSibling?.matches('select[data-group-option-columns]')) wrapper.setAttribute('data-group-select', '');
-    if (!wrapper.hasAttribute('data-group-select') || !window.matchMedia('(max-width: 767px)').matches) return false;
+    if (!wrapper.hasAttribute('data-group-select') || !window.matchMedia('(max-width: 699px)').matches) return false;
     const trigger = wrapper.querySelector('.searchable-select__search--trigger, .searchable-select__button');
     const panel = wrapper.querySelector('.searchable-select__panel');
     const list = wrapper.querySelector('.searchable-select__list');
@@ -697,7 +829,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
         item.id = `searchable-select-option-${Math.random().toString(36).slice(2)}`;
         item.classList.toggle('searchable-select__option--bold', option.dataset.optionBold === 'true');
         if (option.dataset.optionColumns !== undefined) {
-            const columns = groupOptionColumns(option.dataset.optionColumns, window.matchMedia('(max-width: 767px)').matches);
+            const columns = groupOptionColumns(option.dataset.optionColumns, window.matchMedia('(max-width: 699px)').matches);
             item.classList.add('searchable-select__option--group');
             item.style.setProperty('--group-option-columns', columns.length);
             columns.forEach((text) => {
@@ -792,7 +924,7 @@ function buildSearchableSelectOptions(select, list, query = '') {
         visibleCount += 1;
     });
 
-    if (select.hasAttribute('data-group-option-columns') && !window.matchMedia('(max-width: 767px)').matches) {
+    if (select.hasAttribute('data-group-option-columns') && !window.matchMedia('(max-width: 699px)').matches) {
         requestAnimationFrame(() => justifyGroupOptionColumns(list));
     }
 
@@ -807,32 +939,100 @@ function buildSearchableSelectOptions(select, list, query = '') {
 }
 
 function justifyGroupOptionColumns(list) {
-    if (!list.isConnected || list.clientWidth === 0 || document.documentElement.dir !== 'rtl'
-        || window.matchMedia('(max-width: 767px)').matches || !financeTextMeasureContext) return;
+    const wrapper = list.closest('.searchable-select');
+
+    if (!list.isConnected || !wrapper || wrapper.clientWidth === 0 || document.documentElement.dir !== 'rtl'
+        || window.matchMedia('(max-width: 699px)').matches || !financeTextMeasureContext) return;
     const rows = Array.from(list.querySelectorAll('.searchable-select__option--group'));
+    const select = wrapper.previousElementSibling;
     const updates = [];
     const measurements = new Map();
+    const entryForLabel = label => {
+        const style = window.getComputedStyle(label);
+        const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const spacing = Number.parseFloat(style.letterSpacing) || 0;
+        const measure = text => {
+            const key = `${font}|${spacing}|${text}`;
+            if (!measurements.has(key)) {
+                financeTextMeasureContext.font = font;
+                financeTextMeasureContext.direction = 'rtl';
+                measurements.set(key, financeTextMeasureContext.measureText(text).width
+                    + Math.max(0, Array.from(text).length - 1) * spacing);
+            }
+            return measurements.get(key);
+        };
+        return { label, measure, available: label.parentElement.clientWidth };
+    };
+    if (select?.dataset.equalOptionSpacing === 'true') {
+        const columnCount = Math.max(1, ...rows.map(row => row.children.length));
+        const listStyle = window.getComputedStyle(list);
+        const panel = list.closest('.searchable-select__panel');
+        const panelStyle = panel ? window.getComputedStyle(panel) : null;
+        const listInlinePadding = (Number.parseFloat(listStyle.paddingInlineStart) || 0)
+            + (Number.parseFloat(listStyle.paddingInlineEnd) || 0);
+        const panelInlineBorder = (Number.parseFloat(panelStyle?.borderInlineStartWidth) || 0)
+            + (Number.parseFloat(panelStyle?.borderInlineEndWidth) || 0);
+        const rowWidth = stableGroupOptionRowWidth(wrapper.clientWidth, listInlinePadding, panelInlineBorder);
+        const minimumGap = 16;
+        // Search and selection can leave only one rendered option in the list.
+        // Measure every native option so the selected group/course columns keep
+        // one stable position instead of shifting with the chosen row's text.
+        const allColumnValues = Array.from(select.options)
+            .filter(option => !option.disabled && !option.hidden && option.dataset.optionColumns !== undefined)
+            .map(option => groupOptionColumns(option.dataset.optionColumns, false));
+        const columnEntries = Array.from({ length: columnCount }, (_, column) => rows
+            .map(row => row.children[column]?.firstElementChild)
+            .filter(Boolean)
+            .map(entryForLabel));
+        const selectedLabels = Array.from(wrapper.querySelectorAll('.searchable-select__selected-column > span'));
+        const measurementEntries = Array.from({ length: columnCount }, (_, column) => (
+            selectedLabels[column] ? entryForLabel(selectedLabels[column]) : columnEntries[column]?.[0]
+        ));
+        const naturalWidths = widestGroupOptionColumnWidths(
+            allColumnValues,
+            (value, column) => measurementEntries[column]?.measure(value) || 0,
+        ).map(width => Math.ceil(width) + 2);
+        const columnWidths = fitGroupOptionColumnWidths(
+            naturalWidths,
+            rowWidth,
+            minimumGap,
+        );
+        const gridTemplate = columnWidths.map(width => `${width}px`).join(' ');
+
+        rows.forEach(row => row.style.setProperty('--group-option-grid-template', gridTemplate));
+        wrapper.style.setProperty('--group-option-grid-template', gridTemplate);
+        columnEntries.forEach((entries, column) => {
+            entries.forEach(({ label, measure }) => {
+                const source = label.title;
+                const width = columnWidths[column];
+
+                label.textContent = financeKashidaPositions(source).length
+                    ? fitGroupOptionText(source, width - 2, count => financeTextWithKashidas(source, count), measure)
+                    : source;
+                label.style.width = `${width}px`;
+            });
+
+            const selectedLabel = selectedLabels[column];
+
+            if (selectedLabel) {
+                const source = selectedLabel.title;
+                const width = columnWidths[column];
+                const measure = measurementEntries[column]?.measure;
+
+                selectedLabel.textContent = measure && financeKashidaPositions(source).length
+                    ? fitGroupOptionText(source, width - 2, count => financeTextWithKashidas(source, count), measure)
+                    : source;
+                selectedLabel.style.width = `${width}px`;
+            }
+        });
+        return;
+    }
     for (let column = 0; column < 3; column++) {
         const labels = rows.map(row => row.children[column]?.firstElementChild).filter(Boolean);
         if (!labels.length) continue;
         // Read styles and available widths together; apply text only after all
         // measurements so opening the menu does not force repeated layouts.
-        const entries = labels.map(label => {
-            const style = window.getComputedStyle(label);
-            const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-            const spacing = Number.parseFloat(style.letterSpacing) || 0;
-            const measure = text => {
-                const key = `${font}|${spacing}|${text}`;
-                if (!measurements.has(key)) {
-                    financeTextMeasureContext.font = font;
-                    financeTextMeasureContext.direction = 'rtl';
-                    measurements.set(key, financeTextMeasureContext.measureText(text).width
-                        + Math.max(0, Array.from(text).length - 1) * spacing);
-                }
-                return measurements.get(key);
-            };
-            return { label, measure, available: label.parentElement.clientWidth };
-        });
+        const entries = labels.map(entryForLabel);
         const width = Math.min(
             Math.ceil(Math.max(...entries.map(entry => entry.measure(entry.label.title)))) + 2,
             ...entries.map(entry => entry.available),
@@ -894,7 +1094,7 @@ function highlightSearchableSelectOption(list, search, index) {
         option.classList.toggle('searchable-select__option--highlighted', option === highlighted);
     });
     search.setAttribute('aria-activedescendant', highlighted.id);
-    if (list.closest('[data-group-select]') && window.matchMedia('(max-width: 767px)').matches) {
+    if (list.closest('[data-group-select]') && window.matchMedia('(max-width: 699px)').matches) {
         const itemRect = highlighted.getBoundingClientRect();
         const listRect = list.getBoundingClientRect();
         const scale = listRect.height / list.offsetHeight || 1;
@@ -1045,6 +1245,7 @@ function enhanceSearchableSelect(select) {
     let button = null;
     let label = null;
     let clear = null;
+    let selectedColumns = null;
 
     if (!searchInputMode) {
         button = document.createElement('button');
@@ -1092,6 +1293,14 @@ function enhanceSearchableSelect(select) {
     if (searchInputMode) {
         panel.append(list);
         wrapper.append(search);
+
+        if (select.hasAttribute('data-group-option-columns')) {
+            selectedColumns = document.createElement('div');
+            selectedColumns.className = 'searchable-select__selected-columns';
+            selectedColumns.setAttribute('aria-hidden', 'true');
+            selectedColumns.hidden = true;
+            wrapper.append(selectedColumns);
+        }
 
         if (showChevron) {
             wrapper.append(createSearchableSelectChevron(true));
@@ -1190,6 +1399,33 @@ function enhanceSearchableSelect(select) {
                 search.value = nextValue;
             }
 
+            const selectedColumnValues = displaySelectedValue && selectedOption?.dataset.optionColumns
+                ? groupOptionColumns(selectedOption.dataset.optionColumns, window.matchMedia('(max-width: 699px)').matches)
+                : [];
+            const showSelectedColumns = selectedColumnValues.length > 1;
+
+            if (selectedColumns) {
+                const signature = selectedColumnValues.join('\u0000');
+
+                if (selectedColumns.dataset.signature !== signature) {
+                    selectedColumns.replaceChildren(...selectedColumnValues.map((text) => {
+                        const cell = document.createElement('span');
+                        cell.className = 'searchable-select__selected-column searchable-select__group-cell';
+                        const label = document.createElement('span');
+                        label.textContent = text;
+                        label.title = text;
+                        cell.append(label);
+
+                        return cell;
+                    }));
+                    selectedColumns.dataset.signature = signature;
+                }
+
+                selectedColumns.hidden = !showSelectedColumns;
+            }
+
+            wrapper.classList.toggle('searchable-select--column-selection', showSelectedColumns);
+
             wrapper.classList.toggle(
                 'searchable-select--selected',
                 displaySelectedValue || search.value.trim() !== '',
@@ -1217,7 +1453,7 @@ function enhanceSearchableSelect(select) {
             }
         }
 
-        const nextOptionsSignature = (select.hasAttribute('data-group-option-columns') ? String(window.matchMedia('(max-width: 767px)').matches) : '') + Array.from(select.options)
+        const nextOptionsSignature = (select.hasAttribute('data-group-option-columns') ? String(window.matchMedia('(max-width: 699px)').matches) : '') + Array.from(select.options)
             .map((option) => `${option.value}\u0000${option.textContent}\u0000${option.dataset.search || ''}\u0000${option.dataset.optionColumns || ''}\u0000${option.dataset.optionName || ''}\u0000${option.dataset.optionPrefix || ''}\u0000${option.dataset.optionNumber || ''}\u0000${option.dataset.optionBold || ''}\u0000${option.disabled}\u0000${option.hidden}\u0000${option.selected}`)
             .join('\u0001');
 
@@ -1359,6 +1595,7 @@ function enhanceSearchableSelect(select) {
         search.addEventListener('input', () => {
             if (searchSelectionRequired) searchSelectionConfirmed = false;
             if (!select.isConnected || !wrapper.isConnected || select.disabled) return;
+            wrapper.classList.remove('searchable-select--column-selection');
             const hasQuery = search.value.trim() !== '';
             wrapper.classList.toggle('searchable-select--selected', hasQuery || searchableSelectHasValue(select));
 
@@ -1541,7 +1778,7 @@ function scheduleSearchableSelectInitialization() {
 
 window.initializeSearchableSelects = initializeSearchableSelects;
 
-window.matchMedia('(max-width: 767px)').addEventListener('change', () => {
+window.matchMedia('(max-width: 699px)').addEventListener('change', () => {
     document.querySelectorAll('select[data-group-option-columns]').forEach(select => select.searchableSelectSync?.(true));
 });
 
@@ -1770,7 +2007,7 @@ let mobileScrollableTableTextFrame = null;
 function enhanceMobileScrollableTableText() {
     mobileScrollableTableTextFrame = null;
 
-    if (!window.matchMedia('(max-width: 767px)').matches) {
+    if (!window.matchMedia('(max-width: 699px)').matches) {
         return;
     }
 
@@ -1926,7 +2163,7 @@ function redistributeSingleRowActionColumnWidth(table, headerCells, actionColumn
 
 function enhanceSingleActionTableRows() {
     singleRowActionFrame = null;
-    const replacesButtonsWithRows = window.matchMedia('(min-width: 768px)').matches;
+    const replacesButtonsWithRows = window.matchMedia('(min-width: 700px)').matches;
 
     document.querySelectorAll('table').forEach((table) => {
         if (table.closest('.balanced-table-measure-host')) return;
@@ -2138,6 +2375,13 @@ function synchronizeRecordTableRowHeights() {
 
         rows.forEach((row) => row.style.removeProperty('height'));
 
+        // The phone calendar is intentionally a stack of content-sized cards.
+        // Its add/edit form is naturally taller than saved events, so applying
+        // the shared table-row equalizer would make every event card form-sized.
+        if (table.closest('[data-course-calendar-entry-table]') && window.matchMedia('(max-width: 640px)').matches) {
+            return;
+        }
+
         if (rows.length < 2 || table.getBoundingClientRect().width <= 0) {
             return;
         }
@@ -2155,8 +2399,8 @@ function synchronizeRecordTableRowHeights() {
 function recordTableHasExplicitColumnLayout(table) {
     if (
         table.querySelector(':scope > colgroup')
-        || (table.closest('[data-student-progress-enrollments]') && window.matchMedia('(min-width: 768px)').matches)
-        || table.matches('.attendance-scan-list__table, .attendance-days-table, .attendance-records-table, .attendance-day-groups-table, .assessment-index-table, .assessment-results-data-table, .financial-transactions-table, .student-notes-table, [data-curriculum-subject-resource-grid]')
+        || (table.closest('[data-student-progress-enrollments]') && window.matchMedia('(min-width: 700px)').matches)
+        || table.matches('.attendance-scan-list__table, .attendance-days-table, .attendance-records-table, .assessment-index-table, .assessment-results-data-table, .financial-transactions-table, .student-notes-table, [data-curriculum-subject-resource-grid]')
     ) {
         return true;
     }
@@ -3732,7 +3976,7 @@ function initializeMobileTableFilters(root = document) {
                 return !child.nextElementSibling?.classList.contains('formatted-date-input');
             }
 
-            return child.matches('.admin-filter-field, .searchable-select, .formatted-date-input, input:not([type="hidden"]), select')
+            return child.matches('[data-mobile-table-filter-group], .admin-filter-field, .searchable-select, .formatted-date-input, input:not([type="hidden"]), select')
                 || Boolean(child.querySelector(':scope > input:not([type="hidden"]), :scope > select'));
         });
 
@@ -4240,6 +4484,65 @@ function adminToastRegion() {
 
 let lastAdminToastText = '';
 let lastAdminToastAt = 0;
+let activeAdminToast = null;
+let adminToastDismissTimer = null;
+let adminToastRemovalTimer = null;
+
+function adminToastIconName(message, type) {
+    const text = String(message || '').toLocaleLowerCase();
+
+    if (type === 'error') return 'error';
+    if (type === 'warning') return 'warning';
+    if (/(حذف|محذوف|إزالة|أزيل|delete|deleted|remove|removed)/u.test(text)) return 'delete';
+    if (/(نسخة احتياطية|نسخ احتياطي|backup)/u.test(text)) return 'backup';
+    if (/(رفع|تحميل|استيراد|upload|uploaded|import|imported)/u.test(text)) return 'upload';
+    if (/(تحويل|نقل|صرافة|transfer|transferred|exchange)/u.test(text)) return 'transfer';
+    if (/(إضافة|أضيف|إنشاء|created|added)/u.test(text)) return 'add';
+    if (/(تحديث|تعديل|updated|edited)/u.test(text)) return 'edit';
+
+    return type === 'info' ? 'info' : 'success';
+}
+
+function createAdminToastIcon(name) {
+    const icon = document.createElement('span');
+    icon.className = `admin-toast__icon admin-toast__icon--${name}`;
+    icon.setAttribute('aria-hidden', 'true');
+
+    const paths = {
+        add: '<rect x="4" y="4" width="16" height="16" rx="4"/><path stroke-linecap="round" d="M12 8v8m-4-4h8"/>',
+        backup: '<ellipse cx="11" cy="5.5" rx="7" ry="3"/><path d="M4 5.5v5c0 1.65 3.13 3 7 3 1.02 0 1.99-.1 2.86-.28M4 10.5v5c0 1.65 3.13 3 7 3h.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m15 17 1.8 1.8L21 14.5"/>',
+        delete: '<path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V4h6v3m-8 0 .8 13h8.4L17 7M10 11v5m4-5v5"/>',
+        edit: '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6.5 17.5 10.5M5 19l4.5-1 9-9a2.83 2.83 0 0 0-4-4l-9 9L5 19Z"/><path stroke-linecap="round" d="M13 19h6"/>',
+        error: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="m8.5 8.5 7 7m0-7-7 7"/>',
+        info: '<path stroke-linecap="round" d="M12 10v7m0-10h.01"/><circle cx="12" cy="12" r="9"/>',
+        success: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="m8 12.3 2.7 2.7 5.6-6"/>',
+        transfer: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 8h13m0 0-3-3m3 3-3 3M20 16H7m0 0 3 3m-3-3 3-3"/>',
+        upload: '<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 18.5H6a4 4 0 0 1-.3-7.99A6.5 6.5 0 0 1 18.2 9a4.5 4.5 0 0 1-.7 9.45M12 20V10m0 0-3 3m3-3 3 3"/>',
+        warning: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 3h.01M10.3 4.8 3.4 17a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.8a2 2 0 0 0-3.4 0Z"/>',
+    };
+
+    icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${paths[name] || paths.success}</svg>`;
+
+    return icon;
+}
+
+function dismissAdminToast(toast = activeAdminToast, immediate = false) {
+    if (!toast) return;
+
+    window.clearTimeout(adminToastDismissTimer);
+    window.clearTimeout(adminToastRemovalTimer);
+    adminToastDismissTimer = null;
+    adminToastRemovalTimer = null;
+
+    if (immediate) {
+        toast.remove();
+    } else {
+        toast.classList.remove('is-visible');
+        adminToastRemovalTimer = window.setTimeout(() => toast.remove(), 220);
+    }
+
+    if (activeAdminToast === toast) activeAdminToast = null;
+}
 
 function showAdminToast(message, type = 'success') {
     const text = String(message || '').trim();
@@ -4256,22 +4559,61 @@ function showAdminToast(message, type = 'success') {
     lastAdminToastText = text;
     lastAdminToastAt = now;
 
+    dismissAdminToast(activeAdminToast, true);
+
     const toast = document.createElement('div');
     toast.className = `admin-toast admin-toast--${type}`;
-    toast.setAttribute('role', 'status');
-    toast.textContent = text;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
 
-    adminToastRegion().appendChild(toast);
+    const messageElement = document.createElement('p');
+    messageElement.className = 'admin-toast__message';
+    messageElement.textContent = text;
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'admin-toast__close';
+    close.setAttribute('aria-label', document.documentElement.lang === 'ar' ? 'إغلاق الإشعار' : 'Dismiss notification');
+    close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m7 7 10 10M17 7 7 17"/></svg>';
+    close.addEventListener('click', () => dismissAdminToast(toast));
+
+    toast.append(createAdminToastIcon(adminToastIconName(text, type)), messageElement, close);
+
+    adminToastRegion().replaceChildren(toast);
+    activeAdminToast = toast;
 
     requestAnimationFrame(() => {
         toast.classList.add('is-visible');
     });
 
-    window.setTimeout(() => {
-        toast.classList.remove('is-visible');
-        window.setTimeout(() => toast.remove(), 220);
-    }, 3600);
+    adminToastDismissTimer = window.setTimeout(() => dismissAdminToast(toast), 5000);
 }
+
+function initializeFlashToasts(root = document) {
+    const selector = '.flash-success:not([data-inline-flash]), [data-toast-message]';
+    const sources = [];
+
+    if (root.matches?.(selector)) sources.push(root);
+    sources.push(...(root.querySelectorAll?.(selector) || []));
+
+    sources.forEach((source) => {
+        if (source.dataset.adminToastConsumed === 'true') return;
+
+        const message = source.textContent?.trim();
+        if (!message) return;
+
+        source.dataset.adminToastConsumed = 'true';
+        source.classList.add('flash-notification-source');
+        source.setAttribute('aria-hidden', 'true');
+        showAdminToast(message, source.dataset.toastType || 'success');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => initializeFlashToasts());
+document.addEventListener('livewire:navigated', () => initializeFlashToasts());
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => initializeFlashToasts(el));
+    window.Livewire?.hook('morph.added', ({ el }) => initializeFlashToasts(el));
+});
 
 function handleQuickAttendanceScanSucceeded(event) {
     const detail = Array.isArray(event) ? event[0] : event?.detail ?? event;
@@ -4297,7 +4639,10 @@ function initializeQuickAttendanceScanners() {
         const startButton = root.querySelector('[data-quick-attendance-start]');
         const stopButton = root.querySelector('[data-quick-attendance-stop]');
         const camera = root.querySelector('[data-quick-attendance-camera]');
+        const previewCanvas = root.querySelector('[data-quick-attendance-preview]');
         const cameraDisabled = startButton?.disabled ?? false;
+        const usesCanvasPreview = previewCanvas instanceof HTMLCanvasElement
+            && shouldUseCanvasCameraPreview(navigator);
         let cameraSession = 0;
         let stream = null;
         let detector = null;
@@ -4310,6 +4655,7 @@ function initializeQuickAttendanceScanners() {
         let fallbackReader = null;
         let fallbackReaderPromise = null;
         let lastFallbackScanAt = 0;
+        let lastPreviewPaintAt = 0;
 
         const messageText = (key, fallback = '') => root.dataset[key] || fallback;
 
@@ -4344,6 +4690,12 @@ function initializeQuickAttendanceScanners() {
 
             if (video instanceof HTMLVideoElement) {
                 video.srcObject = null;
+            }
+
+            if (camera) delete camera.dataset.cameraPreview;
+
+            if (previewCanvas instanceof HTMLCanvasElement) {
+                previewCanvas.getContext('2d')?.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
             }
 
             setCameraState('idle');
@@ -4393,7 +4745,7 @@ function initializeQuickAttendanceScanners() {
                 return false;
             }
 
-            qrCanvas ??= document.createElement('canvas');
+            qrCanvas ??= usesCanvasPreview ? previewCanvas : document.createElement('canvas');
 
             const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
             const frameWidth = Math.max(1, Math.round(video.videoWidth * scale));
@@ -4482,6 +4834,11 @@ function initializeQuickAttendanceScanners() {
 
             const now = Date.now();
 
+            if (usesCanvasPreview && now - lastPreviewPaintAt > 50) {
+                lastPreviewPaintAt = now;
+                drawVideoFrame();
+            }
+
             if (now - lastFrameScanAt > 140) {
                 lastFrameScanAt = now;
 
@@ -4522,6 +4879,7 @@ function initializeQuickAttendanceScanners() {
                 if (!(video instanceof HTMLVideoElement)) throw new Error('Camera preview is unavailable.');
 
                 prepareInlineCameraVideo(video);
+                if (camera) camera.dataset.cameraPreview = usesCanvasPreview ? 'canvas' : 'video';
                 detector = null;
 
                 if ('BarcodeDetector' in window) {

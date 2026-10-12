@@ -95,6 +95,7 @@ return [
         'messages' => [
             'invoices_added' => 'تمت إضافة الفواتير المحددة.',
             'department_created' => 'تمت إضافة القسم.',
+            'department_deleted' => 'تم حذف القسم.',
             'items_added' => 'تمت إضافة الأصناف المحددة إلى القسم.',
             'item_removed' => 'تمت إزالة الصنف من القسم.',
             'settings_saved' => 'تم حفظ سعر النقطة.',

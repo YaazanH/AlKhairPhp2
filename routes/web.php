@@ -14,6 +14,7 @@ use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
+use App\Http\Controllers\OfflineAttendanceSyncController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\PrintTemplates\PrintTemplateController;
 use App\Http\Controllers\PrintTemplates\PrintTemplatePrintController;
@@ -64,6 +65,7 @@ Volt::route('dashboard', 'dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
+    Route::post('attendance/offline-sync', OfflineAttendanceSyncController::class)->name('attendance.offline-sync');
     Route::get('address-suggestions', AddressSuggestionController::class)
         ->middleware(['permission:parents.create|parents.update|students.create|students.update', 'throttle:30,1'])
         ->name('address-suggestions');
@@ -142,6 +144,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('students/progress/{student?}', 'students.progress')->middleware('permission:students.view')->name('students.progress');
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
+    Volt::route('courses/{course}/archive-overview', 'courses.archive-overview')->middleware('permission:courses.view')->name('courses.archive-overview');
     Route::get('courses/{course}/calendar.pdf', CourseCalendarPdfController::class)->middleware('permission:courses.view')->name('courses.calendar.pdf');
     Volt::route('courses/{course}/end', 'courses.end')->middleware('permission:courses.view')->name('courses.end');
     Volt::route('courses/{course}/end/point-market', 'courses.point-market')->middleware(['permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market');
@@ -195,6 +198,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('finance/reports', 'finance.reports')->middleware('permission:finance.reports.view')->name('finance.reports.index');
     Route::get('finance/reports/ledger/export', [ReportExportController::class, 'financeLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.ledger.export');
     Route::get('finance/reports/generated/{generatedReport}', [ReportExportController::class, 'generatedFinanceLedger'])->middleware('permission:finance.reports.export')->name('finance.reports.generated.show');
+    Volt::route('finance/pull-requests', 'finance.pull-requests')->middleware('permission:finance.pull-requests.view')->name('finance.pull-requests.index');
     Volt::route('finance/cash-box', 'finance.cash-box')->middleware('permission:finance.cash-box.view')->name('finance.cash-box.index');
     Volt::route('finance/expense-requests', 'finance.expense-requests')->middleware('permission:finance.expense-requests.view')->name('finance.expense-requests.index');
     Volt::route('finance/revenue-requests', 'finance.revenue-requests')->middleware('permission:finance.revenue-requests.view')->name('finance.revenue-requests.index');

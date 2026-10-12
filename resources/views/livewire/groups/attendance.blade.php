@@ -268,12 +268,6 @@ new class extends Component
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    @if ($isDayClosed)
-        <div class="soft-callout p-4 text-sm text-amber-100">
-            {{ __('workflow.student_attendance.messages.closed_day_locked') }}
-        </div>
-    @endif
-
     <div class="grid gap-4 md:grid-cols-3">
         <article class="stat-card">
             <div class="kpi-label">{{ __('workflow.student_attendance.stats.active_enrollments') }}</div>

@@ -16,7 +16,13 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
+    <body
+        class="app-body"
+        data-current-user-id="{{ auth()->id() }}"
+        data-attendance-sync-url="{{ route('attendance.offline-sync') }}"
+        data-attendance-sync-conflict-label="{{ __('workflow.offline_attendance.conflict') }}"
+        data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}"
+    >
         @php
             $primaryRole = auth()->user()->primaryRoleName();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;

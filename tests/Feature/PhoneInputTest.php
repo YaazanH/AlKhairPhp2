@@ -65,6 +65,8 @@ class PhoneInputTest extends TestCase
         $this->assertSame('+963 933 333 333', PhoneNumberFormatter::format('0933 333 333'));
         $this->assertSame('+1 (202) 555-0123', PhoneNumberFormatter::format('+1 202 555 0123'));
         $this->assertSame('+49 1512 3456789', PhoneNumberFormatter::format('0049 1512 3456789'));
+        $this->assertSame('+963933333333', PhoneNumberFormatter::callable('0933 333 333'));
+        $this->assertNull(PhoneNumberFormatter::callable('123'));
     }
 
     public function test_phone_model_attributes_store_e164_and_display_official_formatting(): void

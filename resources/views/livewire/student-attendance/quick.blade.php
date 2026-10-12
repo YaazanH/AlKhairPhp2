@@ -269,12 +269,6 @@ new class extends Component
         </div>
     </section>
 
-    @if ($isDayClosed)
-        <div class="soft-callout p-4 text-sm text-amber-100">
-            {{ __('workflow.student_attendance.messages.closed_day_locked') }}
-        </div>
-    @endif
-
     <section
         class="surface-panel attendance-scanner"
         id="quick-attendance-scanner"
@@ -299,6 +293,7 @@ new class extends Component
 
         <div class="attendance-scanner__camera" data-camera-state="idle" data-quick-attendance-camera wire:ignore>
             <video data-quick-attendance-video autoplay muted playsinline webkit-playsinline></video>
+            <canvas data-quick-attendance-preview aria-hidden="true"></canvas>
             <div class="attendance-scanner__frame" aria-hidden="true">
                 <span class="attendance-scanner__corner attendance-scanner__corner--top-left"></span>
                 <span class="attendance-scanner__corner attendance-scanner__corner--top-right"></span>

@@ -53,6 +53,7 @@ class Course extends Model
         'show_in_report_filters',
         'awards_points',
         'course_finished_was_awarding_points',
+        'completion_settings_snapshot',
     ];
 
     protected function casts(): array
@@ -66,6 +67,7 @@ class Course extends Model
             'show_in_report_filters' => 'boolean',
             'awards_points' => 'boolean',
             'course_finished_was_awarding_points' => 'boolean',
+            'completion_settings_snapshot' => 'array',
         ];
     }
 

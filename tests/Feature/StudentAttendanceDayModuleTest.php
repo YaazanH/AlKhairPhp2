@@ -27,6 +27,19 @@ use Tests\TestCase;
 
 class StudentAttendanceDayModuleTest extends TestCase
 {
+    public function test_closed_day_warning_callouts_are_not_rendered_on_attendance_entry_pages(): void
+    {
+        foreach ([
+            'student-attendance/mark.blade.php',
+            'student-attendance/quick.blade.php',
+            'groups/attendance.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/livewire/'.$view));
+
+            $this->assertStringNotContainsString('@if ($isDayClosed)'.PHP_EOL.'        <div class="soft-callout', $source, $view);
+        }
+    }
+
     use RefreshDatabase;
 
     public function test_manager_can_create_an_attendance_day_for_active_groups(): void
@@ -257,6 +270,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->call('openManualGroupModal')
             ->assertSee('admin-modal__dialog--xl admin-modal__dialog--compact', false)
             ->assertSee('data-attendance-group-picker', false)
+            ->assertSee('data-attendance-group-picker-save', false)
             ->assertSee($extraEnrollment->group->name)
             ->assertSee($secondExtraEnrollment->group->name)
             ->assertDontSee($inactiveEnrollment->group->name)
@@ -690,6 +704,7 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertDontSee('aria-label="QR code حضور الطلاب"', false)
             ->assertSee('attendance-scanner__corner--bottom-right', false)
             ->assertSee('data-quick-attendance-video autoplay muted playsinline webkit-playsinline', false)
+            ->assertSee('data-quick-attendance-preview aria-hidden="true"', false)
             ->assertSee('attendance-scanner__camera-button--start', false)
             ->assertSee('attendance-scanner__camera-button--stop', false)
             ->assertSee('attendance-scan-list__table', false)
@@ -715,6 +730,8 @@ class StudentAttendanceDayModuleTest extends TestCase
 
         $styles = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString(".attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) video { opacity: 1; }", $styles);
+        $this->assertStringContainsString(".attendance-scanner__camera[data-camera-preview='canvas'] video { opacity: 0 !important; }", $styles);
+        $this->assertStringContainsString(".attendance-scanner__camera[data-camera-preview='canvas']:is([data-camera-state='starting'], [data-camera-state='running']) [data-quick-attendance-preview] { opacity: 1; }", $styles);
         $this->assertStringContainsString(".attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) [data-quick-attendance-start] { display: none; }", $styles);
 
         $this->assertDatabaseHas('student_attendance_records', [

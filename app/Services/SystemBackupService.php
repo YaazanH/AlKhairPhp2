@@ -31,6 +31,8 @@ class SystemBackupService
 
     private const SUPPORTED_MANIFEST_VERSIONS = [1, 2, self::MANIFEST_VERSION];
 
+    private const OPERATION_LOCK = 'system-backup:operation';
+
     public function __construct(private readonly BackupEncryptionService $encryption) {}
 
     public function settings(): array
@@ -74,11 +76,12 @@ class SystemBackupService
             throw new RuntimeException('Scheduled backups must contain only the database.');
         }
 
-        /** @var Lock $lock */
-        $lock = Cache::lock('system-backup:operation', 7200);
+        $this->prepareLongRunningRequest();
+        $lock = $this->operationLock();
         if (! $lock->get()) {
             throw new RuntimeException('Another backup or restoration operation is already running.');
         }
+        $this->releaseOperationLockAfterFatalError($lock);
 
         try {
             return $this->createUnlocked($creator, $trigger, scope: $scope);
@@ -102,11 +105,12 @@ class SystemBackupService
             throw new RuntimeException('The imported backup exceeds the configured upload limit.');
         }
 
-        /** @var Lock $lock */
-        $lock = Cache::lock('system-backup:operation', 7200);
+        $this->prepareLongRunningRequest();
+        $lock = $this->operationLock();
         if (! $lock->get()) {
             throw new RuntimeException('Another backup or restoration operation is already running.');
         }
+        $this->releaseOperationLockAfterFatalError($lock);
 
         $backup = null;
         $storedDiskName = null;
@@ -237,11 +241,12 @@ class SystemBackupService
             throw new RuntimeException('Only completed and verified backups can be restored.');
         }
 
-        /** @var Lock $lock */
-        $lock = Cache::lock('system-backup:operation', 7200);
+        $this->prepareLongRunningRequest();
+        $lock = $this->operationLock();
         if (! $lock->get()) {
             throw new RuntimeException('Another backup or restoration operation is already running.');
         }
+        $this->releaseOperationLockAfterFatalError($lock);
 
         try {
             $prepared = $this->prepareVerifiedArchive($backup);
@@ -427,10 +432,12 @@ class SystemBackupService
     public function runScheduled(): ?SystemBackup
     {
         Cache::forever('system-backup:scheduler-last-seen', now()->utc()->toIso8601String());
-        $lock = Cache::lock('system-backup:operation', 7200);
+        $this->prepareLongRunningRequest();
+        $lock = $this->operationLock();
         if (! $lock->get()) {
             return null;
         }
+        $this->releaseOperationLockAfterFatalError($lock);
 
         try {
             return $this->scheduledBackupIsDue()
@@ -1267,6 +1274,54 @@ class SystemBackupService
         File::ensureDirectoryExists($directory);
 
         return $directory;
+    }
+
+    private function prepareLongRunningRequest(): void
+    {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
+        ignore_user_abort(true);
+
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(max(60, (int) config('backups.process_timeout_seconds', 3600)));
+        }
+    }
+
+    private function operationLock(): Lock
+    {
+        $processTimeout = max(60, (int) config('backups.process_timeout_seconds', 3600));
+        $configuredLifetime = (int) config('backups.operation_lock_seconds', 0);
+        $lifetime = $configuredLifetime > 0
+            ? max($processTimeout + 60, $configuredLifetime)
+            : $processTimeout + 300;
+
+        return Cache::lock(self::OPERATION_LOCK, $lifetime);
+    }
+
+    private function releaseOperationLockAfterFatalError(Lock $lock): void
+    {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
+        $owner = $lock->owner();
+
+        register_shutdown_function(static function () use ($owner): void {
+            $error = error_get_last();
+            $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+
+            if (! is_array($error) || ! in_array($error['type'] ?? null, $fatalTypes, true)) {
+                return;
+            }
+
+            try {
+                Cache::restoreLock(self::OPERATION_LOCK, $owner)->release();
+            } catch (Throwable) {
+                // Preserve the original fatal error as the useful failure signal.
+            }
+        });
     }
 
     private function runProcess(Process $process): void

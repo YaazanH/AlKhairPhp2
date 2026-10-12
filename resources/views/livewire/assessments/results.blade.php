@@ -40,22 +40,34 @@ new class extends Component
 
     public string $sortDirection = 'asc';
 
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
     protected array $sortableFields = [
         'score',
         'status',
         'student',
     ];
 
-    public function mount(Assessment $assessment): void
+    public function mount(Assessment $assessment, ?int $archiveCourseId = null): void
     {
         $this->authorizePermission('assessment-results.view');
+        $this->archiveCourseId = $archiveCourseId ?: (request()->integer('archive_course_id') ?: null);
+        $this->archiveReadOnly = $this->archiveCourseId !== null;
 
-        $this->currentAssessment = Assessment::query()
-            ->with(['group.course', 'groups.course', 'type'])
-            ->whereNull('course_finished_at')
-            ->whereDoesntHave('group.course', fn ($courseQuery) => $courseQuery->whereNotNull('finished_at'))
-            ->whereDoesntHave('groups.course', fn ($courseQuery) => $courseQuery->whereNotNull('finished_at'))
-            ->findOrFail($assessment->id);
+        $assessmentQuery = Assessment::query()->with(['group.course', 'groups.course', 'type']);
+        if ($this->archiveCourseId) {
+            $assessmentQuery->where(fn ($query) => $query
+                ->whereHas('group', fn ($group) => $group->where('course_id', $this->archiveCourseId))
+                ->orWhereHas('groups', fn ($group) => $group->where('course_id', $this->archiveCourseId)));
+        } else {
+            $assessmentQuery
+                ->whereNull('course_finished_at')
+                ->whereDoesntHave('group.course', fn ($courseQuery) => $courseQuery->whereNotNull('finished_at'))
+                ->whereDoesntHave('groups.course', fn ($courseQuery) => $courseQuery->whereNotNull('finished_at'));
+        }
+        $this->currentAssessment = $assessmentQuery->findOrFail($assessment->id);
 
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
         $groupIds = $this->assessmentGroupIds();
@@ -75,6 +87,8 @@ new class extends Component
             Group::query()->where('is_active', true)->whereHas('course', fn ($query) => $query->where('is_active', true))
         )->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
         $assessmentGroupIds = $assessmentGroups->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
+        $usesAllGroups = $this->currentAssessment->group_scope === 'all'
+            || ($this->currentAssessment->group_scope === null && $availableGroupIds->isNotEmpty() && $assessmentGroupIds->all() === $availableGroupIds->all());
 
         if ($this->selectedGroupId !== null && ! $assessmentGroups->contains('id', $this->selectedGroupId)) {
             $this->selectedGroupId = null;
@@ -93,7 +107,7 @@ new class extends Component
             $enrollmentsQuery = Enrollment::query()
                 ->with(['student', 'assessmentResults' => fn ($query) => $query->where('assessment_id', $this->currentAssessment->id)])
                 ->where('group_id', $selectedGroup->id)
-                ->where('status', 'active')
+                ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
                 ->when(filled($this->search), function ($query) {
                     ArabicSearch::whereAllTokens(
                         $query,
@@ -125,7 +139,7 @@ new class extends Component
         $quickEntryEnrollments = Enrollment::query()
             ->with(['student', 'group.course'])
             ->whereIn('group_id', $assessmentGroups->pluck('id'))
-            ->where('status', 'active')
+            ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
             ->get()
             ->sortBy(fn (Enrollment $enrollment) => mb_strtolower((string) ($enrollment->student?->full_name ?? '')))
             ->values();
@@ -133,8 +147,13 @@ new class extends Component
         return [
             'assessmentRecord' => $this->currentAssessment->fresh(['group.course', 'groups.course', 'type']),
             'assessmentGroups' => $assessmentGroups,
-            'usesAllGroups' => $this->currentAssessment->group_scope === 'all'
-                || ($this->currentAssessment->group_scope === null && $availableGroupIds->isNotEmpty() && $assessmentGroupIds->all() === $availableGroupIds->all()),
+            'usesAllGroups' => $usesAllGroups,
+            'groupSummary' => match (true) {
+                $assessmentGroups->isEmpty() => $this->currentAssessment->group?->name ?: __('workflow.common.not_available'),
+                $usesAllGroups => __('crud.common.filters.all_groups'),
+                $assessmentGroups->count() === 1 => $assessmentGroups->first()->name,
+                default => trans_choice('counts.groups', $assessmentGroups->count(), ['count' => number_format($assessmentGroups->count())]),
+            },
             'assessmentPointsByEnrollment' => $this->assessmentPointsByEnrollment(),
             'enrollments' => $enrollments,
             'quickEntryEnrollments' => $quickEntryEnrollments,
@@ -148,7 +167,7 @@ new class extends Component
                 ->avg('score'),
             'totalSavedResults' => $assessmentGroups->sum('assessment_results_count'),
             'totalPassedStudents' => $assessmentGroups->sum('assessment_passed_count'),
-            'canRecordAssessmentScores' => $this->canPermission('assessment-results.record')
+            'canRecordAssessmentScores' => ! $this->archiveReadOnly && $this->canPermission('assessment-results.record')
                 && $this->canPermission('assessment-results.record-scores'),
         ];
     }
@@ -184,6 +203,7 @@ new class extends Component
 
     public function saveResults(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizeScoreRecording();
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
 
@@ -242,6 +262,7 @@ new class extends Component
 
     public function saveEnrollmentResult(int $enrollmentId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizeScoreRecording();
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
 
@@ -318,6 +339,7 @@ new class extends Component
 
     public function openQuickResultModal(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizeScoreRecording();
         $this->quick_enrollment_id = '';
         $this->quick_score = '';
@@ -335,6 +357,7 @@ new class extends Component
 
     public function saveQuickResult(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizeScoreRecording();
         $this->authorizeTeacherAssessmentAccess($this->currentAssessment);
 
@@ -449,14 +472,14 @@ new class extends Component
             Group::query()
                 ->with(['course', 'teacher'])
                 ->withCount([
-                    'enrollments as active_enrollments_count' => fn ($query) => $query->where('status', 'active'),
+                    'enrollments as active_enrollments_count' => fn ($query) => $query->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active']),
                     'enrollments as assessment_results_count' => fn ($query) => $query
-                        ->where('status', 'active')
+                        ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
                         ->whereHas('assessmentResults', fn ($resultQuery) => $resultQuery
                             ->where('assessment_id', $assessmentId)
                             ->whereIn('status', ['passed', 'failed'])),
                     'enrollments as assessment_passed_count' => fn ($query) => $query
-                        ->where('status', 'active')
+                        ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
                         ->whereHas('assessmentResults', fn ($resultQuery) => $resultQuery
                             ->where('assessment_id', $assessmentId)
                             ->where('status', 'passed')),
@@ -558,7 +581,7 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <x-back-link :href="route('assessments.index')" navigate class="assessment-results-back" />
+                <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', ['course' => $archiveCourseId, 'section' => 'assessments']) : route('assessments.index')" navigate class="assessment-results-back" />
                 <h1 class="assessment-results-title font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
             </div>
 
@@ -566,14 +589,12 @@ new class extends Component
                 <div class="text-sm font-semibold text-white">{{ $assessmentRecord->title }}</div>
                 <div class="mt-1 text-sm text-neutral-400">
                     {{ $assessmentRecord->type?->name ?: __('workflow.common.not_available') }} |
-                    {{ $assessmentGroups->isNotEmpty()
-                        ? ($usesAllGroups ? __('crud.common.filters.all_groups') : $assessmentGroups->pluck('name')->implode(', '))
-                        : ($assessmentRecord->group?->name ?: __('workflow.common.not_available')) }}
+                    {{ $groupSummary }}
                 </div>
                 <div class="mt-1 text-sm text-neutral-400">{{ __('workflow.assessments.results.details.participants') }}: {{ number_format($totalSavedResults) }} | {{ __('workflow.assessments.results.details.passed') }}: {{ number_format($totalPassedStudents) }}</div>
                 <div class="assessment-results-card-actions mt-3">
-                    @can('assessments.update')<x-edit-action-button :href="route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results'])" wire:navigate :label="__('crud.common.actions.edit')" data-assessment-edit-action />@endcan
-                    <a href="{{ route('assessments.results.pdf', $assessmentRecord) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
+                    @if (! $archiveReadOnly && auth()->user()->can('assessments.update'))<x-edit-action-button :href="route('assessments.index', ['edit' => $assessmentRecord->id, 'return_to' => 'results'])" wire:navigate :label="__('crud.common.actions.edit')" data-assessment-edit-action />@endif
+                    <a href="{{ route('assessments.results.pdf', array_filter(['assessment' => $assessmentRecord, 'archive_course_id' => $archiveCourseId])) }}" target="_blank" rel="noopener" class="admin-icon-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
                     @if($canRecordAssessmentScores)<button type="button" wire:click="openQuickResultModal" class="admin-icon-button admin-icon-button--accent assessment-results-card-actions__add" title="{{ __('workflow.assessments.results.student_entry.title') }}" aria-label="{{ __('workflow.assessments.results.student_entry.title') }}" data-assessment-add-result-action><x-admin-action-icon name="add" /></button>@endif
                 </div>
             </div>
@@ -631,7 +652,7 @@ new class extends Component
                     </select>
                 </div>
                 @if ($selectedGroup)
-                    <a href="{{ route('assessments.results.pdf', ['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id]) }}" target="_blank" rel="noopener" class="admin-icon-button assessment-results-filter-pdf-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
+                    <a href="{{ route('assessments.results.pdf', array_filter(['assessment' => $assessmentRecord, 'group_id' => $selectedGroup->id, 'archive_course_id' => $archiveCourseId])) }}" target="_blank" rel="noopener" class="admin-icon-button assessment-results-filter-pdf-button" title="{{ __('workflow.assessments.results.pdf_export') }}" aria-label="{{ __('workflow.assessments.results.pdf_export') }}"><x-pdf-export-icon /></a>
                 @endif
             </div>
         </div>

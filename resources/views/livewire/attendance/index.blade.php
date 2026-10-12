@@ -51,17 +51,43 @@ new class extends Component
 
     public string $export_date_to = '';
 
-    public function mount(): void
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
+    public function mount(?int $archiveCourseId = null, bool $archiveReadOnly = false): void
     {
         abort_unless(auth()->user()->canAny(['attendance.student.view', 'attendance.teacher.view']), 403);
+        $this->archiveCourseId = $archiveCourseId;
+        $this->archiveReadOnly = $archiveReadOnly;
         $this->exportType = $this->canPermission('attendance.student.view') ? 'students' : 'teachers';
         $this->attendance_date = now()->toDateString();
         $this->course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id')
             ?? $this->availableCoursesQuery()->value('courses.id')
             ?? '');
-        $this->export_course_id = (string) ($this->availableCoursesQuery()->where('is_default', true)->value('courses.id') ?? '');
-        $this->export_date_from = now()->startOfMonth()->toDateString();
-        $this->export_date_to = now()->toDateString();
+        $archiveCourse = $this->archiveCourseId ? Course::query()->findOrFail($this->archiveCourseId) : null;
+        $archiveStudentDates = $archiveCourse ? StudentAttendanceDay::query()->where('course_id', $archiveCourse->id) : null;
+        $archiveTeacherDates = $archiveCourse ? TeacherAttendanceDay::query()->where(fn ($days) => $days
+            ->where('course_id', $archiveCourse->id)
+            ->orWhereHas('records', fn ($records) => $records->where('archived_course_id', $archiveCourse->id))) : null;
+        $archiveFirstAttendanceDate = collect([
+            $archiveStudentDates ? (clone $archiveStudentDates)->min('attendance_date') : null,
+            $archiveTeacherDates ? (clone $archiveTeacherDates)->min('attendance_date') : null,
+        ])->filter()->min();
+        $archiveLastAttendanceDate = collect([
+            $archiveStudentDates ? (clone $archiveStudentDates)->max('attendance_date') : null,
+            $archiveTeacherDates ? (clone $archiveTeacherDates)->max('attendance_date') : null,
+        ])->filter()->max();
+        $this->export_course_id = (string) ($archiveCourse?->id
+            ?? $this->availableCoursesQuery()->where('is_default', true)->value('courses.id')
+            ?? '');
+        $this->export_date_from = $archiveCourse?->starts_on?->toDateString()
+            ?: ($archiveFirstAttendanceDate ? Carbon::parse($archiveFirstAttendanceDate)->toDateString() : null)
+            ?: now()->startOfMonth()->toDateString();
+        $this->export_date_to = $archiveCourse?->ends_on?->toDateString()
+            ?: ($archiveLastAttendanceDate ? Carbon::parse($archiveLastAttendanceDate)->toDateString() : null)
+            ?: $archiveCourse?->finished_at?->toDateString()
+            ?: now()->toDateString();
     }
 
     public function with(): array
@@ -81,16 +107,32 @@ new class extends Component
                     ])
                 ),
             ])
-        )
-            ->whereNull('course_finished_at');
+        );
+
+        if ($this->archiveCourseId) {
+            $daysQuery->where('course_id', $this->archiveCourseId);
+        } else {
+            $daysQuery->whereNull('course_finished_at');
+        }
 
         $studentDays = $this->canPermission('attendance.student.view') ? $daysQuery->get() : collect();
-        $teacherDays = $this->canPermission('attendance.teacher.view')
-            ? $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query()->with('course')
+        $teacherDaysQuery = $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query()->with('course'));
+        if ($this->archiveCourseId) {
+            $teacherDaysQuery
+                ->where(fn ($query) => $query->where('course_id', $this->archiveCourseId)
+                    ->orWhereHas('records', fn ($records) => $records->where('archived_course_id', $this->archiveCourseId)))
+                ->withCount(['records as present_records_count' => fn ($query) => $this->scopeTeacherAttendanceRecordsQuery($query)
+                    ->where(fn ($records) => $records->where('archived_course_id', $this->archiveCourseId)
+                        ->orWhere(fn ($legacy) => $legacy->whereNull('archived_course_id')->whereNotNull('course_finished_at')))
+                    ->whereHas('status', fn ($status) => $status->where('is_present', true))]);
+        } else {
+            $teacherDaysQuery
                 ->where(fn ($query) => $query->whereHas('course', fn ($course) => $course->whereNull('finished_at'))
                     ->orWhere(fn ($legacy) => $legacy->whereNull('course_id')->where(fn ($records) => $records->whereDoesntHave('records')->orWhereHas('records', fn ($record) => $record->whereNull('course_finished_at')))))
-                ->withCount(['records as present_records_count' => fn ($query) => $this->scopeTeacherAttendanceRecordsQuery($query)->whereNull('course_finished_at')->whereHas('status', fn ($status) => $status->where('is_present', true))]))->get()
-            : collect();
+                ->withCount(['records as present_records_count' => fn ($query) => $this->scopeTeacherAttendanceRecordsQuery($query)->whereNull('course_finished_at')->whereHas('status', fn ($status) => $status->where('is_present', true))]);
+        }
+        $teacherDays = $this->canPermission('attendance.teacher.view') ? $teacherDaysQuery->get() : collect();
+        $archiveCourse = $this->archiveCourseId ? Course::query()->find($this->archiveCourseId) : null;
         $rows = $studentDays->map(function ($day) {
             $day->source_type = 'students';
             $day->row_key = $day->attendance_date->toDateString().':'.$day->course_id;
@@ -99,7 +141,10 @@ new class extends Component
             return $day;
         })->keyBy('row_key');
         foreach ($teacherDays as $teacherDay) {
-            $key = $teacherDay->attendance_date->toDateString().':'.$teacherDay->course_id;
+            if ($archiveCourse) {
+                $teacherDay->setRelation('course', $archiveCourse);
+            }
+            $key = $teacherDay->attendance_date->toDateString().':'.($this->archiveCourseId ?: $teacherDay->course_id);
             if ($rows->has($key)) {
                 $rows[$key]->teacher_present_count = $teacherDay->present_records_count;
                 $rows[$key]->status = $rows[$key]->status === 'open' || $teacherDay->status === 'open' ? 'open' : 'closed';
@@ -117,8 +162,14 @@ new class extends Component
             && (! in_array($this->statusFilter, ['open', 'closed'], true) || $day->status === $this->statusFilter))->reverse()->values();
         $days = new LengthAwarePaginator($rows->forPage($this->getPage(), $this->perPage), $rows->count(), $this->perPage, $this->getPage(), ['path' => request()->url()]);
 
-        $scheduledGroupCount = filled($this->attendance_date) && $this->normalizedCourseId()
-            ? $this->scheduledGroupsForDate($this->attendance_date, $this->normalizedCourseId())->count()
+        $scheduledGroups = filled($this->attendance_date) && $this->normalizedCourseId()
+            ? $this->scheduledGroupsForDate($this->attendance_date, $this->normalizedCourseId())
+            : collect();
+        $scheduledGroupCount = $scheduledGroups->count();
+        $scheduledTeacherCount = filled($this->attendance_date) && $this->normalizedCourseId()
+            ? app(TeacherAttendanceDayService::class)
+                ->scheduledTeachers($this->attendance_date, $this->normalizedCourseId(), auth()->user())
+                ->count()
             : 0;
 
         return [
@@ -129,6 +180,7 @@ new class extends Component
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'scheduledGroupCount' => $scheduledGroupCount,
+            'scheduledTeacherCount' => $scheduledTeacherCount,
             'defaultStatusOptions' => AttendanceStatus::query()
                 ->where('is_active', true)
                 ->whereIn('scope', [$this->creationScope(), 'both'])
@@ -152,6 +204,7 @@ new class extends Component
 
     public function openCreateModal(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.'.$this->creationScope().'.view');
         $this->authorizePermission('attendance.'.$this->creationScope().'.take');
 
@@ -183,6 +236,7 @@ new class extends Component
 
     public function saveDay()
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.'.$this->creationScope().'.view');
         $this->authorizePermission('attendance.'.$this->creationScope().'.take');
 
@@ -292,6 +346,10 @@ new class extends Component
 
     protected function availableCoursesQuery()
     {
+        if ($this->archiveCourseId) {
+            return Course::query()->whereKey($this->archiveCourseId);
+        }
+
         return Course::query()
             ->where('is_active', true)
             ->whereHas('groups', fn (Builder $query) => $this->scopeGroupsQuery($query->where('is_active', true)));
@@ -319,31 +377,39 @@ new class extends Component
     <section class="surface-table">
         <div class="admin-grid-meta admin-grid-meta--controls attendance-days-toolbar">
             <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
-            <div class="admin-toolbar__controls">
-                <div class="admin-filter-field">
-                    <label class="sr-only" for="student-attendance-search">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
-                    <input id="student-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.student_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.student_attendance.days.form.attendance_date') }}">
-                </div>
+            <div class="admin-toolbar__controls attendance-days-toolbar__controls">
+                <div class="attendance-days-toolbar__filters" data-mobile-table-filter-group>
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-attendance-search">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
+                        <input id="student-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.student_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.student_attendance.days.form.attendance_date') }}">
+                    </div>
 
-                <div class="admin-filter-field">
-                    <label class="sr-only" for="student-attendance-status">{{ __('workflow.student_attendance.days.form.status') }}</label>
-                    <select id="student-attendance-status" wire:model.live="statusFilter">
-                        <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
-                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
-                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
-                    </select>
+                    @unless ($archiveReadOnly)
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-attendance-status">{{ __('workflow.student_attendance.days.form.status') }}</label>
+                        <select id="student-attendance-status" wire:model.live="statusFilter">
+                            <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
+                            <option value="open">{{ __('workflow.common.day_status.open') }}</option>
+                            <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
+                        </select>
+                    </div>
+                    @endunless
                 </div>
 
                 <div class="admin-toolbar__actions">
+                    @unless ($archiveReadOnly)
                     @if (($this->canPermission('attendance.student.view') && $this->canPermission('attendance.student.take')) || ($this->canPermission('attendance.teacher.view') && $this->canPermission('attendance.teacher.take')))
                         <x-add-action-button wire:click="openCreateModal" :label="__('workflow.student_attendance.days.create')" />
                     @endif
+                    @endunless
                     <x-export-action-button wire:click="openExportModal" :label="__('workflow.student_attendance.export.action')" />
+                    @unless ($archiveReadOnly)
                     @if (auth()->user()->can('barcode-scans.import'))
                     @if ((bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true))
                         <a href="{{ route('barcode-actions.import') }}" wire:navigate class="pill-link">{{ __('ui.nav.scanner_import') }}</a>
                     @endif
                     @endif
+                    @endunless
                 </div>
             </div>
         </div>
@@ -352,7 +418,7 @@ new class extends Component
     <div class="admin-modal-portal attendance-export-modal">
         <x-admin.modal :show="$showExportModal" :title="__('attendance.export')" close-method="closeExportModal" max-width="2xl" full-viewport>
             <div class="grid gap-4 sm:grid-cols-2">
-                <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label><select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3" data-record-label="course"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select></div>
+                <div class="sm:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.course') }}</label>@if ($archiveReadOnly)<div class="w-full rounded-xl border border-white/10 px-4 py-3" data-archive-attendance-export-course><span class="record-course-name">{{ $exportCourseOptions->first()?->name }}</span></div>@else<select wire:model.live="export_course_id" class="w-full rounded-xl px-4 py-3" data-record-label="course"><option value="">{{ __('workflow.student_attendance.export.select_course') }}</option>@foreach($exportCourseOptions as $course)<option value="{{ $course->id }}">{{ $course->name }}</option>@endforeach</select>@endif</div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.from') }}</label><input wire:model.live="export_date_from" type="date" class="w-full rounded-xl px-4 py-3"></div>
                 <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.student_attendance.export.to') }}</label><input wire:model.live="export_date_to" type="date" class="w-full rounded-xl px-4 py-3"></div>
             </div>
@@ -372,10 +438,12 @@ new class extends Component
                             <th data-table-number-column scope="col" class="attendance-days-number px-5 py-4 text-center lg:px-6">#</th>
                             <th class="attendance-days-date px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.date') }}</th>
                             <th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('attendance.teachers_column') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
+                            <th class="attendance-days-mobile-hidden attendance-days-enrolled attendance-days-metric px-5 py-4 lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
+                            <th class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
+                            <th class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 lg:px-6">{{ __('attendance.teachers_column') }}</th>
+                            @unless ($archiveReadOnly)
+                                <th class="attendance-days-mobile-hidden attendance-days-status px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
+                            @endunless
                             <th class="attendance-days-actions admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.days.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -383,7 +451,9 @@ new class extends Component
                         @foreach ($days as $day)
                             @php
                                 $groupCount = $day->groupAttendanceDays->count();
-                                $studentCount = $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0));
+                                $studentCount = $archiveCourseId
+                                    ? $day->groupAttendanceDays->sum('records_count')
+                                    : $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0));
                                 $attendedCount = $day->groupAttendanceDays->sum('present_records_count');
                             @endphp
                             <tr>
@@ -397,17 +467,21 @@ new class extends Component
                                 <td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6">
                                     <div><span class="record-course-name">{{ $day->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ $day->source_type === 'teachers' ? '—' : number_format($studentCount) }}</td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ $day->source_type === 'teachers' ? '—' : number_format($attendedCount) }}</td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ $day->teacher_present_count === null ? '—' : number_format($day->teacher_present_count) }}</td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 lg:px-6">
-                                    <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                        {{ __('workflow.common.day_status.'.$day->status) }}
-                                    </span>
-                                </td>
+                                <td class="attendance-days-mobile-hidden attendance-days-enrolled attendance-days-metric px-5 py-4 text-neutral-300 tabular-nums lg:px-6">{{ $day->source_type === 'teachers' ? '—' : number_format($studentCount) }}</td>
+                                <td class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 text-neutral-300 tabular-nums lg:px-6">{{ $day->source_type === 'teachers' ? '—' : number_format($attendedCount) }}</td>
+                                <td class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 text-neutral-300 tabular-nums lg:px-6">{{ $day->teacher_present_count === null ? '—' : number_format($day->teacher_present_count) }}</td>
+                                @unless ($archiveReadOnly)
+                                    <td class="attendance-days-mobile-hidden attendance-days-status px-5 py-4 lg:px-6">
+                                        <div class="attendance-days-status__content">
+                                            <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                                {{ __('workflow.common.day_status.'.$day->status) }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                @endunless
                                 <td class="attendance-days-actions px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">
-                                        <x-open-action-button :href="route('attendance.show', ['type' => $day->source_type, 'day' => $day->id])" :class="$day->status === 'open' ? 'admin-icon-button--accent' : ''" wire:navigate :label="__('workflow.student_attendance.days.table.view')" />
+                                        <x-open-action-button :href="route('attendance.show', array_filter(['type' => $day->source_type, 'day' => $day->id, 'archive_course_id' => $archiveCourseId]))" :class="$day->status === 'open' ? 'admin-icon-button--accent' : ''" wire:navigate :label="__('workflow.student_attendance.days.table.view')" />
                                     </div>
                                 </td>
                             </tr>
@@ -424,6 +498,7 @@ new class extends Component
         @endif
     </section>
 
+    @unless ($archiveReadOnly)
     <x-admin.modal
         :show="$showFormModal"
         :title="__('attendance.create')"
@@ -446,8 +521,13 @@ new class extends Component
                     @enderror
                 </div>
 
-                <div class="flex h-12 min-h-12 box-border items-center self-end rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
-                    {{ __('counts.groups', ['count' => number_format($scheduledGroupCount)]) }}
+                <div class="grid grid-cols-2 gap-4 self-end" data-attendance-scheduled-counts>
+                    <div data-attendance-scheduled-groups-count class="flex h-12 min-h-12 box-border items-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
+                        {{ trans_choice('counts.groups', $scheduledGroupCount, ['count' => number_format($scheduledGroupCount)]) }}
+                    </div>
+                    <div data-attendance-scheduled-teachers-count class="flex h-12 min-h-12 box-border items-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold">
+                        {{ trans_choice('counts.teachers', $scheduledTeacherCount, ['count' => number_format($scheduledTeacherCount)]) }}
+                    </div>
                 </div>
             </div>
 
@@ -487,4 +567,5 @@ new class extends Component
             </div>
         </form>
     </x-admin.modal>
+    @endunless
 </div>

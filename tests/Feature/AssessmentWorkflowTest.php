@@ -374,6 +374,7 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-results-title', false)
             ->assertSee('assessment-results-back', false)
             ->assertDontSee('admin-kpi-grid', false)
+            ->assertViewHas('groupSummary', trans_choice('counts.groups', 2, ['count' => number_format(2)]))
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
             ->assertSee(__('workflow.assessments.results.student_entry.title'))
@@ -445,6 +446,25 @@ class AssessmentWorkflowTest extends TestCase
             'group_id' => $secondGroup->id,
         ], absolute: false))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertSame(1, $pdfInspector->setSourceFile(StreamReader::createByString($groupPdfResponse->getContent())));
+
+        $firstEnrollment->update(['status' => 'completed']);
+        $secondEnrollment->update(['status' => 'completed']);
+
+        Volt::test('assessments.results', [
+            'assessment' => $assessment,
+            'archiveCourseId' => $course->id,
+        ])
+            ->assertViewHas('groupSummary', trans_choice('counts.groups', 2, ['count' => number_format(2)]))
+            ->assertViewHas('totalSavedResults', 2)
+            ->assertSee('archive_course_id='.$course->id, false)
+            ->assertDontSee('data-assessment-add-result-action', false)
+            ->assertDontSee('data-assessment-edit-action', false);
+
+        $archivePdfResponse = $this->get(route('assessments.results.pdf', [
+            'assessment' => $assessment,
+            'archive_course_id' => $course->id,
+        ], absolute: false))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertSame(2, $pdfInspector->setSourceFile(StreamReader::createByString($archivePdfResponse->getContent())));
     }
 
     public function test_assessment_course_and_group_selection_cannot_be_empty(): void

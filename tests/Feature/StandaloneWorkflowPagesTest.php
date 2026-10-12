@@ -818,7 +818,7 @@ class StandaloneWorkflowPagesTest extends TestCase
         $this->assertStringContainsString("orWhereHas('enrollment.group.course'", $pointsSource);
         $this->assertStringContainsString('.points-ledger-table .points-ledger-col--course', $pointsStyles);
         $this->assertStringNotContainsString('<colgroup>', $pointsSource);
-        $this->assertStringContainsString("@if (\$stateFilter === 'all')", $pointsSource);
+        $this->assertStringContainsString("@if (! \$archiveReadOnly && \$stateFilter === 'all')", $pointsSource);
         $this->assertStringContainsString('data-points-ledger-value', $pointsSource);
         $this->assertStringContainsString('data-points-ledger-state=', $pointsSource);
         $this->assertStringContainsString('data-points-ledger-delete-action', $pointsSource);

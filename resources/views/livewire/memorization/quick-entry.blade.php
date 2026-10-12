@@ -469,7 +469,7 @@ new class extends Component
     @endif
 
     @if (session('error'))
-        <div class="rounded-3xl border border-red-400/25 bg-red-500/12 px-4 py-3 text-sm text-red-100">{{ session('error') }}</div>
+        <div class="rounded-3xl border border-red-400/25 bg-red-500/12 px-4 py-3 text-sm text-red-100" data-toast-message data-toast-type="error">{{ session('error') }}</div>
     @endif
 
     <section class="surface-panel w-full p-6 lg:p-8">

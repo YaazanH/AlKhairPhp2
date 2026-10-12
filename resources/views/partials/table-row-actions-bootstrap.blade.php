@@ -1,6 +1,6 @@
 <script data-table-row-actions-bootstrap>
     (() => {
-        if (!window.matchMedia('(min-width: 768px)').matches) return;
+        if (!window.matchMedia('(min-width: 700px)').matches) return;
 
         const controlSelector = 'a[href], button, input[type="button"], input[type="submit"]';
         const explicitLayoutSelector = [

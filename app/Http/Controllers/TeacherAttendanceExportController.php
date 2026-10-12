@@ -22,18 +22,33 @@ class TeacherAttendanceExportController extends Controller
         $scopes = app(AccessScopeService::class);
         $courseId = $validated['course_id'] ?? null;
         $course = $courseId ? Course::findOrFail($courseId) : Course::query()->where('is_default', true)->first();
+        $archivedCourse = $course && ! $course->is_active;
+        $scopeRecordsToCourse = function ($query) use ($archivedCourse, $courseId) {
+            return $archivedCourse
+                ? $query->where(fn ($records) => $records
+                    ->where('archived_course_id', $courseId)
+                    ->orWhere(fn ($legacy) => $legacy
+                        ->whereNull('archived_course_id')
+                        ->whereNotNull('course_finished_at')
+                        ->whereHas('attendanceDay', fn ($day) => $day->where('course_id', $courseId))))
+                : $query->whereNull('course_finished_at');
+        };
         $lastDay = $scopes->scopeTeacherAttendanceDays(TeacherAttendanceDay::query(), $request->user())
-            ->when($courseId, fn ($query) => $query->where('course_id', $courseId))
+            ->when($courseId, fn ($query) => $archivedCourse
+                ? $query->where(fn ($days) => $days
+                    ->where('course_id', $courseId)
+                    ->orWhereHas('records', fn ($records) => $records->where('archived_course_id', $courseId)))
+                : $query->where('course_id', $courseId))
             ->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']])
-            ->whereHas('records', fn ($query) => $query->whereNull('course_finished_at'))
+            ->whereHas('records', $scopeRecordsToCourse)
             ->latest('attendance_date')
             ->latest('id')
             ->first();
-        $teacherIds = $lastDay?->records()->whereNull('course_finished_at')->pluck('teacher_id') ?? collect();
-        $teachers = $scopes->scopeTeachers(Teacher::query(), $request->user())->with(['accessRole', 'jobTitle'])->whereIn('id', $teacherIds)->get()->map(function (Teacher $teacher) use ($validated, $courseId): array {
+        $teacherIds = $lastDay ? $scopeRecordsToCourse($lastDay->records())->pluck('teacher_id') : collect();
+        $teachers = $scopes->scopeTeachers(Teacher::query(), $request->user())->with(['accessRole', 'jobTitle'])->whereIn('id', $teacherIds)->get()->map(function (Teacher $teacher) use ($validated, $scopeRecordsToCourse): array {
             $records = $teacher->attendanceRecords()
-                ->whereNull('course_finished_at')
-                ->whereHas('attendanceDay', fn ($query) => $query->when($courseId, fn ($day) => $day->where('course_id', $courseId))->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']]));
+                ->whereHas('attendanceDay', fn ($query) => $query->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']]));
+            $scopeRecordsToCourse($records);
             $listedDays = (clone $records)->distinct('teacher_attendance_day_id')->count('teacher_attendance_day_id');
             $present = (clone $records)->whereHas('status', fn ($query) => $query->where('is_present', true))->count();
             $role = $teacher->accessRole?->name ?: $teacher->jobTitle?->name ?: $teacher->job_title;

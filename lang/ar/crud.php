@@ -509,6 +509,7 @@ return [
             'delete_memorization' => 'لا يمكن حذف هذا الطالب لوجود سجلات حفظ أو تقدم صفحات قرآن مرتبطة به.',
             'duplicate_profile' => 'يوجد طالب مشابه بالفعل: :name (:number). افتح السجل الموجود بدلاً من إنشاء نسخة مكررة.',
             'juz_number_range' => 'الرجاء اختيار رقم بين ١ و ٣٠',
+            'finished_juz_cannot_be_previous' => 'لا يمكن إضافة جزء مكتمل ضمن الأجزاء المحفوظة سابقاً.',
         ],
         'duplicate_active' => [
             'title' => 'الطالب موجود مسبقاً',
@@ -743,13 +744,16 @@ return [
             'memorization_unavailable' => 'بيانات الحفظ غير متاحة',
             'memorized_pages' => 'الصفحات :pages',
             'copy_sections' => [
+                'lesson' => 'عنوان الدرس:',
                 'attendance' => 'الحضور:',
                 'memorization' => 'التسميع:',
+                'saber' => 'السبر:',
                 'partial_tests' => 'سبر تجريبي',
                 'final_tests' => 'السبر النهائي:',
                 'closing' => 'تقبل الله منا ومنكم 🌺',
             ],
             'copy_lines' => [
+                'day' => 'يوم :day :date',
                 'group' => 'المجموعة: :value',
                 'student' => 'الطالب: :value',
                 'course' => 'الدورة: :value',

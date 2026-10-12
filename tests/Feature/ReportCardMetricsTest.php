@@ -16,10 +16,10 @@ use App\Models\MemorizationSessionPage;
 use App\Models\ParentProfile;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Models\PrintTemplate;
 use App\Models\QuranFinalTest;
 use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranJuz;
-use App\Models\PrintTemplate;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
@@ -28,6 +28,7 @@ use App\Services\CourseEndService;
 use App\Services\PrintTemplates\PrintTemplateFieldRegistry;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class ReportCardMetricsTest extends TestCase
@@ -57,6 +58,7 @@ class ReportCardMetricsTest extends TestCase
             ->assertSee('course-end-final-tests-dual', false)
             ->assertSee('course-end-final-tests-single', false)
             ->assertSee('data-course-end-final-tests-layout="full"', false)
+            ->assertSee('course-end-table course-end-final-tests-mobile-table', false)
             ->assertSee('course-end-final-tests-desktop-pagination', false)
             ->assertSee('course-end-final-tests-mobile-pagination', false)
             ->assertSee('course-end-students-mobile', false)
@@ -123,7 +125,9 @@ class ReportCardMetricsTest extends TestCase
         }
 
         $session = MemorizationSession::create(['enrollment_id' => $enrollment->id, 'student_id' => $student->id, 'teacher_id' => $teacher->id, 'recorded_on' => '2026-09-01', 'entry_type' => 'new', 'from_page' => 1, 'to_page' => 6, 'pages_count' => 6]);
-        foreach (range(1, 6) as $page) MemorizationSessionPage::create(['memorization_session_id' => $session->id, 'page_no' => $page]);
+        foreach (range(1, 6) as $page) {
+            MemorizationSessionPage::create(['memorization_session_id' => $session->id, 'page_no' => $page]);
+        }
 
         $juzs = QuranJuz::query()->orderBy('juz_number')->take(2)->get();
         foreach ($juzs as $index => $juz) {
@@ -254,7 +258,7 @@ class ReportCardMetricsTest extends TestCase
         $manager->assignRole('manager');
         $this->actingAs($manager);
 
-        \Livewire\Volt\Volt::test('courses.end', ['course' => $course])
+        Volt::test('courses.end', ['course' => $course])
             ->assertViewHas('finalTestsDesktop', fn ($rows) => $rows->perPage() === 20)
             ->assertViewHas('finalTestsMobile', fn ($rows) => $rows->perPage() === 15)
             ->assertSee('data-course-end-final-tests-layout="full"', false);
@@ -290,7 +294,7 @@ class ReportCardMetricsTest extends TestCase
             ]);
         }
 
-        \Livewire\Volt\Volt::test('courses.end', ['course' => $course])
+        Volt::test('courses.end', ['course' => $course])
             ->assertSee('data-course-end-final-tests-layout="split"', false);
 
         $courseEndView = file_get_contents(resource_path('views/livewire/courses/end.blade.php'));

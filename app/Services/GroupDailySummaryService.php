@@ -5,10 +5,14 @@ namespace App\Services;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\GroupAttendanceDay;
+use App\Models\GroupCurriculumLessonProgress;
+use App\Models\GroupCurriculumTopicProgress;
+use App\Models\GroupCustomCurriculumLesson;
 use App\Models\MemorizationSession;
 use App\Models\QuranFinalTestAttempt;
 use App\Models\QuranPartialTestAttempt;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class GroupDailySummaryService
@@ -39,6 +43,13 @@ class GroupDailySummaryService
         return $this->currentCopyText($group, $date, $this->visibilityFor($user));
     }
 
+    public function currentDailyCopyTextForUser(Group $group, string $date, User $user): string
+    {
+        $group->loadMissing(['course', 'teacher']);
+
+        return $this->dailyCopyText($group, $date, $this->build($group, $date, $this->visibilityFor($user)));
+    }
+
     /** @param array{attendance?: bool, memorization?: bool, partial_tests?: bool, final_tests?: bool} $visibility */
     public function currentCopyText(Group $group, string $date, array $visibility): string
     {
@@ -49,10 +60,11 @@ class GroupDailySummaryService
 
     /**
      * @param  array{attendance?: bool, memorization?: bool, partial_tests?: bool, final_tests?: bool}  $visibility
-     * @return array{rows: Collection<int, object>, partial_tests: Collection<int, object>, final_tests: Collection<int, object>}
+     * @return array{rows: Collection<int, object>, lessons: Collection<int, string>, partial_tests: Collection<int, object>, final_tests: Collection<int, object>}
      */
     public function build(Group $group, string $date, array $visibility): array
     {
+        $lessons = $this->lessonsTaughtOn($group, $date);
         $enrollments = Enrollment::query()
             ->with('student.parentProfile')
             ->where('group_id', $group->id)
@@ -62,7 +74,7 @@ class GroupDailySummaryService
             ->get();
 
         if ($enrollments->isEmpty()) {
-            return ['rows' => collect(), 'partial_tests' => collect(), 'final_tests' => collect()];
+            return ['rows' => collect(), 'lessons' => $lessons, 'partial_tests' => collect(), 'final_tests' => collect()];
         }
 
         $enrollmentIds = $enrollments->pluck('id');
@@ -123,6 +135,7 @@ class GroupDailySummaryService
 
         return [
             'rows' => $rows,
+            'lessons' => $lessons,
             'partial_tests' => ($visibility['partial_tests'] ?? false)
                 ? $this->partialTests($enrollmentIds, $date)
                 : collect(),
@@ -130,6 +143,63 @@ class GroupDailySummaryService
                 ? $this->finalTests($enrollmentIds, $date)
                 : collect(),
         ];
+    }
+
+    /** @param array{rows: Collection<int, object>, lessons?: Collection<int, string>, partial_tests: Collection<int, object>, final_tests: Collection<int, object>} $summary */
+    public function dailyCopyText(Group $group, string $date, array $summary): string
+    {
+        $parsedDate = Carbon::parse($date);
+        $blocks = [implode(PHP_EOL, [
+            $group->name,
+            __('crud.groups.quick_summary.copy_lines.day', [
+                'day' => $parsedDate->locale(app()->getLocale())->translatedFormat('l'),
+                'date' => $parsedDate->format('j-n-Y'),
+            ]),
+            $group->course?->name ?: __('crud.common.not_available'),
+        ])];
+
+        $lessons = collect($summary['lessons'] ?? [])->filter()->unique()->values();
+        if ($lessons->isNotEmpty()) {
+            $blocks[] = $this->boldSection('lesson').PHP_EOL.$lessons->implode(PHP_EOL);
+        }
+
+        $attendingStudents = $summary['rows']
+            ->filter(fn (object $row) => $row->is_present)
+            ->pluck('student_name')
+            ->filter()
+            ->unique()
+            ->values();
+        if ($attendingStudents->isNotEmpty()) {
+            $blocks[] = $this->boldSection('attendance').PHP_EOL.$attendingStudents->implode(PHP_EOL);
+        }
+
+        $memorizingStudents = $summary['rows']
+            ->filter(fn (object $row) => $row->memorized_pages->isNotEmpty())
+            ->map(fn (object $row) => $row->student_name.' '.$this->formatPages($row->memorized_pages))
+            ->filter()
+            ->values();
+        if ($memorizingStudents->isNotEmpty()) {
+            $blocks[] = $this->boldSection('memorization').PHP_EOL.$memorizingStudents->implode(PHP_EOL);
+        }
+
+        $saberLines = $summary['partial_tests']->map(fn (object $test) => __('crud.groups.quick_summary.tests.partial_line', [
+            'student' => $test->student_name,
+            'juz' => $test->juz_number,
+            'quarter' => collect($test->part_numbers ?? [$test->part_number ?? null])
+                ->filter()
+                ->map(fn (int $partNumber) => __('crud.groups.quick_summary.tests.quarters.'.$partNumber))
+                ->implode('، '),
+        ]))->concat($summary['final_tests']->map(fn (object $test) => __('crud.groups.quick_summary.tests.final_line', [
+            'student' => $test->student_name,
+            'juz' => $test->juz_number,
+        ])))->filter()->values();
+        if ($saberLines->isNotEmpty()) {
+            $blocks[] = $this->boldSection('saber').PHP_EOL.$saberLines->implode(PHP_EOL);
+        }
+
+        $blocks[] = __('crud.groups.quick_summary.copy_sections.closing');
+
+        return implode(PHP_EOL.PHP_EOL, $blocks);
     }
 
     /** @param array{rows: Collection<int, object>, partial_tests: Collection<int, object>, final_tests: Collection<int, object>} $summary */
@@ -208,6 +278,42 @@ class GroupDailySummaryService
                 ];
             })
             ->values();
+    }
+
+    private function lessonsTaughtOn(Group $group, string $date): Collection
+    {
+        $standardLessons = GroupCurriculumLessonProgress::query()
+            ->where('group_id', $group->id)
+            ->whereDate('taught_on', $date)
+            ->with('lesson:id,name')
+            ->orderBy('id')
+            ->get()
+            ->pluck('lesson.name');
+        $topicLessons = GroupCurriculumTopicProgress::query()
+            ->where('group_id', $group->id)
+            ->whereDate('taught_on', $date)
+            ->with('topic.lesson:id,name')
+            ->orderBy('id')
+            ->get()
+            ->pluck('topic.lesson.name');
+        $customLessons = GroupCustomCurriculumLesson::query()
+            ->where('group_id', $group->id)
+            ->where('status', 'taught')
+            ->whereDate('taught_on', $date)
+            ->orderBy('id')
+            ->pluck('name');
+
+        return $standardLessons
+            ->concat($topicLessons)
+            ->concat($customLessons)
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function boldSection(string $section): string
+    {
+        return '*'.__('crud.groups.quick_summary.copy_sections.'.$section).'*';
     }
 
     private function finalTests(Collection $enrollmentIds, string $date): Collection
