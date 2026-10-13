@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'billing_period' => ':days day billing period',
     'summary' => 'Platform overview across all tenants',
     'total' => 'Total tenants', 'total_help' => 'All organisations on the Platform.',
     'active' => 'Active', 'active_help' => 'Organisations currently marked active.',

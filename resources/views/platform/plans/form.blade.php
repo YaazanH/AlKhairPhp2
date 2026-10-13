@@ -4,7 +4,8 @@
     $moduleNames = collect($catalog)->mapWithKeys(fn ($module) => [$module['code'] => $module['name']]);
 @endphp
 <x-platform-layout :title="$editing ? 'Edit package' : 'Create package'">
-    <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div class="platform-management platform-package-editor" data-platform-management>
+    <header class="platform-management__header flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div><a href="{{ route('platform.plans.index') }}" class="text-sm font-medium text-emerald-700">← Back to packages</a><h1 class="mt-3 text-3xl font-bold">{{ $editing ? 'Edit '.$plan->name : 'Create package' }}</h1><p class="mt-1 text-zinc-500">Choose modules like permissions. Required dependencies are included automatically.</p></div>
         @if ($editing)<span class="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-600">{{ $plan->subscriptions->count() }} assigned tenants</span>@endif
     </header>
@@ -31,7 +32,7 @@
             <div><h2 class="text-lg font-semibold">Included modules</h2><p class="mt-1 text-sm text-zinc-500">Foundation is always present. Select the business capabilities this package owns.</p></div>
             <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 @foreach ($catalog as $module)
-                    <label class="rounded-2xl border p-4 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 {{ $module['is_available'] ? 'cursor-pointer' : 'cursor-not-allowed opacity-55' }}">
+                    <label class="platform-module-option rounded-2xl border p-4 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 {{ $module['is_available'] ? 'cursor-pointer' : 'cursor-not-allowed opacity-55' }}">
                         <span class="flex items-start gap-3"><input type="checkbox" name="modules[]" value="{{ $module['code'] }}" class="mt-1" @checked(in_array($module['code'], $selected, true)) @disabled(! $module['is_available'])><span><span class="block font-semibold">{{ $module['name'] }}</span><span class="mt-1 block text-xs text-zinc-500">@if ($module['requires']) Requires {{ collect($module['requires'])->map(fn ($code) => $moduleNames[$code] ?? $code)->implode(', ') }}@else Independent module @endif</span></span></span>
                     </label>
                 @endforeach
@@ -51,7 +52,7 @@
             </section>
         @endif
 
-        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><a href="{{ route('platform.plans.index') }}" class="rounded-xl border px-5 py-3 text-center">Cancel</a><button class="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white">{{ $editing ? 'Save package' : 'Create package' }}</button></div>
+        <div class="platform-management__actions flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><a href="{{ route('platform.plans.index') }}" class="rounded-xl border px-5 py-3 text-center">Cancel</a><button class="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white">{{ $editing ? 'Save package' : 'Create package' }}</button></div>
     </form>
 
     @if ($editing)
@@ -60,4 +61,5 @@
             <div class="rounded-3xl border bg-white p-6 shadow-sm"><h2 class="font-semibold">Package lifecycle</h2><p class="mt-1 text-sm text-zinc-500">Deactivation prevents new assignments but keeps existing tenant subscriptions.</p><form method="POST" action="{{ route('platform.plans.status', $plan) }}" class="mt-4">@csrf @method('PATCH')<input type="hidden" name="is_active" value="{{ $plan->is_active ? 0 : 1 }}"><button class="rounded-xl border px-4 py-3">{{ $plan->is_active ? 'Deactivate package' : 'Activate package' }}</button></form>@if($plan->subscriptions->isEmpty())<form method="POST" action="{{ route('platform.plans.destroy', $plan) }}" class="mt-3" onsubmit="return confirm('Delete this unused package?')">@csrf @method('DELETE')<button class="text-sm font-medium text-red-700">Delete unused package</button></form>@endif</div>
         </section>
     @endif
+    </div>
 </x-platform-layout>

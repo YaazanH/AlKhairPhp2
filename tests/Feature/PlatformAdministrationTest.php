@@ -766,6 +766,8 @@ class PlatformAdministrationTest extends TestCase
             ->get(route('platform.tenants.edit', $tenant))
             ->assertOk()
             ->assertSee('data-tenant-logo', false)
+            ->assertSee('data-platform-management', false)
+            ->assertSee('aria-current="page"', false)
             ->assertSee('src="'.$websiteUrl.'/storage/website/branding/logo.png"', false)
             ->assertSee('data-tenant-website-link', false)
             ->assertSee('href="'.$websiteUrl.'"', false)
@@ -792,7 +794,8 @@ class PlatformAdministrationTest extends TestCase
         $this->assertSame(['parent_portal'], $plan->features()->pluck('code')->all());
         $this->assertTrue($plan->is_public);
         $this->actingAs($administrator, 'platform')->get(route('platform.plans.index'))
-            ->assertOk()->assertSee('Family Learning')->assertSee('Parent Portal')->assertSee('Public');
+            ->assertOk()->assertSee('Family Learning')->assertSee('Parent Portal')->assertSee('Public')
+            ->assertSee('platform-package__price', false)->assertSee('platform-management__header', false);
         $this->assertDatabaseHas('platform_audit_events', ['event' => 'plan_created'], 'landlord');
 
         $this->actingAs($administrator, 'platform')

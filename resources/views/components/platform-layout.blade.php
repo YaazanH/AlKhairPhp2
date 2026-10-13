@@ -15,6 +15,9 @@
     @if(request()->routeIs('platform.dashboard'))
         @vite('resources/css/platform-dashboard.css')
     @endif
+    @if(request()->routeIs('platform.plans.*', 'platform.tenants.*'))
+        @vite('resources/css/platform-management.css')
+    @endif
     @fluxAppearance
 </head>
 <body class="app-body platform-body">

@@ -1,6 +1,6 @@
 <x-platform-layout title="Create tenant">
-    <div class="mx-auto max-w-5xl space-y-6">
-        <header>
+    <div class="platform-management mx-auto max-w-5xl space-y-6" data-platform-management>
+        <header class="platform-management__header">
             <a href="{{ route('platform.dashboard') }}" class="text-sm font-semibold text-emerald-700">← Back to tenants</a>
             <h1 class="mt-3 text-3xl font-bold text-zinc-950">Create a tenant workspace</h1>
             <p class="mt-2 max-w-2xl text-zinc-600">Create the organisation, its permanent address, isolated database, first administrator, and storage limit. Package, voucher, and payment setup come afterward.</p>
