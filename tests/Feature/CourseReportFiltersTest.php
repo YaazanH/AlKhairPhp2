@@ -139,10 +139,13 @@ class CourseReportFiltersTest extends TestCase
             ->assertSee(__('course_archive_overview.completion_settings.title'));
 
         $archiveSource = file_get_contents(resource_path('views/livewire/courses/archive-overview.blade.php'));
+        $completionSettingsSource = file_get_contents(resource_path('views/livewire/courses/partials/archive-completion-settings.blade.php'));
         $this->assertStringContainsString('grid-template-columns: minmax(7rem, .7fr) minmax(0, 2fr)', $archiveSource);
         $this->assertStringContainsString('direction: rtl; grid-column: 1;', $archiveSource);
         $this->assertStringContainsString('direction: rtl; grid-column: 2;', $archiveSource);
         $this->assertStringContainsString('grid-template-columns: repeat(2, minmax(0, 1fr))', $archiveSource);
+        $this->assertStringNotContainsString('completion_settings.read_only', $archiveSource);
+        $this->assertStringNotContainsString('completion_settings.read_only', $completionSettingsSource);
 
         $overview
             ->call('showSection', 'attendance')

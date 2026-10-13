@@ -38,7 +38,6 @@ return [
     ],
     'completion_settings' => [
         'title' => 'إعدادات نهاية الدورة',
-        'read_only' => 'عرض فقط',
     ],
     'empty' => [
         'student_attendance' => 'لا توجد أيام حضور للطلاب في هذه الدورة.',

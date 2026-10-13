@@ -47,6 +47,7 @@ class Course extends Model
         'description',
         'starts_on',
         'ends_on',
+        'curriculum_days_per_week',
         'finished_at',
         'is_active',
         'is_default',
@@ -61,6 +62,7 @@ class Course extends Model
         return [
             'starts_on' => 'date',
             'ends_on' => 'date',
+            'curriculum_days_per_week' => 'integer',
             'finished_at' => 'datetime',
             'is_active' => 'boolean',
             'is_default' => 'boolean',

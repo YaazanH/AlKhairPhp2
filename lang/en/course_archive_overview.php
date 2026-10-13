@@ -38,7 +38,6 @@ return [
     ],
     'completion_settings' => [
         'title' => 'End-of-course settings',
-        'read_only' => 'Read only',
     ],
     'empty' => [
         'student_attendance' => 'No student attendance days were found for this course.',

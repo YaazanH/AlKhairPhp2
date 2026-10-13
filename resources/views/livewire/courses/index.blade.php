@@ -32,6 +32,10 @@ new class extends Component
 
     public string $ends_on = '';
 
+    public string $curriculum_days_per_week = '1';
+
+    public bool $curriculumDaysPerWeekCustomized = false;
+
     public bool $is_active = true;
 
     public bool $is_default = false;
@@ -67,6 +71,8 @@ new class extends Component
     public ?int $editingScheduleRow = null;
 
     public bool $syncScheduleToGroups = false;
+
+    public bool $syncCurriculumDaysToSchedule = false;
 
     public bool $showCalendarModal = false;
 
@@ -184,6 +190,7 @@ new class extends Component
             ],
             'starts_on' => ['required', 'date'],
             'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
+            'curriculum_days_per_week' => ['required', 'integer', 'between:1,7'],
             'is_default' => ['boolean'],
             'awards_points' => ['boolean'],
         ];
@@ -221,6 +228,7 @@ new class extends Component
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
         $validated['academic_year_id'] = (int) $validated['academic_year_id'];
+        $validated['curriculum_days_per_week'] = (int) $validated['curriculum_days_per_week'];
         $validated['is_active'] = $existingCourse?->is_active ?? true;
         $validated['is_default'] = $validated['is_default']
             || ! Course::query()->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))->where('is_default', true)->exists();
@@ -228,6 +236,7 @@ new class extends Component
         $wasCreating = ! $this->editingId;
         $showScheduleAfterSave = $wasCreating || $this->copySetup;
         $syncGroups = $this->copySetup;
+        $syncCurriculumDaysToSchedule = $wasCreating && ! $this->curriculumDaysPerWeekCustomized;
 
         $course = DB::transaction(function () use ($validated, $existingCourse): Course {
             $course = Course::query()->updateOrCreate(
@@ -264,7 +273,7 @@ new class extends Component
 
         if ($showScheduleAfterSave) {
             $this->showFormModal = false;
-            $this->openCourseSchedule($course->id, $syncGroups);
+            $this->openCourseSchedule($course->id, $syncGroups, $syncCurriculumDaysToSchedule);
             $this->resetFormState();
             $this->copySetup = false;
 
@@ -292,6 +301,8 @@ new class extends Component
         $this->description = $course->description ?? '';
         $this->starts_on = $course->starts_on?->format('Y-m-d') ?? '';
         $this->ends_on = $course->ends_on?->format('Y-m-d') ?? '';
+        $this->curriculum_days_per_week = (string) $course->curriculum_days_per_week;
+        $this->curriculumDaysPerWeekCustomized = false;
         $this->is_active = $course->is_active;
         $this->is_default = $course->is_default;
         $this->awards_points = $course->awards_points;
@@ -497,12 +508,13 @@ new class extends Component
         return $candidate;
     }
 
-    public function openCourseSchedule(int $courseId, bool $syncGroups = false): void
+    public function openCourseSchedule(int $courseId, bool $syncGroups = false, bool $syncCurriculumDaysToSchedule = false): void
     {
         $course = Course::query()->with('schedules')->findOrFail($courseId);
         $this->schedulingCourseId = $course->id;
         $this->scheduleRows = $course->schedules->map(fn ($schedule) => ['day_of_week' => (string) $schedule->day_of_week, 'time_slot' => $schedule->time_slot])->values()->all();
         $this->syncScheduleToGroups = $syncGroups;
+        $this->syncCurriculumDaysToSchedule = $syncCurriculumDaysToSchedule;
         $this->showScheduleModal = true;
         $this->resetScheduleRow();
         $this->resetValidation();
@@ -585,6 +597,14 @@ new class extends Component
 
         $course = Course::query()->findOrFail($this->schedulingCourseId);
         app(CourseScheduleService::class)->replace($course, $this->scheduleRows, $this->syncScheduleToGroups);
+        if ($this->syncCurriculumDaysToSchedule) {
+            $course->update([
+                'curriculum_days_per_week' => collect($this->scheduleRows)
+                    ->pluck('day_of_week')
+                    ->unique()
+                    ->count(),
+            ]);
+        }
         $this->closeCourseSchedule();
         session()->flash('status', __('schedules.group.messages.updated'));
     }
@@ -595,7 +615,13 @@ new class extends Component
         $this->schedulingCourseId = null;
         $this->scheduleRows = [];
         $this->syncScheduleToGroups = false;
+        $this->syncCurriculumDaysToSchedule = false;
         $this->resetScheduleRow();
+    }
+
+    public function updatedCurriculumDaysPerWeek(): void
+    {
+        $this->curriculumDaysPerWeekCustomized = true;
     }
 
     public function openCourseCalendar(int $courseId): void
@@ -909,6 +935,8 @@ new class extends Component
         $this->description = '';
         $this->starts_on = '';
         $this->ends_on = '';
+        $this->curriculum_days_per_week = '1';
+        $this->curriculumDaysPerWeekCustomized = false;
         $this->is_active = true;
         $this->is_default = Course::query()->where('is_default', true)->doesntExist();
         $this->awards_points = true;
@@ -1110,7 +1138,7 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-3" data-course-dates-and-curriculum-days>
                 <div>
                     <label for="course-starts-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.starts_on') }}</label>
                     <input id="course-starts-on" wire:model="starts_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
@@ -1123,6 +1151,14 @@ new class extends Component
                     <label for="course-ends-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.ends_on') }}</label>
                     <input id="course-ends-on" wire:model="ends_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('ends_on')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="course-curriculum-days-per-week" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.curriculum_days_per_week') }}</label>
+                    <input id="course-curriculum-days-per-week" wire:model.live="curriculum_days_per_week" type="number" min="1" max="7" required class="w-full rounded-xl px-4 py-3 text-sm" data-course-curriculum-days-per-week>
+                    @error('curriculum_days_per_week')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

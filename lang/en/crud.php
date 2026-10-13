@@ -289,6 +289,7 @@ return [
                 'academic_year' => 'Academic year',
                 'starts_on' => 'Starts on',
                 'ends_on' => 'Ends on',
+                'curriculum_days_per_week' => 'Curriculum teaching days per week',
             ],
             'select_academic_year' => 'Select an academic year',
             'finished_read_only' => 'This course is finished. Reactivate it before changing any course details.',

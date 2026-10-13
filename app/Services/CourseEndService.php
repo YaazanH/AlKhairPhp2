@@ -123,20 +123,40 @@ class CourseEndService
                     ];
                 }))
             ->groupBy('student_id')
-            ->map(function (Collection $studentTests): array {
+            ->flatMap(function (Collection $studentTests): Collection {
                 $studentTests = $studentTests->sortBy(fn (array $row) => (int) $row['juz'])->values();
-                $scores = $studentTests->pluck('mark')->map(fn ($score) => (float) $score);
-                $averageScore = round((float) $scores->average(), 2);
+                $runs = [];
 
-                return [
-                    'name' => (string) $studentTests->first()['name'],
-                    'student_id' => (int) $studentTests->first()['student_id'],
-                    'juz' => $studentTests->pluck('juz')->filter(fn ($juz) => $juz !== null)->implode(' - '),
-                    'mark' => $averageScore,
-                    'marks' => $scores->map(fn ($score) => PercentageFormatter::format($score))->implode(' - '),
-                    'grade' => self::finalTestGradeKey($averageScore),
-                    'test_count' => $studentTests->count(),
-                ];
+                foreach ($studentTests as $test) {
+                    $lastRunIndex = array_key_last($runs);
+                    $previousJuz = $lastRunIndex === null
+                        ? null
+                        : collect($runs[$lastRunIndex])->last()['juz'];
+                    $juz = $test['juz'];
+
+                    if ($lastRunIndex === null || $juz === null || $previousJuz === null || (int) $juz !== (int) $previousJuz + 1) {
+                        $runs[] = [];
+                        $lastRunIndex = array_key_last($runs);
+                    }
+
+                    $runs[$lastRunIndex][] = $test;
+                }
+
+                return collect($runs)->map(function (array $run): array {
+                    $tests = collect($run);
+                    $scores = $tests->pluck('mark')->map(fn ($score) => (float) $score);
+                    $averageScore = round((float) $scores->average(), 2);
+
+                    return [
+                        'name' => (string) $tests->first()['name'],
+                        'student_id' => (int) $tests->first()['student_id'],
+                        'juz' => $tests->pluck('juz')->filter(fn ($juz) => $juz !== null)->implode(' - '),
+                        'mark' => $averageScore,
+                        'marks' => $scores->map(fn ($score) => PercentageFormatter::format($score))->implode(' - '),
+                        'grade' => self::finalTestGradeKey($averageScore),
+                        'test_count' => $tests->count(),
+                    ];
+                });
             })
             ->sortBy(fn (array $row) => mb_strtolower($row['name']))
             ->values();

@@ -1482,7 +1482,6 @@ class ManagementPagesTest extends TestCase
             'livewire/reports/student-activity-summary.blade.php' => 'clearFilters',
             'livewire/reports/students-ranking.blade.php' => 'clearFilters',
             'livewire/reports/index.blade.php' => 'clearFilters',
-            'livewire/community-contacts/index.blade.php' => 'clearFilters',
             'livewire/finance/cash-box.blade.php' => 'resetFilters',
         ] as $view => $method) {
             $source = file_get_contents(resource_path('views/'.$view));

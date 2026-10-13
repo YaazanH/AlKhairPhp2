@@ -378,9 +378,14 @@ class CurriculumModuleTest extends TestCase
             file_get_contents(resource_path('css/app.css')),
         );
         $this->assertStringContainsString('class="admin-grid-meta__title">{{ $subject[\'name\'] }}</div>', $indexSource);
-        $this->assertStringContainsString('<table class="table-content text-sm">', $indexSource);
+        $this->assertStringContainsString('class="curriculum-progress-details-table table-content text-sm" data-curriculum-progress-details-table', $indexSource);
+        $this->assertStringContainsString('data-curriculum-lesson-status-icon', $indexSource);
+        $this->assertStringContainsString("{{ __('curricula.fields.teacher') }}", $indexSource);
         $this->assertStringNotContainsString('<details class="rounded-2xl border border-white/10 p-4">', $indexSource);
         $this->assertStringContainsString('[data-curriculum-group-details-table][open] > [data-curriculum-group-details-toggle] [data-curriculum-group-details-chevron]', file_get_contents(resource_path('css/app.css')));
+        $this->assertMatchesRegularExpression('/\.curriculum-progress-details-table\s*\{[^}]*table-layout:\s*fixed;/s', file_get_contents(resource_path('css/app.css')));
+        $curriculumJavascript = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("import { closeOtherCurriculumDetailsTables } from './curriculum-details-accordion';", $curriculumJavascript);
 
         foreach ([$indexSource, $source] as $curriculumModalSource) {
             $this->assertStringContainsString('wire:submit="saveCurriculum" class="w-[min(28rem,calc(100vw-3rem))] space-y-4"', $curriculumModalSource);

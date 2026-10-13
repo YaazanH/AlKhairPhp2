@@ -7,6 +7,7 @@ import {
     shouldUseCanvasCameraPreview,
 } from './quick-attendance-camera';
 import { debounceSearch } from './search-debounce';
+import { closeOtherCurriculumDetailsTables } from './curriculum-details-accordion';
 import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
 import './offline-attendance';
 
@@ -86,6 +87,13 @@ document.addEventListener('livewire:initialized', () => {
     window.Livewire?.hook('morph.added', ({ el }) => initializeClearableTextboxPlaceholders(el));
 });
 
+document.addEventListener('toggle', (event) => {
+    const openedTable = event.target;
+    if (!(openedTable instanceof HTMLDetailsElement)) return;
+
+    closeOtherCurriculumDetailsTables(openedTable);
+}, true);
+
 const delayedSearchInputs = new WeakMap();
 document.addEventListener('input', (event) => {
     const input = event.target;
@@ -110,57 +118,85 @@ const adminConfirmState = {
 const confirmedAdminForms = new WeakSet();
 let adminConfirmDelegatedListenersBound = false;
 let applicationModalScrollY = null;
-let applicationModalObserverStarted = false;
+let applicationModalObserver = null;
+let applicationModalObservedBody = null;
+
+function isVisibleApplicationModal(modal) {
+    if (modal.closest('[hidden], [aria-hidden="true"]') !== null) return false;
+
+    const style = window.getComputedStyle(modal);
+
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
 
 function hasOpenApplicationModal() {
     return Array.from(document.querySelectorAll('.admin-modal, dialog[open], [role="dialog"][aria-modal="true"]'))
-        .some((modal) => (
-            !modal.matches('.mobile-table-filters, [data-mobile-table-filters]')
-            && modal.closest('[hidden], [aria-hidden="true"]') === null
-        ));
+        .some(isVisibleApplicationModal);
 }
 
 function syncApplicationModalScrollLock() {
+    if (!document.body) return;
+
     const shouldLock = hasOpenApplicationModal();
 
-    if (shouldLock && applicationModalScrollY === null) {
-        applicationModalScrollY = window.scrollY;
-        document.body.style.setProperty('--application-modal-scroll-y', `${applicationModalScrollY}px`);
-        document.documentElement.classList.add('application-modal-open');
-        document.body.classList.add('application-modal-open');
+    if (shouldLock) {
+        if (applicationModalScrollY === null) applicationModalScrollY = window.scrollY;
 
-        return;
-    }
+        const scrollOffset = `${applicationModalScrollY}px`;
+        if (document.body.style.getPropertyValue('--application-modal-scroll-y') !== scrollOffset) {
+            document.body.style.setProperty('--application-modal-scroll-y', scrollOffset);
+        }
+        if (!document.documentElement.classList.contains('application-modal-open')) {
+            document.documentElement.classList.add('application-modal-open');
+        }
+        if (!document.body.classList.contains('application-modal-open')) {
+            document.body.classList.add('application-modal-open');
+        }
 
-    if (shouldLock || applicationModalScrollY === null) {
         return;
     }
 
     const scrollY = applicationModalScrollY;
     applicationModalScrollY = null;
-    document.documentElement.classList.remove('application-modal-open');
-    document.body.classList.remove('application-modal-open');
-    document.body.style.removeProperty('--application-modal-scroll-y');
-    window.requestAnimationFrame(() => window.scrollTo(window.scrollX, scrollY));
+    if (document.documentElement.classList.contains('application-modal-open')) {
+        document.documentElement.classList.remove('application-modal-open');
+    }
+    if (document.body.classList.contains('application-modal-open')) {
+        document.body.classList.remove('application-modal-open');
+    }
+    if (document.body.style.getPropertyValue('--application-modal-scroll-y')) {
+        document.body.style.removeProperty('--application-modal-scroll-y');
+    }
+    if (scrollY !== null) window.requestAnimationFrame(() => window.scrollTo(window.scrollX, scrollY));
 }
 
 function startApplicationModalScrollLock() {
     syncApplicationModalScrollLock();
 
-    if (applicationModalObserverStarted || !document.body) return;
+    if (!document.body || applicationModalObservedBody === document.body) return;
 
-    const observer = new MutationObserver(syncApplicationModalScrollLock);
-    observer.observe(document.body, {
+    applicationModalObserver?.disconnect();
+    applicationModalObserver = new MutationObserver(syncApplicationModalScrollLock);
+    applicationModalObserver.observe(document.body, {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['hidden', 'open', 'aria-hidden'],
+        attributeFilter: ['hidden', 'open', 'aria-hidden', 'class', 'style'],
     });
-    applicationModalObserverStarted = true;
+    applicationModalObservedBody = document.body;
 }
 
-document.addEventListener('DOMContentLoaded', startApplicationModalScrollLock);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApplicationModalScrollLock, { once: true });
+} else {
+    startApplicationModalScrollLock();
+}
 document.addEventListener('livewire:navigated', startApplicationModalScrollLock);
+window.addEventListener('pageshow', startApplicationModalScrollLock);
+window.addEventListener('focus', startApplicationModalScrollLock);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) startApplicationModalScrollLock();
+});
 
 function parseLivewireAction(expression) {
     if (!expression) {

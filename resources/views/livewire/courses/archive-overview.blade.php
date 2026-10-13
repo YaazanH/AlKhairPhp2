@@ -531,7 +531,7 @@ new class extends Component
                     @forelse ($finalTests as $row)<tr><td>{{ $finalTests->firstItem() + $loop->index }}</td><td class="font-medium text-white"><span class="record-person-name">{{ $row['name'] }}</span></td><td>{{ $row['juz'] ?: '-' }}</td><td>{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>@empty<tr><td colspan="5" class="admin-empty-state">{{ __('course_archive_overview.empty.final_tests') }}</td></tr>@endforelse
                 </tbody></table></div>
                 @if ($finalTests->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $finalTests->links() }}</div>@endif
-                <div class="admin-grid-meta border-t border-white/8"><div><div class="admin-grid-meta__title">{{ __('course_archive_overview.completion_settings.title') }}</div><div class="admin-grid-meta__summary">{{ __('course_archive_overview.completion_settings.read_only') }}</div></div></div>
+                <div class="admin-grid-meta border-t border-white/8"><div><div class="admin-grid-meta__title">{{ __('course_archive_overview.completion_settings.title') }}</div></div></div>
                 <div class="space-y-4 p-5 lg:p-6" data-course-archive-completion-settings>
                     <div class="archive-completion-rules">
                         @foreach ($completionSettings['final_rule_rows'] as $rule)

@@ -181,7 +181,7 @@ class ReportCardMetricsTest extends TestCase
         $this->assertSame('Excellent progress', $registry->resolve(['course_student' => $enrollment], 'course_student', 'special_note'));
     }
 
-    public function test_course_end_merges_a_students_final_sabers_and_grades_the_average(): void
+    public function test_course_end_merges_only_sequential_final_sabers_and_grades_each_sequence(): void
     {
         $this->seed();
 
@@ -216,7 +216,7 @@ class ReportCardMetricsTest extends TestCase
             'status' => 'active',
         ]);
 
-        foreach ([[1, 90], [2, 80]] as [$juzNumber, $score]) {
+        foreach ([[1, 90], [2, 80], [26, 95], [27, 85]] as [$juzNumber, $score]) {
             $test = QuranFinalTest::create([
                 'enrollment_id' => $enrollment->id,
                 'student_id' => $student->id,
@@ -237,13 +237,13 @@ class ReportCardMetricsTest extends TestCase
         $service = app(CourseEndService::class);
         $rows = $service->finalTestRows($course);
 
-        $this->assertCount(1, $rows);
-        $this->assertSame('1 - 2', $rows->first()['juz']);
-        $this->assertSame('90% - 80%', $rows->first()['marks']);
-        $this->assertSame(85.0, $rows->first()['mark']);
-        $this->assertSame('good', $rows->first()['grade']);
-        $this->assertSame(2, $rows->first()['test_count']);
-        $this->assertSame(2, $service->summary($course)['final_tests']);
+        $this->assertCount(2, $rows);
+        $this->assertSame(['1 - 2', '26 - 27'], $rows->pluck('juz')->all());
+        $this->assertSame(['90% - 80%', '95% - 85%'], $rows->pluck('marks')->all());
+        $this->assertSame([85.0, 90.0], $rows->pluck('mark')->all());
+        $this->assertSame(['good', 'very_good'], $rows->pluck('grade')->all());
+        $this->assertSame([2, 2], $rows->pluck('test_count')->all());
+        $this->assertSame(4, $service->summary($course)['final_tests']);
 
         $report = view('reports.course-final-tests', [
             'course' => $course,
@@ -253,6 +253,8 @@ class ReportCardMetricsTest extends TestCase
 
         $this->assertStringContainsString('1 - 2', $report);
         $this->assertStringContainsString('90% - 80%', $report);
+        $this->assertStringContainsString('26 - 27', $report);
+        $this->assertStringContainsString('95% - 85%', $report);
 
         $manager = User::factory()->create();
         $manager->assignRole('manager');

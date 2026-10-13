@@ -3325,6 +3325,51 @@ class ManagementCrudTest extends TestCase
         ]);
     }
 
+    public function test_course_curriculum_days_default_to_distinct_schedule_days_and_share_the_date_row(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Curriculum pacing year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('courses.index')
+            ->call('openCreateModal')
+            ->assertSet('curriculum_days_per_week', '1')
+            ->assertSee('data-course-dates-and-curriculum-days', false)
+            ->assertSee('md:grid-cols-3', false)
+            ->assertSee('data-course-curriculum-days-per-week', false)
+            ->set('academic_year_id', $academicYear->id)
+            ->set('name', 'Curriculum pacing course')
+            ->set('starts_on', '2026-09-01')
+            ->set('ends_on', '2026-12-31')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showScheduleModal', true)
+            ->assertSet('syncCurriculumDaysToSchedule', true)
+            ->set('scheduleDay', '1')
+            ->set('scheduleTimeSlot', 'morning')
+            ->set('scheduleDay', '3')
+            ->set('scheduleTimeSlot', 'morning')
+            ->call('saveCourseSchedule')
+            ->assertHasNoErrors();
+
+        $course = Course::query()->where('name', 'Curriculum pacing course')->firstOrFail();
+        $this->assertSame(2, $course->fresh()->curriculum_days_per_week);
+
+        Volt::test('courses.index')
+            ->call('edit', $course->id)
+            ->set('curriculum_days_per_week', '4')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame(4, $course->fresh()->curriculum_days_per_week);
+    }
+
     public function test_course_calendar_modal_builds_and_persists_coloured_entries(): void
     {
         $this->signIn();

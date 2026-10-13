@@ -552,20 +552,30 @@ new class extends Component
                     </summary>
 
                     <div class="overflow-x-auto" data-table-scroll-region>
-                        <table class="table-content text-sm">
+                        <table class="curriculum-progress-details-table table-content text-sm" data-curriculum-progress-details-table>
+                            <colgroup>
+                                <col class="curriculum-progress-details-table__lesson">
+                                <col class="curriculum-progress-details-table__status">
+                                <col class="curriculum-progress-details-table__date">
+                                <col class="curriculum-progress-details-table__teacher">
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th class="px-5 py-3 text-left">{{ __('curricula.fields.lesson') }}</th>
-                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.status') }}</th>
-                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.date') }}</th>
+                                    <th class="px-5 py-3 text-center">{{ __('curricula.fields.status') }}</th>
+                                    <th class="px-5 py-3 text-center">{{ __('curricula.fields.date') }}</th>
+                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.teacher') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/6">
                                 @foreach($subject['lessons'] as $lesson)
                                     <tr>
                                         <td class="px-5 py-3 font-semibold text-white">{{ $lesson['name'] }}</td>
-                                        <td class="px-5 py-3">{{ __('curricula.status.'.$lesson['status']) }}</td>
-                                        <td class="px-5 py-3" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                        <td class="px-5 py-3 text-center">
+                                            <span class="group-curriculum-status {{ $lesson['status'] === 'taught' ? '' : 'group-curriculum-status--missing' }}" title="{{ __('curricula.status.'.$lesson['status']) }}" aria-label="{{ __('curricula.status.'.$lesson['status']) }}" data-curriculum-lesson-status-icon>{{ $lesson['status'] === 'taught' ? '✓' : '×' }}</span>
+                                        </td>
+                                        <td class="px-5 py-3 text-center" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                        <td class="record-person-name px-5 py-3">{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

@@ -289,6 +289,7 @@ return [
                 'academic_year' => 'السنة الدراسية',
                 'starts_on' => 'تبدأ في',
                 'ends_on' => 'تنتهي في',
+                'curriculum_days_per_week' => 'أيام تدريس المنهاج أسبوعياً',
             ],
             'select_academic_year' => 'اختر السنة الدراسية',
             'finished_read_only' => 'هذه الدورة منتهية. أعد تفعيلها قبل تعديل أي من بياناتها.',

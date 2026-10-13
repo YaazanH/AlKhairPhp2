@@ -3,7 +3,6 @@
         <div>
             <div class="admin-grid-meta__title">{{ __('course_archive_overview.completion_settings.title') }}</div>
         </div>
-        <span class="status-chip status-chip--slate">{{ __('course_archive_overview.completion_settings.read_only') }}</span>
     </div>
     <div class="archive-settings__body">
         @php

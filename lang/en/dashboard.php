@@ -91,6 +91,8 @@ return [
             'average_points' => 'Average points',
             'average_pages' => 'Average pages',
             'curriculum_lessons_behind' => '{0} No lessons behind|{1} 1 lesson behind|[2,*] :count lessons behind',
+            'curriculum_lessons_ahead' => '{1} 1 lesson ahead|[2,*] :count lessons ahead',
+            'curriculum_on_track' => 'On schedule',
         ],
         'cards' => [
             'people' => [

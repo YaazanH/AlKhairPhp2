@@ -262,6 +262,7 @@ new class extends Component
             ->whereNotNull('curriculum_id')
             ->when($courseId, fn ($query) => $query->where('course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
             ->with([
+                'course',
                 'gradeLevel',
                 'teacher',
                 'curriculum.subjects.definition',
@@ -275,25 +276,7 @@ new class extends Component
             ->orderBy(GradeLevel::query()->select('name')->whereColumn('grade_levels.id', 'groups.grade_level_id')->limit(1))
             ->orderBy('groups.name')
             ->get()
-            ->map(fn (Group $group) => ['group' => $group, ...app(CurriculumProgressService::class)->summary($group)]);
-        $curriculumProgress = $curriculumProgress->map(function (array $row) use ($curriculumProgress): array {
-            $peerPercentages = $curriculumProgress
-                ->reject(fn (array $peer) => $peer['group']->id === $row['group']->id)
-                ->pluck('percentage');
-            $peerAveragePercentage = $peerPercentages->isEmpty()
-                ? (float) $row['percentage']
-                : round((float) $peerPercentages->average(), 1);
-            $percentageGap = max(0.0, $peerAveragePercentage - (float) $row['percentage']);
-            $lessonsBehind = (int) ceil((($percentageGap / 100) * (int) $row['total']) - 0.00001);
-
-            return [
-                ...$row,
-                'peer_average_percentage' => $peerAveragePercentage,
-                'percentage_gap' => round($percentageGap, 1),
-                'lessons_behind' => max(0, $lessonsBehind),
-                'tone' => $percentageGap > 15 ? 'danger' : ($percentageGap > 5 ? 'warning' : 'success'),
-            ];
-        });
+            ->map(fn (Group $group) => ['group' => $group, ...app(CurriculumProgressService::class)->pacedSummary($group)]);
         $selectedManagerCurriculumRow = $this->selectedManagerCurriculumGroupId
             ? $curriculumProgress->first(fn (array $row): bool => $row['group']->id === $this->selectedManagerCurriculumGroupId)
             : null;
@@ -1099,10 +1082,34 @@ new class extends Component
                 $performancePointsSpan = max(1, $performanceMaximumPoints - $performanceMinimumPoints);
                 $performanceAveragePoints = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('points_before');
                 $performanceAveragePages = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('pages');
-                $performanceX = fn (int $pages) => 7 + ((max(0, $pages) / $performanceMaximumPages) * 86);
-                $performanceY = fn (int $points) => 7 + (((min($performanceMaximumPoints, max($performanceMinimumPoints, $points)) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
-                $performanceAverageX = $performanceX((int) round($performanceAveragePages));
-                $performanceAverageY = $performanceY((int) round($performanceAveragePoints));
+                $performanceAverageAxisPosition = 7.0;
+                $performanceAverageX = $performanceAverageAxisPosition;
+                $performanceAverageY = $performanceAverageAxisPosition * (16 / 7.5);
+                $performanceChartMaximumPosition = 93.0;
+                $performanceScaleAroundAverage = function (float $value, float $minimum, float $average, float $maximum, float $averagePosition) use ($performanceChartMaximumPosition): float {
+                    $value = min($maximum, max($minimum, $value));
+
+                    if ($value <= $average) {
+                        $lowerSpan = $average - $minimum;
+
+                        return $lowerSpan > 0
+                            ? (($value - $minimum) / $lowerSpan) * $averagePosition
+                            : $averagePosition;
+                    }
+
+                    $upperSpan = $maximum - $average;
+
+                    return $upperSpan > 0
+                        ? $averagePosition + ((($value - $average) / $upperSpan) * ($performanceChartMaximumPosition - $averagePosition))
+                        : $averagePosition;
+                };
+                $performanceX = fn (int $pages) => $performanceScaleAroundAverage($pages, 0, $performanceAveragePages, $performanceMaximumPages, $performanceAverageX);
+                $performanceY = fn (int $points) => $performanceScaleAroundAverage($points, $performanceMinimumPoints, $performanceAveragePoints, $performanceMaximumPoints, $performanceAverageY);
+                $performanceBoundaryInset = 2.0;
+                $performancePointIsInsideBounds = fn (float $x, float $y): bool => $x > $performanceBoundaryInset
+                    && $x < (100 - $performanceBoundaryInset)
+                    && $y > $performanceBoundaryInset
+                    && $y < (100 - $performanceBoundaryInset);
                 $performanceRankPositions = collect();
                 $studentPerformance->filter(fn (array $entry): bool => (bool) $entry['rank'])
                     ->groupBy(fn (array $entry): string => sprintf('%.4f:%.4f', $performanceX($entry['pages']), $performanceY($entry['points'])))
@@ -1149,9 +1156,17 @@ new class extends Component
                         continue;
                     }
 
+                    $rawPointX = (float) $performanceX($entry['pages']);
+                    $rawPointY = (float) $performanceY($entry['points']);
+
+                    if (! $performancePointIsInsideBounds($rawPointX, $rawPointY)) {
+                        continue;
+                    }
+
                     $rankPosition = $performanceRankPositions->get($entry['student']->id);
-                    $pointX = (float) ($rankPosition['x'] ?? $performanceX($entry['pages']));
-                    $pointY = (float) ($rankPosition['y'] ?? $performanceY($entry['points']));
+                    $pointX = (float) ($rankPosition['x'] ?? $rawPointX);
+                    $pointY = (float) ($rankPosition['y'] ?? $rawPointY);
+
                     $nearestClusterIndex = null;
                     $nearestClusterDistance = INF;
 
@@ -1292,11 +1307,15 @@ new class extends Component
                                             && $entry['pages'] > $performanceAveragePages;
                                         $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
                                         $performanceDotSize = $aboveAverageDotSizes->get($entry['student']->id, 12);
+                                        $performanceRawPointX = $performanceX($entry['pages']);
+                                        $performanceRawPointY = $performanceY($entry['points']);
                                         $performanceRankPosition = $performanceRankPositions->get($entry['student']->id);
-                                        $performancePointX = $performanceRankPosition['x'] ?? $performanceX($entry['pages']);
-                                        $performancePointY = $performanceRankPosition['y'] ?? $performanceY($entry['points']);
+                                        $performancePointX = $performanceRankPosition['x'] ?? $performanceRawPointX;
+                                        $performancePointY = $performanceRankPosition['y'] ?? $performanceRawPointY;
+                                        $performancePointIsVisible = $performancePointIsInsideBounds($performanceRawPointX, $performanceRawPointY)
+                                            && $performancePointIsInsideBounds($performancePointX, $performancePointY);
                                     @endphp
-                                    @if ($isAbovePerformanceAverage)
+                                    @if ($isAbovePerformanceAverage && $performancePointIsVisible)
                                         <button
                                             type="button"
                                             wire:click="showManagerStudent({{ $entry['student']->id }})"
@@ -1401,8 +1420,17 @@ new class extends Component
                                 $teacherName = $row['group']->teacher
                                     ? trim($row['group']->teacher->first_name.' '.$row['group']->teacher->last_name)
                                     : __('dashboard.common.no_teacher');
+                                $paceCount = $row['pace'] === 'ahead' ? $row['lessons_ahead'] : $row['lessons_behind'];
+                                $paceCountLabel = fmod((float) $paceCount, 1.0) === 0.0
+                                    ? number_format($paceCount)
+                                    : number_format($paceCount, 1);
+                                $paceLabel = match ($row['pace']) {
+                                    'ahead' => trans_choice('dashboard.manager.analytics.curriculum_lessons_ahead', $paceCount, ['count' => $paceCountLabel]),
+                                    'behind' => trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $paceCount, ['count' => $paceCountLabel]),
+                                    default => __('dashboard.manager.analytics.curriculum_on_track'),
+                                };
                             @endphp
-                            <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}">
+                            <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-curriculum-pace="{{ $row['pace'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}" data-lessons-ahead="{{ $row['lessons_ahead'] }}" data-expected-lessons="{{ $row['expected_completed'] }}">
                                 <div class="dashboard-curriculum-hotbar__identity">
                                     <span class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</span>
                                     <div class="record-person-name dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
@@ -1414,23 +1442,23 @@ new class extends Component
                                         class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance hidden lg:block"
                                         style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
                                         wire:click="showManagerCurriculumGroup({{ $row['group']->id }})"
-                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}"
+                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ $paceLabel }}"
                                         data-dashboard-curriculum-progress-open
                                     >
                                         <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
                                             <strong>{{ number_format($row['percentage'], 1) }}%</strong>
-                                            <span>{{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}</span>
+                                            <span>{{ $paceLabel }}</span>
                                         </span>
                                     </button>
                                     <span
                                         class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance lg:hidden"
                                         style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
                                         role="img"
-                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}"
+                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ $paceLabel }}"
                                     >
                                         <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
                                             <strong>{{ number_format($row['percentage'], 1) }}%</strong>
-                                            <span>{{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}</span>
+                                            <span>{{ $paceLabel }}</span>
                                         </span>
                                     </span>
                                 </div>
@@ -1448,6 +1476,10 @@ new class extends Component
             >
                 <div class="space-y-3" data-dashboard-curriculum-progress-modal data-curriculum-group-details-tables>
                     @foreach ($selectedManagerCurriculumSubjects as $subject)
+                        @php
+                            $hasChapterNumbers = collect($subject['lessons'])
+                                ->contains(fn (array $lesson) => filled($lesson['chapter_number']));
+                        @endphp
                         <details class="surface-table" data-curriculum-group-details-table>
                             <summary class="admin-grid-meta cursor-pointer list-none select-none" data-curriculum-group-details-toggle>
                                 <div class="min-w-0" data-curriculum-group-details-heading>
@@ -1460,18 +1492,37 @@ new class extends Component
                             </summary>
 
                             <div class="overflow-x-auto" data-table-scroll-region>
-                                <table class="table-content text-sm">
+                                <table class="curriculum-progress-details-table table-content text-sm {{ $hasChapterNumbers ? 'curriculum-progress-details-table--with-chapter' : '' }}" data-curriculum-progress-details-table>
+                                    <colgroup>
+                                        <col class="curriculum-progress-details-table__lesson">
+                                        @if($hasChapterNumbers)
+                                            <col class="curriculum-progress-details-table__chapter">
+                                        @endif
+                                        <col class="curriculum-progress-details-table__status">
+                                        <col class="curriculum-progress-details-table__date">
+                                        <col class="curriculum-progress-details-table__teacher">
+                                    </colgroup>
                                     <thead><tr>
-                                        <th class="px-5 py-3 text-left">{{ __('curricula.fields.lesson') }}</th>
-                                        <th class="px-5 py-3 text-left">{{ __('curricula.fields.status') }}</th>
-                                        <th class="px-5 py-3 text-left">{{ __('curricula.fields.date') }}</th>
+                                        <th class="px-5 py-3 text-start">{{ __('curricula.fields.lesson') }}</th>
+                                        @if($hasChapterNumbers)
+                                            <th class="px-5 py-3 text-center">{{ __('curricula.fields.chapter_number') }}</th>
+                                        @endif
+                                        <th class="px-5 py-3 text-center">{{ __('curricula.fields.status') }}</th>
+                                        <th class="px-5 py-3 text-center">{{ __('curricula.fields.date') }}</th>
+                                        <th class="px-5 py-3 text-start">{{ __('curricula.fields.teacher') }}</th>
                                     </tr></thead>
                                     <tbody class="divide-y divide-white/6">
                                         @foreach ($subject['lessons'] as $lesson)
                                             <tr>
                                                 <td class="px-5 py-3 font-semibold text-white">{{ $lesson['name'] }}</td>
-                                                <td class="px-5 py-3">{{ __('curricula.status.'.$lesson['status']) }}</td>
-                                                <td class="px-5 py-3" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                                @if($hasChapterNumbers)
+                                                    <td class="px-5 py-3 text-center"><bdi>{{ filled($lesson['chapter_number']) ? $lesson['chapter_number'] : '—' }}</bdi></td>
+                                                @endif
+                                                <td class="px-5 py-3 text-center">
+                                                    <span class="group-curriculum-status {{ $lesson['status'] === 'taught' ? '' : 'group-curriculum-status--missing' }}" title="{{ __('curricula.status.'.$lesson['status']) }}" aria-label="{{ __('curricula.status.'.$lesson['status']) }}" data-curriculum-lesson-status-icon>{{ $lesson['status'] === 'taught' ? '✓' : '×' }}</span>
+                                                </td>
+                                                <td class="px-5 py-3 text-center" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                                <td class="record-person-name px-5 py-3">{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>

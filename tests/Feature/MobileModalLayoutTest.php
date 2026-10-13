@@ -77,12 +77,21 @@ class MobileModalLayoutTest extends TestCase
         $script = file_get_contents(resource_path('js/app.js'));
 
         $this->assertStringContainsString("document.querySelectorAll('.admin-modal, dialog[open], [role=\"dialog\"][aria-modal=\"true\"]')", $script);
-        $this->assertStringContainsString("!modal.matches('.mobile-table-filters, [data-mobile-table-filters]')", $script);
-        $this->assertStringContainsString("modal.closest('[hidden], [aria-hidden=\"true\"]') === null", $script);
+        $this->assertStringContainsString('function isVisibleApplicationModal(modal)', $script);
+        $this->assertStringContainsString("style.display !== 'none' && style.visibility !== 'hidden'", $script);
         $this->assertStringContainsString("document.addEventListener('livewire:navigated', startApplicationModalScrollLock);", $script);
-        $this->assertStringContainsString("attributeFilter: ['hidden', 'open', 'aria-hidden']", $script);
+        $this->assertStringContainsString("window.addEventListener('pageshow', startApplicationModalScrollLock);", $script);
+        $this->assertStringContainsString("window.addEventListener('focus', startApplicationModalScrollLock);", $script);
+        $this->assertStringContainsString("document.addEventListener('visibilitychange'", $script);
+        $this->assertStringContainsString("attributeFilter: ['hidden', 'open', 'aria-hidden', 'class', 'style']", $script);
+        $this->assertStringContainsString('if (applicationModalScrollY === null) applicationModalScrollY = window.scrollY;', $script);
         $this->assertStringContainsString("body.application-modal-open {\n        position: fixed;\n        top: calc(-1 * var(--application-modal-scroll-y, 0px));", $styles);
-        $this->assertStringContainsString("@media (max-width: 699px) {\n    html.application-modal-open,\n    body.application-modal-open {\n        overflow: hidden !important;", $styles);
+        $this->assertStringContainsString("html.application-modal-open,\nbody.application-modal-open {\n    overflow: hidden !important;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-scroll-region {\n    overflow-y: hidden !important;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n    z-index: 0 !important;\n    pointer-events: none;\n    visibility: hidden;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-main {\n    overflow: visible;", $styles);
+        $this->assertStringContainsString(".admin-modal__backdrop {\n    position: fixed;", $styles);
+        $this->assertStringContainsString(".admin-modal__body {\n    max-height: calc(100vh - 10rem);\n    overflow: auto;\n    overscroll-behavior: contain;", $styles);
 
         $this->assertStringContainsString('.admin-modal .admin-modal__dialog {', $styles);
         $this->assertStringContainsString('.admin-modal .admin-modal__body {', $styles);
@@ -95,6 +104,30 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString(".print-template-settings-dialog [class*='grid-cols-']", $styles);
         $this->assertStringContainsString(".admin-modal__viewport {\n        align-items: center;", $styles);
         $this->assertStringContainsString(".admin-modal .searchable-select__panel {\n        position: absolute;\n        inset-inline: 0;\n        top: calc(100% + 0.35rem);\n        bottom: auto;", $styles);
+    }
+
+    public function test_only_modals_with_an_x_close_button_close_from_the_backdrop(): void
+    {
+        $dismissible = Blade::render(
+            '<x-admin.modal :show="true" title="Example" close-method="closeExample">Content</x-admin.modal>',
+        );
+        $forcedAction = Blade::render(
+            '<x-admin.modal :show="true" title="Example" close-method="closeExample" :dismissible="false">Content</x-admin.modal>',
+        );
+        $headerless = Blade::render(
+            '<x-admin.modal :show="true" :hide-header="true" close-method="closeExample">Content</x-admin.modal>',
+        );
+
+        $this->assertStringContainsString('class="admin-modal__backdrop"', $dismissible);
+        $this->assertStringContainsString('class="admin-modal__viewport"', $dismissible);
+        $this->assertStringContainsString('wire:click.self="closeExample"', $dismissible);
+        $this->assertStringContainsString('data-admin-modal-backdrop-close', $dismissible);
+        $this->assertStringContainsString('class="admin-modal__close"', $dismissible);
+
+        $this->assertStringNotContainsString('data-admin-modal-backdrop-close', $forcedAction);
+        $this->assertStringNotContainsString('class="admin-modal__close"', $forcedAction);
+        $this->assertStringNotContainsString('data-admin-modal-backdrop-close', $headerless);
+        $this->assertStringNotContainsString('class="admin-modal__close"', $headerless);
     }
 
     public function test_searchable_dropdowns_temporarily_release_every_clipping_popup_ancestor(): void
