@@ -22,13 +22,13 @@ class PlanManagementController extends Controller
     public function index(): View
     {
         return view('platform.plans.index', [
-            'plans' => Plan::query()->with('features')->withCount('subscriptions')->orderByDesc('is_active')->orderBy('name')->get(),
+            'plans' => Plan::query()->with('features')->withCount('subscriptions')->orderByDesc('is_active')->orderByDesc('is_public')->orderBy('name')->get(),
         ]);
     }
 
     public function create(): View
     {
-        return view('platform.plans.form', $this->formPayload(new Plan(['is_active' => true])));
+        return view('platform.plans.form', $this->formPayload(new Plan(['is_active' => true, 'is_public' => false])));
     }
 
     public function store(Request $request): RedirectResponse
@@ -37,7 +37,7 @@ class PlanManagementController extends Controller
         try {
             $plan = $this->plans->create([
                 'code' => $data['code'], 'name' => $data['name'],
-                'description' => $data['description'] ?? null, 'is_active' => (bool) ($data['is_active'] ?? false), 'price_syp' => (int) ($data['price_syp'] ?? 0), 'billing_period_days' => (int) ($data['billing_period_days'] ?? 30),
+                'description' => $data['description'] ?? null, 'is_active' => (bool) ($data['is_active'] ?? false), 'is_public' => (bool) ($data['is_public'] ?? false), 'price_syp' => (int) ($data['price_syp'] ?? 0), 'billing_period_days' => (int) ($data['billing_period_days'] ?? 30),
             ], $data['modules'] ?? [], $request->user('platform'), $request->ip());
         } catch (DomainException $exception) {
             return back()->withInput()->withErrors(['modules' => $exception->getMessage()]);
@@ -73,11 +73,12 @@ class PlanManagementController extends Controller
             DB::connection('landlord')->transaction(function () use ($plan, $data, $featureIds, $request, $codes): void {
                 $locked = Plan::query()->lockForUpdate()->findOrFail($plan->id);
                 $before = $locked->features()->pluck('code')->all();
-                $locked->update(['name' => $data['name'], 'is_active' => (bool) ($data['is_active'] ?? false)]);
+                $wasPublic = $locked->is_public;
+                $locked->update(['name' => $data['name'], 'is_active' => (bool) ($data['is_active'] ?? false), 'is_public' => (bool) ($data['is_public'] ?? $locked->is_public)]);
                 $locked->features()->sync($featureIds);
                 PlatformAuditEvent::query()->create([
                     'uuid' => (string) Str::uuid(), 'platform_administrator_id' => $request->user('platform')->id,
-                    'event' => 'plan_updated', 'properties' => ['plan_id' => $locked->id, 'plan_code' => $locked->code, 'before' => $before, 'after' => $codes->values()->all()],
+                    'event' => 'plan_updated', 'properties' => ['plan_id' => $locked->id, 'plan_code' => $locked->code, 'before' => $before, 'after' => $codes->values()->all(), 'public_visibility' => ['before' => $wasPublic, 'after' => $locked->is_public]],
                     'ip_address' => $request->ip(),
                 ]);
             });
@@ -101,7 +102,7 @@ class PlanManagementController extends Controller
 
         $this->plans->update($plan, [
             'name' => $data['name'], 'description' => $data['description'] ?? null,
-            'is_active' => (bool) ($data['is_active'] ?? false), 'price_syp' => (int) ($data['price_syp'] ?? 0), 'billing_period_days' => (int) ($data['billing_period_days'] ?? 30),
+            'is_active' => (bool) ($data['is_active'] ?? false), 'is_public' => (bool) ($data['is_public'] ?? $plan->is_public), 'price_syp' => (int) ($data['price_syp'] ?? 0), 'billing_period_days' => (int) ($data['billing_period_days'] ?? 30),
         ], $data['modules'] ?? [], $request->user('platform'), $request->ip());
         $request->session()->forget('platform.plan_preview.'.$plan->id);
 
@@ -170,7 +171,7 @@ class PlanManagementController extends Controller
             'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:2000'],
             'price_syp' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'billing_period_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
-            'modules' => ['array'], 'modules.*' => ['string'], 'is_active' => ['nullable', 'boolean'],
+            'modules' => ['array'], 'modules.*' => ['string'], 'is_active' => ['nullable', 'boolean'], 'is_public' => ['nullable', 'boolean'],
             'confirm_impact' => ['nullable', 'boolean'],
             'features' => ['array'], 'features.*' => ['string', 'exists:landlord.features,code'],
         ], [
@@ -180,6 +181,7 @@ class PlanManagementController extends Controller
             'name.required' => 'Enter a name for this package.',
             'modules.array' => 'The selected modules could not be read. Refresh the page and try again.',
             'is_active.boolean' => 'The package availability value is invalid.',
+            'is_public.boolean' => 'The public visibility value is invalid.',
         ], [
             'code' => 'package code',
             'name' => 'package name',

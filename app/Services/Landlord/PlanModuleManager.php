@@ -83,7 +83,9 @@ class PlanModuleManager
         return DB::connection('landlord')->transaction(function () use ($attributes, $selection, $actor, $ipAddress): Plan {
             $plan = Plan::query()->create($attributes);
             $plan->features()->sync($this->featureIds($selection['selected']));
-            $this->audit($actor, 'plan_created', $plan, ['modules' => $selection['selected']], $ipAddress);
+            $this->audit($actor, 'plan_created', $plan, [
+                'modules' => $selection['selected'], 'is_public' => $plan->is_public,
+            ], $ipAddress);
 
             return $plan;
         });
@@ -96,6 +98,7 @@ class PlanModuleManager
         return DB::connection('landlord')->transaction(function () use ($plan, $attributes, $selection, $actor, $ipAddress): Plan {
             $locked = Plan::query()->lockForUpdate()->findOrFail($plan->id);
             $before = $locked->features()->pluck('code')->all();
+            $wasPublic = $locked->is_public;
             $locked->update($attributes);
             $beforeEffective = collect($this->selectedCodes($locked))->sort()->values()->all();
             $afterEffective = collect($selection['selected'])->sort()->values()->all();
@@ -105,6 +108,7 @@ class PlanModuleManager
             $this->audit($actor, 'plan_updated', $locked, [
                 'before' => $before,
                 'after' => $locked->features()->pluck('code')->all(),
+                'public_visibility' => ['before' => $wasPublic, 'after' => $locked->is_public],
                 'affected_tenants' => $locked->subscriptions()->count(),
             ], $ipAddress);
 
@@ -122,12 +126,13 @@ class PlanModuleManager
                 'name' => $name,
                 'description' => $plan->description,
                 'is_active' => true,
+                'is_public' => false,
                 'price_syp' => $plan->price_syp,
                 'billing_period_days' => $plan->billing_period_days,
             ]);
             $copy->features()->sync($this->featureIds($selection['selected']));
             $this->audit($actor, 'plan_duplicated', $copy, [
-                'source_plan_id' => $plan->id, 'source_plan_code' => $plan->code, 'modules' => $selection['selected'],
+                'source_plan_id' => $plan->id, 'source_plan_code' => $plan->code, 'modules' => $selection['selected'], 'is_public' => false,
             ], $ipAddress);
 
             return $copy;

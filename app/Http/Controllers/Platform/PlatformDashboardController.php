@@ -29,6 +29,7 @@ class PlatformDashboardController extends Controller
 
         return view('platform.dashboard', [
             'tenants' => $query->orderBy('name')->get(),
+            'tenantStatusCounts' => Tenant::query()->selectRaw('status, COUNT(*) AS total')->groupBy('status')->pluck('total', 'status'),
         ]);
     }
 }

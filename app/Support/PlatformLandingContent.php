@@ -25,6 +25,7 @@ class PlatformLandingContent
             'feature_items' => [
                 ['title' => ['en' => 'Learning that follows your method', 'ar' => 'تعلم يتبع منهجيتك'], 'body' => ['en' => 'Track programmes, groups, attendance, assessments, and learner progress in a practical daily flow.', 'ar' => 'تابع البرامج والمجموعات والحضور والتقييمات وتقدم المتعلم ضمن سير يومي عملي.']],
                 ['title' => ['en' => 'Operations that stay connected', 'ar' => 'عمليات تبقى مترابطة'], 'body' => ['en' => 'Keep people, schedules, documents, finance, and communication organised around the same records.', 'ar' => 'نظّم الأشخاص والجداول والوثائق والمالية والتواصل حول السجلات نفسها.']],
+                ['title' => ['en' => 'Revenue you can understand', 'ar' => 'إيرادات يمكنك فهمها'], 'body' => ['en' => 'Track income, expenses, outstanding payments, cash boxes, and financial trends alongside the activities that created them.', 'ar' => 'تابع الإيرادات والمصروفات والمدفوعات المستحقة والصناديق والاتجاهات المالية بجانب الأنشطة التي أنشأتها.']],
                 ['title' => ['en' => 'Insight people can act on', 'ar' => 'رؤية تقود إلى عمل'], 'body' => ['en' => 'Use focused dashboards and reports to spot what needs attention and make confident decisions.', 'ar' => 'استخدم لوحات وتقارير مركزة لاكتشاف ما يحتاج إلى اهتمام واتخاذ قرارات واثقة.']],
             ],
             'showcase_kicker' => ['en' => 'See the work clearly', 'ar' => 'شاهد العمل بوضوح'],
@@ -33,6 +34,8 @@ class PlatformLandingContent
             'showcase_items' => [
                 ['title' => ['en' => 'A useful daily overview', 'ar' => 'نظرة يومية مفيدة'], 'body' => ['en' => 'See activity, attendance, progress, and priorities together.', 'ar' => 'شاهد النشاط والحضور والتقدم والأولويات معاً.'], 'image_path' => null],
                 ['title' => ['en' => 'Progress with context', 'ar' => 'تقدم ضمن سياقه'], 'body' => ['en' => 'Move from organisation-level insight to the learner details behind it.', 'ar' => 'انتقل من مؤشرات المؤسسة إلى تفاصيل المتعلم التي تقف خلفها.'], 'image_path' => null],
+                ['title' => ['en' => 'Revenue and finance in one view', 'ar' => 'الإيرادات والمالية في شاشة واحدة'], 'body' => ['en' => 'Understand income, expenses, outstanding payments, and cash flow without disconnecting finance from daily work.', 'ar' => 'افهم الإيرادات والمصروفات والمدفوعات المستحقة والتدفق النقدي دون فصل المالية عن العمل اليومي.'], 'image_path' => null],
+                ['title' => ['en' => 'Parent and student portals', 'ar' => 'بوابتا ولي الأمر والطالب'], 'body' => ['en' => 'Give students a clear view of learning, schedules, and achievements while parents follow progress, attendance, payments, and announcements.', 'ar' => 'امنح الطلاب رؤية واضحة للتعلم والجداول والإنجازات، ومكّن أولياء الأمور من متابعة التقدم والحضور والمدفوعات والإعلانات.'], 'image_path' => null],
                 ['title' => ['en' => 'Reports shaped for decisions', 'ar' => 'تقارير مصممة للقرار'], 'body' => ['en' => 'Build clear reporting views for the people responsible for acting on them.', 'ar' => 'أنشئ تقارير واضحة للأشخاص المسؤولين عن اتخاذ الإجراء.'], 'image_path' => null],
             ],
             'packages_kicker' => ['en' => 'A practical way to begin', 'ar' => 'طريقة عملية للبدء'],
@@ -55,7 +58,40 @@ class PlatformLandingContent
 
     public static function normalize(?array $content): array
     {
-        $content = array_replace_recursive(self::defaults(), $content ?? []);
+        $defaults = self::defaults();
+        $stored = $content ?? [];
+        $content = array_replace_recursive($defaults, $stored);
+
+        if (isset($stored['feature_items']) && is_array($stored['feature_items'])) {
+            $content['feature_items'] = array_values($stored['feature_items']);
+            $revenueFeature = $defaults['feature_items'][2];
+
+            if (! collect($content['feature_items'])->contains(fn (array $item) => Arr::get($item, 'title.en') === Arr::get($revenueFeature, 'title.en'))) {
+                $insightIndex = collect($content['feature_items'])->search(fn (array $item) => Arr::get($item, 'title.en') === 'Insight people can act on');
+                array_splice($content['feature_items'], $insightIndex === false ? count($content['feature_items']) : $insightIndex, 0, [$revenueFeature]);
+            }
+        }
+
+        if (isset($stored['showcase_items']) && is_array($stored['showcase_items'])) {
+            $content['showcase_items'] = array_values($stored['showcase_items']);
+
+            foreach ($content['showcase_items'] as &$story) {
+                if (Arr::get($story, 'title.en') === 'Families stay in the loop') {
+                    $imagePath = $story['image_path'] ?? null;
+                    $story = $defaults['showcase_items'][3];
+                    $story['image_path'] = $imagePath;
+                }
+            }
+            unset($story);
+
+            foreach ([$defaults['showcase_items'][2], $defaults['showcase_items'][3]] as $newStory) {
+                if (! collect($content['showcase_items'])->contains(fn (array $item) => Arr::get($item, 'title.en') === Arr::get($newStory, 'title.en'))) {
+                    $reportIndex = collect($content['showcase_items'])->search(fn (array $item) => Arr::get($item, 'title.en') === 'Reports shaped for decisions');
+                    array_splice($content['showcase_items'], $reportIndex === false ? count($content['showcase_items']) : $reportIndex, 0, [$newStory]);
+                }
+            }
+        }
+
         $content['section_order'] = collect($content['section_order'] ?? [])
             ->filter(fn ($section) => in_array($section, self::SECTIONS, true))
             ->unique()->concat(self::SECTIONS)->unique()->values()->all();

@@ -11,12 +11,13 @@
             'metaDescription' => __('platform.login.description'),
             'themeColor' => '#07150d',
         ])
+        @vite('resources/css/auth-design.css')
     </head>
     <body class="min-h-screen bg-[#07100b] text-white antialiased">
         <div class="fixed end-5 top-5 z-20 w-44 rounded-2xl border border-emerald-900/10 bg-white/75 shadow-sm backdrop-blur dark:border-white/15 dark:bg-black/20">
             <x-account-menu-preferences />
         </div>
-        <main class="relative isolate min-h-svh overflow-hidden" data-platform-login>
+        <main class="auth-studio auth-studio--platform relative isolate min-h-svh overflow-hidden" data-platform-login>
             <div class="pointer-events-none absolute inset-0 -z-10">
                 <div class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)] bg-[size:48px_48px]"></div>
                 <div class="absolute -start-40 -top-48 h-[34rem] w-[34rem] rounded-full bg-emerald-500/15 blur-3xl"></div>
@@ -24,7 +25,7 @@
             </div>
 
             <div class="mx-auto grid min-h-svh w-full max-w-7xl lg:grid-cols-[1.1fr_.9fr]">
-                <section class="hidden flex-col justify-between border-e border-white/10 p-10 lg:flex xl:p-14">
+                <section class="auth-studio__intro hidden flex-col justify-between border-e border-white/10 p-10 lg:flex xl:p-14">
                     <div class="flex items-center justify-between gap-5">
                         <a href="{{ route('home') }}" class="inline-flex items-center gap-3">
                             <span class="platform-login-accent flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-lg font-bold">A</span>
@@ -58,17 +59,16 @@
                     </p>
                 </section>
 
-                <section class="flex min-h-svh items-center justify-center p-5 sm:p-8 lg:p-12">
+                <section class="auth-studio__panel flex min-h-svh items-center justify-center p-5 sm:p-8 lg:p-12">
                     <div class="w-full max-w-md">
                         <div class="mb-8 flex items-center justify-between gap-4 lg:hidden">
                             <a href="{{ route('home') }}" class="inline-flex items-center gap-3">
                                 <span class="platform-login-accent flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 font-bold">A</span>
                                 <span class="platform-login-text text-sm font-semibold">{{ __('platform.brand.name') }}</span>
                             </a>
-                            <x-locale-switcher compact />
                         </div>
 
-                        <div class="rounded-[2rem] border border-emerald-900/10 bg-white/85 p-6 shadow-2xl shadow-black/10 backdrop-blur-xl dark:border-white/10 dark:bg-[#111914]/90 dark:shadow-black/40 sm:p-8">
+                        <div class="auth-studio__card rounded-[2rem] border border-emerald-900/10 bg-white/85 p-6 shadow-2xl shadow-black/10 backdrop-blur-xl dark:border-white/10 dark:bg-[#111914]/90 dark:shadow-black/40 sm:p-8">
                             <div class="mb-7">
                                 <span class="platform-login-accent inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-300/8 px-3 py-1.5 text-xs font-medium">
                                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-300"></span>
@@ -90,6 +90,7 @@
                                         required
                                         autofocus
                                         autocomplete="email"
+                                        dir="ltr"
                                         class="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-emerald-300/50 focus:ring-2 focus:ring-emerald-300/10"
                                     >
                                     @error('email')

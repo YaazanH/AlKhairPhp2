@@ -705,6 +705,7 @@ class PlatformAdministrationTest extends TestCase
             ->assertSessionHas('status', 'Package saved successfully.');
 
         $this->assertSame('Finance only', $plan->fresh()->name);
+        $this->assertTrue($plan->fresh()->is_public);
         $this->assertEqualsCanonicalizing(
             [Feature::CORE, Feature::FINANCE],
             $plan->fresh()->features()->pluck('code')->all(),
@@ -784,13 +785,14 @@ class PlatformAdministrationTest extends TestCase
         $this->actingAs($administrator, 'platform')
             ->post(route('platform.plans.store'), [
                 'code' => 'family_learning', 'name' => 'Family Learning', 'description' => 'Students and families',
-                'modules' => ['parent_portal'], 'is_active' => '1',
+                'modules' => ['parent_portal'], 'is_active' => '1', 'is_public' => '1',
             ])->assertRedirect();
 
         $plan = Plan::query()->where('code', 'family_learning')->sole();
         $this->assertSame(['parent_portal'], $plan->features()->pluck('code')->all());
+        $this->assertTrue($plan->is_public);
         $this->actingAs($administrator, 'platform')->get(route('platform.plans.index'))
-            ->assertOk()->assertSee('Family Learning')->assertSee('Parent Portal');
+            ->assertOk()->assertSee('Family Learning')->assertSee('Parent Portal')->assertSee('Public');
         $this->assertDatabaseHas('platform_audit_events', ['event' => 'plan_created'], 'landlord');
 
         $this->actingAs($administrator, 'platform')
@@ -798,6 +800,7 @@ class PlatformAdministrationTest extends TestCase
             ->assertRedirect();
         $copy = Plan::query()->where('name', 'Family Learning Plus')->sole();
         $this->assertSame(['parent_portal'], $copy->features()->pluck('code')->all());
+        $this->assertFalse($copy->is_public);
 
         $this->actingAs($administrator, 'platform')
             ->patch(route('platform.plans.status', $copy), ['is_active' => '0'])

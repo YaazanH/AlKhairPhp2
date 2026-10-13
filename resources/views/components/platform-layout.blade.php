@@ -12,6 +12,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{{ $pageTitle }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @if(request()->routeIs('platform.dashboard'))
+        @vite('resources/css/platform-dashboard.css')
+    @endif
     @fluxAppearance
 </head>
 <body class="app-body platform-body">

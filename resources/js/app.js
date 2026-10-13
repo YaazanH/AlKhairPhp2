@@ -4875,34 +4875,6 @@ document.addEventListener('DOMContentLoaded', initializePdfUploads);
 document.addEventListener('livewire:navigated', initializePdfUploads);
 document.addEventListener('livewire:commit', initializePdfUploads);
 
-function initializeLandingStories() {
-    document.querySelectorAll('[data-landing-story]').forEach((story) => {
-        if (story.dataset.initialized === 'true') return;
-        story.dataset.initialized = 'true';
-        const steps = Array.from(story.querySelectorAll('[data-landing-story-step]'));
-        const images = Array.from(story.querySelectorAll('[data-landing-story-image]'));
-        const activate = (index) => {
-            steps.forEach((step) => {
-                const active = step.dataset.landingStoryStep === index;
-                step.classList.toggle('is-active', active);
-                step.setAttribute('aria-selected', active ? 'true' : 'false');
-            });
-            images.forEach((image) => {
-                const active = image.dataset.landingStoryImage === index;
-                image.classList.toggle('is-active', active);
-                image.setAttribute('aria-hidden', active ? 'false' : 'true');
-            });
-        };
-        steps.forEach((step) => {
-            ['click', 'mouseenter', 'focus'].forEach((eventName) => {
-                step.addEventListener(eventName, () => activate(step.dataset.landingStoryStep));
-            });
-        });
-    });
-}
-
-document.addEventListener('DOMContentLoaded', initializeLandingStories);
-document.addEventListener('livewire:navigated', initializeLandingStories);
 
 let dashboardCurriculumHotbarFrame = null;
 

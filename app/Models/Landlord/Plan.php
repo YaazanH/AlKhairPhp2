@@ -12,6 +12,7 @@ class Plan extends LandlordModel
         'name',
         'description',
         'is_active',
+        'is_public',
         'price_syp',
         'billing_period_days',
     ];
@@ -20,6 +21,7 @@ class Plan extends LandlordModel
     {
         return [
             'is_active' => 'boolean',
+            'is_public' => 'boolean',
             'price_syp' => 'integer',
             'billing_period_days' => 'integer',
         ];

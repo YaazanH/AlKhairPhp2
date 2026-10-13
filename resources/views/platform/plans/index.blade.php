@@ -10,7 +10,7 @@
             <article class="flex min-h-72 flex-col rounded-3xl border bg-white p-6 shadow-sm">
                 <div class="flex items-start justify-between gap-3">
                     <div><p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">{{ $plan->code }}</p><h2 class="mt-1 text-xl font-bold">{{ $plan->name }}</h2></div>
-                    <span class="rounded-full px-3 py-1 text-xs font-medium {{ $plan->is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-600' }}">{{ $plan->is_active ? 'Active' : 'Inactive' }}</span>
+                    <div class="flex flex-wrap justify-end gap-2"><span class="rounded-full px-3 py-1 text-xs font-medium {{ $plan->is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-600' }}">{{ $plan->is_active ? 'Active' : 'Inactive' }}</span><span class="rounded-full px-3 py-1 text-xs font-medium {{ $plan->is_public ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800' }}">{{ $plan->is_public ? 'Public' : 'Private' }}</span></div>
                 </div>
                 <p class="mt-3 min-h-10 text-sm text-zinc-500">{{ $plan->description ?: 'No package description yet.' }}</p>
                 <div class="mt-5 flex flex-wrap gap-2">

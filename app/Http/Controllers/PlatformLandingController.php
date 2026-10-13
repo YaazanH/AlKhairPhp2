@@ -25,7 +25,7 @@ class PlatformLandingController extends Controller
         return view('platform-site.home', [
             'content' => PlatformLandingContent::localized($content, app()->getLocale()),
             'rawContent' => $content,
-            'plans' => Plan::query()->with('features')->where('is_active', true)->orderBy('price_syp')->get(),
+            'plans' => Plan::query()->with('features')->where('is_active', true)->where('is_public', true)->orderBy('price_syp')->get(),
         ]);
     }
 
