@@ -59,6 +59,7 @@ class TenantSubscriptionController extends Controller
 
     public function reactivate(Request $request, Tenant $tenant): RedirectResponse
     {
+        $request->validate(['confirm_slug' => ['required', Rule::in([$tenant->slug])]]);
         abort_unless(
             filled($tenant->database_name) && $tenant->domains()->where('is_primary', true)->exists(),
             422,

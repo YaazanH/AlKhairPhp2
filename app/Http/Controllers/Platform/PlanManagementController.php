@@ -21,9 +21,24 @@ class PlanManagementController extends Controller
 
     public function index(): View
     {
+        $query = Plan::query()->with('features')->withCount('subscriptions');
+        $search = trim((string) request('search', ''));
+        $query->when($search !== '', fn ($q) => $q->where(fn ($nested) => $nested->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%")));
+        if (in_array(request('status'), ['active', 'inactive'], true)) {
+            $query->where('is_active', request('status') === 'active');
+        }
+        if (in_array(request('visibility'), ['public', 'private'], true)) {
+            $query->where('is_public', request('visibility') === 'public');
+        }
+
         return view('platform.plans.index', [
-            'plans' => Plan::query()->with('features')->withCount('subscriptions')->orderByDesc('is_active')->orderByDesc('is_public')->orderBy('name')->get(),
+            'plans' => $query->orderByDesc('is_active')->orderByDesc('is_public')->orderBy('name')->orderBy('id')->paginate(12)->withQueryString(),
         ]);
+    }
+
+    public function features(): View
+    {
+        return view('platform.plans.features', ['catalog' => $this->plans->catalog()]);
     }
 
     public function create(): View
@@ -89,6 +104,11 @@ class PlanManagementController extends Controller
             $preview = $this->plans->preview($plan, $data['modules'] ?? []);
         } catch (DomainException $exception) {
             return back()->withInput()->withErrors(['modules' => $exception->getMessage()]);
+        }
+
+        $conflicts = $preview['tenants']->flatMap(fn ($impact) => $impact['errors'])->unique()->all();
+        if ($conflicts) {
+            return back()->withInput()->withErrors(['modules' => implode('; ', $conflicts)]);
         }
 
         $changed = collect($this->plans->selectedCodes($plan))->sort()->values()->all()

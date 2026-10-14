@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformReportLibraryItem;
+use App\Models\Landlord\PlatformReportLibraryRevision;
 use App\Services\ReportDesignerCatalog;
 use App\Services\ReportRelationshipCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -21,13 +22,22 @@ class ReportLibraryController extends Controller
         private readonly ReportRelationshipCatalog $relationships,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $search = trim((string) $request->query('search'));
+
         return view('platform.report-library.index', [
             'items' => PlatformReportLibraryItem::query()
                 ->with('publishedRevision')
+                ->when($search !== '', fn ($query) => $query->where(fn ($matches) => $matches
+                    ->where('name->en', 'like', '%'.$search.'%')->orWhere('name->ar', 'like', '%'.$search.'%')->orWhere('system_key', 'like', '%'.$search.'%')))
+                ->when(in_array($request->query('kind'), ['report', 'widget', 'both'], true), fn ($query) => $query->where('kind', $request->query('kind')))
+                ->when($request->query('state') === 'draft', fn ($query) => $query->whereNull('published_revision_id'))
+                ->when($request->query('state') === 'published', fn ($query) => $query->whereNotNull('published_revision_id'))
+                ->when($request->query('origin') === 'system', fn ($query) => $query->where('is_system', true))
+                ->when($request->query('origin') === 'custom', fn ($query) => $query->where('is_system', false))
                 ->latest('updated_at')
-                ->get(),
+                ->orderByDesc('id')->paginate(12)->withQueryString(),
         ]);
     }
 
@@ -65,11 +75,19 @@ class ReportLibraryController extends Controller
 
     public function edit(Request $request, PlatformReportLibraryItem $libraryItem): View
     {
-        $source = $request->filled('source')
+        $canManage = $request->user('platform')->hasPlatformPermission('manage.report-library') && ! $libraryItem->is_system;
+        $source = $request->filled('source') && $canManage
             ? $this->selectedSource($request)
             : (string) data_get($libraryItem->draft_definition, 'data_source');
 
         return view('platform.report-library.form', $this->formPayload($libraryItem, $source));
+    }
+
+    public function revision(PlatformReportLibraryItem $libraryItem, PlatformReportLibraryRevision $revision): View
+    {
+        abort_unless($revision->library_item_id === $libraryItem->id, 404);
+
+        return view('platform.report-library.revision', ['item' => $libraryItem, 'revision' => $revision]);
     }
 
     public function update(Request $request, PlatformReportLibraryItem $libraryItem): RedirectResponse
@@ -143,7 +161,8 @@ class ReportLibraryController extends Controller
         $fields = $this->catalog->validateFields($source, $data['selected_fields']);
         $groupBy = $this->catalog->validateGrouping($source, $data['group_by'] ?? null);
         [$sortField, $sortDirection] = $this->catalog->validateSort($source, $data['sort_field'] ?? null, $data['sort_direction']);
-        $calculations = $this->catalog->validateCalculations($source, $this->parseCalculations($data['calculations'] ?? ['count']));
+        $calculationValues = $data['calculations'] ?? ($request->input('workspace_form') === 'report_definition' ? [] : ['count']);
+        $calculations = $this->catalog->validateCalculations($source, $this->parseCalculations($calculationValues));
         $presentation = $this->catalog->validatePresentation([
             'type' => $data['presentation_type'],
             'density' => $data['table_density'],
@@ -216,6 +235,8 @@ class ReportLibraryController extends Controller
             'calculationOperations' => $this->catalog->calculationOperations(),
             'presentationTypes' => $this->catalog->presentationTypes(),
             'tableDensities' => $this->catalog->tableDensities(),
+            'workspaceView' => $item->exists && in_array(request('view'), ['publishing', 'history'], true) ? request('view') : 'definition',
+            'revisions' => $item->exists ? $item->revisions()->latest('version')->paginate(12)->withQueryString() : null,
         ];
     }
 

@@ -54,13 +54,37 @@ class PlatformAccessController extends Controller
         return back()->with('status', 'Platform role created.');
     }
 
+    public function editAdministrator(PlatformAdministrator $administrator): View
+    {
+        return view('platform.access.user', [
+            'administrator' => $administrator->load('roles'),
+            'roles' => PlatformRole::query()->orderByDesc('is_owner')->orderBy('name')->get(),
+        ]);
+    }
+
+    public function roles(): View
+    {
+        return view('platform.access.roles', [
+            'roles' => PlatformRole::query()->with('permissions')->withCount('administrators')->orderByDesc('is_owner')->orderBy('name')->get(),
+            'permissions' => PlatformPermission::query()->orderBy('code')->get()->groupBy(fn ($permission) => explode('.', $permission->code)[0]),
+        ]);
+    }
+
+    public function editRole(PlatformRole $role): View
+    {
+        return view('platform.access.role', [
+            'role' => $role->load('permissions')->loadCount('administrators'),
+            'permissions' => PlatformPermission::query()->orderBy('code')->get()->groupBy(fn ($permission) => explode('.', $permission->code)[0]),
+        ]);
+    }
+
     public function updateRole(Request $request, PlatformRole $role): RedirectResponse
     {
         $data = $request->validate(['name' => ['required', 'string', 'max:100', Rule::unique('landlord.platform_roles', 'name')->ignore($role->id)], 'description' => ['nullable', 'string', 'max:1000'], 'permissions' => ['array'], 'permissions.*' => ['integer', 'exists:landlord.platform_permissions,id']]);
         try {
             $this->access->updateRole($role, $data, $data['permissions'] ?? [], $request->user('platform'), $request->ip());
         } catch (LogicException $exception) {
-            return back()->withErrors(['role' => $exception->getMessage()]);
+            return back()->withErrors(['role' => $exception->getMessage()])->withInput();
         }
 
         return back()->with('status', 'Platform role saved.');
@@ -107,7 +131,7 @@ class PlatformAccessController extends Controller
         try {
             $this->access->syncAdministratorRoles($administrator, $data['roles'] ?? [], $request->user('platform'), $request->ip());
         } catch (LogicException $exception) {
-            return back()->withErrors(['roles' => $exception->getMessage()]);
+            return back()->withErrors(['roles' => $exception->getMessage()])->withInput();
         }
 
         return back()->with('status', 'Platform user roles saved.');

@@ -59,7 +59,9 @@ class TenantProvisioningController extends Controller
 
         $tenant = Tenant::query()->where('slug', Str::slug($data['slug']))->first();
 
-        return redirect()->route($tenant ? 'platform.tenants.edit' : 'platform.dashboard', $tenant ? [$tenant] : [])
+        $canViewTenant = $request->user('platform')->hasPlatformPermission('view.tenants');
+
+        return redirect()->route($tenant && $canViewTenant ? 'platform.tenants.edit' : 'platform.tenants.index', $tenant && $canViewTenant ? [$tenant] : [])
             ->with('status', 'Tenant workspace created. Add credit and select a package when you are ready to activate it.');
     }
 

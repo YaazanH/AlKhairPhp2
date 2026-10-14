@@ -1,0 +1,24 @@
+<?php
+
+return [
+    'breadcrumbs' => 'Breadcrumbs',
+    'navigation' => 'Platform navigation',
+    'groups' => ['workspace' => 'Workspace', 'billing' => 'Billing', 'operations' => 'Operations', 'content' => 'Content', 'administration' => 'Administration'],
+    'destinations' => ['payments' => 'Payments', 'subscriptions' => 'Subscriptions', 'tenants' => 'Tenants', 'overview' => 'Overview', 'packages' => 'Packages & Features', 'requests' => 'Requests', 'vouchers' => 'Vouchers', 'metrics' => 'Platform metrics', 'storage' => 'Storage', 'backups' => 'Backups', 'website' => 'Website editor', 'reports' => 'Report library', 'access' => 'Users & Roles', 'settings' => 'Settings'],
+    'settings_intro' => 'One place for Platform policies and preferences. Your role determines which settings you can view or change.',
+    'settings_sections' => 'Settings sections',
+    'preferences' => 'Your preferences',
+    'preferences_help' => 'Choose your language and appearance. These preferences do not change tenant branding or organisation defaults.',
+    'subscription_policy' => 'Subscription policy',
+    'backup_policy' => 'Backup policy',
+    'backup_help' => 'Configure scheduled backups and retention. Creating, downloading, and restoring backups stays in Operations. Scheduled backups require the server scheduler to be running.',
+    'monitoring' => 'Monitoring',
+    'monitoring_help' => 'Choose how frequently scheduled metrics are collected. This does not install or start the server scheduler.',
+    'refresh_interval' => 'Collection interval',
+    'minutes' => ':count minutes',
+    'save_monitoring' => 'Save monitoring settings',
+    'request_options' => 'Request options',
+    'requests_help' => 'Manage bilingual reasons, priorities, and impact choices used by tenant support forms. Existing requests retain their stored values.',
+    'edit_request_options' => 'Edit request options',
+    'back_settings' => 'Back to Settings',
+];

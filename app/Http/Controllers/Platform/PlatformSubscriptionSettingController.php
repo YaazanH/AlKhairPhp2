@@ -8,15 +8,12 @@ use App\Models\Landlord\SaasPlatformSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 
 class PlatformSubscriptionSettingController extends Controller
 {
-    public function edit(): View
+    public function edit(): RedirectResponse
     {
-        return view('platform.settings.subscriptions', [
-            'settings' => SaasPlatformSetting::current(),
-        ]);
+        return redirect()->to(route('platform.settings.index').'#subscriptions');
     }
 
     public function update(Request $request): RedirectResponse

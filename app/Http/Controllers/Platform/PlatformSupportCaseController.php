@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformSuggestionGroup;
 use App\Models\Landlord\PlatformSupportCase;
+use App\Models\Landlord\Tenant;
 use App\Services\Landlord\SupportRequestConfiguration;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,24 +16,54 @@ use Illuminate\View\View;
 
 class PlatformSupportCaseController extends Controller
 {
-    public function index(Request $request, SupportRequestConfiguration $configuration): View
+    public function index(Request $request, SupportRequestConfiguration $configuration): View|RedirectResponse
     {
         $types = $this->allowedTypes($request);
+        if ($types === [] && $request->user('platform')->hasPlatformPermission('manage.landing-page')) {
+            return redirect()->route('platform.enquiries.index');
+        }
         abort_if($types === [], 403);
-
-        $query = PlatformSupportCase::query()->with(['tenant', 'suggestionGroup'])->whereIn('type', $types);
+        $type = in_array($request->query('type'), $types, true) ? $request->query('type') : $types[0];
+        $statuses = PlatformSupportCase::statusesForType($type);
+        $search = trim((string) $request->query('search', ''));
+        $query = PlatformSupportCase::query()->with(['tenant', 'suggestionGroup'])->where('type', $type);
+        $attentionCount = (clone $query)->whereIn('status', PlatformSupportCase::attentionStatuses())->count();
+        $query->when($search !== '', fn ($q) => $q->where(fn ($nested) => $nested->where('subject', 'like', "%{$search}%")->orWhere('message', 'like', "%{$search}%")->orWhere('incident_reference', 'like', "%{$search}%")->orWhereHas('tenant', fn ($tenant) => $tenant->where('name', 'like', "%{$search}%"))));
+        $query->when(in_array($request->query('status'), $statuses, true), fn ($q) => $q->where('status', $request->query('status')));
+        $query->when($request->query('status') === 'attention', fn ($q) => $q->whereIn('status', PlatformSupportCase::attentionStatuses()));
+        $query->when($request->filled('tenant'), fn ($q) => $q->where('tenant_id', $request->query('tenant')));
+        if ($type === 'suggestion') {
+            $query->when($request->filled('group'), fn ($q) => $q->where('platform_suggestion_group_id', $request->query('group')));
+        }
 
         return view('platform.support.index', [
-            'cases' => $query->latest('forwarded_at')->get(),
-            'attentionCount' => (clone $query)->whereIn('status', PlatformSupportCase::attentionStatuses())->count(),
-            'statusOptions' => [
-                'problem' => PlatformSupportCase::statusesForType('problem'),
-                'suggestion' => PlatformSupportCase::statusesForType('suggestion'),
-            ],
+            ...compact('type', 'types', 'statuses', 'attentionCount'),
+            'cases' => $query->latest('forwarded_at')->orderByDesc('id')->paginate(20)->withQueryString(),
+            'tenants' => Tenant::query()->whereIn('id', PlatformSupportCase::query()->whereIn('type', $types)->select('tenant_id'))->orderBy('name')->get(['id', 'name']),
             'suggestionGroups' => in_array('suggestion', $types, true) ? PlatformSuggestionGroup::query()->latest()->get() : collect(),
             'canManageSuggestions' => in_array('suggestion', $types, true),
             'problemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS, false),
         ]);
+    }
+
+    public function show(Request $request, PlatformSupportCase $case, SupportRequestConfiguration $configuration): View
+    {
+        abort_unless(in_array($case->type, $this->allowedTypes($request), true), 403);
+
+        return view('platform.support.show', [
+            'case' => $case->load(['tenant', 'suggestionGroup']),
+            'statuses' => PlatformSupportCase::statusesForType($case->type),
+            'suggestionGroups' => $case->type === 'suggestion' ? PlatformSuggestionGroup::query()->orderBy('title')->get() : collect(),
+            'problemReasonOptions' => $configuration->options(SupportRequestConfiguration::REASONS, false),
+            'history' => PlatformAuditEvent::query()->with('platformAdministrator')->where('event', 'platform_support_case_updated')->where('tenant_id', $case->tenant_id)->where('properties->case_id', $case->id)->latest()->limit(20)->get(),
+        ]);
+    }
+
+    public function groups(Request $request): View
+    {
+        abort_unless($request->user('platform')->hasPlatformPermission('manage.support.suggestions'), 403);
+
+        return view('platform.support.groups', ['groups' => PlatformSuggestionGroup::query()->withCount(['cases' => fn ($query) => $query->where('type', 'suggestion')])->latest()->paginate(12)->withQueryString()]);
     }
 
     public function update(Request $request, PlatformSupportCase $case): RedirectResponse

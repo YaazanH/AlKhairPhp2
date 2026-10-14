@@ -1,69 +1,25 @@
-<x-platform-layout :title="__('support.platform.title')">
-    <header>
-        <h1 class="text-3xl font-bold">{{ __('support.platform.heading') }}</h1>
-        <p class="mt-2 text-zinc-600">{{ __('support.platform.description') }}</p>
-        <p class="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-900">{{ trans_choice('support.platform.attention_count', $attentionCount, ['count' => $attentionCount]) }}</p>
-        @if (auth('platform')->user()->hasPlatformPermission('manage.support.problems'))
-            <a href="{{ route('platform.support.settings.edit') }}" class="ms-3 inline-block rounded-xl border px-3 py-2 text-sm font-medium">{{ __('support.platform.settings') }}</a>
-        @endif
-    </header>
-
-    @if ($canManageSuggestions)
-        <section class="rounded-3xl border bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold">{{ __('support.platform.groups_title') }}</h2>
-            <p class="mt-1 text-sm text-zinc-600">{{ __('support.platform.groups_description') }}</p>
-            <form method="POST" action="{{ route('platform.support.suggestion-groups.store') }}" class="mt-4 grid gap-2">
-                @csrf
-                <input name="title" required maxlength="180" placeholder="{{ __('support.platform.group_title_placeholder') }}" class="rounded border p-2">
-                <textarea name="summary" rows="2" placeholder="{{ __('support.platform.group_summary_placeholder') }}" class="rounded border p-2"></textarea>
-                <button class="w-fit rounded border px-3 py-2">{{ __('support.platform.create_group') }}</button>
+<x-platform-layout :title="__('platform-requests.title')">
+    <div class="platform-management platform-requests">
+        <header class="platform-management__header"><p class="text-sm font-semibold text-emerald-700">{{ __('platform-workspace.groups.workspace') }}</p><h1 class="mt-2 font-bold">{{ __('platform-requests.title') }}</h1><p class="mt-3 text-zinc-500">{{ __('platform-requests.intro') }}</p></header>
+        <x-platform.requests-tabs :current="$type" />
+        <section class="platform-request-queue rounded-3xl border bg-white">
+            <div class="platform-request-heading"><div><h2>{{ __('platform-requests.'.$type) }}</h2><p>{{ __('platform-requests.results', ['count'=>$cases->total(), 'attention'=>$attentionCount]) }}</p></div>
+                @if($type === 'suggestion')<div class="flex gap-3"><a href="{{ route('platform.support.index', array_merge(request()->query(), ['view'=>'list','page'=>1])) }}">{{ __('platform-requests.list') }}</a><a href="{{ route('platform.support.index', array_merge(request()->query(), ['view'=>'board','page'=>1])) }}">{{ __('platform-requests.board') }}</a></div>@endif
+            </div>
+            <form method="GET" action="{{ route('platform.support.index') }}" class="platform-request-filters">
+                <input type="hidden" name="type" value="{{ $type }}"><input type="hidden" name="view" value="{{ request('view','list') }}">
+                <label>{{ __('platform-requests.search') }}<input name="search" value="{{ request('search') }}" class="rounded-xl border p-3"></label>
+                <label>{{ __('platform.ui.common.status') }}<select name="status" class="rounded-xl border p-3"><option value="">{{ __('platform-requests.all') }}</option><option value="attention" @selected(request('status') === 'attention')>{{ __('platform-design.attention') }}</option>@foreach($statuses as $status)<option value="{{ $status }}" @selected(request('status') === $status)>{{ \App\Models\Landlord\PlatformSupportCase::statusLabel($status) }}</option>@endforeach</select></label>
+                <label>{{ __('platform.ui.common.tenant') }}<select name="tenant" class="rounded-xl border p-3"><option value="">{{ __('platform-requests.all') }}</option>@foreach($tenants as $tenant)<option value="{{ $tenant->id }}" @selected((string) request('tenant') === (string) $tenant->id)>{{ $tenant->name }}</option>@endforeach</select></label>
+                @if($type === 'suggestion')<label>{{ __('platform-requests.group') }}<select name="group" class="rounded-xl border p-3"><option value="">{{ __('platform-requests.all') }}</option>@foreach($suggestionGroups as $group)<option value="{{ $group->id }}" @selected((string) request('group') === (string) $group->id)>{{ $group->title }}</option>@endforeach</select></label>@endif
+                <button class="rounded-xl border px-4 py-3">{{ __('platform.ui.dashboard.filter') }}</button><a href="{{ route('platform.support.index',['type'=>$type]) }}">{{ __('platform-design.reset') }}</a>
             </form>
+            @if($type === 'suggestion' && request('view') === 'board')
+                <p class="px-6 py-3 text-sm text-zinc-500">{{ __('platform-requests.board_help') }}</p><div class="platform-request-board">@foreach($statuses as $status)<section><h3>{{ \App\Models\Landlord\PlatformSupportCase::statusLabel($status) }}</h3>@forelse($cases->where('status',$status) as $case)<article><a href="{{ route('platform.support.show',$case) }}">{{ $case->subject }}</a><p>{{ $case->tenant->name }}</p>@if($case->suggestionGroup)<p>{{ $case->suggestionGroup->title }}</p>@endif</article>@empty<p>{{ __('platform-requests.column_empty') }}</p>@endforelse</section>@endforeach</div>
+            @else
+                <div class="overflow-x-auto"><table class="platform-request-table w-full text-sm"><thead><tr><th>{{ __('platform-requests.subject') }}</th><th>{{ __('platform.ui.common.tenant') }}</th><th>{{ __('platform.ui.common.status') }}</th><th>{{ __('platform-requests.forwarded') }}</th><th>{{ __('platform-requests.review') }}</th></tr></thead><tbody>@forelse($cases as $case)<tr><td><a href="{{ route('platform.support.show',$case) }}" class="font-semibold">{{ $case->subject }}</a><p>{{ \Illuminate\Support\Str::limit($case->message,110) }}</p>@if($case->suggestionGroup)<small>{{ $case->suggestionGroup->title }}</small>@endif</td><td>{{ $case->tenant->name }}</td><td><span class="platform-request-status">{{ \App\Models\Landlord\PlatformSupportCase::statusLabel($case->status) }}</span></td><td><time dir="ltr" datetime="{{ $case->forwarded_at->toIso8601String() }}">{{ $case->forwarded_at->format('Y-m-d H:i') }}</time></td><td><a href="{{ route('platform.support.show',$case) }}" aria-label="{{ __('platform-requests.review_case',['subject'=>$case->subject]) }}">{{ __('platform-requests.review') }} →</a></td></tr>@empty<tr><td colspan="5" class="text-center">{{ __('platform-requests.empty') }}</td></tr>@endforelse</tbody></table></div>
+            @endif
+            @if($cases->hasPages())<div class="border-t p-5">{{ $cases->links() }}</div>@endif
         </section>
-    @endif
-
-    <section class="rounded-3xl border bg-white p-6 shadow-sm">
-        <div class="space-y-3">
-            @forelse ($cases as $case)
-                <article class="rounded-2xl border p-4">
-                    <div class="flex justify-between gap-4">
-                        <strong>{{ $case->subject }}</strong>
-                        <span>{{ \App\Models\TenantSupportRequest::typeLabel($case->type) }}</span>
-                        @if ($case->incident_reference)<span class="text-sm text-zinc-500">{{ $case->incident_reference }}</span>@endif
-                    </div>
-                    <p class="mt-2">{{ $case->message }}</p>
-                    @if ($case->type === 'problem' && $case->problem_reason)
-                        <p class="mt-2 text-sm text-zinc-600">{{ __('support.common.reason', ['reason' => $problemReasonOptions[$case->problem_reason] ?? $case->problem_reason]) }}</p>
-                    @endif
-                    @if ($case->type === 'suggestion' && $case->suggestionGroup)
-                        <p class="mt-2 text-sm text-violet-700">{{ __('support.platform.shared_group', ['title' => $case->suggestionGroup->title]) }}</p>
-                    @endif
-                    @if ($case->type === 'problem')
-                        <a href="{{ route('platform.support.attachments.index', $case) }}" class="mt-3 inline-block text-sm text-emerald-700 underline">{{ __('support.platform.view_attachments') }}</a>
-                    @endif
-                    <p class="mt-2 text-sm text-zinc-500">{{ $case->tenant->name }} - {{ $case->forwarded_at->format('Y-m-d H:i') }}</p>
-                    <form method="POST" action="{{ route('platform.support.update', $case) }}" class="mt-3 grid gap-2">
-                        @csrf
-                        @method('PUT')
-                        <select name="status" class="rounded border p-2">
-                            @foreach ($statusOptions[$case->type] as $status)
-                                <option value="{{ $status }}" @selected($case->status === $status)>{{ \App\Models\Landlord\PlatformSupportCase::statusLabel($status) }}</option>
-                            @endforeach
-                        </select>
-                        @if ($case->type === 'suggestion')
-                            <select name="platform_suggestion_group_id" class="rounded border p-2">
-                                <option value="">{{ __('support.platform.no_group') }}</option>
-                                @foreach ($suggestionGroups as $group)
-                                    <option value="{{ $group->id }}" @selected($case->platform_suggestion_group_id === $group->id)>{{ $group->title }}</option>
-                                @endforeach
-                            </select>
-                        @endif
-                        <textarea name="platform_note" placeholder="{{ __('support.platform.reply_placeholder') }}" class="rounded border p-2">{{ $case->platform_note }}</textarea>
-                        <button class="w-fit rounded border px-3 py-2">{{ __('support.platform.save_status') }}</button>
-                    </form>
-                </article>
-            @empty
-                <p class="text-zinc-500">{{ __('support.platform.no_requests') }}</p>
-            @endforelse
-        </div>
-    </section>
+    </div>
 </x-platform-layout>

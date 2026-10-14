@@ -1,6 +1,7 @@
 <x-platform-layout :title="__('support.settings.title')">
-    <header>
-        <a href="{{ route('platform.support.index') }}" class="text-sm text-emerald-700 underline">{{ __('support.platform.back') }}</a>
+    <div class="platform-management">
+    <header class="platform-management__header">
+        <a href="{{ route('platform.settings.index') }}#requests" class="text-sm text-emerald-700 underline">{{ __('platform-workspace.back_settings') }}</a>
         <h1 class="mt-3 text-3xl font-bold">{{ __('support.settings.title') }}</h1>
         <p class="mt-2 max-w-3xl text-zinc-600">{{ __('support.settings.description') }}</p>
     </header>
@@ -54,4 +55,5 @@
 
         <button class="rounded-xl bg-emerald-700 px-5 py-3 font-medium text-white">{{ __('support.settings.save') }}</button>
     </form>
+    </div>
 </x-platform-layout>

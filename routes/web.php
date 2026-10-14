@@ -80,7 +80,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware(['platform.auth', 'platform.password-change'])->group(function (): void {
+        Route::get('settings', \App\Http\Controllers\Platform\PlatformSettingsController::class)->name('settings.index');
+        Route::get('tenants', \App\Http\Controllers\Platform\TenantDirectoryController::class)->middleware('platform.permission:view.tenants,manage.tenants')->name('tenants.index');
         Route::get('access', [PlatformAccessController::class, 'index'])->middleware('platform.permission:manage.platform-users')->name('access.index');
+        Route::get('access/users/{administrator}/edit', [PlatformAccessController::class, 'editAdministrator'])->middleware('platform.permission:manage.platform-users')->name('access.users.edit');
+        Route::get('access/roles', [PlatformAccessController::class, 'roles'])->middleware('platform.owner')->name('access.roles.index');
+        Route::get('access/roles/{role}/edit', [PlatformAccessController::class, 'editRole'])->middleware('platform.owner')->name('access.roles.edit');
         Route::post('access/users', [PlatformAccessController::class, 'storeAdministrator'])->middleware('platform.permission:manage.platform-users')->name('access.users.store');
         Route::put('access/users/{administrator}', [PlatformAccessController::class, 'updateAdministrator'])->middleware('platform.permission:manage.platform-users')->name('access.users.update');
         Route::patch('access/users/{administrator}/status', [PlatformAccessController::class, 'setAdministratorStatus'])->middleware('platform.permission:manage.platform-users')->name('access.users.status');
@@ -93,6 +98,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('metrics', [PlatformMetricsController::class, 'index'])->middleware('platform.permission:view.dashboard')->name('metrics');
         Route::put('metrics/settings', [PlatformMetricsController::class, 'update'])->middleware('platform.owner')->name('metrics.settings.update');
         Route::get('landing-page', [PlatformLandingPageController::class, 'edit'])->middleware('platform.permission:manage.landing-page,publish.landing-page')->name('landing.edit');
+        Route::get('landing-page/preview', [PlatformLandingPageController::class, 'preview'])->middleware('platform.permission:manage.landing-page,publish.landing-page')->name('landing.preview');
         Route::put('landing-page', [PlatformLandingPageController::class, 'update'])->middleware('platform.permission:manage.landing-page')->name('landing.update');
         Route::post('landing-page/publish', [PlatformLandingPageController::class, 'publish'])->middleware('platform.permission:publish.landing-page')->name('landing.publish');
         Route::post('landing-page/revisions/{revision}/restore', [PlatformLandingPageController::class, 'restore'])->middleware('platform.permission:publish.landing-page')->name('landing.restore');
@@ -100,9 +106,14 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('report-library/create', [ReportLibraryController::class, 'create'])->middleware('platform.permission:manage.report-library')->name('report-library.create');
         Route::post('report-library', [ReportLibraryController::class, 'store'])->middleware('platform.permission:manage.report-library')->name('report-library.store');
         Route::get('report-library/{libraryItem}/edit', [ReportLibraryController::class, 'edit'])->middleware('platform.permission:manage.report-library,publish.report-library')->name('report-library.edit');
+        Route::get('report-library/{libraryItem}/revisions/{revision}', [ReportLibraryController::class, 'revision'])->middleware('platform.permission:manage.report-library,publish.report-library')->name('report-library.revision');
         Route::put('report-library/{libraryItem}', [ReportLibraryController::class, 'update'])->middleware('platform.permission:manage.report-library')->name('report-library.update');
         Route::post('report-library/{libraryItem}/publish', [ReportLibraryController::class, 'publish'])->middleware('platform.permission:publish.report-library')->name('report-library.publish');
         Route::get('support', [PlatformSupportCaseController::class, 'index'])->name('support.index');
+        Route::get('support/feature-groups', [PlatformSupportCaseController::class, 'groups'])->name('support.groups');
+        Route::get('support/cases/{case}', [PlatformSupportCaseController::class, 'show'])->name('support.show');
+        Route::get('enquiries', [\App\Http\Controllers\Platform\PlatformEnquiryController::class, 'index'])->middleware('platform.permission:manage.landing-page')->name('enquiries.index');
+        Route::get('enquiries/{enquiry}', [\App\Http\Controllers\Platform\PlatformEnquiryController::class, 'show'])->middleware('platform.permission:manage.landing-page')->name('enquiries.show');
         Route::get('support/settings', [PlatformSupportSettingController::class, 'edit'])->middleware('platform.permission:manage.support.problems')->name('support.settings.edit');
         Route::put('support/settings', [PlatformSupportSettingController::class, 'update'])->middleware('platform.permission:manage.support.problems')->name('support.settings.update');
         Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->name('support.update');
@@ -116,11 +127,14 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('backups/{tenantBackup}/download', [PlatformTenantBackupController::class, 'download'])->middleware('platform.permission:view.backups')->name('backups.download');
         Route::post('backups/{tenantBackup}/restore', [PlatformTenantBackupController::class, 'restore'])->middleware('platform.permission:restore.backups')->name('backups.restore');
         Route::get('vouchers', [SubscriptionVoucherController::class, 'index'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('vouchers.index');
+        Route::get('billing', [\App\Http\Controllers\Platform\PlatformBillingController::class, 'subscriptions'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('billing.index');
+        Route::get('billing/payments', [\App\Http\Controllers\Platform\PlatformBillingController::class, 'payments'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('billing.payments');
         Route::post('vouchers', [SubscriptionVoucherController::class, 'store'])->middleware('platform.permission:manage.subscriptions')->name('vouchers.store');
         Route::patch('vouchers/{voucher}/status', [SubscriptionVoucherController::class, 'status'])->middleware('platform.permission:manage.subscriptions')->name('vouchers.status');
         Route::get('subscription-settings', [PlatformSubscriptionSettingController::class, 'edit'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('subscription-settings.edit');
         Route::put('subscription-settings', [PlatformSubscriptionSettingController::class, 'update'])->middleware('platform.permission:manage.subscriptions')->name('subscription-settings.update');
         Route::get('packages', [PlanManagementController::class, 'index'])->middleware('platform.permission:manage.plans')->name('plans.index');
+        Route::get('packages/features', [PlanManagementController::class, 'features'])->middleware('platform.permission:manage.plans')->name('plans.features');
         Route::get('packages/create', [PlanManagementController::class, 'create'])->middleware('platform.permission:manage.plans')->name('plans.create');
         Route::post('packages', [PlanManagementController::class, 'store'])->middleware('platform.permission:manage.plans')->name('plans.store');
         Route::get('packages/{plan}/edit', [PlanManagementController::class, 'edit'])->middleware('platform.permission:manage.plans')->name('plans.edit');

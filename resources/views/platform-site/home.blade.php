@@ -43,6 +43,9 @@
     @vite(['resources/css/app.css', 'resources/css/platform-landing.css', 'resources/js/platform-landing.js'])
 </head>
 <body class="landing-body landing-body--studio">
+    @if($preview ?? false)
+        <aside class="landing-private-preview" role="status"><strong>{{ isset($previewRevision) ? __('platform-content.preview_revision_banner', ['version' => $previewRevision]) : __('platform-content.preview_banner') }}</strong><a href="{{ route('platform.landing.edit', ['view' => 'publishing']) }}">{{ __('platform-content.back_studio') }}</a></aside>
+    @endif
     <a class="landing-skip-link" href="#main-content">{{ __('landing.skip_to_content') }}</a>
 
     <header class="landing-header">
@@ -61,7 +64,7 @@
             </nav>
 
             <div class="landing-header__actions">
-                <a class="landing-language" href="{{ route('locale.switch', $oppositeLocale) }}" lang="{{ $oppositeLocale }}" dir="{{ config('app.supported_locales.'.$oppositeLocale.'.direction') }}">
+                <a class="landing-language" href="{{ ($preview ?? false) ? route('platform.landing.preview', ['language' => $oppositeLocale, 'revision' => request('revision')]) : route('locale.switch', $oppositeLocale) }}" lang="{{ $oppositeLocale }}" dir="{{ config('app.supported_locales.'.$oppositeLocale.'.direction') }}">
                     {{ $oppositeLocale === 'ar' ? 'العربية' : 'English' }}
                 </a>
                 <a class="landing-sign-in" href="{{ route('platform.login') }}">{{ __('landing.sign_in') }}</a>
@@ -400,7 +403,8 @@
                                 <div><b>03</b><span>{{ __('landing.contact_step_three') }}</span></div>
                             </div>
                         </div>
-                        <form method="POST" action="{{ route('platform-site.enquire') }}" class="landing-contact__form">@csrf
+                        <form method="{{ ($preview ?? false) ? 'GET' : 'POST' }}" action="{{ ($preview ?? false) ? '#' : route('platform-site.enquire') }}" class="landing-contact__form" @if($preview ?? false) onsubmit="return false" @endif>@csrf
+                            @if($preview ?? false)<fieldset disabled class="landing-private-preview-fields">@endif
                             <div class="landing-contact__form-heading"><span>{{ __('landing.demo_request') }}</span><strong>{{ __('landing.demo_request_body') }}</strong></div>
                             @if(session('landing_status'))<div class="landing-form-success" role="status">{{ session('landing_status') }}</div>@endif
                             @if($errors->any())<div class="landing-form-error" role="alert">{{ $errors->first() }}</div>@endif
@@ -408,6 +412,7 @@
                             <div class="landing-form-row"><label>{{ __('landing.contact.email') }}<input type="email" name="email" autocomplete="email" dir="ltr" value="{{ old('email') }}" required maxlength="190"></label><label>{{ __('landing.contact.phone') }}<input type="tel" name="phone" autocomplete="tel" dir="ltr" value="{{ old('phone') }}" maxlength="40"></label></div>
                             <label>{{ __('landing.contact.message') }}<textarea name="message" rows="4" maxlength="3000">{{ old('message') }}</textarea></label>
                             <div class="landing-form-footer"><small>{{ __('landing.contact.privacy') }}</small><button type="submit"><span>{{ __('landing.contact.submit') }}</span><i aria-hidden="true">↗</i></button></div>
+                            @if($preview ?? false)</fieldset>@endif
                         </form>
                     </div>
                 </section>
@@ -429,7 +434,7 @@
                         @endif
                     @endforeach
                 </nav>
-                <div class="landing-footer__actions"><a href="{{ route('platform.login') }}">{{ __('landing.sign_in') }}</a><a href="{{ route('locale.switch', $oppositeLocale) }}">{{ $oppositeLocale === 'ar' ? 'العربية' : 'English' }}</a></div>
+                <div class="landing-footer__actions"><a href="{{ route('platform.login') }}">{{ __('landing.sign_in') }}</a><a href="{{ ($preview ?? false) ? route('platform.landing.preview', ['language' => $oppositeLocale, 'revision' => request('revision')]) : route('locale.switch', $oppositeLocale) }}">{{ $oppositeLocale === 'ar' ? 'العربية' : 'English' }}</a></div>
             </div>
             <div class="landing-footer__bottom"><span>{{ __('landing.footer_note') }}</span><a href="#main-content">{{ __('landing.back_to_top') }} <i aria-hidden="true">↑</i></a></div>
         </div>

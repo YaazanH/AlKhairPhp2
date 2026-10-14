@@ -1097,3 +1097,6 @@
     .landing-body--studio .landing-showcase--gallery .landing-story__summary h3 { font-size: 1.8rem; }
     .landing-body--studio .landing-showcase--gallery .landing-story__summary i { font-size: 5rem; }
 }
+.landing-private-preview { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 24px; padding: 18px 24px; background: #143829; color: #fffaf0; font-size: .85rem; line-height: 1.6; }
+.landing-private-preview a { text-decoration: underline; text-underline-offset: 4px; }
+.landing-private-preview-fields { display: contents; }

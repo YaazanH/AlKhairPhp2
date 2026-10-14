@@ -1,0 +1,2 @@
+@props(['entry'])
+@if($entry->type === 'offline_payment' && filled($entry->receipt_number))<div class="flex flex-wrap gap-3"><a href="{{ route('platform.subscription-payments.receipt',$entry) }}" target="_blank" rel="noopener">{{ __('platform-billing.view_receipt') }}</a><a href="{{ route('platform.subscription-payments.receipt',['entry'=>$entry,'download'=>1]) }}">{{ __('platform.ui.common.download') }}</a></div>@else<span>—</span>@endif

@@ -1,0 +1,28 @@
+.platform-workspace-navigation { display: grid; gap: 18px; margin-top: 30px; padding-inline: 12px; }
+.platform-navigation-group h2 { margin: 0 0 8px; padding-inline: 12px; color: var(--platform-muted); font-size: .65rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.platform-navigation-group [data-flux-navlist-item] { min-height: 40px; border-radius: 12px; }
+.platform-navigation-group [data-flux-navlist-item][data-current] { background: var(--platform-accent-soft) !important; color: var(--platform-text) !important; }
+.platform-settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; }
+.platform-settings-sections { display: grid; gap: 24px; min-width: 0; }
+.platform-settings-tabs { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--platform-border); border-radius: 20px; background: var(--platform-surface); }
+.platform-settings-tabs a { display: block; border-radius: 12px; padding: 12px; color: var(--platform-muted); font-size: .82rem; font-weight: 600; text-decoration: none; }
+.platform-settings-tabs a:hover, .platform-settings-tabs a:focus-visible { background: var(--platform-accent-soft); color: var(--platform-text); }
+.platform-settings-panel { border: 1px solid var(--platform-border); border-radius: 24px; background: var(--platform-surface); padding: 26px; scroll-margin-top: 24px; }
+.platform-settings-panel h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.platform-settings-panel > p { margin: 7px 0 22px; color: var(--platform-muted); font-size: .85rem; line-height: 1.7; }
+.platform-settings-panel label { display: grid; gap: 8px; color: var(--platform-text); font-size: .85rem; font-weight: 600; }
+.platform-settings-panel label small { color: var(--platform-muted); font-weight: 400; line-height: 1.6; }
+.platform-settings-panel :is(input:not([type=checkbox]), select) { width: 100%; border: 1px solid var(--platform-control-border); border-radius: 12px; padding: 12px; }
+.platform-settings-panel .platform-settings-check { display: flex; align-items: center; gap: 10px; }
+.platform-settings-panel form { display: grid; gap: 20px; }
+.platform-settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.platform-settings-panel form > button, .platform-settings-panel .platform-settings-link { display: inline-flex; width: fit-content; align-items: center; justify-content: center; border: 1px solid var(--platform-border); border-radius: 12px; padding: 12px 18px; font-size: .85rem; font-weight: 600; text-decoration: none; }
+.platform-settings-panel form > button { background: var(--platform-accent); color: var(--platform-on-accent); border-color: var(--platform-accent); }
+.platform-workspace-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--platform-muted); font-size: .75rem; }
+.platform-workspace-breadcrumbs a { color: var(--platform-accent); text-decoration: none; }
+.platform-workspace-breadcrumbs [aria-current] { color: var(--platform-text); }
+.platform-settings-panel .platform-settings-link { background: var(--platform-accent-soft); color: var(--platform-text); }
+.platform-settings-panel :is(a, button, input, select):focus-visible { outline: 3px solid var(--platform-accent); outline-offset: 3px; }
+.platform-settings-readonly { padding: 14px 18px; border-radius: 14px; background: var(--platform-surface-soft); font-size: .85rem; color: var(--platform-muted); }
+@media (max-width: 900px) { .platform-settings-layout { grid-template-columns: minmax(0, 1fr); } .platform-settings-tabs { display: flex; gap: 6px; overflow-x: auto; } .platform-settings-tabs a { flex-shrink: 0; white-space: nowrap; } }
+@media (max-width: 640px) { .platform-settings-panel { padding: 22px 18px; } .platform-settings-fields { grid-template-columns: minmax(0, 1fr); } }

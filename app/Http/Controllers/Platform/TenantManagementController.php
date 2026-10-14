@@ -23,18 +23,20 @@ use Illuminate\View\View;
 
 class TenantManagementController extends Controller
 {
-    public function create(): View
+    public function create(): RedirectResponse
     {
-        return view('platform.tenants.create');
+        return redirect()->route('platform.tenants.index', ['create' => 1]);
     }
 
     public function edit(Tenant $tenant): View
     {
         $settings = SaasPlatformSetting::current();
+        $user = auth('platform')->user();
+        $canSubscriptions = $user->hasPlatformPermission('view.subscriptions') || $user->hasPlatformPermission('manage.subscriptions');
 
         return view('platform.tenants.overview', [
-            'tenant' => $tenant->load(['subscription.plan', 'subscription.voucher', 'domains']),
-            'billingBalance' => $this->balance($tenant),
+            'tenant' => $tenant->load($canSubscriptions ? ['subscription.plan', 'subscription.voucher', 'domains'] : ['domains']),
+            'billingBalance' => $canSubscriptions ? $this->balance($tenant) : null,
             'suspendedDataRetentionMonths' => $settings->suspended_data_retention_months,
             'retentionEligibleAt' => $tenant->suspended_at?->copy()->addMonthsNoOverflow($settings->suspended_data_retention_months),
         ]);
@@ -62,7 +64,7 @@ class TenantManagementController extends Controller
     {
         return view('platform.tenants.billing', [
             'tenant' => $tenant->load('subscription.plan'),
-            'billingEntries' => PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->latest()->limit(50)->get(),
+            'billingEntries' => PlatformSubscriptionLedgerEntry::query()->where('tenant_id', $tenant->id)->latest()->orderByDesc('id')->paginate(20)->withQueryString(),
             'billingBalance' => $this->balance($tenant),
         ]);
     }
@@ -93,9 +95,12 @@ class TenantManagementController extends Controller
     public function modules(Tenant $tenant, PlanModuleManager $planModules, TenantModuleAccess $moduleAccess): View
     {
         $snapshot = $moduleAccess->snapshot($tenant);
-        $packageModules = $tenant->subscription?->plan
-            ? $planModules->preview(null, $planModules->selectedCodes($tenant->subscription->plan))['effective']
-            : ['foundation'];
+        $packageModules = $tenant->subscription?->plan ? $planModules->selectedCodes($tenant->subscription->plan) : ['foundation'];
+        try {
+            $packageModules = $planModules->normalize($packageModules)['effective'];
+        } catch (\DomainException $exception) {
+            // Keep the page readable; the access snapshot displays the conflict and prevents editing.
+        }
 
         return view('platform.tenants.modules', [
             'tenant' => $tenant,
@@ -121,7 +126,7 @@ class TenantManagementController extends Controller
 
     public function setStatus(Request $request, Tenant $tenant): RedirectResponse
     {
-        $data = $request->validate(['status' => ['required', Rule::in([Tenant::STATUS_ACTIVE, Tenant::STATUS_SUSPENDED])]]);
+        $data = $request->validate(['status' => ['required', Rule::in([Tenant::STATUS_ACTIVE, Tenant::STATUS_SUSPENDED])], 'confirm_slug' => ['required', Rule::in([$tenant->slug])]]);
 
         if ($data['status'] === Tenant::STATUS_ACTIVE) {
             abort_unless(
@@ -186,7 +191,7 @@ class TenantManagementController extends Controller
         $tenant->delete();
         PlatformAuditEvent::query()->create(['uuid' => (string) Str::uuid(), 'platform_administrator_id' => $request->user('platform')->id, 'event' => 'tenant_deleted', 'properties' => ['tenant_uuid' => $uuid, 'slug' => $slug], 'ip_address' => $request->ip()]);
 
-        return redirect()->route('platform.dashboard')->with('status', __('platform.tenant.deleted'));
+        return redirect()->route('platform.tenants.index')->with('status', __('platform.tenant.deleted'));
     }
 
     private function audit(Request $request, Tenant $tenant, string $event, array $properties): void

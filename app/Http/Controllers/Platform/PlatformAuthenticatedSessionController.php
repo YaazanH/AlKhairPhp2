@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Landlord\PlatformAdministrator;
+use App\Support\PlatformWorkspaceNavigation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,7 +49,7 @@ class PlatformAuthenticatedSessionController extends Controller
         Auth::guard('platform')->login($administrator, (bool) ($validated['remember'] ?? false));
         $request->session()->regenerate();
 
-        return redirect()->intended(route('platform.dashboard'));
+        return redirect()->intended(route(app(PlatformWorkspaceNavigation::class)->homeRoute($administrator)));
     }
 
     public function destroy(Request $request): RedirectResponse

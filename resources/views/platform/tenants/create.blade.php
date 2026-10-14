@@ -1,114 +1,71 @@
-<x-platform-layout title="Create tenant">
-    <div class="platform-management mx-auto max-w-5xl space-y-6" data-platform-management>
-        <header class="platform-management__header">
-            <a href="{{ route('platform.dashboard') }}" class="text-sm font-semibold text-emerald-700">← Back to tenants</a>
-            <h1 class="mt-3 text-3xl font-bold text-zinc-950">Create a tenant workspace</h1>
-            <p class="mt-2 max-w-2xl text-zinc-600">Create the organisation, its permanent address, isolated database, first administrator, and storage limit. Package, voucher, and payment setup come afterward.</p>
-        </header>
-
-        @if($errors->has('tenant'))<div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{{ $errors->first('tenant') }}</div>@endif
-
-        <form method="POST" action="{{ route('platform.tenants.store') }}" class="space-y-6" data-tenant-provisioning-form>
-            @csrf
-            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <div class="flex items-start gap-4"><span class="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 font-bold text-emerald-800">1</span><div><h2 class="text-lg font-semibold">Organisation</h2><p class="text-sm text-zinc-500">The name can change later. The subdomain cannot.</p></div></div>
-                <div class="mt-6 grid gap-5 md:grid-cols-2">
-                    <label class="grid gap-1.5 text-sm font-semibold">Organisation name<input name="name" value="{{ old('name') }}" required class="rounded-xl border p-3 font-normal">@error('name')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <label class="grid gap-1.5 text-sm font-semibold">Subdomain<input name="slug" value="{{ old('slug') }}" required data-tenant-slug class="rounded-xl border p-3 font-normal"><span class="text-xs font-normal text-zinc-500">Address: <strong data-tenant-url>https://your-name.{{ config('tenancy.base_domain') }}</strong></span>@error('slug')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <label class="grid gap-1.5 text-sm font-semibold">Timezone<select name="timezone" class="rounded-xl border p-3 font-normal"><option value="">Platform default</option><option value="Asia/Damascus" @selected(old('timezone') === 'Asia/Damascus')>Asia/Damascus</option><option value="UTC" @selected(old('timezone') === 'UTC')>UTC</option></select>@error('timezone')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <label class="grid gap-1.5 text-sm font-semibold">Default language<select name="locale" class="rounded-xl border p-3 font-normal"><option value="">Platform default</option><option value="ar" @selected(old('locale') === 'ar')>Arabic</option><option value="en" @selected(old('locale') === 'en')>English</option></select>@error('locale')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <label class="grid gap-1.5 text-sm font-semibold">Storage limit (GB)<input type="number" name="storage_limit_gb" value="{{ old('storage_limit_gb', 10) }}" step="0.1" min="0.1" required class="rounded-xl border p-3 font-normal"><span class="text-xs font-normal text-zinc-500">A tenant-level limit for its database, documents, media, and backups.</span>@error('storage_limit_gb')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <fieldset class="md:col-span-2">
-                        <legend class="text-sm font-semibold">Learning path</legend>
-                        <p class="mt-1 text-xs text-zinc-500">Choose carefully. The learning path is permanent and cannot be changed after the tenant is created.</p>
-                        <div class="mt-3 grid gap-3 md:grid-cols-2">
-                            <label class="flex cursor-pointer gap-3 rounded-2xl border border-zinc-200 p-4">
-                                <input type="radio" name="learning_path_type" value="{{ \App\Models\Landlord\Tenant::LEARNING_PATH_QURAN }}" required @checked(old('learning_path_type') === \App\Models\Landlord\Tenant::LEARNING_PATH_QURAN) class="mt-1">
-                                <span><strong class="block">Quran</strong><span class="mt-1 block text-xs font-normal text-zinc-500">Memorisation with configurable partial, final, and Awqaf test stages.</span></span>
-                            </label>
-                            <label class="flex cursor-pointer gap-3 rounded-2xl border border-zinc-200 p-4">
-                                <input type="radio" name="learning_path_type" value="{{ \App\Models\Landlord\Tenant::LEARNING_PATH_LESSON_LEVEL }}" required @checked(old('learning_path_type') === \App\Models\Landlord\Tenant::LEARNING_PATH_LESSON_LEVEL) class="mt-1">
-                                <span><strong class="block">Lessons and levels</strong><span class="mt-1 block text-xs font-normal text-zinc-500">The tenant builds ordered levels from its lessons, groups, attendance, and assessments.</span></span>
-                            </label>
-                        </div>
-                        @error('learning_path_type')<span class="mt-2 block text-xs text-red-700">{{ $message }}</span>@enderror
-                    </fieldset>
-                </div>
-            </section>
-            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <div class="flex items-start gap-4"><span class="grid h-10 w-10 place-items-center rounded-2xl bg-sky-100 font-bold text-sky-800">2</span><div><h2 class="text-lg font-semibold">First tenant administrator</h2><p class="text-sm text-zinc-500">Share the temporary password manually. The administrator must replace it after signing in.</p></div></div>
-                <div class="mt-6 grid gap-5 md:grid-cols-2">
-                    <label class="grid gap-1.5 text-sm font-semibold">Full name<input name="owner_name" value="{{ old('owner_name') }}" required class="rounded-xl border p-3 font-normal">@error('owner_name')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <label class="grid gap-1.5 text-sm font-semibold">Email address<input type="email" name="owner_email" value="{{ old('owner_email') }}" required class="rounded-xl border p-3 font-normal">@error('owner_email')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                    <label class="grid gap-1.5 text-sm font-semibold md:col-span-2">Temporary password<input type="password" name="owner_password" required minlength="8" class="rounded-xl border p-3 font-normal">@error('owner_password')<span class="text-xs text-red-700">{{ $message }}</span>@enderror</label>
-                </div>
-            </section>
-            <div class="flex flex-col gap-4 rounded-2xl bg-zinc-950 p-5 text-white sm:flex-row sm:items-center sm:justify-between"><p class="text-sm text-zinc-300">The tenant remains in setup until its subscription is activated.</p><button type="submit" class="rounded-xl bg-emerald-400 px-5 py-3 font-bold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-70" data-tenant-provisioning-submit><span data-submit-label>Create tenant workspace</span><span class="hidden items-center gap-2" data-submit-busy><span class="h-4 w-4 animate-spin rounded-full border-2 border-zinc-950/30 border-t-zinc-950" aria-hidden="true"></span>Creating workspace…</span></button></div>
-        </form>
-    </div>
-
-    <div class="fixed inset-0 z-50 hidden place-items-center bg-zinc-950/75 p-4 backdrop-blur-sm" data-tenant-provisioning-overlay role="status" aria-live="polite" aria-label="Creating tenant workspace">
-        <div class="w-full max-w-md rounded-3xl border border-white/10 bg-white p-7 text-center shadow-2xl">
-            <div class="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
-                <span class="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" aria-hidden="true"></span>
+<div class="platform-management platform-tenant-create" data-platform-management>
+    <header class="platform-management__header"><a class="text-sm font-semibold text-emerald-700" href="{{ route('platform.tenants.index') }}">{{ __('platform-tenant.back') }}</a><h1 class="mt-3 font-bold">{{ __('platform-tenant.create') }}</h1><p class="mt-3 text-zinc-500">{{ __('platform-tenant.create_help') }}</p></header>
+    <ol class="platform-create-steps" aria-label="{{ __('platform-tenant.steps') }}" data-create-steps>
+        @foreach(['organisation','administrator','review'] as $step)<li><span>{{ $loop->iteration }}</span>{{ __('platform-tenant.'.$step) }}</li>@endforeach
+    </ol>
+    <form method="POST" action="{{ route('platform.tenants.store') }}" data-tenant-provisioning-form class="space-y-6">
+        @csrf
+        <section class="rounded-3xl border bg-white p-6" data-create-step="0"><h2 class="text-xl font-bold" tabindex="-1">{{ __('platform-tenant.organisation') }}</h2><p class="mt-2 text-sm text-zinc-500">{{ __('platform-tenant.permanent_help') }}</p>
+            <div class="mt-6 grid gap-5 md:grid-cols-2">
+                <label class="grid gap-2 text-sm font-semibold">{{ __('platform.ui.organisation.name') }}<input name="name" required maxlength="255" value="{{ old('name') }}" class="rounded-xl border p-3">@error('name')<small class="text-red-700">{{ $message }}</small>@enderror</label>
+                <label class="grid gap-2 text-sm font-semibold">{{ __('platform-tenant.subdomain') }}<input name="slug" required maxlength="80" pattern="[a-zA-Z0-9_\-]+" value="{{ old('slug') }}" class="rounded-xl border p-3" dir="ltr" data-tenant-slug><small class="text-zinc-500" data-tenant-url dir="ltr"></small>@error('slug')<small class="text-red-700">{{ $message }}</small>@enderror</label>
+                <label class="grid gap-2 text-sm font-semibold">{{ __('platform.ui.organisation.timezone') }}<select name="timezone" class="rounded-xl border p-3"><option value="">{{ __('platform.ui.common.platform_default') }}</option>@foreach(['Asia/Damascus','UTC'] as $zone)<option @selected(old('timezone') === $zone)>{{ $zone }}</option>@endforeach</select></label>
+                <label class="grid gap-2 text-sm font-semibold">{{ __('platform.ui.organisation.language') }}<select name="locale" class="rounded-xl border p-3"><option value="">{{ __('platform.ui.common.platform_default') }}</option><option value="ar" @selected(old('locale') === 'ar')>{{ __('platform.ui.common.arabic') }}</option><option value="en" @selected(old('locale') === 'en')>{{ __('platform.ui.common.english') }}</option></select></label>
+                <label class="grid gap-2 text-sm font-semibold">{{ __('platform.ui.storage.limit_gb') }}<input type="number" name="storage_limit_gb" min="0.1" max="100000" step="0.1" required value="{{ old('storage_limit_gb', 10) }}" class="rounded-xl border p-3">@error('storage_limit_gb')<small class="text-red-700">{{ $message }}</small>@enderror</label>
+                <fieldset class="md:col-span-2"><legend class="text-sm font-semibold">{{ __('platform-tenant.learning_path') }}</legend><p class="mt-2 text-sm text-zinc-500">{{ __('platform-tenant.learning_help') }}</p><div class="mt-4 grid gap-3 sm:grid-cols-2">@foreach(\App\Models\Landlord\Tenant::learningPathTypes() as $path)<label class="platform-module-option flex gap-3 rounded-2xl border p-4"><input type="radio" name="learning_path_type" value="{{ $path }}" required @checked(old('learning_path_type') === $path)><span><strong>{{ __('platform-tenant.path_'.$path) }}</strong><small class="mt-2 block text-zinc-500">{{ __('platform-tenant.path_'.$path.'_help') }}</small></span></label>@endforeach</div>@error('learning_path_type')<small class="text-red-700">{{ $message }}</small>@enderror</fieldset>
             </div>
-            <h2 class="mt-5 text-xl font-bold text-zinc-950">Creating the tenant workspace</h2>
-            <p class="mt-2 text-sm leading-6 text-zinc-600">We are preparing the isolated database, storage, settings, and first administrator. This can take up to a minute.</p>
-            <div class="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">Please keep this page open. You will be redirected automatically when setup finishes.</div>
-            <div class="mt-5 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-500"></span>Provisioning securely</div>
+        </section>
+        <section class="rounded-3xl border bg-white p-6" data-create-step="1"><h2 class="text-xl font-bold" tabindex="-1">{{ __('platform-tenant.administrator') }}</h2><p class="mt-2 text-sm text-zinc-500">{{ __('platform-tenant.administrator_help') }}</p><div class="mt-6 grid gap-5 md:grid-cols-2">
+            <label class="grid gap-2 text-sm font-semibold">{{ __('platform-tenant.owner_name') }}<input name="owner_name" required maxlength="255" value="{{ old('owner_name') }}" class="rounded-xl border p-3">@error('owner_name')<small class="text-red-700">{{ $message }}</small>@enderror</label>
+            <label class="grid gap-2 text-sm font-semibold">{{ __('platform-tenant.owner_email') }}<input type="email" name="owner_email" required value="{{ old('owner_email') }}" autocomplete="off" dir="ltr" class="rounded-xl border p-3">@error('owner_email')<small class="text-red-700">{{ $message }}</small>@enderror</label>
+            <label class="grid gap-2 text-sm font-semibold md:col-span-2">{{ __('platform-tenant.password') }}<input type="password" name="owner_password" required minlength="8" autocomplete="new-password" class="rounded-xl border p-3">@error('owner_password')<small class="text-red-700">{{ $message }}</small>@enderror</label>
+        </div></section>
+        <section class="rounded-3xl border bg-white p-6" data-create-step="2"><h2 class="text-xl font-bold" tabindex="-1">{{ __('platform-tenant.review') }}</h2><p class="mt-2 text-sm text-zinc-500">{{ __('platform-tenant.review_help') }}</p><dl class="platform-create-review mt-6">@foreach(['name','slug','learning_path_type','storage_limit_gb','owner_name','owner_email'] as $field)<div><dt>{{ __('platform-tenant.review_'.$field) }}</dt><dd data-review-field="{{ $field }}">—</dd></div>@endforeach</dl><p class="mt-6 text-sm text-zinc-500">{{ __('platform-tenant.setup_help') }}</p></section>
+        <div class="platform-management__actions flex flex-wrap items-center justify-between gap-3">
+            <a href="{{ route('platform.tenants.index') }}" class="rounded-xl border px-4 py-3">{{ __('platform-tenant.cancel') }}</a>
+            <div class="flex gap-3"><button type="button" class="rounded-xl border px-4 py-3" data-create-back hidden>{{ __('platform-tenant.previous') }}</button><button type="button" class="rounded-xl border px-4 py-3" data-create-next hidden>{{ __('platform-tenant.next') }}</button><button type="submit" class="rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white" data-tenant-provisioning-submit>{{ __('platform-tenant.create') }}</button></div>
         </div>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const slugInput = document.querySelector('[data-tenant-slug]');
-            const urlOutput = document.querySelector('[data-tenant-url]');
-            const form = document.querySelector('[data-tenant-provisioning-form]');
-            const submit = document.querySelector('[data-tenant-provisioning-submit]');
-            const overlay = document.querySelector('[data-tenant-provisioning-overlay]');
-            const submitLabel = document.querySelector('[data-submit-label]');
-            const submitBusy = document.querySelector('[data-submit-busy]');
-            let submitting = false;
-
-            const updateUrl = () => {
-                if (! slugInput || ! urlOutput) return;
-                const slug = slugInput.value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'your-name';
-                urlOutput.textContent = `https://${slug}.{{ config('tenancy.base_domain') }}`;
-            };
-
-            const resetSubmitting = () => {
-                submitting = false;
-                form?.removeAttribute('aria-busy');
-                if (submit) submit.disabled = false;
-                submitLabel?.classList.remove('hidden');
-                submitBusy?.classList.add('hidden');
-                submitBusy?.classList.remove('inline-flex');
-                overlay?.classList.add('hidden');
-                overlay?.classList.remove('grid');
-                document.body.classList.remove('overflow-hidden');
-            };
-
-            slugInput?.addEventListener('input', updateUrl);
-            updateUrl();
-
-            form?.addEventListener('submit', (event) => {
-                if (submitting) {
-                    event.preventDefault();
-                    return;
-                }
-
-                submitting = true;
-                form.setAttribute('aria-busy', 'true');
-                if (submit) submit.disabled = true;
-                submitLabel?.classList.add('hidden');
-                submitBusy?.classList.remove('hidden');
-                submitBusy?.classList.add('inline-flex');
-                overlay?.classList.remove('hidden');
-                overlay?.classList.add('grid');
-                document.body.classList.add('overflow-hidden');
-            });
-
-            window.addEventListener('pageshow', resetSubmitting);
+    </form>
+    <div class="platform-create-busy" data-tenant-provisioning-overlay hidden role="status" aria-live="polite"><div><span class="platform-create-spinner" aria-hidden="true"></span><h2>{{ __('platform-tenant.creating') }}</h2><p>{{ __('platform-tenant.wait_help') }}</p></div></div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('[data-tenant-provisioning-form]');
+    if (!form) return;
+    const sections = [...form.querySelectorAll('[data-create-step]')], steps = [...document.querySelectorAll('[data-create-steps] li')];
+    const next = form.querySelector('[data-create-next]'), back = form.querySelector('[data-create-back]'), submit = form.querySelector('[data-tenant-provisioning-submit]'), overlay = document.querySelector('[data-tenant-provisioning-overlay]');
+    const slug = form.elements.slug, url = document.querySelector('[data-tenant-url]');
+    let current = 0, submitting = false;
+    const values = () => {
+        url.textContent = @js(request()->getScheme().'://') + (slug.value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'your-name') + '.' + @js(config('tenancy.base_domain')) + @js(in_array(request()->getPort(), [80,443], true) ? '' : ':'.request()->getPort());
+        form.querySelectorAll('[data-review-field]').forEach(output => {
+            const field = output.dataset.reviewField, control = form.elements[field];
+            const selected = field === 'learning_path_type' ? form.querySelector('[name=learning_path_type]:checked') : null;
+            output.textContent = selected ? selected.closest('label').querySelector('strong').textContent : (control?.value || '—');
         });
-    </script>
-</x-platform-layout>
+    };
+    const show = (index, focus = true) => {
+        current = index; sections.forEach((section,i) => section.hidden = i !== current);
+        steps.forEach((step,i) => i === current ? step.setAttribute('aria-current','step') : step.removeAttribute('aria-current'));
+        back.hidden = current === 0; next.hidden = current === 2; submit.hidden = current !== 2; values();
+        if (focus) sections[current].querySelector('h2').focus();
+    };
+    const validate = index => {
+        const invalid = [...sections[index].querySelectorAll('input,select,textarea')].find(control => !control.checkValidity());
+        if (invalid) { show(index, false); invalid.reportValidity(); return false; } return true;
+    };
+    form.noValidate = true;
+    next.addEventListener('click', () => { if (validate(current)) show(current + 1); });
+    back.addEventListener('click', () => show(current - 1));
+    form.addEventListener('input', values); form.addEventListener('change', values);
+    const ownerErrors = @js($errors->hasAny(['owner_name','owner_email','owner_password']));
+    show(ownerErrors ? 1 : 0, false);
+    form.addEventListener('submit', event => {
+        if (submitting) { event.preventDefault(); return; }
+        if (current !== 2) { event.preventDefault(); if(validate(current)) show(current + 1); return; }
+        if(!validate(0) || !validate(1)) { event.preventDefault(); return; }
+        submitting = true; form.setAttribute('aria-busy','true'); submit.disabled = true; overlay.hidden = false;
+    });
+    window.addEventListener('pageshow', () => { submitting = false; form.removeAttribute('aria-busy'); submit.disabled = false; overlay.hidden = true; });
+});
+</script>

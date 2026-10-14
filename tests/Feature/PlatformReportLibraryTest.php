@@ -85,9 +85,9 @@ class PlatformReportLibraryTest extends TestCase
         $item = PlatformReportLibraryItem::query()->where('is_system', false)->latest('id')->firstOrFail();
 
         $this->actingAs($manager, 'platform')->post(route('platform.report-library.publish', $item))->assertForbidden();
-        $this->actingAs($publisher, 'platform')->get(route('platform.report-library.edit', $item))
+        $this->actingAs($publisher, 'platform')->get(route('platform.report-library.edit', ['libraryItem' => $item, 'view' => 'publishing']))
             ->assertOk()
-            ->assertSee('Publish new revision');
+            ->assertSee(__('platform-content.publish_version'));
         $this->actingAs($publisher, 'platform')->put(route('platform.report-library.update', $item), $this->payload())
             ->assertForbidden();
         $this->actingAs($publisher, 'platform')->post(route('platform.report-library.publish', $item))
@@ -146,7 +146,7 @@ class PlatformReportLibraryTest extends TestCase
         $systemItem = $items->first();
         $this->actingAs($owner, 'platform')->get(route('platform.report-library.edit', $systemItem))
             ->assertOk()
-            ->assertSee('built-in template is maintained by the application');
+            ->assertSee(__('platform-content.system_help'));
         $this->actingAs($owner, 'platform')->put(route('platform.report-library.update', $systemItem), $this->payload())->assertForbidden();
         $this->actingAs($owner, 'platform')->post(route('platform.report-library.publish', $systemItem))->assertForbidden();
     }

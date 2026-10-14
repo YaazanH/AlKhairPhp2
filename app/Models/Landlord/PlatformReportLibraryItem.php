@@ -42,4 +42,13 @@ class PlatformReportLibraryItem extends LandlordModel
     {
         return $this->hasMany(PlatformReportLibraryRevision::class, 'library_item_id');
     }
+
+    public function hasUnpublishedChanges(): bool
+    {
+        $revision = $this->publishedRevision;
+
+        return ! $revision || $this->draft_definition != $revision->definition
+            || $this->name != $revision->name || $this->description != $revision->description
+            || $this->kind !== $revision->kind || $this->required_modules != $revision->required_modules;
+    }
 }

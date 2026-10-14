@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Support\PlatformWorkspaceNavigation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -14,7 +15,7 @@ class PlatformRequiredPasswordChangeController extends Controller
     public function show(Request $request): View|RedirectResponse
     {
         if (! $request->user('platform')->must_change_password) {
-            return redirect()->route('platform.dashboard');
+            return redirect()->route(app(PlatformWorkspaceNavigation::class)->homeRoute($request->user('platform')));
         }
 
         return view('platform.auth.required-password-change');
@@ -35,6 +36,6 @@ class PlatformRequiredPasswordChangeController extends Controller
         $administrator->update(['password' => $data['password'], 'must_change_password' => false, 'password_changed_at' => now()]);
         $request->session()->regenerate();
 
-        return redirect()->route('platform.dashboard')->with('status', 'Your password has been changed.');
+        return redirect()->route(app(PlatformWorkspaceNavigation::class)->homeRoute($administrator))->with('status', 'Your password has been changed.');
     }
 }

@@ -18,12 +18,29 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TenantBackupController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $search = trim((string) $request->query('search'));
+        $state = (string) $request->query('state', 'all');
+        $trigger = (string) $request->query('trigger', 'all');
+        $query = TenantBackup::query()->with('tenant')
+            ->when($search !== '', fn ($query) => $query->whereHas('tenant', fn ($tenant) => $tenant
+                ->where('name', 'like', '%'.$search.'%')->orWhere('slug', 'like', '%'.$search.'%')))
+            ->when($request->filled('tenant'), fn ($query) => $query->where('tenant_id', $request->query('tenant')));
+        $summaryQuery = clone $query;
+        $query->when($state === 'verified', fn ($query) => $query->where('status', TenantBackup::STATUS_COMPLETED)->whereNotNull('verified_at')->whereNotNull('file_path')->where('file_path', '!=', ''))
+            ->when(in_array($state, ['creating', 'completed', 'failed'], true), fn ($query) => $query->where('status', $state))
+            ->when(in_array($trigger, ['manual', 'scheduled', 'pre_restore'], true), fn ($query) => $query->where('trigger', $trigger));
+
         return view('platform.backups.index', [
             'settings' => SaasBackupSetting::current(),
-            'backups' => TenantBackup::query()->with('tenant')->latest()->paginate(25),
-            'tenants' => Tenant::query()->orderBy('name')->get(['id', 'name', 'slug']),
+            'backups' => $query->latest()->orderByDesc('id')->paginate(20)->withQueryString(),
+            'tenants' => Tenant::query()->orderBy('name')->get(['id', 'name', 'slug', 'status', 'database_name']),
+            'backupStats' => [
+                'verified' => (clone $summaryQuery)->where('status', TenantBackup::STATUS_COMPLETED)->whereNotNull('verified_at')->whereNotNull('file_path')->where('file_path', '!=', '')->count(),
+                'failed' => (clone $summaryQuery)->where('status', TenantBackup::STATUS_FAILED)->count(),
+                'creating' => (clone $summaryQuery)->where('status', TenantBackup::STATUS_CREATING)->count(),
+            ],
         ]);
     }
 
@@ -48,6 +65,9 @@ class TenantBackupController extends Controller
     {
         $data = $request->validate(['tenant_id' => ['required', 'integer']]);
         $tenant = Tenant::query()->findOrFail($data['tenant_id']);
+        if (! $tenant->isOperational() || blank($tenant->database_name)) {
+            return back()->withErrors(['tenant_id' => __('platform-operations.operational_required')])->withInput();
+        }
         $backup = $backups->create($tenant, TenantBackup::TRIGGER_MANUAL);
         $this->audit($request, $tenant, 'tenant_backup_created', ['backup_uuid' => $backup->uuid]);
 
@@ -70,7 +90,11 @@ class TenantBackupController extends Controller
     public function restore(Request $request, TenantBackup $tenantBackup, TenantBackupCoordinator $backups): RedirectResponse
     {
         $tenantBackup->load('tenant');
+        abort_unless($tenantBackup->tenant && $tenantBackup->isUsable(), 422);
         $request->validate(['confirmation' => ['required', Rule::in([$tenantBackup->tenant->slug])]]);
+        if (! $tenantBackup->tenant->isOperational() || blank($tenantBackup->tenant->database_name)) {
+            return back()->withErrors(['confirmation' => __('platform-operations.operational_required')])->withInput();
+        }
         $backups->restore($tenantBackup->tenant, $tenantBackup);
         $this->audit($request, $tenantBackup->tenant, 'tenant_backup_restored', ['backup_uuid' => $tenantBackup->uuid]);
 

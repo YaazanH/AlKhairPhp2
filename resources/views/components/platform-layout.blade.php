@@ -12,10 +12,11 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{{ $pageTitle }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @if(request()->routeIs('platform.dashboard'))
+    @vite('resources/css/platform-workspace.css')
+    @if(request()->routeIs('platform.dashboard', 'platform.tenants.index'))
         @vite('resources/css/platform-dashboard.css')
     @endif
-    @if(request()->routeIs('platform.plans.*', 'platform.tenants.*'))
+    @if(request()->routeIs('platform.plans.*', 'platform.tenants.*', 'platform.settings.*', 'platform.subscription-settings.*', 'platform.support.*', 'platform.enquiries.*', 'platform.billing.*', 'platform.vouchers.*', 'platform.backups.*', 'platform.storage.*', 'platform.metrics', 'platform.access.*', 'platform.landing.*', 'platform.report-library.*'))
         @vite('resources/css/platform-management.css')
     @endif
     @fluxAppearance
@@ -30,6 +31,20 @@
     <main class="app-main flex-1">
         <div class="px-4 pt-4 lg:hidden"><flux:sidebar.toggle icon="bars-2" class="rounded-xl border bg-white shadow-sm"/></div>
         <div class="app-main-inner space-y-6">
+        @if($title && ! request()->routeIs('platform.dashboard'))
+            <nav class="platform-workspace-breadcrumbs" aria-label="{{ __('platform-workspace.breadcrumbs') }}">
+                @if(auth('platform')->user()->hasPlatformPermission('view.dashboard'))
+                    <a href="{{ route('platform.dashboard') }}">{{ __('platform-workspace.destinations.overview') }}</a>
+                @else
+                    <span>{{ $brandName }}</span>
+                @endif
+                <span aria-hidden="true">/</span>
+                @if(request()->routeIs('platform.support.settings.*', 'platform.subscription-settings.*'))
+                    <a href="{{ route('platform.settings.index') }}">{{ __('platform-workspace.destinations.settings') }}</a><span aria-hidden="true">/</span>
+                @endif
+                <span aria-current="page">{{ $title }}</span>
+            </nav>
+        @endif
         @if ($errors->any())<div class="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900" role="alert"><p class="font-semibold">{{ __('platform.ui.validation_heading') }}</p><ul class="mt-2 list-disc space-y-1 ps-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
         @if (session('status'))<div class="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900" role="status">{{ session('status') }}</div>@endif
         {{ $slot }}

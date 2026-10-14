@@ -91,8 +91,12 @@ class PlatformAdministrationTest extends TestCase
         $this->assertAuthenticatedAs($administrator, 'platform');
 
         $this->get(route('platform.dashboard'))
+            ->assertOk()->assertSee('Overview')->assertSee('data-overview-finance', false)
+            ->assertDontSee('Al Noor Centre')->assertDontSee('name="search"', false);
+
+        $this->get(route('platform.tenants.index'))
             ->assertOk()
-            ->assertSee('Tenant overview')
+            ->assertSee('Tenants')
             ->assertSee('Platform metrics')
             ->assertDontSee('data-platform-management-metrics', false)
             ->assertSee('Al Noor Centre')
@@ -261,7 +265,7 @@ class PlatformAdministrationTest extends TestCase
                 'locale' => 'ar',
                 'learning_path_type' => Tenant::LEARNING_PATH_LESSON_LEVEL,
             ])
-            ->assertRedirect(route('platform.dashboard'))
+            ->assertRedirect(route('platform.tenants.index'))
             ->assertSessionHas('status');
     }
 
@@ -732,13 +736,13 @@ class PlatformAdministrationTest extends TestCase
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'name' => 'New Name', 'slug' => 'old-name'], 'landlord');
 
         $this->actingAs($administrator, 'platform')
-            ->patch(route('platform.tenants.status', 'old-name'), ['status' => Tenant::STATUS_SUSPENDED])
+            ->patch(route('platform.tenants.status', 'old-name'), ['status' => Tenant::STATUS_SUSPENDED, 'confirm_slug' => 'old-name'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
 
         $this->actingAs($administrator, 'platform')
-            ->patch(route('platform.tenants.status', 'old-name'), ['status' => Tenant::STATUS_ACTIVE])
+            ->patch(route('platform.tenants.status', 'old-name'), ['status' => Tenant::STATUS_ACTIVE, 'confirm_slug' => 'old-name'])
             ->assertUnprocessable();
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_SUSPENDED], 'landlord');
@@ -778,6 +782,7 @@ class PlatformAdministrationTest extends TestCase
 
     public function test_platform_administrator_can_create_duplicate_deactivate_and_delete_modular_packages(): void
     {
+        $this->withSession(['locale' => 'en', 'locale_user_selected' => true]);
         $this->seed(LandlordCatalogSeeder::class);
         $administrator = PlatformAdministrator::query()->create([
             'uuid' => (string) Str::uuid(), 'name' => 'Platform Administrator',

@@ -16,12 +16,15 @@ class SubscriptionVoucherController extends Controller
 {
     public function index(): View
     {
+        $query = SubscriptionVoucher::query()->with('tenant')->withCount('redemptionRecords');
+        $search = trim((string) request('search', ''));
+        $query->when($search !== '', fn ($q) => $q->where(fn ($nested) => $nested->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")));
+        if (in_array(request('status'), ['active', 'inactive'], true)) {
+            $query->where('is_active', request('status') === 'active');
+        }
+
         return view('platform.vouchers.index', [
-            'vouchers' => SubscriptionVoucher::query()
-                ->with('tenant')
-                ->withCount('redemptionRecords')
-                ->latest()
-                ->get(),
+            'vouchers' => $query->latest()->orderByDesc('id')->paginate(12)->withQueryString(),
             'tenants' => Tenant::query()->orderBy('name')->get(['id', 'name', 'slug']),
         ]);
     }

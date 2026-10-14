@@ -18,6 +18,7 @@ use App\Http\Middleware\RequirePlatformPermission;
 use App\Http\Middleware\RequireTenantPasswordChange;
 use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\SetLocale;
+use App\Support\PlatformWorkspaceNavigation;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -42,10 +43,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // The application has separate tenant and Platform guards. An already
         // authenticated Platform administrator who follows the landing-page
-        // sign-in link must return to the landlord dashboard, never the tenant
-        // dashboard (which would then redirect them to the tenant login).
+        // sign-in link must return to an authorized Platform destination,
+        // never the tenant dashboard or a forbidden Overview page.
         $middleware->redirectUsersTo(fn (Request $request): string => $request->is('platform') || $request->is('platform/*')
-            ? route('platform.dashboard')
+            ? route(app(PlatformWorkspaceNavigation::class)->homeRoute($request->user('platform')))
             : route('dashboard'));
 
         // Keep one browser-session origin in production. Serving both the www
@@ -88,6 +89,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->dontFlash(['owner_password']);
         $exceptions->render(function (HttpException $exception, Request $request) {
             if ($exception->getStatusCode() === 419
                 && $exception->getPrevious() instanceof TokenMismatchException

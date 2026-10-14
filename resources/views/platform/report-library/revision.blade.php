@@ -1,0 +1,6 @@
+<x-platform-layout :title="__('platform-content.revision_title', ['version' => $revision->version])">
+    <div class="platform-management platform-content">
+        <header class="platform-management__header"><a href="{{ route('platform.report-library.edit', ['libraryItem' => $item, 'view' => 'history']) }}" class="text-sm text-emerald-700">{{ __('platform-content.back_item') }}</a><h1 class="mt-3 font-bold">{{ __('platform-content.revision_title', ['version' => $revision->version]) }}</h1><p class="mt-3 text-zinc-500">{{ __('platform-content.revision_help') }}</p></header>
+        <section class="rounded-3xl border bg-white p-6"><span class="platform-request-status">{{ __('platform-content.immutable') }}</span><h2 class="mt-4 text-xl font-bold">{{ $revision->name[app()->getLocale()] ?? $revision->name['en'] }}</h2><p class="mt-3 text-sm text-zinc-500">{{ $revision->description[app()->getLocale()] ?? '' }}</p><p class="mt-2 text-sm text-zinc-500">{{ __('platform-content.published_at', ['date' => $revision->published_at->format('Y-m-d H:i')]) }}</p><p class="mt-2 text-sm">{{ __('platform-content.kinds.'.$revision->kind) }}</p><div class="mt-6"><x-platform.report-definition :definition="$revision->definition" :modules="$revision->required_modules ?? []" /></div></section>
+    </div>
+</x-platform-layout>

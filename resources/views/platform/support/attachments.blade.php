@@ -1,6 +1,7 @@
 <x-platform-layout :title="__('support.platform.attachments_title')">
-    <header>
-        <a href="{{ route('platform.support.index') }}" class="text-sm text-emerald-700 underline">{{ __('support.platform.back') }}</a>
+    <div class="platform-management platform-requests">
+    <header class="platform-management__header">
+        <a href="{{ route('platform.support.show', $case) }}" class="text-sm text-emerald-700 underline">{{ __('platform-requests.back') }}</a>
         <h1 class="mt-3 text-3xl font-bold">{{ $case->subject }}</h1>
         <p class="mt-2 text-zinc-600">{{ __('support.platform.attachments_description') }}</p>
     </header>
@@ -17,4 +18,5 @@
             @endforelse
         </div>
     </section>
+    </div>
 </x-platform-layout>

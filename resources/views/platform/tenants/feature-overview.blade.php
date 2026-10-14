@@ -1,0 +1,5 @@
+<section class="platform-feature-access rounded-3xl border bg-white p-6">
+    <h2 class="text-xl font-bold">{{ __('platform-features.included') }}</h2><p class="mt-2 text-sm text-zinc-500">{{ __('platform-features.configured_help') }}</p>
+    <div class="platform-feature-access__stats"><div><span>{{ __('platform.ui.modules.included') }}</span><strong>{{ count(array_diff($packageModules, ['foundation'])) }}</strong></div><div><span>{{ __('platform-features.selected') }}</span><strong>{{ count($moduleSnapshot['extras']) }}</strong></div><div><span>{{ __('platform-features.enabled_now') }}</span><strong>{{ count(array_diff($moduleSnapshot['enabled'], ['foundation'])) }}</strong></div></div>
+    @if($moduleSnapshot['errors'])<div class="mt-4 rounded-xl border p-4" role="alert"><h3 class="font-semibold">{{ __('platform-features.access_errors') }}</h3><ul class="mt-2 list-disc ps-5 text-sm">@foreach($moduleSnapshot['errors'] as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+</section>

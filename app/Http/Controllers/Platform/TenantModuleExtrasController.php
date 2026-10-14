@@ -26,6 +26,8 @@ class TenantModuleExtrasController extends Controller
         $request->session()->put('platform.tenant_extra_preview.'.$tenant->id, $this->signature($data));
 
         return back()->withInput()->with('module_preview', [
+            'tenant_id' => $tenant->id,
+            'expected_version' => $data['expected_version'],
             'added' => array_values(array_diff($after['enabled'], $before['enabled'])),
             'removed' => array_values(array_diff($before['enabled'], $after['enabled'])),
             'effective' => $after['enabled'],

@@ -33,7 +33,7 @@ class PlatformAccessTest extends TestCase
     {
         $owner = $this->administrator('owner@example.test');
         $this->assertTrue($owner->isPlatformOwner());
-        $this->actingAs($owner, 'platform')->get(route('platform.access.index'))->assertOk()->assertSee('Roles and users');
+        $this->actingAs($owner, 'platform')->get(route('platform.access.index'))->assertOk()->assertSee(__('platform-access.title'));
 
         $this->actingAs($owner, 'platform')->post(route('platform.access.roles.store'), ['name' => 'Backup manager', 'permissions' => [PlatformPermission::query()->where('code', 'view.backups')->sole()->id]])->assertRedirect();
         $this->assertDatabaseHas('platform_roles', ['name' => 'Backup manager'], 'landlord');
@@ -56,7 +56,7 @@ class PlatformAccessTest extends TestCase
         $staff = PlatformAdministrator::query()->where('email', 'staff@example.test')->sole();
         $this->assertTrue($staff->must_change_password);
         $this->actingAs($staff, 'platform')->get(route('platform.dashboard'))->assertRedirect(route('platform.password-change.show'));
-        $this->actingAs($staff, 'platform')->put(route('platform.password-change.update'), ['current_password' => 'temporary-password', 'password' => 'changed-password-123', 'password_confirmation' => 'changed-password-123'])->assertRedirect(route('platform.dashboard'));
+        $this->actingAs($staff, 'platform')->put(route('platform.password-change.update'), ['current_password' => 'temporary-password', 'password' => 'changed-password-123', 'password_confirmation' => 'changed-password-123'])->assertRedirect(route('platform.settings.index'));
         $this->assertFalse($staff->fresh()->must_change_password);
     }
 

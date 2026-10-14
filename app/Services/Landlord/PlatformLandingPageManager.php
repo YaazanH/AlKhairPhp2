@@ -7,6 +7,7 @@ use App\Models\Landlord\PlatformAuditEvent;
 use App\Models\Landlord\PlatformLandingPage;
 use App\Models\Landlord\PlatformLandingPageRevision;
 use App\Support\PlatformLandingContent;
+use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -114,6 +115,19 @@ class PlatformLandingPageManager
 
     private function validatePublishable(array $content): void
     {
+        $validator = $this->publishValidator($content);
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+    }
+
+    public function publicationErrors(array $content): array
+    {
+        return $this->publishValidator($content)->errors()->messages();
+    }
+
+    private function publishValidator(array $content): ValidatorContract
+    {
         $rules = [];
         $attributes = [];
         foreach ($this->localizedFields() as $field) {
@@ -134,10 +148,7 @@ class PlatformLandingPageManager
             }
         }
 
-        $validator = Validator::make($content, $rules, [], $attributes);
-        if ($validator->fails()) {
-            throw new ValidationException($validator);
-        }
+        return Validator::make($content, $rules, [], $attributes);
     }
 
     private function localizedFields(): array
@@ -157,7 +168,8 @@ class PlatformLandingPageManager
 
     private function pathUsedByPublishedRevision(string $path, PlatformLandingPage $page): bool
     {
-        return str_contains(json_encode($page->publishedRevision?->content ?? [], JSON_THROW_ON_ERROR), $path);
+        return $page->revisions()->lazy()->contains(fn ($revision) => collect(data_get($revision->content, 'showcase_items', []))
+            ->contains(fn ($item) => data_get($item, 'image_path') === $path));
     }
 
     private function audit(PlatformAdministrator $actor, string $event, array $properties, ?string $ipAddress): void

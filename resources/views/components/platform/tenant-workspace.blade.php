@@ -1,14 +1,15 @@
 @props(['tenant', 'current'])
 @php
     $user = auth('platform')->user();
+    $canViewTenant = $user->hasPlatformPermission('view.tenants');
     $items = [
-        ['overview', __('platform.ui.tenant_workspace.overview'), 'platform.tenants.edit', true],
-        ['organisation', __('platform.ui.tenant_workspace.organisation'), 'platform.tenants.organisation', true],
+        ['overview', __('platform.ui.tenant_workspace.overview'), 'platform.tenants.edit', $canViewTenant],
+        ['organisation', __('platform.ui.tenant_workspace.organisation'), 'platform.tenants.organisation', $canViewTenant],
         ['subscription', __('platform.ui.tenant_workspace.package'), 'platform.tenants.subscription', $user->hasPlatformPermission('view.subscriptions') || $user->hasPlatformPermission('manage.subscriptions')],
         ['billing', __('platform.ui.tenant_workspace.payments'), 'platform.tenants.billing', $user->hasPlatformPermission('view.subscriptions') || $user->hasPlatformPermission('manage.subscriptions')],
         ['storage', __('platform.ui.tenant_workspace.storage'), 'platform.tenants.storage', $user->hasPlatformPermission('view.storage') || $user->hasPlatformPermission('manage.tenants')],
-        ['modules', __('platform.ui.tenant_workspace.modules'), 'platform.tenants.modules', true],
-        ['activity', __('platform.ui.tenant_workspace.activity'), 'platform.tenants.activity', true],
+        ['modules', __('platform-features.included'), 'platform.tenants.modules', $canViewTenant],
+        ['activity', __('platform.ui.tenant_workspace.activity'), 'platform.tenants.activity', $canViewTenant],
     ];
     $primaryHost = $tenant->domains->firstWhere('is_primary', true)?->host;
     $tenantPort = request()->getPort();
@@ -28,7 +29,7 @@
         <header class="platform-tenant-header rounded-3xl bg-zinc-950 p-6 text-white shadow-sm">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <a href="{{ route('platform.dashboard') }}" class="text-sm font-semibold text-emerald-300">{{ __('platform.ui.tenant_workspace.all_tenants') }}</a>
+                    @if($canViewTenant || $user->hasPlatformPermission('manage.tenants'))<a href="{{ route('platform.tenants.index') }}" class="text-sm font-semibold text-emerald-300">{{ __('platform.ui.tenant_workspace.all_tenants') }}</a>@elseif($user->hasPlatformPermission('view.subscriptions') || $user->hasPlatformPermission('manage.subscriptions'))<a href="{{ route('platform.billing.index') }}" class="text-sm font-semibold text-emerald-300">{{ __('platform-billing.back') }}</a>@else<a href="{{ route('platform.storage.index') }}" class="text-sm font-semibold text-emerald-300">{{ __('platform-operations.back_storage') }}</a>@endif
                     <div class="mt-3 flex items-center gap-3">
                         <div class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-lg font-bold" data-tenant-logo>
                             @if($logoUrl)
