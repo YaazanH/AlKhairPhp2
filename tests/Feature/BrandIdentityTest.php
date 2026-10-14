@@ -32,6 +32,7 @@ class BrandIdentityTest extends TestCase
         $this->assertSame('AlKhair Platform', $branding->currentName());
         $this->assertSame(asset('images/platform-brand/alkhair-platform-logo.png'), $branding->platformLogoUrl());
         $this->assertSame(asset('images/platform-brand/alkhair-platform-icon-v2.png'), $branding->platformIconUrl());
+        $this->assertSame(asset('images/platform-brand/alkhair-platform-social-card.png'), $branding->platformSocialImageUrl());
 
         app(TenantContext::class)->set(new Tenant(['name' => 'Al Noor Learning Centre']));
 

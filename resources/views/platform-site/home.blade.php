@@ -46,15 +46,16 @@
     <meta property="og:title" content="{{ $content['meta_title'] }}">
     <meta property="og:description" content="{{ $content['meta_description'] }}">
     <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:image" content="{{ $branding->platformLogoUrl() }}">
-    <meta property="og:image:secure_url" content="{{ $branding->platformLogoUrl() }}">
-    <meta property="og:image:width" content="1672">
-    <meta property="og:image:height" content="941">
+    <meta property="og:image" content="{{ $branding->platformSocialImageUrl() }}">
+    <meta property="og:image:secure_url" content="{{ $branding->platformSocialImageUrl() }}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="{{ $branding->platformName() }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $content['meta_title'] }}">
     <meta name="twitter:description" content="{{ $content['meta_description'] }}">
-    <meta name="twitter:image" content="{{ $branding->platformLogoUrl() }}">
+    <meta name="twitter:image" content="{{ $branding->platformSocialImageUrl() }}">
     <meta name="twitter:image:alt" content="{{ $branding->platformName() }}">
     <title>{{ $content['meta_title'] }}</title>
     <link rel="icon" href="{{ $branding->platformIconUrl() }}">

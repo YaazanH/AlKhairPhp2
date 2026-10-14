@@ -11,6 +11,8 @@ class BrandIdentity
 
     private const PLATFORM_ICON_PATH = 'images/platform-brand/alkhair-platform-icon-v2.png';
 
+    private const PLATFORM_SOCIAL_IMAGE_PATH = 'images/platform-brand/alkhair-platform-social-card.png';
+
     public function __construct(
         private TenantContext $tenantContext,
     ) {}
@@ -37,6 +39,11 @@ class BrandIdentity
     public function platformIconUrl(): string
     {
         return asset(self::PLATFORM_ICON_PATH);
+    }
+
+    public function platformSocialImageUrl(): string
+    {
+        return asset(self::PLATFORM_SOCIAL_IMAGE_PATH);
     }
 
     public function mobileLogoUrl(): ?string

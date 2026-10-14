@@ -43,8 +43,11 @@ class PlatformLandingPageTest extends TestCase
             ->assertOk()
             ->assertSee('Give your team clarity')
             ->assertSee('Request a guided demo')
-            ->assertSee('property="og:image" content="'.asset('images/platform-brand/alkhair-platform-logo.png').'"', false)
-            ->assertSee('name="twitter:image" content="'.asset('images/platform-brand/alkhair-platform-logo.png').'"', false)
+            ->assertSee('property="og:image" content="'.asset('images/platform-brand/alkhair-platform-social-card.png').'"', false)
+            ->assertSee('property="og:image:type" content="image/png"', false)
+            ->assertSee('property="og:image:width" content="1200"', false)
+            ->assertSee('property="og:image:height" content="630"', false)
+            ->assertSee('name="twitter:image" content="'.asset('images/platform-brand/alkhair-platform-social-card.png').'"', false)
             ->assertSee('rel="icon" href="'.asset('images/platform-brand/alkhair-platform-icon-v2.png').'"', false)
             ->assertSee('class="landing-brand__mark"', false)
             ->assertSee(route('platform.login'), false);
