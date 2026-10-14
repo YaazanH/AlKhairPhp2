@@ -67,12 +67,16 @@ new class extends Component
                 'course',
                 'groupAttendanceDays' => fn ($query) => $this->scopeGroupAttendanceDaysQuery(
                     $query->withCount([
-                        'records',
+                        'records' => fn ($recordQuery) => $recordQuery
+                            ->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery
+                                ->whereDate('enrollments.enrolled_at', '<=', DB::raw('group_attendance_days.attendance_date'))),
                         'records as present_records_count' => fn ($recordQuery) => $recordQuery
+                            ->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery
+                                ->whereDate('enrollments.enrolled_at', '<=', DB::raw('group_attendance_days.attendance_date')))
                             ->whereHas('status', fn ($statusQuery) => $statusQuery->where('is_present', true)),
                     ])->with([
-                        'group' => fn ($groupQuery) => $groupQuery->withCount([
-                            'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
+                        'group' => fn ($groupQuery) => $groupQuery->with([
+                            'enrollments' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
                         ]),
                     ])
                 ),
@@ -375,7 +379,9 @@ new class extends Component
                         @foreach ($days as $day)
                             @php
                                 $groupCount = $day->groupAttendanceDays->count();
-                                $studentCount = $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0));
+                                $studentCount = $day->groupAttendanceDays->sum(fn ($groupDay) => $groupDay->group?->enrollments
+                                    ?->filter(fn ($enrollment) => $enrollment->isEligibleForAttendanceOn($day->attendance_date))
+                                    ->count() ?? 0);
                                 $attendedCount = $day->groupAttendanceDays->sum('present_records_count');
                             @endphp
                             <tr>

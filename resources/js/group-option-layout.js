@@ -54,6 +54,15 @@ export function containedGroupMenu(trigger, bounds, desiredHeight = 240) {
     };
 }
 
+export function visibleMenuTrigger(trigger, bounds) {
+    return {
+        top: Math.max(bounds.top, Math.min(trigger.top, bounds.bottom)),
+        bottom: Math.max(bounds.top, Math.min(trigger.bottom, bounds.bottom)),
+        left: trigger.left,
+        width: trigger.width,
+    };
+}
+
 // Find the largest fitting extension with at most seven measurements instead
 // of repeatedly rewriting and measuring the live dropdown's DOM.
 export function fitGroupOptionText(source, width, candidateAt, measure) {

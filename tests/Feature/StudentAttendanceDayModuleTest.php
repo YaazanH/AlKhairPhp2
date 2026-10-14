@@ -492,6 +492,72 @@ class StudentAttendanceDayModuleTest extends TestCase
             ->assertViewHas('presentCount', 1);
     }
 
+    public function test_students_are_only_eligible_for_attendance_on_or_after_their_enrollment_date(): void
+    {
+        $this->seed();
+
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+        $teacher = Teacher::create([
+            'first_name' => 'Enrollment',
+            'last_name' => 'Date',
+            'phone' => '0998111779',
+            'status' => 'active',
+        ]);
+        $eligibleEnrollment = $this->makeEnrollment($teacher->id, 'Enrollment Date Group');
+        $futureParent = ParentProfile::create(['father_name' => 'Future Parent']);
+        $futureStudent = Student::create([
+            'parent_id' => $futureParent->id,
+            'first_name' => 'Future',
+            'last_name' => 'Enrollment',
+            'birth_date' => '2014-05-12',
+            'status' => 'active',
+        ]);
+        $futureEnrollment = Enrollment::create([
+            'student_id' => $futureStudent->id,
+            'group_id' => $eligibleEnrollment->group_id,
+            'enrolled_at' => '2026-10-11',
+            'status' => 'active',
+        ]);
+        $present = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $service = app(StudentAttendanceDayService::class);
+        $day = $service->createOrSyncDay(
+            '2026-10-10',
+            collect([$eligibleEnrollment->group]),
+            $manager,
+            defaultAttendanceStatusId: $present->id,
+        );
+        $groupDay = $day->groupAttendanceDays()->firstOrFail();
+
+        $this->assertDatabaseHas('student_attendance_records', [
+            'group_attendance_day_id' => $groupDay->id,
+            'enrollment_id' => $eligibleEnrollment->id,
+        ]);
+        $this->assertDatabaseMissing('student_attendance_records', [
+            'group_attendance_day_id' => $groupDay->id,
+            'enrollment_id' => $futureEnrollment->id,
+        ]);
+
+        $this->actingAs($manager);
+
+        Volt::test('student-attendance.show', ['studentAttendanceDay' => $day])
+            ->assertViewHas('stats', fn (array $stats) => $stats['students'] === 1);
+
+        Volt::test('student-attendance.mark', ['groupAttendanceDay' => $groupDay])
+            ->assertViewHas('enrollments', fn ($enrollments) => $enrollments->modelKeys() === [$eligibleEnrollment->id])
+            ->assertDontSee($futureStudent->full_name);
+
+        Volt::test('student-attendance.quick', ['studentAttendanceDay' => $day])
+            ->assertViewHas('enrollments', fn ($enrollments) => $enrollments->modelKeys() === [$eligibleEnrollment->id]);
+
+        try {
+            $service->recordEnrollmentStatus($day, $futureEnrollment->fresh(), $present);
+            $this->fail('Attendance must not be recorded before the enrollment date.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->assertSame(__('workflow.student_attendance.messages.enrollment_not_in_day'), $exception->getMessage());
+        }
+    }
+
     public function test_manager_can_toggle_student_attendance_day_status_for_all_groups(): void
     {
         $this->seed();

@@ -678,6 +678,8 @@ class DashboardTest extends TestCase
         );
         $this->assertStringContainsString('curriculum-progress-details-table curriculum-progress-details-table--with-chapter table-content', $dashboardSource);
         $this->assertStringContainsString("data-has-chapter-column=\"{{ \$hasChapterNumbers ? 'true' : 'false' }}\"", $dashboardSource);
+        $this->assertStringContainsString('style="--dashboard-curriculum-row-count: {{ (int) ceil($curriculumProgress->count() / 2) }}"', $dashboardSource);
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\).*?\.dashboard-curriculum-hotbars\s*\{[^}]*grid-auto-flow:\s*column;[^}]*grid-template-rows:\s*repeat\(var\(--dashboard-curriculum-row-count\),\s*minmax\(0,\s*auto\)\);/s', $dashboardCss);
         $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__lesson\s*\{[^}]*width:\s*35%;/s', $dashboardCss);
         $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__status\s*\{[^}]*width:\s*11%;/s', $dashboardCss);
         $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__date\s*\{[^}]*width:\s*19%;/s', $dashboardCss);

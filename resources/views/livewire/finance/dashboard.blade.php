@@ -792,7 +792,12 @@ new class extends Component
     </x-admin.modal>
 
     <x-admin.modal :show="$showTransactionsModal" :title="__('finance.dashboard.financial_transactions')" close-method="$set('showTransactionsModal', false)" max-width="8xl">
-        <div class="finance-transactions-filters date-control-peer-group mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6" data-mobile-table-filter-controls>
+        <x-slot:headerActions>
+            <button type="button" class="admin-modal__close financial-transactions-header-search" data-mobile-table-filter-open data-mobile-table-filter-target="financial-transactions-filters" aria-controls="financial-transactions-filters" aria-expanded="false" title="{{ __('crud.common.filters.search') }}" aria-label="{{ __('crud.common.filters.search') }}">
+                <x-admin-action-icon name="search" />
+            </button>
+        </x-slot:headerActions>
+        <div id="financial-transactions-filters" class="finance-transactions-filters date-control-peer-group mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6" data-mobile-table-filter-controls>
             <input wire:key="finance-transactions-filter-start-date" wire:model.live="filter_start_date" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="date-control--match-select h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2">
             <input wire:key="finance-transactions-filter-end-date" wire:model.live="filter_end_date" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2">
             <select wire:key="finance-transactions-filter-cash-box" wire:model.live="filter_cash_box_id" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="">{{ __('finance.options.all_cash_boxes') }}</option>@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select>
@@ -801,7 +806,7 @@ new class extends Component
             <select wire:key="finance-transactions-filter-visibility" wire:model.live="filter_visibility" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="active">{{ __('finance.filters.active_only') }}</option><option value="deleted">{{ __('finance.filters.deleted_only') }}</option><option value="all">{{ __('finance.filters.all_records') }}</option></select>
         </div>
         <div class="surface-table settings-record-table" data-settings-record-table data-finance-generic-table data-financial-transactions-table>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto financial-transactions-desktop-table" data-financial-transactions-scroll-region>
                 <table class="financial-transactions-table w-full text-sm">
                     <colgroup>
                         <col style="width: 3%" data-finance-fixed-percent="3">

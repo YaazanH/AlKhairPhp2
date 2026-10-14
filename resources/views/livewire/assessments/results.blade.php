@@ -585,7 +585,7 @@ new class extends Component
             <div>
                 <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', ['course' => $archiveCourseId, 'section' => 'assessments']) : route('assessments.index')" navigate class="assessment-results-back" />
                 <h1 class="assessment-results-title font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
-                @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourse->name }}</p>@endif
+                @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourse->name]) }}</p>@endif
             </div>
 
             <div class="surface-panel px-5 py-4">
@@ -669,6 +669,12 @@ new class extends Component
         @php($assessmentResultRowNumbers = $enrollments->values()->mapWithKeys(fn ($enrollment, $index) => [$enrollment->id => $index + 1]))
         @php($assessmentResultsUseTwoColumns = $enrollments->count() > 5)
         @php($assessmentResultColumns = $enrollments->isEmpty() ? collect([collect()]) : $enrollments->chunk((int) ceil($enrollments->count() / 2)))
+        @php($formatAssessmentResultScore = static function ($score): string {
+            $number = (float) $score;
+            $decimals = abs($number - round($number)) < 0.00001 ? 0 : 2;
+
+            return number_format($number, $decimals, '.', '').' %';
+        })
         <div class="assessment-results-single {{ $assessmentResultsUseTwoColumns ? '' : 'assessment-results-single--full' }}">
             <table class="assessment-results-data-table w-full table-fixed text-sm">
                 <thead>
@@ -683,11 +689,12 @@ new class extends Component
                 <tbody class="divide-y divide-white/6">
                     @forelse ($enrollments as $enrollment)
                         @php($displayStatus = $this->displayStatusForEnrollment($enrollment->id))
+                        @php($result = $enrollment->assessmentResults->first())
                         <tr>
                             <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
                             <td class="px-3 py-2"><div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
-                            <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                            <td class="px-3 py-2"><span class="assessment-result-status-text {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                            <td class="px-3 py-2"><bdi dir="ltr">{{ $displayStatus === 'absent' ? '--' : $formatAssessmentResultScore($result?->score ?? 0) }}</bdi></td>
+                            <td class="px-3 py-2"><span class="assessment-result-status-text {{ $this->resultStatusClass($displayStatus) }}" aria-label="{{ __('workflow.common.result_status.'.$displayStatus) }}" data-assessment-status-label data-assessment-status="{{ $displayStatus }}" data-assessment-status-target="{{ __('workflow.common.result_status.absent') }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
                             <td class="px-3 py-2"><span class="assessment-result-points-text status-text status-text--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                         </tr>
                     @empty
@@ -712,11 +719,12 @@ new class extends Component
                         <tbody class="divide-y divide-white/6">
                             @forelse ($columnEnrollments as $enrollment)
                                 @php($displayStatus = $this->displayStatusForEnrollment($enrollment->id))
+                                @php($result = $enrollment->assessmentResults->first())
                                 <tr>
                                     <td class="px-2 py-2 text-center text-neutral-400">{{ $assessmentResultRowNumbers[$enrollment->id] }}</td>
                                     <td class="px-3 py-2"><div class="record-person-name student-inline__name">{{ $enrollment->student?->full_name }}</div></td>
-                                    <td class="px-3 py-2">{{ ($result = $enrollment->assessmentResults->first()) ? number_format((float) $result->score, 2) : '—' }}</td>
-                                    <td class="px-3 py-2"><span class="assessment-result-status-text {{ $this->resultStatusClass($displayStatus) }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
+                                    <td class="px-3 py-2"><bdi dir="ltr">{{ $displayStatus === 'absent' ? '--' : $formatAssessmentResultScore($result?->score ?? 0) }}</bdi></td>
+                                    <td class="px-3 py-2"><span class="assessment-result-status-text {{ $this->resultStatusClass($displayStatus) }}" aria-label="{{ __('workflow.common.result_status.'.$displayStatus) }}" data-assessment-status-label data-assessment-status="{{ $displayStatus }}" data-assessment-status-target="{{ __('workflow.common.result_status.absent') }}">{{ __('workflow.common.result_status.'.$displayStatus) }}</span></td>
                                     <td class="px-3 py-2"><span class="assessment-result-points-text status-text status-text--slate">{{ $assessmentPointsByEnrollment[$enrollment->id] ?? 0 }}</span></td>
                                 </tr>
                             @empty

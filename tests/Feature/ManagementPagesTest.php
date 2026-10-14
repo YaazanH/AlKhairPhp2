@@ -26,6 +26,20 @@ class ManagementPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_assessment_result_statuses_are_kashida_balanced_to_the_absent_label(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/assessments/results.blade.php'));
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertSame(2, substr_count($view, 'data-assessment-status-label'));
+        $this->assertSame(2, substr_count($view, "data-assessment-status-target=\"{{ __('workflow.common.result_status.absent') }}\""));
+        $this->assertStringContainsString(".' %'", $view);
+        $this->assertStringContainsString("\$displayStatus === 'absent' ? '--'", $view);
+        $this->assertStringContainsString('function synchronizeAssessmentStatusTypography()', $script);
+        $this->assertStringContainsString("label.dataset.assessmentStatus !== 'absent'", $script);
+        $this->assertStringContainsString('justifyFinanceLabelToWidth(label, targetWidth)', $script);
+    }
+
     public function test_ipad_mini_portrait_uses_tablet_instead_of_phone_layout(): void
     {
         $styles = file_get_contents(resource_path('css/app.css'));
@@ -497,6 +511,68 @@ class ManagementPagesTest extends TestCase
         $this->assertMatchesRegularExpression('/\.ledger-report-doc__logo img\s*\{[^}]*height:\s*68px;[^}]*max-width:\s*120px;[^}]*width:\s*auto;/s', $financePreview);
     }
 
+    public function test_archived_pdf_exports_use_the_warm_archive_palette_and_kashida_mark(): void
+    {
+        $mark = view('exports.partials.archive-pdf-mark', [
+            'course' => (object) ['name' => 'دورة صيف 2026 س'],
+        ])->render();
+
+        $this->assertStringContainsString('data-archive-pdf-mark', $mark);
+        $this->assertStringContainsString('color:#a65a2e', $mark);
+        $this->assertStringContainsString('font-weight:bold', $mark);
+        $this->assertStringContainsString('text-justify:kashida', $mark);
+        $this->assertStringContainsString('width:32mm;margin:0 auto', $mark);
+        $this->assertStringContainsString('data-archive-pdf-mark-title', $mark);
+        $this->assertGreaterThanOrEqual(49, substr_count($mark, 'ـ'));
+        $this->assertStringContainsString('دورة', $mark);
+
+        $watermark = file_get_contents(app_path('Support/ArchivePdfWatermark.php'));
+        $watermarkImage = resource_path('images/archive-watermark.png');
+        $this->assertFileExists($watermarkImage);
+        $this->assertSame('image/png', mime_content_type($watermarkImage));
+        $this->assertStringContainsString("resource_path('images/archive-watermark.png')", $watermark);
+        $this->assertStringContainsString('size: [200, 168.85]', $watermark);
+        $this->assertStringContainsString('position: WatermarkImage::POSITION_CENTER_PAGE', $watermark);
+        $this->assertStringContainsString('alpha: 0.25', $watermark);
+        $this->assertStringContainsString('behindContent: true', $watermark);
+        $this->assertStringContainsString('$mpdf->showWatermarkImage = true;', $watermark);
+
+        foreach ([
+            'AssessmentResultPdfController.php',
+            'AdminExportController.php',
+            'StudentAttendanceExportController.php',
+            'TeacherAttendanceExportController.php',
+            'CourseEndExportController.php',
+        ] as $controller) {
+            $source = file_get_contents(app_path('Http/Controllers/'.$controller));
+            $this->assertStringContainsString('ArchivePdfWatermark::apply($mpdf, $archiveCourse);', $source, $controller);
+        }
+
+        foreach (['reports/student-attendance.blade.php', 'reports/teacher-attendance.blade.php'] as $attendanceView) {
+            $attendanceSource = file_get_contents(resource_path('views/'.$attendanceView));
+            $this->assertMatchesRegularExpression('/\.meta-value\s*\{[^}]*position:relative;[^}]*top:\.35mm;/', $attendanceSource, $attendanceView);
+        }
+
+        foreach ([
+            'exports/group-roster-pdf.blade.php',
+            'exports/assessment-results-pdf.blade.php',
+            'reports/student-attendance.blade.php',
+            'reports/teacher-attendance.blade.php',
+            'reports/course-final-tests.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertStringContainsString('$archiveCourse', $source, $view);
+            $this->assertStringContainsString('archive-pdf-mark', $source, $view);
+            $this->assertStringContainsString('@elseif', $source, $view);
+            $this->assertStringContainsString('archive-palette', $source, $view);
+            $this->assertStringContainsString('#ead8c3', $source, $view);
+            $this->assertMatchesRegularExpression('/background\s*:\s*rgba\(241,\s*228,\s*212,\s*(?:0?\.82)\)/', $source, $view);
+            $this->assertMatchesRegularExpression('/background\s*:\s*rgba\(250,\s*245,\s*238,\s*(?:0?\.58)\)/', $source, $view);
+            $this->assertStringContainsString('#c7ad90', $source, $view);
+        }
+    }
+
     public function test_non_financial_pdfs_keep_exactly_four_millimetres_between_header_and_table(): void
     {
         $studentAttendance = file_get_contents(resource_path('views/reports/student-attendance.blade.php'));
@@ -543,17 +619,45 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('body { color:#172033; font-family:dubai,sans-serif; font-size:11px; font-weight:400; }', $assessmentResults);
         $this->assertStringContainsString('.heading-title { font-family:dubai,sans-serif; font-size:20px;', $assessmentResults);
         $this->assertStringContainsString('.heading-group { font-size:13px;', $assessmentResults);
-        $this->assertStringContainsString('.heading-copy { text-align:center; width:48%; }', $assessmentResults);
-        $this->assertStringContainsString('.heading-logo { text-align:right; width:30%; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-copy { text-align:center; width:56%; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-logo { text-align:center; width:22%; }', $assessmentResults);
         $this->assertStringContainsString('.heading-meta { font-size:9px; vertical-align:middle; }', $assessmentResults);
         $this->assertStringContainsString('.heading-meta-shell { height:18mm;', $assessmentResults);
-        $this->assertStringContainsString('.heading-meta-label { font-family:dubaimedium,sans-serif; font-weight:normal;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-label { direction:rtl; font-family:dubaimedium,sans-serif; font-weight:normal;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-table { border-collapse:collapse; direction:ltr; margin:0 auto; table-layout:fixed; width:28mm !important; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-label { direction:rtl;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-value { direction:ltr; unicode-bidi:embed; text-align:left; width:16.5mm; }', $assessmentResults);
+        $this->assertStringContainsString('dir="ltr" style="padding-right:3mm;text-align:right"', $assessmentResults);
+        $this->assertStringContainsString('<table class="heading-meta-table" dir="ltr">', $assessmentResults);
+        $this->assertStringContainsString('data-assessment-meta-label="date"', $assessmentResults);
+        $this->assertStringContainsString("'passed' => 'ناج'.str_repeat('ـ', 16).'ح'", $assessmentResults);
+        $this->assertStringContainsString("'failed' => 'راس'.str_repeat('ـ', 11).'ب'", $assessmentResults);
+        $this->assertStringContainsString('$decimals = abs($number - round($number)) < 0.00001 ? 0 : 2;', $assessmentResults);
+        $this->assertStringContainsString("return number_format(\$number, \$decimals, '.', '').' %';", $assessmentResults);
+        $this->assertStringContainsString("\$resultStatus = \$result?->status ?? 'absent';", $assessmentResults);
+        $this->assertStringContainsString('<td class="score" dir="ltr">{{ $resultStatus === \'absent\' ? \'--\' : $formatAssessmentPercentage($result?->score ?? 0) }}</td>', $assessmentResults);
+        $this->assertStringContainsString("\$isSingleGroupPdf ? ' status-'.\$resultStatus : ''", $assessmentResults);
+        $this->assertStringContainsString('.status-passed { color:#166534; }', $assessmentResults);
+        $this->assertStringContainsString('.status-failed { color:#991b1b; }', $assessmentResults);
+        $this->assertStringContainsString('.status-absent { color:#172033; }', $assessmentResults);
+        $this->assertStringContainsString("'ـ'", $assessmentResults);
         $this->assertStringNotContainsString('heading-meta-spacer', $assessmentResults);
         $this->assertStringContainsString("h1 {\n            font-size: 20px;", $groupRoster);
         $this->assertStringContainsString(".group-line {\n            font-size: 13px;", $groupRoster);
+        $this->assertStringContainsString(".logo {\n            text-align: center;", $groupRoster);
+        $this->assertStringContainsString('.header-spacer { width: 22%; }', $groupRoster);
+        $this->assertStringContainsString('width: 56%;', $groupRoster);
         $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;', $pointMarket);
         $this->assertStringContainsString('.header-subtitle{font-size:13px;', $pointMarket);
         $this->assertStringContainsString('.header-meta{font-size:9px}', $pointMarket);
+        $this->assertStringContainsString('.header-side{width:22%}', $pointMarket);
+        $this->assertStringContainsString('.header-copy{text-align:center;width:56%}', $pointMarket);
+        $this->assertStringContainsString('.header-visual{text-align:center}', $pointMarket);
+        $this->assertStringContainsString('.header-side{width:22%}', $finalSaber);
+        $this->assertStringContainsString('.header-copy{text-align:center;width:56%}', $finalSaber);
+        $this->assertStringContainsString('.header-visual{text-align:center}', $finalSaber);
+        $this->assertStringContainsString('.header-meta-table{direction:ltr;margin:0 auto;table-layout:fixed;width:28mm !important}', $finalSaber);
+        $this->assertStringContainsString('data-final-saber-meta-label="date"', $finalSaber);
 
         foreach ([
             'reports/teacher-attendance.blade.php',
@@ -563,20 +667,33 @@ class ManagementPagesTest extends TestCase
 
             $this->assertStringContainsString('.header-title { font-size:20px;', $source, $view);
             $this->assertStringContainsString('.header-subtitle { font-size:13px; font-weight:500; margin-top:1mm; }', $source, $view);
-            $this->assertStringContainsString('.header-copy { text-align:center; width:48%; }', $source, $view);
-            $this->assertStringContainsString('.header-copy-content { position:relative; left:-5mm; }', $source, $view);
-            $this->assertStringContainsString('.header-logo { width:30%; }', $source, $view);
+            $this->assertStringContainsString('.header-copy { text-align:center; width:56%; }', $source, $view);
+            $this->assertStringNotContainsString('.header-copy-content { position:relative;', $source, $view);
+            $this->assertStringContainsString('.header-logo { text-align:center; width:22%; }', $source, $view);
             $this->assertStringContainsString('.header-meta { font-size:9px; vertical-align:middle; }', $source, $view);
             $this->assertStringContainsString('.header-meta-table { border-collapse:collapse; direction:ltr;', $source, $view);
-            $this->assertStringContainsString('margin-left:17.5mm; table-layout:fixed; width:17mm;', $source, $view);
-            $this->assertStringContainsString('.meta-label { font-family:dubaimedium,sans-serif; font-weight:normal; width:3mm; }', $source, $view);
-            $this->assertStringContainsString('text-align:left; vertical-align:middle; width:14mm;', $source, $view);
+            $this->assertStringContainsString('margin:0 auto; table-layout:fixed; width:21mm !important;', $source, $view);
+            $this->assertStringContainsString('.meta-label { font-family:dubaimedium,sans-serif; font-weight:normal; text-align:left; width:4.5mm; }', $source, $view);
+            $this->assertMatchesRegularExpression('/\.meta-value\s*\{[^}]*direction:ltr;[^}]*unicode-bidi:embed;[^}]*text-align:left;[^}]*width:16\.5mm;/', $source, $view);
             $this->assertStringContainsString('<table class="header-meta-table" dir="ltr">', $source, $view);
             $this->assertStringContainsString('.header-meta-shell { height:18mm;', $source, $view);
-            $this->assertStringContainsString('.meta-label { font-family:dubaimedium,sans-serif; font-weight:normal;', $source, $view);
-            $this->assertStringContainsString('padding-top:.55mm !important; padding-bottom:.25mm !important;', $source, $view);
+            $this->assertStringContainsString('<td class="meta-value" dir="ltr">', $source, $view);
+            $this->assertStringContainsString('<td class="meta-label">من</td>', $source, $view);
             $this->assertStringNotContainsString('date-spacer', $source, $view);
         }
+
+        $studentAttendance = file_get_contents(resource_path('views/reports/student-attendance.blade.php'));
+        $teacherAttendance = file_get_contents(resource_path('views/reports/teacher-attendance.blade.php'));
+        $teacherExport = file_get_contents(app_path('Http/Controllers/TeacherAttendanceExportController.php'));
+
+        $this->assertStringContainsString('.number,.percentage { direction:ltr; text-align:center; white-space:nowrap; }', $studentAttendance);
+        $this->assertStringContainsString("{{ \$student['percentage'] }}&nbsp;%", $studentAttendance);
+        $this->assertStringContainsString('.number,.percentage { direction:ltr; text-align:center; white-space:nowrap; }', $teacherAttendance);
+        $this->assertStringContainsString('.role { direction:rtl; text-align:center; unicode-bidi:isolate; white-space:nowrap; }', $teacherAttendance);
+        $this->assertStringContainsString("{{ \$teacher['percentage'] }}&nbsp;%", $teacherAttendance);
+        $this->assertStringContainsString("aria-label=\"{{ \$teacher['role_label'] }}\"", $teacherAttendance);
+        $this->assertStringContainsString('ArabicKashidaJustifier::toWidth(', $teacherExport);
+        $this->assertStringContainsString('$targetRoleWidth', $teacherExport);
     }
 
     public function test_row_open_actions_use_the_shared_open_symbol_without_visible_text(): void

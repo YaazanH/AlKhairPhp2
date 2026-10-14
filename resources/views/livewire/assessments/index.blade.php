@@ -503,7 +503,7 @@ new class extends Component
             <div>
                 <div class="eyebrow">{{ __('ui.nav.assessments') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.assessments.index.title') }}</h1>
-                @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourse->name }}</p>@endif
+                @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourse->name]) }}</p>@endif
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.index.subtitle') }}</p>
             </div>
 

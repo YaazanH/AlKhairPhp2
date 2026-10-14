@@ -69,6 +69,7 @@ class GroupDailySummaryService
             ->with('student.parentProfile')
             ->where('group_id', $group->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($date)
             ->orderBy('enrolled_at')
             ->orderBy('id')
             ->get();

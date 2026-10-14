@@ -59,26 +59,34 @@ class ManagementCrudTest extends TestCase
                 ['name' => 'PDF Student', 'juz' => 3, 'mark' => 95],
             ]),
             'logo' => null,
+            'archiveCourse' => null,
         ])->render();
 
-        $this->assertStringContainsString('@page{margin:10mm 14mm 18mm;footer:pdf-footer}@page :first{margin-top:0;margin-header:10mm;header:pdf-first-header}', $html);
+        $this->assertStringContainsString('@page{margin:10mm 10mm 18mm;footer:pdf-footer}@page :first{margin-top:0;margin-header:10mm;header:pdf-first-header}', $html);
         $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;font-weight:bold}', $html);
         $this->assertStringContainsString('.header-subtitle{font-size:13px;font-weight:500', $html);
         $this->assertStringContainsString('.header-meta{font-size:9px;vertical-align:middle}', $html);
         $this->assertStringContainsString('.header-row-cell{border:0;height:18mm;padding:0;vertical-align:middle}', $html);
         $this->assertStringContainsString('.report-table thead th{font-family:dubai,sans-serif;font-weight:bold}', $html);
-        $this->assertStringContainsString('.meta-label{font-family:dubaimedium,sans-serif;font-weight:normal', $html);
-        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{text-align:left;padding-left:.8mm}', $html);
-        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value{text-align:right;padding-right:.8mm}', $html);
-        $this->assertStringContainsString('.header-meta-table td{border:0;height:auto;padding:0 0 0.8mm;vertical-align:middle;white-space:nowrap}', $html);
+        $this->assertStringContainsString('.meta-label{direction:rtl;font-family:dubaimedium,sans-serif;font-weight:normal;text-align:left;width:11.5mm}', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{padding-left:.8mm}', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value,.header-meta[dir=rtl] .meta-value--parts{padding-right:1.5mm !important;text-align:right;text-indent:0}', $html);
+        $this->assertStringContainsString('.meta-value{direction:ltr;text-align:left;unicode-bidi:embed;width:16.5mm}', $html);
+        $this->assertStringContainsString('.header-meta-table td{border:0;height:auto;padding:0 0 .8mm;vertical-align:middle;white-space:nowrap}', $html);
+        $this->assertStringContainsString('.header-meta-table{direction:ltr;margin:0 auto;table-layout:fixed;width:28mm !important}', $html);
         $this->assertStringContainsString('class="header-meta-shell"', $html);
         $this->assertStringNotContainsString('header-continuation', $html);
         $this->assertSame(1, substr_count($html, '<htmlpageheader'));
         $this->assertStringNotContainsString('report-page-gap', $html);
         $this->assertStringContainsString('class="header-meta-table"', $html);
-        $this->assertStringContainsString('class="meta-label" style="text-align:', $html);
+        $this->assertStringContainsString('data-final-saber-meta-label="date"', $html);
         $this->assertStringContainsString(__('course_end.date_label'), $html);
         $this->assertStringContainsString(__('course_end.final_tests_total'), $html);
+        $this->assertStringContainsString('class="meta-value meta-value--parts"', $html);
+        $this->assertStringContainsString('class="meta-value" dir="ltr" align="right"', $html);
+        $this->assertStringContainsString('align="right">{{ $partsValue }}&nbsp;&nbsp;</td>', file_get_contents(resource_path('views/reports/course-final-tests.blade.php')));
+        $this->assertSame('التاريخ', __('course_end.date_label'));
+        $this->assertSame('عدد الأجزاء', __('course_end.final_tests_total'));
     }
 
     public function test_student_names_are_trimmed_when_saved(): void
@@ -2499,9 +2507,9 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('.title-row td', $rosterPdfHtml);
         $this->assertStringContainsString('border: 0;', $rosterPdfHtml);
         $this->assertStringContainsString('@page { margin: 0 10mm 18mm; margin-header: 10mm;', $rosterPdfHtml);
-        $this->assertStringContainsString('padding: 1mm 3mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('padding: 2mm 3mm;', $rosterPdfHtml);
         $this->assertStringContainsString('margin: 0.5mm;', $rosterPdfHtml);
-        $this->assertStringContainsString('padding: 3.5px 4px;', $rosterPdfHtml);
+        $this->assertStringContainsString('padding: 7px 4px;', $rosterPdfHtml);
         $this->assertStringContainsString('padding-right: 12px;', $rosterPdfHtml);
         $this->assertStringNotContainsString('roster-page-gap', $rosterPdfHtml);
         $this->assertStringContainsString('<th style="width: 18%;">اسم الطالب</th>', $rosterPdfHtml);

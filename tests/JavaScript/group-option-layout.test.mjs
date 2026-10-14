@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu } from '../../resources/js/group-option-layout.js';
+import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu, visibleMenuTrigger } from '../../resources/js/group-option-layout.js';
 
 test('phone menu opens above a field near the screen bottom and stays inside horizontal edges', () => {
     const bounds = { top: 80, bottom: 820, left: 8, right: 382 };
@@ -20,6 +20,17 @@ test('phone menu height follows the available area above the on-screen keyboard'
     const below = containedGroupMenu({ top: 90, bottom: 140, left: 24, width: 342 }, bounds);
     assert.equal(below.openAbove, false);
     assert.ok(140 + below.gap + below.height <= bounds.bottom);
+});
+
+test('phone menu stays above the keyboard when its field is obscured by the reduced visual viewport', () => {
+    const bounds = { top: 80, bottom: 390, left: 8, right: 382 };
+    const trigger = visibleMenuTrigger({ top: 610, bottom: 660, left: 24, width: 342 }, bounds);
+    const menu = containedGroupMenu(trigger, bounds);
+
+    assert.deepEqual(trigger, { top: 390, bottom: 390, left: 24, width: 342 });
+    assert.equal(menu.openAbove, true);
+    assert.ok(trigger.top - menu.gap - menu.height >= bounds.top);
+    assert.ok(trigger.top - menu.gap <= bounds.bottom);
 });
 
 test('phones show only the group name; larger screens retain the available columns', () => {

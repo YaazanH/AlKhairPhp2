@@ -368,7 +368,7 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('attendance.title') }}</h1>
-        @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourse->name }}</p>@endif
+        @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourse->name]) }}</p>@endif
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('attendance.subtitle') }}</p>
     </section>
 
@@ -378,7 +378,9 @@ new class extends Component
 
     <section class="surface-table">
         <div class="admin-grid-meta admin-grid-meta--controls attendance-days-toolbar">
-            <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
+            <div class="admin-grid-meta__title">
+                <span>{{ __('workflow.student_attendance.days.table.title') }}</span>
+            </div>
             <div class="admin-toolbar__controls attendance-days-toolbar__controls">
                 <div class="attendance-days-toolbar__filters" data-mobile-table-filter-group>
                     <div class="admin-filter-field">

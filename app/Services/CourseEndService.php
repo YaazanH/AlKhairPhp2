@@ -44,7 +44,9 @@ class CourseEndService
                 $pointsAfter = $this->calculatedPoints($pointsBefore, $criteria['passed'], $settings);
                 $finals = $enrollment->quranFinalTests->filter(fn ($test) => $test->attempts->contains('status', 'passed'));
                 $scores = $finals->map(fn ($test) => $test->attempts->firstWhere('status', 'passed')?->score)->filter(fn ($score) => $score !== null);
-                $attendance = $enrollment->studentAttendanceRecords;
+                $attendance = $enrollment->studentAttendanceRecords
+                    ->filter(fn ($record) => $record->attendanceDay?->attendance_date
+                        && $enrollment->isEligibleForAttendanceOn($record->attendanceDay->attendance_date));
                 $regularAssessmentResults = $enrollment->assessmentResults
                     ->filter(fn ($result) => ! $this->isFinalAssessment($result))
                     ->where('status', '!=', 'absent');
@@ -180,6 +182,7 @@ class CourseEndService
                 'student',
                 'group.attendanceDays',
                 'memorizationSessions.pages',
+                'studentAttendanceRecords.attendanceDay',
                 'studentAttendanceRecords.status',
                 'quranFinalTests.juz',
                 'quranFinalTests.attempts',

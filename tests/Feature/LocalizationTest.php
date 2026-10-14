@@ -155,6 +155,7 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('aria-label="{{ $subtitle }}"', $logo);
         $this->assertStringContainsString('data-app-logo-period-lockup', $logo);
         $this->assertStringContainsString('data-app-logo-period-title', $logo);
+        $this->assertStringContainsString('data-app-logo-period-target', $logo);
         $this->assertStringContainsString('data-app-logo-period-subtitle', $logo);
     }
 
@@ -204,8 +205,10 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('protected const MOBILE_HIDDEN_ITEM_KEYS', $sidebarNavigationMenu);
         $this->assertStringContainsString("\$group['has_mobile_items'] ? '' : 'max-lg:hidden'", $sidebarNavigationMenu);
         $this->assertStringContainsString('data-app-sidebar-navigation-mobile-empty', $sidebarNavigationMenu);
-        $this->assertStringContainsString('ArabicMonthFormatter::monthYearWithHijri(now())', $sidebar);
+        $this->assertStringContainsString('ArabicMonthFormatter::hijriMonthYearLabel(now())', $sidebar);
         $this->assertStringContainsString(':justify-subtitle-to-title="true"', $sidebar);
+        $this->assertStringContainsString(':subtitle-justification-target="__(\'ui.app.quran_course_short\')"', $sidebar);
+        $this->assertStringContainsString("'app-logo-period-subtitle text-[0.7rem]'", file_get_contents(resource_path('views/components/app-logo.blade.php')));
         $this->assertArrayHasKey('finance_reports', app(SidebarNavigationService::class)->defaultItems());
         $this->assertStringNotContainsString('$desktopDropdownAlign', $sidebar);
 
@@ -227,6 +230,7 @@ class LocalizationTest extends TestCase
 
         $script = file_get_contents(resource_path('js/app.js'));
         $this->assertStringContainsString('function synchronizeAppLogoPeriodTypography()', $script);
+        $this->assertStringContainsString("const target = lockup.querySelector('[data-app-logo-period-target]') ?? title;", $script);
         $this->assertStringContainsString('subtitle.style.width = `${targetWidth}px`;', $script);
         $this->assertStringContainsString('document.fonts?.ready.then(scheduleAppLogoPeriodTypographySync);', $script);
 

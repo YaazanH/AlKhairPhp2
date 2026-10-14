@@ -47,6 +47,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->attendance_date)
             ->orderBy('enrolled_at')
             ->get();
 
@@ -133,6 +134,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($validated['attendance_date'])
             ->get();
 
         foreach ($enrollments as $enrollment) {
@@ -181,6 +183,7 @@ new class extends Component
             ->with(['student', 'group'])
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->attendance_date)
             ->findOrFail($enrollmentId);
         $this->authorizeScopedEnrollmentAccess($enrollment);
 
@@ -244,6 +247,7 @@ new class extends Component
         $this->selected_statuses = Enrollment::query()
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->attendance_date)
             ->pluck('id')
             ->mapWithKeys(fn (int $enrollmentId) => [
                 $enrollmentId => $savedStatuses[$enrollmentId] ?? $defaultStatusId,

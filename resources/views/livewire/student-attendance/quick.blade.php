@@ -223,6 +223,7 @@ new class extends Component
     {
         return $this->scopeEnrollmentsQuery(Enrollment::query())
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->currentDay->attendance_date)
             ->whereHas('group', fn (Builder $query) => $query->where('course_id', $this->currentDay->course_id));
     }
 

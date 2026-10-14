@@ -27,6 +27,8 @@ new class extends Component {
     public Group $currentGroup;
     #[Locked]
     public ?int $archiveCourseId = null;
+    #[Locked]
+    public ?string $archiveCourseName = null;
     public bool $showEditModal = false;
     public bool $showScheduleModal = false;
     public bool $showAddStudentModal = false;
@@ -53,6 +55,9 @@ new class extends Component {
         $this->authorizeScopedGroupAccess($this->currentGroup);
 
         $routeCourse = request()->route('course');
+        if ($routeCourse === null && preg_match('#^courses/(\d+)/archive-overview/groups/#', request()->path(), $matches)) {
+            $routeCourse = (int) $matches[1];
+        }
         if ($routeCourse !== null) {
             $archiveCourse = $routeCourse instanceof Course
                 ? $routeCourse
@@ -60,6 +65,7 @@ new class extends Component {
 
             abort_unless(! $archiveCourse->is_active && $this->currentGroup->course_id === $archiveCourse->id, 404);
             $this->archiveCourseId = $archiveCourse->id;
+            $this->archiveCourseName = $archiveCourse->name;
         }
 
         $this->progressDate = now()->toDateString();
@@ -512,7 +518,7 @@ new class extends Component {
             <div>
                 @unless($isAssignedTeacher)<x-back-link :href="$groupBackRoute" navigate />@endunless
                 <h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1>
-                @if($isArchiveView)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $groupRecord->course?->name }}</p>@endif
+                @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourseName]) }}</p>@endif
             </div>
 
             <div class="group-show-hero-widgets flex flex-col gap-3 lg:flex-row lg:items-start">

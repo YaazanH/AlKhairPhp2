@@ -5,6 +5,9 @@ return [
     'eyebrow' => 'الدورات غير النشطة',
     'title' => 'عرض الدورة المؤرشفة',
     'archive_name' => 'أرشيف :course',
+    'pdf_mark' => [
+        'title' => 'أرشيف',
+    ],
     'read_only' => 'جميع البيانات في هذه الصفحة للعرض فقط.',
     'course_record' => 'بيانات الدورة',
     'dates' => [

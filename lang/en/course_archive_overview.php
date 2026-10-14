@@ -5,6 +5,9 @@ return [
     'eyebrow' => 'Inactive courses',
     'title' => 'Archived course overview',
     'archive_name' => ':course archive',
+    'pdf_mark' => [
+        'title' => 'Archive',
+    ],
     'read_only' => 'All data on this page is read-only.',
     'course_record' => 'Course record',
     'dates' => [

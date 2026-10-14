@@ -19,8 +19,8 @@ return [
     'sorted_notice' => 'مرتبة حسب مجموع النقاط المحتسب بعد القواعد',
     'final_tests_title' => 'السبر النهائي',
     'final_tests_report_title' => 'بيان الأجزاء المسبورة',
-    'final_tests_total' => 'الأجزاء:',
-    'date_label' => 'التاريخ:',
+    'final_tests_total' => 'عدد الأجزاء',
+    'date_label' => 'التاريخ',
     'continued' => 'متابعة',
     'empty' => 'لا يوجد طلاب مسجلون في هذه الدورة.',
     'table' => [

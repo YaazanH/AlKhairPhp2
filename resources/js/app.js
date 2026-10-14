@@ -8,7 +8,7 @@ import {
 } from './quick-attendance-camera';
 import { debounceSearch } from './search-debounce';
 import { closeOtherCurriculumDetailsTables } from './curriculum-details-accordion';
-import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu } from './group-option-layout';
+import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu, visibleMenuTrigger } from './group-option-layout';
 import './offline-attendance';
 
 window.addressInput = addressInput;
@@ -580,9 +580,10 @@ function searchHintValue(select) {
 
 const searchableSelectOverflowHosts = new WeakMap();
 
-function positionPhoneGroupDropdown(wrapper) {
+function positionPhoneModalDropdown(wrapper) {
     if (wrapper.previousElementSibling?.matches('select[data-group-option-columns]')) wrapper.setAttribute('data-group-select', '');
-    if (!wrapper.hasAttribute('data-group-select') || !window.matchMedia('(max-width: 699px)').matches) return false;
+    if (!wrapper.closest('.admin-modal') || !window.matchMedia('(max-width: 699px)').matches) return false;
+    wrapper.setAttribute('data-phone-modal-select', '');
     const trigger = wrapper.querySelector('.searchable-select__search--trigger, .searchable-select__button');
     const panel = wrapper.querySelector('.searchable-select__panel');
     const list = wrapper.querySelector('.searchable-select__list');
@@ -600,7 +601,11 @@ function positionPhoneGroupDropdown(wrapper) {
         left: Math.max(viewport?.offsetLeft || 0, bodyRect.left) + 8,
         right: Math.min((viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth), bodyRect.right) - 8,
     };
-    const placement = containedGroupMenu(triggerRect, bounds, 240 * scale);
+    const visibleTriggerRect = visibleMenuTrigger(triggerRect, bounds);
+    const placement = containedGroupMenu(visibleTriggerRect, bounds, 240 * scale);
+    const panelTop = placement.openAbove
+        ? visibleTriggerRect.top - placement.gap - placement.height
+        : visibleTriggerRect.bottom + placement.gap;
     // Stay inside the modal's scroll host: fixed descendants are unreliable
     // inside WebKit's filtered surfaces, and releasing overflow resets scrolling.
     Object.assign(panel.style, {
@@ -610,28 +615,28 @@ function positionPhoneGroupDropdown(wrapper) {
         width: `${placement.width / scale}px`,
         maxWidth: `${placement.width / scale}px`,
         maxHeight: `${placement.height / scale}px`,
-        top: placement.openAbove ? 'auto' : `${(triggerRect.bottom - wrapperRect.top + placement.gap) / scale}px`,
-        bottom: placement.openAbove ? `${(wrapperRect.bottom - triggerRect.top + placement.gap) / scale}px` : 'auto',
+        top: `${(panelTop - wrapperRect.top) / scale}px`,
+        bottom: 'auto',
     });
     list.style.maxHeight = `${Math.max(0, placement.height / scale - 2)}px`;
     return true;
 }
 
-let phoneGroupDropdownFrame = null;
-function schedulePhoneGroupDropdownPosition(event) {
+let phoneModalDropdownFrame = null;
+function schedulePhoneModalDropdownPosition(event) {
     if (event?.target instanceof Element && event.target.closest('.searchable-select__list')) return;
-    if (phoneGroupDropdownFrame !== null) return;
-    phoneGroupDropdownFrame = requestAnimationFrame(() => {
-        phoneGroupDropdownFrame = null;
-        document.querySelectorAll('[data-group-select].searchable-select--open').forEach(wrapper => {
-            if (!positionPhoneGroupDropdown(wrapper)) resetOrganizationSettingsDropdownPosition(wrapper);
+    if (phoneModalDropdownFrame !== null) return;
+    phoneModalDropdownFrame = requestAnimationFrame(() => {
+        phoneModalDropdownFrame = null;
+        document.querySelectorAll('.admin-modal .searchable-select--open').forEach(wrapper => {
+            if (!positionPhoneModalDropdown(wrapper)) resetOrganizationSettingsDropdownPosition(wrapper);
         });
     });
 }
-document.addEventListener('scroll', schedulePhoneGroupDropdownPosition, { capture: true, passive: true });
-window.addEventListener('resize', schedulePhoneGroupDropdownPosition, { passive: true });
-window.visualViewport?.addEventListener('resize', schedulePhoneGroupDropdownPosition, { passive: true });
-window.visualViewport?.addEventListener('scroll', schedulePhoneGroupDropdownPosition, { passive: true });
+document.addEventListener('scroll', schedulePhoneModalDropdownPosition, { capture: true, passive: true });
+window.addEventListener('resize', schedulePhoneModalDropdownPosition, { passive: true });
+window.visualViewport?.addEventListener('resize', schedulePhoneModalDropdownPosition, { passive: true });
+window.visualViewport?.addEventListener('scroll', schedulePhoneModalDropdownPosition, { passive: true });
 
 function resetOrganizationSettingsDropdownPosition(wrapper) {
     const panel = wrapper.querySelector('.searchable-select__panel');
@@ -698,9 +703,9 @@ function positionOrganizationSettingsDropdown(wrapper) {
 }
 
 function releaseSearchableSelectOverflow(wrapper) {
-    if (positionPhoneGroupDropdown(wrapper)) {
+    if (positionPhoneModalDropdown(wrapper)) {
         searchableSelectOverflowHosts.set(wrapper, []);
-        schedulePhoneGroupDropdownPosition();
+        schedulePhoneModalDropdownPosition();
         return;
     }
     if (searchableSelectOverflowHosts.has(wrapper)) {
@@ -2766,6 +2771,73 @@ function financeTextWithKashidas(text, count) {
     )).join('');
 }
 
+let assessmentStatusTypographyFrame = null;
+
+function synchronizeAssessmentStatusTypography() {
+    assessmentStatusTypographyFrame = null;
+
+    document.querySelectorAll('.assessment-results-data-table').forEach((table) => {
+        const labels = Array.from(table.querySelectorAll('[data-assessment-status-label]'));
+
+        if (!labels.length || table.getBoundingClientRect().width < 1) {
+            return;
+        }
+
+        labels.forEach((label) => {
+            const source = label.dataset.assessmentStatusSource
+                ?? label.textContent?.replaceAll(financeKashida, '').trim()
+                ?? '';
+
+            label.dataset.assessmentStatusSource = source;
+            label.textContent = source;
+            label.style.removeProperty('width');
+        });
+
+        const absentLabel = labels.find((label) => label.dataset.assessmentStatus === 'absent');
+        const targetLabel = absentLabel ?? labels[0];
+        const targetText = targetLabel.dataset.assessmentStatusTarget
+            ?? absentLabel?.dataset.assessmentStatusSource
+            ?? '';
+        const targetWidth = measureFinancialNaturalShapedLabel(targetLabel, targetText);
+
+        targetLabel.textContent = targetLabel.dataset.assessmentStatusSource ?? '';
+
+        labels
+            .filter((label) => label.dataset.assessmentStatus !== 'absent')
+            .forEach((label) => justifyFinanceLabelToWidth(label, targetWidth));
+
+        if (absentLabel) {
+            absentLabel.style.width = `${targetWidth}px`;
+        }
+    });
+}
+
+function scheduleAssessmentStatusTypographySync() {
+    if (assessmentStatusTypographyFrame !== null) {
+        window.cancelAnimationFrame(assessmentStatusTypographyFrame);
+    }
+
+    assessmentStatusTypographyFrame = window.requestAnimationFrame(synchronizeAssessmentStatusTypography);
+}
+
+document.addEventListener('DOMContentLoaded', scheduleAssessmentStatusTypographySync);
+document.addEventListener('livewire:navigated', scheduleAssessmentStatusTypographySync);
+window.addEventListener('resize', scheduleAssessmentStatusTypographySync, { passive: true });
+document.fonts?.ready.then(scheduleAssessmentStatusTypographySync);
+document.addEventListener('livewire:initialized', () => {
+    window.Livewire?.hook('morph.updated', ({ el }) => {
+        if (el.matches?.('.assessment-results-data-table') || el.querySelector?.('.assessment-results-data-table')) {
+            scheduleAssessmentStatusTypographySync();
+        }
+    });
+
+    window.Livewire?.hook('morph.added', ({ el }) => {
+        if (el.matches?.('.assessment-results-data-table') || el.querySelector?.('.assessment-results-data-table')) {
+            scheduleAssessmentStatusTypographySync();
+        }
+    });
+});
+
 function justifyDuplicateWarningTip(tooltip) {
     if (tooltip.dir !== 'rtl' || !financeTextMeasureContext) return;
     const sentence = tooltip.querySelector('[data-duplicate-tip-message]');
@@ -3090,6 +3162,7 @@ function synchronizeAppLogoPeriodTypography() {
 
     document.querySelectorAll('[data-app-logo-period-lockup]').forEach((lockup) => {
         const title = lockup.querySelector('[data-app-logo-period-title]');
+        const target = lockup.querySelector('[data-app-logo-period-target]') ?? title;
         const subtitle = lockup.querySelector('[data-app-logo-period-subtitle]');
 
         if (! title || ! subtitle || lockup.getBoundingClientRect().width < 1) {
@@ -3106,7 +3179,7 @@ function synchronizeAppLogoPeriodTypography() {
         subtitle.style.removeProperty('font-size');
         subtitle.style.removeProperty('width');
 
-        const targetWidth = measureAppLogoText(title);
+        const targetWidth = measureAppLogoText(target);
         let sourceWidth = measureAppLogoText(subtitle);
 
         if (! source || targetWidth < 1 || sourceWidth < 1) {

@@ -378,7 +378,11 @@ class CurriculumModuleTest extends TestCase
             file_get_contents(resource_path('css/app.css')),
         );
         $this->assertStringContainsString('class="admin-grid-meta__title">{{ $subject[\'name\'] }}</div>', $indexSource);
-        $this->assertStringContainsString('class="curriculum-progress-details-table table-content text-sm" data-curriculum-progress-details-table', $indexSource);
+        $this->assertStringContainsString('class="curriculum-progress-details-table curriculum-progress-details-table--with-chapter table-content text-sm" data-curriculum-progress-details-table', $indexSource);
+        $this->assertStringContainsString('data-dashboard-curriculum-progress-modal', $indexSource);
+        $this->assertStringContainsString('data-has-chapter-column="{{ $hasChapterNumbers ? \'true\' : \'false\' }}"', $indexSource);
+        $this->assertStringContainsString('data-curriculum-chapter-column', $indexSource);
+        $this->assertStringContainsString('data-curriculum-lesson-column', $indexSource);
         $this->assertStringContainsString('data-curriculum-lesson-status-icon', $indexSource);
         $this->assertStringContainsString("{{ __('curricula.fields.teacher') }}", $indexSource);
         $this->assertStringNotContainsString('<details class="rounded-2xl border border-white/10 p-4">', $indexSource);

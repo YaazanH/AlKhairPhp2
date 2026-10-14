@@ -92,7 +92,7 @@ class CourseReportFiltersTest extends TestCase
             ->assertSeeInOrder(['data-course-archive-view-action', 'data-course-archive-copy-action'], false)
             ->assertSee('data-open-action', false)
             ->assertSee(route('courses.archive-overview', $course), false)
-            ->assertSee('hidden xl:inline-flex', false)
+            ->assertSee('hidden md:inline-flex', false)
             ->assertSee('data-icon-name="open"', false);
 
         $this->get(route('courses.archive-overview', $course))
@@ -113,6 +113,7 @@ class CourseReportFiltersTest extends TestCase
             ->assertDontSee('data-course-archive-section="notes"', false);
 
         $archiveSource = file_get_contents(resource_path('views/livewire/courses/archive-overview.blade.php'));
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\) and \(max-width:\s*899px\) and \(orientation:\s*portrait\).*?\.archive-manager-highlights\s*\{[^}]*grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\);.*?\.archive-manager-highlights \.stat-card\s*\{[^}]*grid-column:\s*span 3;[^}]*height:\s*6\.5rem;.*?\.archive-manager-highlights \.stat-card:nth-child\(n \+ 5\)\s*\{[^}]*grid-column:\s*span 4;.*?\.archive-manager-highlights \.metric-value\s*\{[^}]*font-size:\s*clamp\(1\.45rem, 3\.2vw, 1\.8rem\);[^}]*white-space:\s*nowrap;/s', $archiveSource);
         $this->assertStringNotContainsString('StudentNote::query()', $archiveSource);
         $this->assertStringNotContainsString("section === 'notes'", $archiveSource);
 
@@ -131,6 +132,7 @@ class CourseReportFiltersTest extends TestCase
         ])
             ->assertSet('courseFilter', (string) $course->id)
             ->assertSee('data-archive-course-subtitle', false)
+            ->assertDontSee('data-archive-course-table-subtitle', false)
             ->assertSee($course->name)
             ->assertDontSee('assessment-course-filter', false);
 
@@ -210,7 +212,8 @@ class CourseReportFiltersTest extends TestCase
             ->assertSet('section', 'groups')
             ->assertSee('data-course-archive-groups-table', false)
             ->assertSee('data-archive-groups-table-layout', false)
-            ->assertSee('<colgroup><col style="width:4%"><col style="width:18%"><col style="width:18%"><col style="width:18%"><col style="width:9.56%"><col style="width:5.44%"><col style="width:15%"><col style="width:12%"></colgroup>', false)
+            ->assertSee('data-archive-group-grade-column', false)
+            ->assertSee('<colgroup><col style="width:4%"><col style="width:19%"><col style="width:19%"><col style="width:19%"><col style="width:12%"><col style="width:6%"><col style="width:10%"><col style="width:11%"></colgroup>', false)
             ->assertSee('data-group-curriculum-status', false)
             ->assertSee('group-curriculum-status--missing', false)
             ->assertSee('Historical group')
@@ -225,7 +228,10 @@ class CourseReportFiltersTest extends TestCase
             ->assertSee('Historical Student')
             ->assertSee(__('crud.common.status_options.completed'))
             ->assertSee('data-archive-course-subtitle', false)
-            ->assertSee($course->name)
+            ->assertSee(__('course_archive_overview.archive_name', ['course' => $course->name]))
+            ->assertSee(__('crud.groups.roster.title'))
+            ->assertDontSee('قائمة الطلاب الحالية')
+            ->assertSeeInOrder([$group->name, 'data-archive-course-subtitle', $course->name], false)
             ->assertSee(route('courses.archive-overview', ['course' => $course, 'section' => 'groups']), false)
             ->assertDontSee('data-group-hero-schedule-action', false)
             ->assertDontSee('data-group-hero-edit-action', false)
@@ -361,6 +367,7 @@ class CourseReportFiltersTest extends TestCase
             'archiveReadOnly' => true,
         ])
             ->assertSee('data-archive-course-subtitle', false)
+            ->assertDontSee('data-archive-course-table-subtitle', false)
             ->assertSee($course->name)
             ->assertDontSee('id="student-attendance-status"', false)
             ->assertDontSee('attendance-days-status', false);

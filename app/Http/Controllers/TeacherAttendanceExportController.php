@@ -7,6 +7,8 @@ use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
+use App\Support\ArabicKashidaJustifier;
+use App\Support\ArchivePdfWatermark;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
@@ -23,6 +25,7 @@ class TeacherAttendanceExportController extends Controller
         $courseId = $validated['course_id'] ?? null;
         $course = $courseId ? Course::findOrFail($courseId) : Course::query()->where('is_default', true)->first();
         $archivedCourse = $course && ! $course->is_active;
+        $archiveCourse = $archivedCourse ? $course : null;
         $scopeRecordsToCourse = function ($query) use ($archivedCourse, $courseId) {
             return $archivedCourse
                 ? $query->where(fn ($records) => $records
@@ -62,8 +65,6 @@ class TeacherAttendanceExportController extends Controller
 
             return ['name' => trim($teacher->first_name.' '.$teacher->last_name), 'role' => $translatedRole, 'percentage' => $listedDays > 0 ? (int) ceil(($present / $listedDays) * 100) : 0];
         })->sortBy(fn (array $row) => mb_strtolower($row['name']))->values();
-        $logo = app(PdfBrandingService::class)->logoSource();
-        $html = view('reports.teacher-attendance', compact('teachers', 'course', 'validated', 'logo'))->render();
         PdfOptions::ensureMemoryCapacity();
         $mpdf = new Mpdf(PdfOptions::make([
             'format' => 'A4',
@@ -72,6 +73,31 @@ class TeacherAttendanceExportController extends Controller
             'autoMarginPadding' => 4,
         ]));
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+
+        if (app()->isLocale('ar') && $teachers->isNotEmpty()) {
+            $mpdf->SetFont('dubai', '', 11);
+            $targetRoleWidth = (float) $teachers->max(fn (array $teacher): float => $mpdf->GetStringWidth($teacher['role']));
+            $teachers = $teachers->map(function (array $teacher) use ($mpdf, $targetRoleWidth): array {
+                $teacher['role_label'] = $teacher['role'];
+                $teacher['role'] = ArabicKashidaJustifier::toWidth(
+                    $teacher['role'],
+                    $targetRoleWidth,
+                    fn (string $value): float => $mpdf->GetStringWidth($value),
+                );
+
+                return $teacher;
+            });
+        } else {
+            $teachers = $teachers->map(function (array $teacher): array {
+                $teacher['role_label'] = $teacher['role'];
+
+                return $teacher;
+            });
+        }
+
+        $logo = app(PdfBrandingService::class)->logoSource();
+        $html = view('reports.teacher-attendance', compact('teachers', 'course', 'archiveCourse', 'validated', 'logo'))->render();
+        ArchivePdfWatermark::apply($mpdf, $archiveCourse);
         $mpdf->WriteHTML($html);
 
         return response($mpdf->Output('', 'S'), 200, [

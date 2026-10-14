@@ -1368,7 +1368,7 @@ new class extends Component
                             <x-admin-action-icon name="reactivate" class="admin-modal-action__icon" />
                         </button>
                     @endif
-                    <x-open-action-button :href="route('courses.archive-overview', $archivedCourse)" wire:navigate class="admin-modal-action-button hidden xl:inline-flex" :label="__('course_archive_overview.action')" data-course-archive-view-action />
+                    <x-open-action-button :href="route('courses.archive-overview', $archivedCourse)" wire:navigate class="admin-modal-action-button hidden md:inline-flex" :label="__('course_archive_overview.action')" data-course-archive-view-action />
                     @can('courses.create')
                         @if ($currentActiveAcademicYearId)
                             <button type="button" wire:click="duplicateArchived({{ $archivedCourse->id }})" wire:confirm="{{ __('crud.courses.copy.confirm_archive') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-archive-copy-action>

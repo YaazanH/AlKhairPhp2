@@ -495,7 +495,7 @@ new class extends Component
                     <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', $archiveCourseId) : route('attendance.index')" navigate />
                     <div class="eyebrow mt-4">{{ __('ui.nav.tracking') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
-                    @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourseName }}</p>@endif
+                    @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourseName]) }}</p>@endif
                 </div>
                 <div class="attendance-day-metrics"><div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-teacher-attendance-day-date-metric>
                     <div class="attendance-day-date-content">

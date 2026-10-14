@@ -1173,6 +1173,7 @@ html:not(.dark) .app-backdrop__orb--plum {
 }
 
 .app-logo-period-lockup {
+    position: relative;
     justify-items: start;
     min-width: 0;
 }
@@ -1180,6 +1181,13 @@ html:not(.dark) .app-backdrop__orb--plum {
 .app-logo-period-title {
     width: max-content;
     max-width: 100%;
+}
+
+.app-logo-period-target {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: nowrap;
 }
 
 .app-logo-period-subtitle {
@@ -3933,6 +3941,10 @@ html:not([dir='rtl']) .exchange-to-amount-value {
     }
 }
 
+.financial-transactions-header-search {
+    display: none;
+}
+
 @media (max-width: 699px) {
     .exchange-entry-form__flow,
     .exchange-entry-form__meta {
@@ -5472,6 +5484,13 @@ html:not(.dark) .app-pagination__page--dots {
     align-items: start;
 }
 
+@media (min-width: 700px) {
+    .dashboard-curriculum-hotbars {
+        grid-auto-flow: column;
+        grid-template-rows: repeat(var(--dashboard-curriculum-row-count), minmax(0, auto));
+    }
+}
+
 .dashboard-curriculum-hotbar {
     display: grid;
     min-width: 0;
@@ -6215,6 +6234,10 @@ html:not(.dark) .dashboard-performance-map__zone {
 .page-hero .eyebrow,
 .page-hero h1 + p {
     display: none;
+}
+
+.page-hero h1 + [data-archive-course-subtitle] {
+    display: block;
 }
 
 .page-hero .eyebrow + h1 {
@@ -7199,6 +7222,51 @@ html:not(.dark) .admin-modal__title {
     .admin-modal__dialog:has([data-financial-transactions-table]) .admin-modal__body {
         max-height: none;
         overflow: visible;
+    }
+}
+
+@media (max-width: 699px) {
+    .financial-transactions-header-search {
+        display: inline-flex;
+        border-radius: 9999px;
+    }
+
+    .financial-transactions-header-search > svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    #financial-transactions-filters > :is(
+        [data-mobile-table-filter-open],
+        [data-mobile-table-filter-submit]
+    ) {
+        display: none !important;
+    }
+
+    .admin-modal__dialog:has([data-financial-transactions-table]) .admin-modal__body {
+        padding-inline: 1rem;
+    }
+
+    [data-financial-transactions-table] .financial-transactions-desktop-table {
+        display: block !important;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    [data-financial-transactions-table] .financial-transactions-table {
+        width: 70rem !important;
+        min-width: 70rem !important;
+        max-width: none !important;
+        table-layout: fixed !important;
+        font-size: 0.72rem;
+    }
+
+    .financial-transactions-table :is(th, td) {
+        padding: 0.65rem 0.55rem !important;
     }
 }
 
@@ -15293,24 +15361,24 @@ select[data-group-option-columns] + .searchable-select.searchable-select--column
         display: none;
     }
 
-    .admin-modal .admin-modal__dialog:has([data-group-select].searchable-select--open) {
+    .admin-modal .admin-modal__dialog:has([data-phone-modal-select].searchable-select--open) {
         overflow: hidden !important;
     }
 
-    .admin-modal .admin-modal__body:has([data-group-select].searchable-select--open) {
+    .admin-modal .admin-modal__body:has([data-phone-modal-select].searchable-select--open) {
         overflow-x: hidden !important;
         overflow-y: auto !important;
     }
 
-    [data-group-select] .searchable-select__panel,
-    [data-group-select] .searchable-select__list {
+    [data-phone-modal-select] .searchable-select__panel,
+    [data-phone-modal-select] .searchable-select__list {
         box-sizing: border-box;
         min-width: 0;
         min-height: 0;
         overflow-x: hidden;
     }
 
-    [data-group-select] .searchable-select__list {
+    [data-phone-modal-select] .searchable-select__list {
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
     }

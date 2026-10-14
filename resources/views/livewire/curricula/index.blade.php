@@ -538,8 +538,9 @@ new class extends Component
         </form>
     </x-admin.modal>
     <x-admin.modal :show="$detailsGroupId !== null" :title="__('curricula.progress.group_details', ['group' => $selectedGroup?->name])" close-method="$set('detailsGroupId', null)" max-width="6xl">
-        <div class="space-y-3" data-curriculum-group-details-tables>
+        <div class="space-y-3" data-dashboard-curriculum-progress-modal data-curriculum-group-details-tables>
             @foreach($subjectRows as $subject)
+                @php($hasChapterNumbers = collect($subject['lessons'])->contains(fn (array $lesson) => filled($lesson['chapter_number'])))
                 <details class="surface-table" data-curriculum-group-details-table>
                     <summary class="admin-grid-meta cursor-pointer list-none select-none" data-curriculum-group-details-toggle>
                         <div class="min-w-0" data-curriculum-group-details-heading>
@@ -552,25 +553,26 @@ new class extends Component
                     </summary>
 
                     <div class="overflow-x-auto" data-table-scroll-region>
-                        <table class="curriculum-progress-details-table table-content text-sm" data-curriculum-progress-details-table>
+                        <table class="curriculum-progress-details-table curriculum-progress-details-table--with-chapter table-content text-sm" data-curriculum-progress-details-table data-has-chapter-column="{{ $hasChapterNumbers ? 'true' : 'false' }}">
                             <colgroup>
+                                <col class="curriculum-progress-details-table__chapter">
                                 <col class="curriculum-progress-details-table__lesson">
                                 <col class="curriculum-progress-details-table__status">
                                 <col class="curriculum-progress-details-table__date">
                                 <col class="curriculum-progress-details-table__teacher">
                             </colgroup>
-                            <thead>
-                                <tr>
-                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.lesson') }}</th>
-                                    <th class="px-5 py-3 text-center">{{ __('curricula.fields.status') }}</th>
-                                    <th class="px-5 py-3 text-center">{{ __('curricula.fields.date') }}</th>
-                                    <th class="px-5 py-3 text-left">{{ __('curricula.fields.teacher') }}</th>
-                                </tr>
-                            </thead>
+                            <thead><tr>
+                                <th class="px-5 py-3 text-center" data-curriculum-chapter-column>{{ $hasChapterNumbers ? __('curricula.fields.chapter_number') : '#' }}</th>
+                                <th class="px-5 py-3 text-start" data-curriculum-lesson-column>{{ __('curricula.fields.lesson') }}</th>
+                                <th class="px-5 py-3 text-center">{{ __('curricula.fields.status') }}</th>
+                                <th class="px-5 py-3 text-center">{{ __('curricula.fields.date') }}</th>
+                                <th class="px-5 py-3 text-start">{{ __('curricula.fields.teacher') }}</th>
+                            </tr></thead>
                             <tbody class="divide-y divide-white/6">
                                 @foreach($subject['lessons'] as $lesson)
                                     <tr>
-                                        <td class="px-5 py-3 font-semibold text-white">{{ $lesson['name'] }}</td>
+                                        <td class="px-5 py-3 text-center" data-curriculum-chapter-column><bdi>{{ $hasChapterNumbers ? (filled($lesson['chapter_number']) ? $lesson['chapter_number'] : '—') : $loop->iteration }}</bdi></td>
+                                        <td class="px-5 py-3 font-semibold text-white" data-curriculum-lesson-column>{{ $lesson['name'] }}</td>
                                         <td class="px-5 py-3 text-center">
                                             <span class="group-curriculum-status {{ $lesson['status'] === 'taught' ? '' : 'group-curriculum-status--missing' }}" title="{{ __('curricula.status.'.$lesson['status']) }}" aria-label="{{ __('curricula.status.'.$lesson['status']) }}" data-curriculum-lesson-status-icon>{{ $lesson['status'] === 'taught' ? '✓' : '×' }}</span>
                                         </td>

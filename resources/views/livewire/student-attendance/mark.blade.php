@@ -67,6 +67,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $groupDay->group_id)
             ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
+            ->eligibleForAttendanceOn($groupDay->attendance_date)
             ->orderBy(
                 Student::query()
                     ->select('first_name')
@@ -137,7 +138,7 @@ new class extends Component
             Enrollment::create([
                 'student_id' => $student->id,
                 'group_id' => $this->currentGroupDay->group_id,
-                'enrolled_at' => now()->toDateString(),
+                'enrolled_at' => $this->currentGroupDay->attendance_date->toDateString(),
                 'status' => 'active',
             ]);
             $this->loadDay();
@@ -205,6 +206,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroupDay->group_id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->currentGroupDay->attendance_date)
             ->get();
 
         foreach ($enrollments as $enrollment) {
@@ -289,6 +291,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroupDay->group_id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->currentGroupDay->attendance_date)
             ->findOrFail($enrollmentId);
         $this->authorizeScopedEnrollmentAccess($enrollment);
 

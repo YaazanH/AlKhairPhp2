@@ -39,7 +39,7 @@ new class extends Component
         $this->currentDay = StudentAttendanceDay::query()
             ->with([
                 'course',
-                'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query),
+                'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query, $studentAttendanceDay->attendance_date),
             ])
             ->findOrFail($studentAttendanceDay->id);
 
@@ -50,7 +50,7 @@ new class extends Component
     {
         $day = $this->currentDay->fresh([
             'course',
-            'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query),
+            'groupAttendanceDays' => fn ($query) => $this->dayGroupAttendanceDaysQuery($query, $this->currentDay->attendance_date),
         ]);
         $existingGroupIds = $day->groupAttendanceDays()
             ->pluck('group_id')
@@ -136,18 +136,22 @@ new class extends Component
         $this->redirect(route('attendance.index'), navigate: true);
     }
 
-    protected function dayGroupAttendanceDaysQuery($query)
+    protected function dayGroupAttendanceDaysQuery($query, $attendanceDate)
     {
         return $this->scopeGroupAttendanceDaysQuery(
             $query->withCount([
-                'records',
+                'records' => fn ($recordQuery) => $recordQuery
+                    ->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery->eligibleForAttendanceOn($attendanceDate)),
                 'records as present_records_count' => fn ($recordQuery) => $recordQuery
+                    ->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery->eligibleForAttendanceOn($attendanceDate))
                     ->whereHas('status', fn ($statusQuery) => $statusQuery->where('is_present', true)),
             ])->with([
                 'group' => fn ($groupQuery) => $groupQuery
                     ->with(['course', 'teacher'])
                     ->withCount([
-                        'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active']),
+                        'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery
+                            ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
+                            ->eligibleForAttendanceOn($attendanceDate),
                     ]),
             ])
         )->orderBy(
@@ -338,7 +342,7 @@ new class extends Component
                     <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', $archiveCourseId) : route('attendance.index')" navigate />
                     <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
-                    @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourseName }}</p>@endif
+                    @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourseName]) }}</p>@endif
                 </div>
                 <div class="attendance-day-metrics"><div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-student-attendance-day-date-metric>
                     <div class="attendance-day-date-content">
