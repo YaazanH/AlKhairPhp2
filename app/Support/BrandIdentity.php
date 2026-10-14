@@ -11,7 +11,7 @@ class BrandIdentity
 
     private const PLATFORM_ICON_PATH = 'images/platform-brand/alkhair-platform-icon-v2.png';
 
-    private const PLATFORM_SOCIAL_IMAGE_PATH = 'images/platform-brand/alkhair-platform-social-card.png';
+    private const PLATFORM_SOCIAL_IMAGE_PATH = 'images/platform-brand/alkhair-platform-social-card-v2.png';
 
     public function __construct(
         private TenantContext $tenantContext,
