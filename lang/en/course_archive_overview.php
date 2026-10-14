@@ -12,11 +12,19 @@ return [
         'finished' => 'Course finished',
     ],
     'sections' => [
+        'groups' => 'Groups',
         'attendance' => 'Attendance',
         'assessments' => 'Assessments',
         'points' => 'Points',
         'notes' => 'Notes',
         'end' => 'End of course',
+    ],
+    'groups' => [
+        'title' => 'Course groups',
+        'summary' => ':count groups',
+        'details' => 'Archived group details',
+        'roster' => 'Group students',
+        'schedule' => 'Weekly schedule',
     ],
     'fields' => [
         'student' => 'Student',
@@ -40,6 +48,8 @@ return [
         'title' => 'End-of-course settings',
     ],
     'empty' => [
+        'groups' => 'No groups are linked to this course.',
+        'groups_roster' => 'No student enrolments are preserved for this group.',
         'student_attendance' => 'No student attendance days were found for this course.',
         'teacher_attendance' => 'No teacher attendance days were found for this course.',
         'assessments' => 'No assessments were found for this course.',

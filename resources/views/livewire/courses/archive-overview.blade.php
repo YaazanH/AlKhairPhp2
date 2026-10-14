@@ -31,7 +31,7 @@ new class extends Component
     public Course $course;
 
     #[Url]
-    public string $section = 'attendance';
+    public string $section = 'groups';
 
     public string $attendanceAudience = 'students';
 
@@ -50,7 +50,7 @@ new class extends Component
 
         $this->course = $course->load('academicYear');
         if (! in_array($this->section, $this->sections(), true)) {
-            $this->section = 'attendance';
+            $this->section = 'groups';
         }
     }
 
@@ -127,7 +127,28 @@ new class extends Component
         return [
             'metrics' => $this->metrics(),
             'completionSettings' => $this->completionSettings(),
+            'archivedGroups' => $this->section === 'groups'
+                ? $this->archivedGroups()
+                : null,
         ];
+    }
+
+    protected function archivedGroups(): LengthAwarePaginator
+    {
+        return $this->scopedArchivedGroupQuery()
+            ->with(['teacher', 'assistantTeacher', 'gradeLevel', 'curriculum'])
+            ->withCount('enrollments')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->paginate(15, pageName: 'archivedGroupsPage');
+    }
+
+    protected function scopedArchivedGroupQuery(): Builder
+    {
+        return $this->accessScopes()->scopeGroups(
+            Group::query()->where('course_id', $this->course->id),
+            auth()->user(),
+        );
     }
 
     protected function studentAttendanceDays(): LengthAwarePaginator
@@ -363,7 +384,7 @@ new class extends Component
 
     protected function sections(): array
     {
-        return ['attendance', 'assessments', 'points', 'end'];
+        return ['groups', 'attendance', 'assessments', 'points', 'end'];
     }
 }; ?>
 
@@ -400,6 +421,9 @@ new class extends Component
         [data-course-archive-overview] .archive-attendance-switch { width: min(100%, 34rem); padding: 1rem 1.5rem 0; }
         [data-course-archive-overview] .archive-detail-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
         [data-course-archive-overview] .archive-detail-card { border: 1px solid rgba(255,255,255,.1); border-radius: 1rem; background: rgba(255,255,255,.035); padding: 1rem; }
+        [data-course-archive-overview] .archive-group-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .75rem; }
+        [data-course-archive-overview] .archive-group-summary .archive-detail-card { min-width: 0; }
+        [data-course-archive-overview] .archive-group-summary dd { margin-top: .35rem; overflow: hidden; color: rgb(209 250 229); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
         @media (max-width: 699px) {
             [data-course-archive-overview] .table-content :is(th, td) { padding: .8rem .9rem; }
             [data-course-archive-overview] .archive-course-hero { align-items: stretch; }
@@ -411,6 +435,7 @@ new class extends Component
             [data-course-archive-overview] .archive-settings__condition { justify-content: flex-start; }
             [data-course-archive-overview] .archive-settings__summary { grid-column: auto; }
             [data-course-archive-overview] .archive-detail-summary,
+            [data-course-archive-overview] .archive-group-summary,
             [data-course-archive-overview] .archive-completion-rules { grid-template-columns: 1fr; }
         }
     </style>
@@ -450,7 +475,7 @@ new class extends Component
 
     <section class="archive-live-workspace" data-course-archive-live-workspace>
         <div class="course-manager-tabs surface-table overflow-x-auto px-4 py-4 sm:px-6" role="tablist" aria-label="{{ __('course_archive_overview.archive_name', ['course' => $course->name]) }}">
-            @foreach (['attendance', 'assessments', 'points', 'end'] as $tab)
+            @foreach (['groups', 'attendance', 'assessments', 'points', 'end'] as $tab)
                 <button type="button" role="tab" wire:click="showSection('{{ $tab }}')" aria-selected="{{ $section === $tab ? 'true' : 'false' }}" class="min-w-max" data-course-archive-section="{{ $tab }}">
                     {{ __('course_archive_overview.sections.'.$tab) }}
                 </button>
@@ -458,7 +483,21 @@ new class extends Component
         </div>
 
         <div role="tabpanel" data-course-archive-real-component="{{ $section }}">
-            @if ($section === 'attendance')
+            @if ($section === 'groups')
+                <section class="surface-table overflow-hidden" data-course-archive-groups-table>
+                        <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_archive_overview.groups.title') }}</div><div class="admin-grid-meta__summary">{{ trans_choice('course_archive_overview.groups.summary', $archivedGroups->total(), ['count' => number_format($archivedGroups->total())]) }}</div></div></div>
+                        @if ($archivedGroups->isEmpty())
+                            <div class="admin-empty-state">{{ __('course_archive_overview.empty.groups') }}</div>
+                        @else
+                            <div class="overflow-x-auto" data-table-scroll-region><table class="table-content table-fixed text-sm" data-archive-groups-table-layout><colgroup><col style="width:4%"><col style="width:18%"><col style="width:18%"><col style="width:18%"><col style="width:9.56%"><col style="width:5.44%"><col style="width:15%"><col style="width:12%"></colgroup><thead><tr><th data-table-number-column class="text-center">#</th><th>{{ __('crud.groups.table.headers.group') }}</th><th>{{ __('crud.groups.table.headers.teacher') }}</th><th>{{ __('crud.groups.form.fields.assistant_teacher') }}</th><th>{{ __('crud.groups.table.headers.grade') }}</th><th class="text-center">{{ __('curricula.fields.curriculum') }}</th><th class="text-center">{{ __('crud.groups.table.headers.students') }}</th><th class="admin-actions-column text-center">{{ __('crud.groups.table.headers.actions') }}</th></tr></thead><tbody class="divide-y divide-white/6">
+                                @foreach ($archivedGroups as $group)
+                                    <tr><td class="text-center">{{ $archivedGroups->firstItem() + $loop->index }}</td><td class="font-semibold text-white">{{ $group->name }}</td><td class="record-person-name">{{ $group->teacher ? trim($group->teacher->first_name.' '.$group->teacher->last_name) : __('crud.common.not_available') }}</td><td class="record-person-name">{{ $group->assistantTeacher ? trim($group->assistantTeacher->first_name.' '.$group->assistantTeacher->last_name) : __('crud.common.not_available') }}</td><td>{{ $group->gradeLevel?->name ?: __('crud.common.not_available') }}</td><td class="text-center">@if ($group->curriculum)<span class="group-curriculum-status" title="{{ $group->curriculum->name }}" aria-label="{{ __('curricula.fields.curriculum') }}: {{ $group->curriculum->name }}" data-group-curriculum-status>✓</span>@else<span class="group-curriculum-status group-curriculum-status--missing" title="{{ __('curricula.options.no_curriculum') }}" aria-label="{{ __('curricula.options.no_curriculum') }}" data-group-curriculum-status>×</span>@endif</td><td class="text-center">{{ number_format($group->enrollments_count) }}</td><td><div class="flex justify-center"><x-open-action-button :href="route('courses.archive-overview.groups.show', [$course, $group])" wire:navigate :label="__('crud.common.actions.open')" /></div></td></tr>
+                                @endforeach
+                            </tbody></table></div>
+                        @endif
+                        @if ($archivedGroups->hasPages())<div class="border-t border-white/8 px-5 py-4">{{ $archivedGroups->links() }}</div>@endif
+                </section>
+            @elseif ($section === 'attendance')
                 <livewire:attendance.index :archive-course-id="$course->id" :archive-read-only="true" :key="'archive-attendance-'.$course->id" />
             @elseif ($section === 'assessments')
                 <livewire:assessments.index :archive-course-id="$course->id" :archive-read-only="true" :key="'archive-assessments-'.$course->id" />

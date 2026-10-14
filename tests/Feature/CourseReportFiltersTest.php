@@ -104,6 +104,7 @@ class CourseReportFiltersTest extends TestCase
             ->assertSee('data-course-archive-finished-date', false)
             ->assertSee('data-course-archive-metrics', false)
             ->assertSeeInOrder([
+                __('course_archive_overview.sections.groups'),
                 __('course_archive_overview.sections.attendance'),
                 __('course_archive_overview.sections.assessments'),
                 __('course_archive_overview.sections.points'),
@@ -117,7 +118,7 @@ class CourseReportFiltersTest extends TestCase
 
         $overview = Volt::test('courses.archive-overview', ['course' => $course]);
 
-        foreach (['assessments', 'points', 'end'] as $section) {
+        foreach (['groups', 'assessments', 'points', 'end'] as $section) {
             $overview
                 ->call('showSection', $section)
                 ->assertSet('section', $section)
@@ -129,6 +130,8 @@ class CourseReportFiltersTest extends TestCase
             'archiveReadOnly' => true,
         ])
             ->assertSet('courseFilter', (string) $course->id)
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
             ->assertDontSee('assessment-course-filter', false);
 
         $overview
@@ -151,6 +154,127 @@ class CourseReportFiltersTest extends TestCase
             ->call('showSection', 'attendance')
             ->assertSee('data-course-archive-real-component="attendance"', false)
             ->assertDontSee('data-course-archive-legacy-view', false);
+    }
+
+    public function test_course_archive_opens_with_groups_and_preserves_the_historical_roster(): void
+    {
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Historical course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $group = Group::create([
+            'academic_year_id' => $this->year->id,
+            'course_id' => $course->id,
+            'teacher_id' => $this->teacher->id,
+            'name' => 'Historical group',
+            'is_active' => false,
+            'course_finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $student = Student::create([
+            'first_name' => 'Historical',
+            'last_name' => 'Student',
+            'birth_date' => '2012-01-01',
+            'status' => 'inactive',
+        ]);
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-01-10',
+            'status' => 'completed',
+            'course_finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $otherCourse = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Other historical course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $otherGroup = Group::create([
+            'academic_year_id' => $this->year->id,
+            'course_id' => $otherCourse->id,
+            'teacher_id' => $this->teacher->id,
+            'name' => 'Other historical group',
+            'is_active' => false,
+            'course_finished_at' => '2026-08-31 12:00:00',
+        ]);
+
+        $archivedGroupRoute = route('courses.archive-overview.groups.show', [$course, $group]);
+        $archivedRosterPdfRoute = route('groups.roster.pdf', [
+            'group' => $group,
+            'archive_course_id' => $course->id,
+        ]);
+
+        Volt::test('courses.archive-overview', ['course' => $course])
+            ->assertSet('section', 'groups')
+            ->assertSee('data-course-archive-groups-table', false)
+            ->assertSee('data-archive-groups-table-layout', false)
+            ->assertSee('<colgroup><col style="width:4%"><col style="width:18%"><col style="width:18%"><col style="width:18%"><col style="width:9.56%"><col style="width:5.44%"><col style="width:15%"><col style="width:12%"></colgroup>', false)
+            ->assertSee('data-group-curriculum-status', false)
+            ->assertSee('group-curriculum-status--missing', false)
+            ->assertSee('Historical group')
+            ->assertSee($archivedGroupRoute, false)
+            ->assertDontSee('wire:click="openArchivedGroup', false)
+            ->assertDontSee('data-course-archive-group-detail', false);
+
+        $this->get($archivedGroupRoute)
+            ->assertOk()
+            ->assertSee('data-archived-group-native-view', false)
+            ->assertSee('data-group-roster-table', false)
+            ->assertSee('Historical Student')
+            ->assertSee(__('crud.common.status_options.completed'))
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
+            ->assertSee(route('courses.archive-overview', ['course' => $course, 'section' => 'groups']), false)
+            ->assertDontSee('data-group-hero-schedule-action', false)
+            ->assertDontSee('data-group-hero-edit-action', false)
+            ->assertSee('data-group-roster-pdf-action', false)
+            ->assertSee($archivedRosterPdfRoute, false);
+
+        $this->get($archivedRosterPdfRoute)
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->get(route('groups.roster.pdf', $group))->assertNotFound();
+
+        $this->get(route('courses.archive-overview.groups.show', [$course, $otherGroup]))->assertNotFound();
+        $this->get(route('groups.roster.pdf', [
+            'group' => $otherGroup,
+            'archive_course_id' => $course->id,
+        ]))->assertNotFound();
+    }
+
+    public function test_inactive_or_finished_groups_are_not_accessible_from_the_live_groups_workspace(): void
+    {
+        $activeCourse = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Active course',
+            'is_active' => true,
+        ]);
+        $archivedCourse = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Archived course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $groupDefaults = ['academic_year_id' => $this->year->id, 'teacher_id' => $this->teacher->id];
+        $activeGroup = Group::create([...$groupDefaults, 'course_id' => $activeCourse->id, 'name' => 'Open group', 'is_active' => true]);
+        $inactiveGroup = Group::create([...$groupDefaults, 'course_id' => $activeCourse->id, 'name' => 'Inactive group', 'is_active' => false]);
+        $finishedGroup = Group::create([...$groupDefaults, 'course_id' => $activeCourse->id, 'name' => 'Finished group', 'is_active' => true, 'course_finished_at' => '2026-08-31 12:00:00']);
+        $archivedCourseGroup = Group::create([...$groupDefaults, 'course_id' => $archivedCourse->id, 'name' => 'Archived course group', 'is_active' => true]);
+
+        $this->get(route('groups.show', $activeGroup))->assertOk();
+        $this->get(route('groups.show', $inactiveGroup))->assertNotFound();
+        $this->get(route('groups.schedules', $finishedGroup))->assertNotFound();
+        $this->get(route('groups.attendance', $archivedCourseGroup))->assertNotFound();
+        $this->get(route('groups.roster.export', $inactiveGroup))->assertNotFound();
+        $this->get(route('groups.roster.pdf', $inactiveGroup))->assertNotFound();
+
+        Volt::test('groups.index')
+            ->set('statusFilter', 'inactive')
+            ->assertSee('Inactive group')
+            ->assertDontSee(route('groups.show', $inactiveGroup), false);
     }
 
     public function test_archive_tabs_hide_lifecycle_statuses_and_voided_points(): void
@@ -236,6 +360,8 @@ class CourseReportFiltersTest extends TestCase
             'archiveCourseId' => $course->id,
             'archiveReadOnly' => true,
         ])
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
             ->assertDontSee('id="student-attendance-status"', false)
             ->assertDontSee('attendance-days-status', false);
 
@@ -390,7 +516,7 @@ class CourseReportFiltersTest extends TestCase
                 ->firstWhere('label', __('dashboard.manager.stats.total_points.label'))['value'] === 0)
             ->assertViewHas('metrics', fn (array $metrics) => collect($metrics)
                 ->firstWhere('label', __('course_end.highlights.points_after'))['value'] === 600)
-            ->assertSee('data-course-archive-real-component="attendance"', false);
+            ->assertSee('data-course-archive-real-component="groups"', false);
 
         Volt::test('student-attendance.show', [
             'studentAttendanceDay' => $latestDay,
@@ -399,6 +525,8 @@ class CourseReportFiltersTest extends TestCase
             'archiveReadOnly' => true,
         ])
             ->assertSee('Archive group')
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
             ->assertDontSee('data-student-attendance-day-delete-action', false);
 
         $this->get(route('attendance.show', [
@@ -424,7 +552,16 @@ class CourseReportFiltersTest extends TestCase
             'archiveReadOnly' => true,
         ])
             ->assertSee('Report Teacher')
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
             ->assertDontSee('data-teacher-attendance-day-delete-action', false);
+
+        foreach ([
+            'livewire/assessments/results.blade.php',
+            'livewire/attendance/show.blade.php',
+        ] as $view) {
+            $this->assertStringContainsString('data-archive-course-subtitle', file_get_contents(resource_path('views/'.$view)));
+        }
     }
 
     public function test_active_course_cannot_open_the_archived_course_overview(): void

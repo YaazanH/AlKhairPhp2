@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AttendanceStatus;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\StudentAttendanceDay;
@@ -59,6 +60,9 @@ new class extends Component
 
         return [
             'dayRecord' => $day,
+            'archiveCourseName' => $this->archiveCourseId
+                ? Course::query()->whereKey($this->archiveCourseId)->value('name')
+                : null,
             'canAddManualGroup' => $this->canPermission('attendance.student.take') && $day->status !== 'closed' && ! $day->course_finished_at,
             'canQuickAttend' => $this->canPermission('attendance.student.take') && $day->status !== 'closed' && ! $day->course_finished_at,
             'canToggleDayStatus' => $this->canPermission('attendance.student.toggle-day-status') && ! $day->course_finished_at,
@@ -334,6 +338,7 @@ new class extends Component
                     <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', $archiveCourseId) : route('attendance.index')" navigate />
                     <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
+                    @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourseName }}</p>@endif
                 </div>
                 <div class="attendance-day-metrics"><div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-student-attendance-day-date-metric>
                     <div class="attendance-day-date-content">

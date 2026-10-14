@@ -648,6 +648,7 @@ class DashboardTest extends TestCase
             ->assertSee('data-curriculum-progress-details-table', false)
             ->assertSee(__('curricula.fields.chapter_number'))
             ->assertSee('curriculum-progress-details-table__chapter', false)
+            ->assertSee('data-has-chapter-column="true"', false)
             ->assertSee('data-curriculum-lesson-status-icon', false)
             ->assertSee('group-curriculum-status--missing', false)
             ->assertSee(__('curricula.fields.teacher'))
@@ -656,9 +657,31 @@ class DashboardTest extends TestCase
             ->assertSet('selectedManagerCurriculumGroupId', null)
             ->assertDontSee('data-dashboard-curriculum-progress-modal', false);
 
+        $lessons->each(fn (CurriculumLesson $lesson) => $lesson->update(['chapter_number' => null]));
+
+        Volt::test('dashboard')
+            ->call('showManagerCurriculumGroup', $groups[2]->id)
+            ->assertSee('data-has-chapter-column="false"', false)
+            ->assertSee('<th class="px-5 py-3 text-center" data-curriculum-chapter-column>#</th>', false)
+            ->assertSee('<td class="px-5 py-3 text-center" data-curriculum-chapter-column><bdi>1</bdi></td>', false);
+
         $dashboardSource = file_get_contents(resource_path('views/livewire/dashboard.blade.php'));
         $dashboardCss = file_get_contents(resource_path('css/app.css'));
         $dashboardJavascript = file_get_contents(resource_path('js/app.js'));
+        $this->assertMatchesRegularExpression(
+            '/<thead><tr>\s*<th[^>]*data-curriculum-chapter-column[^>]*>\{\{ \$hasChapterNumbers \? .*? : \'#\' \}\}<\/th>\s*<th[^>]*data-curriculum-lesson-column[^>]*>/s',
+            $dashboardSource,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<tr>\s*<td[^>]*data-curriculum-chapter-column[^>]*>.*?\$hasChapterNumbers \?.*?: \$loop->iteration.*?<\/td>\s*<td[^>]*data-curriculum-lesson-column[^>]*>/s',
+            $dashboardSource,
+        );
+        $this->assertStringContainsString('curriculum-progress-details-table curriculum-progress-details-table--with-chapter table-content', $dashboardSource);
+        $this->assertStringContainsString("data-has-chapter-column=\"{{ \$hasChapterNumbers ? 'true' : 'false' }}\"", $dashboardSource);
+        $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__lesson\s*\{[^}]*width:\s*35%;/s', $dashboardCss);
+        $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__status\s*\{[^}]*width:\s*11%;/s', $dashboardCss);
+        $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__date\s*\{[^}]*width:\s*19%;/s', $dashboardCss);
+        $this->assertMatchesRegularExpression('/curriculum-progress-details-table--with-chapter \.curriculum-progress-details-table__teacher\s*\{[^}]*width:\s*25%;/s', $dashboardCss);
         $this->assertStringContainsString('pacedSummary($group)', $dashboardSource);
         $this->assertStringContainsString('.dashboard-curriculum-hotbar__fill--warning,', $dashboardCss);
         $this->assertStringContainsString('.dashboard-curriculum-hotbar__fill--danger,', $dashboardCss);

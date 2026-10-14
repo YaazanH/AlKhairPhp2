@@ -4,6 +4,7 @@ use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\Assessment;
 use App\Models\AssessmentResult;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\PointTransaction;
@@ -146,6 +147,7 @@ new class extends Component
 
         return [
             'assessmentRecord' => $this->currentAssessment->fresh(['group.course', 'groups.course', 'type']),
+            'archiveCourse' => $this->archiveCourseId ? Course::query()->find($this->archiveCourseId) : null,
             'assessmentGroups' => $assessmentGroups,
             'usesAllGroups' => $usesAllGroups,
             'groupSummary' => match (true) {
@@ -583,6 +585,7 @@ new class extends Component
             <div>
                 <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', ['course' => $archiveCourseId, 'section' => 'assessments']) : route('assessments.index')" navigate class="assessment-results-back" />
                 <h1 class="assessment-results-title font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $assessmentRecord->title }}</h1>
+                @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourse->name }}</p>@endif
             </div>
 
             <div class="surface-panel px-5 py-4">

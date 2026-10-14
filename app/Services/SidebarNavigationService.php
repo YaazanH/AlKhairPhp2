@@ -377,6 +377,8 @@ class SidebarNavigationService
 
         return $teacherId ? Group::query()
             ->where('is_active', true)
+            ->whereNull('course_finished_at')
+            ->whereHas('course', fn ($query) => $query->where('is_active', true)->whereNull('finished_at'))
             ->where(fn ($query) => $query->where('teacher_id', $teacherId)->orWhere('assistant_teacher_id', $teacherId))
             ->orderByDesc('starts_on')->orderByDesc('id')->first() : null;
     }

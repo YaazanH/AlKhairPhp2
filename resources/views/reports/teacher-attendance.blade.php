@@ -12,23 +12,30 @@
         tbody tr:nth-child(even) td { background:#f1f7f2; }
         .pdf-header,.pdf-footer { background:#cfe7d6; padding:2mm 3mm; }
         .header-table { autosize:1; border-collapse:collapse; table-layout:fixed; width:100%; }
-        .header-table td { border:0; padding:0; vertical-align:middle; }
+        .header-row-cell { border:0; height:18mm; padding:0; vertical-align:middle; }
         .header-side { width:22%; }
-        .date-box { font-size:9px; margin-left:7mm; width:32mm; }
-        .date-table { border-collapse:collapse; table-layout:fixed; width:32mm; }
-        .date-table td { border:0; padding:0; white-space:nowrap; }
-        .date-label { width:8mm; font-family:dubaimedium,sans-serif; font-weight:normal; text-align:{{ app()->isLocale('ar') ? 'left' : 'right' }}; }
-        .date-spacer { width:3mm; }
-        .date-value { width:21mm; direction:ltr; unicode-bidi:embed; text-align:{{ app()->isLocale('ar') ? 'right' : 'left' }}; }
-        .header-copy { text-align:center; width:56%; }
-        .header-title { font-size:22px; font-weight:bold; }
-        .header-subtitle { font-family:dubaimedium,sans-serif; font-size:13px; font-weight:normal; margin-top:1.75mm; }
+        .header-meta { font-size:9px; vertical-align:middle; }
+        .header-meta[dir="rtl"] { position:relative; left:-2mm; }
+        .header-meta-shell { height:18mm; table-layout:fixed; width:100%; }
+        .header-meta-shell td { border:0; height:18mm; padding:0; vertical-align:middle; }
+        .header-meta-table { border-collapse:collapse; direction:ltr; margin-left:17.5mm; table-layout:fixed; width:17mm; }
+        .header-meta-table td { border:0; height:auto; padding:0 0 .8mm; vertical-align:middle; white-space:nowrap; }
+        .meta-label { font-family:dubaimedium,sans-serif; font-weight:normal; width:3mm; }
+        .meta-value { direction:ltr; unicode-bidi:embed; padding-top:.55mm !important; padding-bottom:.25mm !important; text-align:left; vertical-align:middle; width:14mm; }
+        .header-meta[dir="rtl"] .meta-label { text-align:left; }
+        .header-meta[dir="ltr"] .meta-label { padding-right:.8mm; text-align:right; }
+        .header-meta[dir="ltr"] .meta-value { padding-left:.8mm; text-align:left; }
+        .header-copy { text-align:center; width:48%; }
+        .header-copy-content { position:relative; left:-5mm; }
+        .header-logo { width:30%; }
+        .header-title { font-size:20px; font-weight:bold; }
+        .header-subtitle { font-size:13px; font-weight:500; margin-top:1mm; }
         .pdf-header img { height:18mm; max-width:35mm; width:auto; }
         .pdf-footer { color:#526158; font-size:9px; text-align:center; }
     </style>
 </head>
 <body>
-<htmlpageheader name="pdf-header"><div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-side"><div class="date-box"><table class="date-table" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><tr><td class="date-label">{{ app()->isLocale('ar') ? 'من' : 'From' }}</td><td class="date-spacer">&nbsp;</td><td class="date-value" dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\Carbon::parse($validated['date_from'])->format('d-m-Y')) }}</td></tr><tr><td class="date-label">{{ app()->isLocale('ar') ? 'إلى' : 'To' }}</td><td class="date-spacer">&nbsp;</td><td class="date-value" dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\Carbon::parse($validated['date_to'])->format('d-m-Y')) }}</td></tr></table></div></td><td class="header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-title">{{ __('workflow.teacher_attendance.export.report_title') }}</div><div class="header-subtitle">{{ $course?->name }}</div></td><td class="header-side" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div></htmlpageheader>
+<htmlpageheader name="pdf-header"><div class="pdf-header"><table class="header-table" dir="ltr"><tr><td class="header-row-cell header-side header-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><table class="header-meta-shell"><tr><td><table class="header-meta-table" dir="ltr">@if(app()->isLocale('ar'))<tr><td class="meta-value" dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\Carbon::parse($validated['date_from'])->format('d-m-Y')) }}</td><td class="meta-label">من</td></tr><tr><td class="meta-value" dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\Carbon::parse($validated['date_to'])->format('d-m-Y')) }}</td><td class="meta-label">إلى</td></tr>@else<tr><td class="meta-label">From</td><td class="meta-value" dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\Carbon::parse($validated['date_from'])->format('d-m-Y')) }}</td></tr><tr><td class="meta-label">To</td><td class="meta-value" dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\Carbon::parse($validated['date_to'])->format('d-m-Y')) }}</td></tr>@endif</table></td></tr></table></td><td class="header-row-cell header-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="header-copy-content"><div class="header-title">{{ __('workflow.teacher_attendance.export.report_title') }}</div><div class="header-subtitle">{{ $course?->name }}</div></div></td><td class="header-row-cell header-logo" dir="rtl">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div></htmlpageheader>
 <htmlpagefooter name="pdf-footer"><div class="pdf-footer" dir="ltr">{PAGENO} / {nbpg}</div></htmlpagefooter>
 <table class="report-table">
     <thead><tr><th>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('workflow.teacher_attendance.export.role') }}</th><th>{{ __('workflow.teacher_attendance.export.percentage') }}</th></tr></thead>

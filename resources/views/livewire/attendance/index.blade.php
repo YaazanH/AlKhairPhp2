@@ -189,6 +189,7 @@ new class extends Component
                 ->orderBy('name')
                 ->get(),
             'exportCourseOptions' => $this->availableCoursesQuery()->orderBy('name')->get(['id', 'name']),
+            'archiveCourse' => $archiveCourse,
         ];
     }
 
@@ -367,6 +368,7 @@ new class extends Component
     <section class="page-hero p-6 lg:p-8">
         <div class="eyebrow">{{ __('ui.nav.tracking') }}</div>
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('attendance.title') }}</h1>
+        @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourse->name }}</p>@endif
         <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('attendance.subtitle') }}</p>
     </section>
 

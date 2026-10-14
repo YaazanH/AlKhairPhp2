@@ -1345,6 +1345,13 @@ return [
             'show_missing' => 'الصفحات الناقصة',
             'add_awqaf_test' => 'سبر أوقاف',
             'awqaf_unavailable' => 'لا يمكن تسجيل السبر، الطالب غير مسجل بدورة حالياً',
+            'old_memorization' => [
+                'title' => 'اختيار نوع السبر',
+                'prompt' => 'اختر الإجراء المطلوب للجزء :juz',
+                'start_partial' => 'بدء بالسبر التجريبي',
+                'partial_started' => 'تم بدء السبر الجزئي',
+                'enter_awqaf' => 'إدخال سبر أوقاف',
+            ],
             'awqaf_details' => [
                 'title' => 'تفاصيل سبر الأوقاف',
                 'open' => 'عرض تفاصيل سبر الأوقاف للجزء :juz',
@@ -1373,6 +1380,7 @@ return [
                 'missing' => 'صفحات ناقصة',
                 'awaiting' => 'بانتظار السبر',
                 'finished' => 'مكتمل',
+                'completed_with_awqaf' => 'مكتمل مع أوقاف',
                 'memorized_before' => 'حفظ قديم',
             ],
         ],

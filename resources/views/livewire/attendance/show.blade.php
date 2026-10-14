@@ -225,7 +225,12 @@ new class extends Component
 
     public function with(): array
     {
-        return ['selectedDay' => $this->selectedDay()];
+        return [
+            'selectedDay' => $this->selectedDay(),
+            'archiveCourseName' => $this->archiveCourseId
+                ? Course::query()->whereKey($this->archiveCourseId)->value('name')
+                : null,
+        ];
     }
 }; ?>
 
@@ -241,6 +246,7 @@ new class extends Component
             <section class="page-hero attendance-day-hero p-6 lg:p-8">
                 <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', $archiveCourseId) : route('attendance.index')" navigate />
                 <h1 class="font-display mt-4 text-4xl text-white">{{ __('attendance.day') }}</h1>
+                @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $archiveCourseName }}</p>@endif
                 <div class="attendance-day-metrics mt-5">
                     <div class="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center">
                         <div class="text-xs text-neutral-300">{{ __('workflow.student_attendance.form.attendance_date') }}</div>

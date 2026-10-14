@@ -23,6 +23,7 @@ use App\Models\Teacher;
 use App\Services\AccessScopeService;
 use App\Services\CourseEndService;
 use App\Services\PointLedgerService;
+use App\Services\QuranPartialTestService;
 use App\Services\QuranProgressionService;
 use App\Support\GradeLevelFromAge;
 use Illuminate\Database\Eloquent\Builder;
@@ -49,7 +50,7 @@ new class extends Component
 
     public ?int $missingJuzId = null;
 
-    public ?int $awqafDetailsTestId = null;
+    public ?int $oldMemorizationJuzId = null;
 
     public string $openDetails = '';
 
@@ -73,6 +74,8 @@ new class extends Component
 
     public string $awqafNotes = '';
 
+    public bool $awqafFromExternalMemorization = false;
+
     public function mount(?Student $student = null): void
     {
         $this->authorizePermission('students.view');
@@ -92,11 +95,13 @@ new class extends Component
 
     public function updatedSelectedStudentId(int|string|null $value): void
     {
+        $this->resetPage('studentProgressJuzPage');
+
         if (blank($value)) {
             $this->currentStudent = null;
             $this->selectedStudentId = null;
             $this->missingJuzId = null;
-            $this->awqafDetailsTestId = null;
+            $this->oldMemorizationJuzId = null;
             $this->openDetails = '';
             $this->showAwqafUnavailableModal = false;
             $this->closeAwqafTest();
@@ -314,32 +319,73 @@ new class extends Component
         $this->missingJuzId = null;
     }
 
-    public function showAwqafDetails(int $testId): void
+    public function openOldMemorizationActions(int $juzId): void
     {
         abort_unless($this->currentStudent, 404);
-        abort_unless(
-            $this->canViewProgressSection('quran-awqaf-tests.view') || $this->canViewProgressSection('quran-tests.view'),
-            403,
-        );
+        $this->authorizeAnyPermission(['quran-partial-tests.record', 'quran-awqaf-tests.record', 'quran-tests.record']);
 
-        $test = $this->scopeProgressDataQuery(
-            'scopeQuranTestsQuery',
-            QuranTest::query()
-                ->whereKey($testId)
-                ->where('student_id', $this->currentStudent->id)
-                ->where('status', 'passed')
-                ->whereHas('type', fn ($query) => $query->where('code', 'awqaf'))
-        )->firstOrFail();
+        $student = Student::query()->with('externalMemorizedJuzs')->findOrFail($this->currentStudent->id);
+        $this->authorizeScopedStudentAccess($student);
+        abort_unless($student->externalMemorizedJuzs->contains('id', $juzId), 404);
+        abort_if(QuranPartialTest::query()->where('student_id', $student->id)->where('juz_id', $juzId)->exists(), 404);
+        abort_if(QuranFinalTest::query()->where('student_id', $student->id)->where('juz_id', $juzId)->exists(), 404);
+        abort_if(QuranTest::query()->where('student_id', $student->id)->where('juz_id', $juzId)->where('from_external_memorization', true)->exists(), 404);
 
-        $this->awqafDetailsTestId = $test->id;
+        $this->oldMemorizationJuzId = $juzId;
+        $this->resetValidation('oldMemorization');
     }
 
-    public function closeAwqafDetails(): void
+    public function closeOldMemorizationActions(): void
     {
-        $this->awqafDetailsTestId = null;
+        $this->oldMemorizationJuzId = null;
+        $this->resetValidation('oldMemorization');
     }
 
-    public function openAwqafTest(int $juzId): void
+    public function startPartialSaberForOldMemorization(): void
+    {
+        $this->authorizePermission('quran-partial-tests.record');
+        abort_unless($this->currentStudent && $this->oldMemorizationJuzId, 404);
+        \App\Support\OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+
+        $enrollment = $this->scopeEnrollmentsQuery(
+            Enrollment::query()
+                ->with(['group.teacher', 'group.course', 'student.externalMemorizedJuzs'])
+                ->currentActiveForStudent((int) $this->currentStudent->id)
+        )->first();
+
+        if (! $enrollment) {
+            $this->closeOldMemorizationActions();
+            $this->showAwqafUnavailableModal = true;
+
+            return;
+        }
+
+        $this->authorizeTeacherEnrollmentAccess($enrollment);
+        $juz = QuranJuz::query()->findOrFail($this->oldMemorizationJuzId);
+
+        try {
+            app(QuranPartialTestService::class)->createForExternalMemorization($enrollment, $juz);
+        } catch (\LogicException $exception) {
+            $this->addError('oldMemorization', $exception->getMessage());
+
+            return;
+        }
+
+        $this->closeOldMemorizationActions();
+        session()->flash('status', __('workflow.quran_partial_tests.messages.created'));
+    }
+
+    public function enterAwqafSaberForOldMemorization(): void
+    {
+        $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
+        abort_unless($this->oldMemorizationJuzId, 404);
+
+        $juzId = $this->oldMemorizationJuzId;
+        $this->closeOldMemorizationActions();
+        $this->openAwqafTest($juzId, true);
+    }
+
+    public function openAwqafTest(int $juzId, bool $fromExternalMemorization = false): void
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
@@ -347,6 +393,13 @@ new class extends Component
             $this->addError('awqaf', __('workflow.quran_tests.errors.no_active_enrollment'));
 
             return;
+        }
+
+        if ($fromExternalMemorization) {
+            abort_unless(
+                $this->currentStudent->externalMemorizedJuzs()->whereKey($juzId)->exists(),
+                404,
+            );
         }
 
         $enrollment = $this->scopeEnrollmentsQuery(
@@ -376,6 +429,7 @@ new class extends Component
         $this->awqafScore = '';
         $this->awqafStatus = 'passed';
         $this->awqafNotes = '';
+        $this->awqafFromExternalMemorization = $fromExternalMemorization;
         $this->showAwqafUnavailableModal = false;
         $this->showAwqafTestModal = true;
         $this->resetValidation();
@@ -383,7 +437,7 @@ new class extends Component
 
     public function closeAwqafTest(): void
     {
-        $this->reset('showAwqafTestModal', 'awqafEnrollmentId', 'awqafJuzId', 'awqafTestedOn', 'awqafScore', 'awqafNotes');
+        $this->reset('showAwqafTestModal', 'awqafEnrollmentId', 'awqafJuzId', 'awqafTestedOn', 'awqafScore', 'awqafNotes', 'awqafFromExternalMemorization');
         $this->awqafStatus = 'passed';
         $this->resetValidation();
     }
@@ -401,8 +455,8 @@ new class extends Component
             'awqafEnrollmentId' => ['required', 'exists:enrollments,id'],
             'awqafJuzId' => ['required', 'exists:quran_juzs,id'],
             'awqafTestedOn' => ['required', 'date'],
-            'awqafScore' => ['required_if:awqafStatus,passed', 'nullable', 'numeric', 'between:0,100'],
-            'awqafStatus' => ['required', 'in:passed,failed,cancelled'],
+            'awqafScore' => ['exclude_unless:awqafStatus,passed', 'required', 'numeric', 'min:80', 'max:100'],
+            'awqafStatus' => ['required', 'in:passed,failed'],
         ], [], [
             'awqafScore' => __('workflow.quran_tests.form.score'),
         ]);
@@ -455,10 +509,11 @@ new class extends Component
             'juz_id' => (int) $validated['awqafJuzId'],
             'quran_test_type_id' => $testType->id,
             'tested_on' => $validated['awqafTestedOn'],
-            'score' => $validated['awqafScore'] !== '' ? $validated['awqafScore'] : null,
+            'score' => $validated['awqafStatus'] === 'passed' ? $validated['awqafScore'] : null,
             'status' => $validated['awqafStatus'],
             'attempt_no' => app(QuranProgressionService::class)->nextAttemptNumber($enrollment, (int) $validated['awqafJuzId'], $testType->id),
             'notes' => null,
+            'from_external_memorization' => $this->awqafFromExternalMemorization,
         ]);
 
         app(PointLedgerService::class)->recordQuranTestPoints($test->fresh(['enrollment.student', 'student.gradeLevel', 'type']));
@@ -596,6 +651,7 @@ new class extends Component
                     ->when($enrollmentIds === [], fn ($query) => $query->whereRaw('1 = 0'), fn ($query) => $query->whereIn('enrollment_id', $enrollmentIds))
             )->orderByDesc('tested_on')->orderByDesc('id')->get()
             : collect();
+        $awqafTestsByJuz = $awqafTests->groupBy('juz_id');
         $passedAwqafTestsByJuz = $awqafTests->where('status', 'passed')->groupBy('juz_id');
 
         $partialTests = $this->canViewProgressSection('quran-partial-tests.view')
@@ -647,13 +703,13 @@ new class extends Component
         $pageSet = $generalPages->flip();
         $externalJuzIds = $studentRecord->externalMemorizedJuzs->pluck('id')->map(fn ($id) => (int) $id)->all();
         $quranJuzProgress = QuranJuz::query()->orderBy('juz_number')->get()
-            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $passedAwqafTestsByJuz, $externalJuzIds) {
-                $memorizedExternally = in_array((int) $juz->id, $externalJuzIds, true);
+            ->map(function (QuranJuz $juz) use ($pageSet, $partialTests, $finalTests, $enrollments, $awqafTestsByJuz, $passedAwqafTestsByJuz, $externalJuzIds) {
                 $pages = collect(range((int) $juz->from_page, (int) $juz->to_page));
                 $missingPages = $pages->reject(fn (int $page) => $pageSet->has($page))->values();
                 $juzPartialTests = $partialTests->where('juz_id', $juz->id);
                 $passedParts = $juzPartialTests->flatMap->parts->where('status', 'passed')->pluck('part_number')->unique()->count();
                 $juzFinalTests = $finalTests->where('juz_id', $juz->id);
+                $juzAwqafTests = $awqafTestsByJuz->get($juz->id, collect());
                 $latestFinalAttempt = $juzFinalTests->flatMap->attempts
                     ->sortByDesc(fn ($attempt) => sprintf('%010d-%010d', $attempt->tested_on?->timestamp ?? 0, $attempt->id))
                     ->first();
@@ -662,11 +718,22 @@ new class extends Component
                     ->first();
                 $finalMade = $latestFinalAttempt !== null;
                 $finalPassed = $juzFinalTests->contains('status', 'passed') || $juzFinalTests->flatMap->attempts->contains('status', 'passed');
-                $status = $finalPassed ? 'finished' : ($missingPages->isNotEmpty() ? 'missing' : 'awaiting');
+                $pastMemorizationOrigin = in_array((int) $juz->id, $externalJuzIds, true)
+                    || $juzPartialTests->contains('from_external_memorization', true)
+                    || $juzFinalTests->contains('from_external_memorization', true)
+                    || $juzAwqafTests->contains('from_external_memorization', true);
+                $saberInitiated = $juzPartialTests->isNotEmpty() || $juzFinalTests->isNotEmpty() || $juzAwqafTests->contains('status', 'passed');
+                $oldMemorizationPending = $pastMemorizationOrigin && ! $saberInitiated;
+                $status = ($finalPassed || $latestAwqafTest)
+                    ? 'finished'
+                    : ($pastMemorizationOrigin
+                        ? ($oldMemorizationPending ? 'memorized_before' : 'awaiting')
+                        : ($missingPages->isNotEmpty() ? 'missing' : 'awaiting'));
 
                 return (object) [
                     'juz' => $juz,
-                    'memorized_externally' => $memorizedExternally,
+                    'memorized_externally' => $pastMemorizationOrigin,
+                    'old_memorization_pending' => $oldMemorizationPending,
                     'memorized_pages' => $pages->count() - $missingPages->count(),
                     'missing_pages' => $missingPages,
                     'passed_parts' => $passedParts,
@@ -679,7 +746,7 @@ new class extends Component
                     'awqaf_passed' => $latestAwqafTest !== null,
                     'awqaf_passed_on' => $latestAwqafTest?->tested_on,
                     'awqaf_test' => $latestAwqafTest,
-                    'status' => $memorizedExternally ? 'memorized_before' : $status,
+                    'status' => $status,
                     'enrollment' => $juzFinalTests->first()?->enrollment ?: $juzPartialTests->first()?->enrollment ?: $enrollments->first(),
                 ];
             })
@@ -688,9 +755,21 @@ new class extends Component
         $selectedMissingJuz = $this->missingJuzId
             ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $this->missingJuzId)
             : null;
-        $selectedAwqafTest = $this->awqafDetailsTestId
-            ? $awqafTests->first(fn (QuranTest $test): bool => (int) $test->id === (int) $this->awqafDetailsTestId)
+        $selectedOldMemorization = $this->oldMemorizationJuzId
+            ? $quranJuzProgress->first(fn ($row): bool => (int) $row->juz->id === (int) $this->oldMemorizationJuzId)
             : null;
+        $finishedQuranJuzCount = $quranJuzProgress->where('status', 'finished')->count();
+        $quranJuzPage = min(
+            max(1, $this->getPage('studentProgressJuzPage')),
+            max(1, (int) ceil($quranJuzProgress->count() / 10)),
+        );
+        $quranJuzProgress = new LengthAwarePaginator(
+            $quranJuzProgress->forPage($quranJuzPage, 10)->values(),
+            $quranJuzProgress->count(),
+            10,
+            $quranJuzPage,
+            ['pageName' => 'studentProgressJuzPage', 'path' => request()->url()]
+        );
 
         $detailsSource = match ($this->openDetails) {
             'memorization' => $memorizationRows,
@@ -735,8 +814,9 @@ new class extends Component
             'pointTransactions' => $pointTransactions,
             'parentVisibleNotes' => $parentVisibleNotes,
             'quranJuzProgress' => $quranJuzProgress,
+            'finishedQuranJuzCount' => $finishedQuranJuzCount,
             'selectedMissingJuz' => $selectedMissingJuz,
-            'selectedAwqafTest' => $selectedAwqafTest,
+            'selectedOldMemorization' => $selectedOldMemorization,
             'paginatedDetails' => $paginatedDetails,
             'stats' => [
                 'attendance_days' => $attendanceDays,
@@ -755,7 +835,7 @@ new class extends Component
         $this->currentStudent = $student;
         $this->selectedStudentId = $student->id;
         $this->missingJuzId = null;
-        $this->awqafDetailsTestId = null;
+        $this->oldMemorizationJuzId = null;
         $this->openDetails = '';
         $this->showAwqafUnavailableModal = false;
         $this->closeAwqafTest();
@@ -917,7 +997,7 @@ new class extends Component
             @error('progressPhotoUpload')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
         </section>
 
-        <section class="mobile-compact-highlights mobile-compact-highlights--five grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section class="student-progress-highlights mobile-compact-highlights mobile-compact-highlights--five grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             @foreach ([
                 'attendance_days' => 'attendance_days',
                 'memorized_pages' => 'memorized_pages',
@@ -930,10 +1010,24 @@ new class extends Component
         </section>
 
         <section class="surface-table student-juz-progress-table">
-            <div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($quranJuzProgress->where('status', 'finished')->count())]) }}</div></div></div>
+            <div class="admin-grid-meta">
+                <div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($finishedQuranJuzCount)]) }}</div></div>
+                @if ($quranJuzProgress->hasPages())
+                    @php($isRtl = config('app.supported_locales.'.app()->getLocale().'.direction', 'ltr') === 'rtl')
+                    <nav class="student-juz-progress-pagination" aria-label="{{ __('pagination.previous').' / '.__('pagination.next') }}" data-student-juz-header-pagination>
+                        <button type="button" wire:click="previousPage('studentProgressJuzPage')" wire:loading.attr="disabled" @disabled($quranJuzProgress->onFirstPage()) class="app-pagination__icon {{ $quranJuzProgress->onFirstPage() ? 'app-pagination__icon--disabled' : '' }}" title="{{ __('pagination.previous') }}" aria-label="{{ __('pagination.previous') }}">
+                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isRtl ? 'm9 6 6 6-6 6' : 'm15 6-6 6 6 6' }}" /></svg>
+                        </button>
+                        <button type="button" wire:click="nextPage('studentProgressJuzPage')" wire:loading.attr="disabled" @disabled(! $quranJuzProgress->hasMorePages()) class="app-pagination__icon {{ ! $quranJuzProgress->hasMorePages() ? 'app-pagination__icon--disabled' : '' }}" title="{{ __('pagination.next') }}" aria-label="{{ __('pagination.next') }}">
+                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isRtl ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6' }}" /></svg>
+                        </button>
+                    </nav>
+                @endif
+            </div>
             @error('awqaf')<div class="flash-error mx-5 mb-4 px-4 py-3 text-sm">{{ $message }}</div>@enderror
             @if ($quranJuzProgress->isEmpty())<div class="admin-empty-state">{{ __('workflow.student_progress.juz_progress.empty') }}</div>@else
                 <div class="table-scroll-region overflow-x-auto" data-table-scroll-region><table class="table-content text-sm" data-student-progress-juz-table><thead><tr>
+                    <th aria-hidden="true" data-juz-progress-spacer></th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.juz') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.pages') }}</th>
                     <th class="px-5 py-4 text-left">{{ __('workflow.student_progress.juz_progress.headers.partial_tests') }}</th>
@@ -941,26 +1035,42 @@ new class extends Component
                     <th class="px-5 py-4 text-left" data-juz-progress-status-heading>{{ __('workflow.student_progress.juz_progress.headers.status') }}</th>
                 </tr></thead><tbody class="divide-y divide-white/6">
                     @foreach ($quranJuzProgress as $row)<tr>
+                        <td aria-hidden="true" data-juz-progress-spacer></td>
                         <td class="px-5 py-4 text-white">{{ __('workflow.common.labels.juz_number', ['number' => $row->juz->juz_number]) }}</td>
                         <td class="px-5 py-4">@if ($row->memorized_externally)<bdi dir="ltr" data-old-memorization-placeholder>-</bdi>@else{{ number_format($row->memorized_pages) }}@endif</td>
-                        <td class="px-5 py-4">@if ($row->memorized_externally)<bdi dir="ltr" data-old-memorization-placeholder>-</bdi>@elseif ($row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@endif</td>
-                        <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ \App\Support\DateDisplay::text(trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? ''))) }}" @endif>@if ($row->memorized_externally)<bdi dir="ltr" data-old-memorization-placeholder>-</bdi>@elseif ($row->latest_final_score !== null){{ \App\Support\PercentageFormatter::format($row->latest_final_score) }}@endif</td>
+                        <td class="px-5 py-4">@if ($row->partial_test_created)<bdi dir="ltr">{{ number_format($row->passed_parts) }}/4</bdi>@elseif ($row->memorized_externally)<bdi dir="ltr" data-old-memorization-placeholder>-</bdi>@endif</td>
+                        <td class="px-5 py-4" @if($row->latest_final_score !== null) title="{{ \App\Support\DateDisplay::text(trim(($row->latest_final_date?->format('d-m-Y') ?? '').' · '.($row->latest_final_course ?? ''))) }}" @endif>@if ($row->latest_final_score !== null){{ \App\Support\PercentageFormatter::format($row->latest_final_score) }}@elseif ($row->old_memorization_pending || $row->awqaf_passed)<bdi dir="ltr" data-old-memorization-placeholder data-old-memorization-final-placeholder>-</bdi>@endif</td>
                         @php($showMissingPagesAction = ! $row->memorized_externally && $row->status !== 'finished' && $row->missing_pages->isNotEmpty())
-                        @php($showAwqafAction = $row->enrollment && app(AccessScopeService::class)->canAccessEnrollment(auth()->user(), $row->enrollment) && ($row->final_passed || $row->memorized_externally) && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
-                        @php($juzStatusClass = $row->memorized_externally ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status))
-                        @php($juzStatusLabel = $row->memorized_externally ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status)))
+                        @php($canAccessJuzEnrollment = $row->enrollment && app(AccessScopeService::class)->canAccessEnrollment(auth()->user(), $row->enrollment))
+                        @php($showOldMemorizationAction = $row->old_memorization_pending && ! $row->awqaf_passed && $canAccessJuzEnrollment && (auth()->user()->can('quran-partial-tests.record') || auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
+                        @php($showAwqafAction = $canAccessJuzEnrollment && $row->final_passed && ! $row->awqaf_passed && (auth()->user()->can('quran-awqaf-tests.record') || auth()->user()->can('quran-tests.record')))
+                        @php($juzStatusClass = $row->old_memorization_pending ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200' : $statusClass($row->status))
+                        @php($juzStatusLabel = $row->awqaf_passed ? __('workflow.student_progress.juz_progress.statuses.completed_with_awqaf') : ($row->old_memorization_pending ? __('workflow.student_progress.juz_progress.statuses.memorized_before') : ($row->status === 'missing' ? __('workflow.student_progress.juz_progress.incomplete', ['count' => number_format($row->missing_pages->count())]) : __('workflow.student_progress.juz_progress.statuses.'.$row->status))))
                         <td class="px-5 py-4" data-juz-progress-status-cell>
                             @if ($showMissingPagesAction)
-                                <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="status-chip student-juz-status-action {{ $juzStatusClass }}" data-juz-progress-status title="{{ __('workflow.student_progress.juz_progress.show_missing') }}">{{ $juzStatusLabel }}</button>
+                                <button type="button" wire:click="showMissingPages({{ $row->juz->id }})" class="status-chip student-juz-status-action student-juz-status-action--hover-icon {{ $juzStatusClass }}" data-juz-progress-status title="{{ __('workflow.student_progress.juz_progress.show_missing') }}">
+                                    <x-admin-action-icon name="eye" class="student-juz-status-action__hover-icon" />
+                                    {{ $juzStatusLabel }}
+                                </button>
+                            @elseif ($showOldMemorizationAction)
+                                <button type="button" wire:click="openOldMemorizationActions({{ $row->juz->id }})" class="status-chip student-juz-status-action student-juz-status-action--hover-icon {{ $juzStatusClass }}" data-juz-progress-status data-old-memorization-action>
+                                    <x-admin-action-icon name="add" class="student-juz-status-action__hover-icon" />
+                                    {{ $juzStatusLabel }}
+                                </button>
                             @elseif ($showAwqafAction)
                                 <button type="button" wire:click="openAwqafTest({{ $row->juz->id }})" class="status-chip student-juz-status-action student-juz-status-action--awqaf {{ $juzStatusClass }}" data-juz-progress-status title="{{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}" aria-label="{{ $juzStatusLabel }} — {{ __('workflow.student_progress.juz_progress.add_awqaf_test') }}">
                                     <x-admin-action-icon name="add" class="student-juz-status-action__plus" />
                                     {{ $juzStatusLabel }}
                                 </button>
                             @elseif ($row->awqaf_passed)
-                                <button type="button" wire:click="showAwqafDetails({{ $row->awqaf_test->id }})" class="status-chip status-chip--awqaf student-juz-status-action cursor-pointer" data-juz-progress-status data-juz-awqaf-status title="{{ __('workflow.student_progress.juz_progress.awqaf_details.title') }}" aria-label="{{ __('workflow.student_progress.juz_progress.awqaf_details.open', ['juz' => $row->juz->juz_number]) }}">
+                                @php($awqafDate = \App\Support\DateDisplay::text($row->awqaf_test->tested_on?->format('d-m-Y')))
+                                @php($awqafScore = $row->awqaf_test->score !== null ? \App\Support\PercentageFormatter::format($row->awqaf_test->score) : __('crud.common.not_available'))
+                                <span tabindex="0" class="status-chip status-chip--awqaf student-juz-awqaf-status" data-juz-progress-status data-juz-awqaf-status aria-label="{{ $juzStatusLabel }} — {{ __('workflow.student_progress.juz_progress.awqaf_details.date') }}: {{ $awqafDate }} — {{ __('workflow.student_progress.juz_progress.awqaf_details.score') }}: {{ $awqafScore }}">
                                     {{ $juzStatusLabel }}
-                                </button>
+                                    <span class="student-juz-awqaf-tooltip" role="tooltip" aria-hidden="true">
+                                        <bdi dir="ltr">{{ $awqafDate }} · {{ $awqafScore }}</bdi>
+                                    </span>
+                                </span>
                             @else
                                 <span class="status-chip {{ $juzStatusClass }}" data-juz-progress-status>{{ $juzStatusLabel }}</span>
                             @endif
@@ -980,7 +1090,7 @@ new class extends Component
             @if($this->canViewProgressSection('points.view'))
                 <x-student-progress-table :title="__('workflow.student_progress.points.latest_title')" :empty="$pointTransactions->isEmpty()" :empty-text="__('workflow.student_progress.points.empty')" view-all-action="points">
                     <x-slot:head><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></x-slot:head>
-                    @foreach ($pointTransactions->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: __('crud.common.not_available') }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="student-progress-latest-points-note-cell px-4 py-3"><span class="student-progress-latest-points-note" title="{{ $row->notes ?: __('crud.common.not_available') }}">{{ $row->notes ?: __('crud.common.not_available') }}</span></td></tr>@endforeach
+                    @foreach ($pointTransactions->take(5) as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $loop->iteration }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="student-progress-points-type-cell px-4 py-3"><span class="student-progress-points-type" title="{{ $row->pointType?->name ?: __('crud.common.not_available') }}">{{ $row->pointType?->name ?: __('crud.common.not_available') }}</span></td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="student-progress-latest-points-note-cell px-4 py-3"><span class="student-progress-latest-points-note" title="{{ $row->notes ?: __('crud.common.not_available') }}">{{ $row->notes ?: __('crud.common.not_available') }}</span></td></tr>@endforeach
                 </x-student-progress-table>
             @endif
         </section>
@@ -1087,7 +1197,7 @@ new class extends Component
             @elseif ($openDetails === 'memorization')
                 <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.page') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.memorization.headers.teacher') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->date?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->page }}</td><td class="px-4 py-3">{{ $row->teacher ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'points')
-                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="px-4 py-3">{{ $row->pointType?->name ?: '-' }}</td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
+                <div class="surface-table" data-student-progress-generic-table><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.date') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.type') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.points') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.points.headers.notes') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ \App\Support\DateDisplay::html($row->entered_at?->format('d-m-Y')) }}</td><td class="student-progress-points-type-cell px-4 py-3"><span class="student-progress-points-type" title="{{ $row->pointType?->name ?: '-' }}">{{ $row->pointType?->name ?: '-' }}</span></td><td class="px-4 py-3">{{ number_format((int) $row->points) }}</td><td class="px-4 py-3">{{ $row->notes ?: '-' }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'assessments')
                 <div class="surface-table" data-student-progress-generic-table data-student-progress-assessments><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th data-table-number-column class="w-12 px-4 py-3 text-center" data-student-progress-number-column>#</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.assessment') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.score') }}</th><th class="px-4 py-3 text-left">{{ __('workflow.student_progress.assessments.headers.status') }}</th></tr></thead><tbody>@foreach ($paginatedDetails as $row)<tr><td class="px-4 py-3" data-student-progress-row-number>{{ $paginatedDetails->firstItem() + $loop->index }}</td><td class="px-4 py-3">{{ $row->assessment?->title ?: '-' }}</td><td class="px-4 py-3">{{ $row->score }}</td><td class="px-4 py-3">{{ __('workflow.common.result_status.'.$row->status) }}</td></tr>@endforeach</tbody></table></div></div>
             @elseif ($openDetails === 'final-assessments')
@@ -1112,26 +1222,23 @@ new class extends Component
             @endif
         </x-admin.modal>
 
-        <x-admin.modal :show="$selectedAwqafTest !== null" :title="__('workflow.student_progress.juz_progress.awqaf_details.title')" close-method="closeAwqafDetails" max-width="md" compact>
-            @if ($selectedAwqafTest)
-                <dl class="grid gap-3 sm:grid-cols-2" data-student-progress-awqaf-details>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                        <dt class="kpi-label">{{ __('workflow.student_progress.juz_progress.awqaf_details.juz') }}</dt>
-                        <dd class="mt-2 font-semibold text-white" title="{{ __('workflow.common.labels.juz_number', ['number' => $selectedAwqafTest->juz?->juz_number]) }}">{{ __('workflow.common.labels.juz_number', ['number' => $selectedAwqafTest->juz?->juz_number]) }}</dd>
+        <x-admin.modal :show="$selectedOldMemorization !== null" :title="$selectedOldMemorization ? __('workflow.student_progress.juz_progress.old_memorization.prompt', ['juz' => $selectedOldMemorization->juz->juz_number]) : ''" close-method="closeOldMemorizationActions" :dismissible="false" max-width="lg" compact>
+            @if ($selectedOldMemorization)
+                <div class="old-memorization-actions" data-old-memorization-actions>
+                    @error('oldMemorization')<div class="flash-error px-4 py-3 text-sm">{{ $message }}</div>@enderror
+                    <div class="old-memorization-actions__choices">
+                        @can('quran-partial-tests.record')
+                            <button type="button" wire:click="startPartialSaberForOldMemorization" class="pill-link pill-link--accent" @disabled($selectedOldMemorization->partial_test_created) data-start-old-memorization-partial>
+                                {{ $selectedOldMemorization->partial_test_created ? __('workflow.student_progress.juz_progress.old_memorization.partial_started') : __('workflow.student_progress.juz_progress.old_memorization.start_partial') }}
+                            </button>
+                        @endcan
+                        @canany(['quran-awqaf-tests.record', 'quran-tests.record'])
+                            <button type="button" wire:click="enterAwqafSaberForOldMemorization" class="pill-link" data-enter-old-memorization-awqaf>
+                                {{ __('workflow.student_progress.juz_progress.old_memorization.enter_awqaf') }}
+                            </button>
+                        @endcanany
                     </div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                        <dt class="kpi-label">{{ __('workflow.student_progress.juz_progress.awqaf_details.date') }}</dt>
-                        <dd class="mt-2 font-semibold text-white" title="{{ \App\Support\DateDisplay::text($selectedAwqafTest->tested_on?->format('d-m-Y')) }}">{{ \App\Support\DateDisplay::html($selectedAwqafTest->tested_on?->format('d-m-Y')) }}</dd>
-                    </div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                        <dt class="kpi-label">{{ __('workflow.student_progress.juz_progress.awqaf_details.score') }}</dt>
-                        <dd class="mt-2 font-semibold text-white" title="{{ $selectedAwqafTest->score !== null ? \App\Support\PercentageFormatter::format($selectedAwqafTest->score) : __('crud.common.not_available') }}">{{ $selectedAwqafTest->score !== null ? \App\Support\PercentageFormatter::format($selectedAwqafTest->score) : __('crud.common.not_available') }}</dd>
-                    </div>
-                    <div class="rounded-2xl border border-white/8 bg-white/4 p-4">
-                        <dt class="kpi-label">{{ __('workflow.student_progress.juz_progress.awqaf_details.course') }}</dt>
-                        <dd class="record-course-name mt-2 font-semibold text-white" title="{{ $selectedAwqafTest->enrollment?->group?->course?->name ?: __('crud.common.not_available') }}">{{ $selectedAwqafTest->enrollment?->group?->course?->name ?: __('crud.common.not_available') }}</dd>
-                    </div>
-                </dl>
+                </div>
             @endif
         </x-admin.modal>
 
@@ -1140,8 +1247,10 @@ new class extends Component
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label><input wire:model="awqafTestedOn" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafTestedOn')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label><div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">{{ $awqafJuzId ? __('workflow.common.labels.juz_number', ['number' => $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $awqafJuzId)?->juz->juz_number]) : '-' }}</div>@error('awqafJuzId')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label><input wire:model="awqafScore" type="number" min="0" max="100" step="0.01" @required($awqafStatus === 'passed') class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafScore')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label><select wire:model.live="awqafStatus" class="w-full rounded-xl px-4 py-3 text-sm"><option value="passed">{{ __('workflow.common.result_status.passed') }}</option><option value="failed">{{ __('workflow.common.result_status.failed') }}</option><option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option></select>@error('awqafStatus')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    <div @class(['sm:col-span-2' => $awqafStatus === 'failed'])><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label><select wire:model.live="awqafStatus" required data-clearable="false" class="w-full rounded-xl px-4 py-3 text-sm"><option value="passed">{{ __('workflow.common.result_status.passed') }}</option><option value="failed">{{ __('workflow.common.result_status.failed') }}</option></select>@error('awqafStatus')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    @if ($awqafStatus === 'passed')
+                        <div><label class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label><input wire:model="awqafScore" type="number" min="80.00" max="100" step="0.01" required class="w-full rounded-xl px-4 py-3 text-sm">@error('awqafScore')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    @endif
                 </div>
                 @error('awqafEnrollmentId')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                 <div class="flex justify-end gap-3"><x-admin.save-button :label="__('workflow.common.actions.save_quran_test')" data-student-progress-awqaf-save-action /></div>

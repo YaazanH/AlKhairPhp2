@@ -2520,7 +2520,7 @@ function synchronizeBalancedRecordTableColumns() {
         const measuredWidths = measureRecordTableColumns(table, headerCells.length);
         const compactNumberColumnWidth = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) * 3.5;
         const compactColumnIndexes = new Set(headerCells.flatMap((cell, index) => (
-            cell.matches('[data-table-number-column]') ? [index] : []
+            cell.matches('[data-table-number-column], [data-juz-progress-spacer]') ? [index] : []
         )));
         const hiddenColumnIndexes = new Set(headerCells.flatMap((cell, index) => (
             window.getComputedStyle(cell).display === 'none' ? [index] : []

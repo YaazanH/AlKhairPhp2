@@ -47,7 +47,12 @@
 
 @if ($show)
     <div class="admin-modal {{ $fullViewport ? 'admin-modal--full-viewport' : '' }}">
-        <div class="admin-modal__backdrop"></div>
+        <div
+            class="admin-modal__backdrop"
+            @if (! $hideHeader && $closeMethod && $dismissible)
+                wire:click="{{ $closeMethod }}"
+            @endif
+        ></div>
         <div
             class="admin-modal__viewport"
             @if (! $hideHeader && $closeMethod && $dismissible)

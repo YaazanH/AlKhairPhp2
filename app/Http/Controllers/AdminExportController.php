@@ -473,8 +473,27 @@ class AdminExportController extends Controller
             $request->user()
         )->findOrFail($group->id);
 
+        $archiveCourseId = $request->integer('archive_course_id') ?: null;
+        $isArchiveExport = $archiveCourseId !== null;
+
+        if ($isArchiveExport) {
+            $archiveCourse = Course::query()
+                ->whereKey($archiveCourseId)
+                ->where('is_active', false)
+                ->firstOrFail();
+
+            abort_unless($group->course_id === $archiveCourse->id, 404);
+        } else {
+            abort_unless($group->isAccessibleInActiveWorkspace(), 404);
+        }
+
+        $enrollmentQuery = Enrollment::query();
+        if ($isArchiveExport) {
+            $enrollmentQuery->withTrashed();
+        }
+
         $enrollments = $scopes->scopeEnrollments(
-            Enrollment::query()
+            $enrollmentQuery
                 ->with(['student.parentProfile', 'student.gradeLevel', 'student.quranCurrentJuz', 'student.user'])
                 ->where('group_id', $group->id),
             $request->user()

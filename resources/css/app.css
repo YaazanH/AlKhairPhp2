@@ -1998,7 +1998,7 @@ html[dir='rtl'] .group-show-details {
     color: #6ee7b7;
     font-size: 1.1rem;
     font-weight: 700;
-    cursor: help;
+    cursor: default;
 }
 
 .group-curriculum-status--missing {
@@ -2031,19 +2031,19 @@ html[dir='rtl'] .group-show-details {
 }
 
 .curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__lesson {
-    width: 42%;
+    width: 35%;
 }
 
 .curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__status {
-    width: 10%;
+    width: 11%;
 }
 
 .curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__date {
-    width: 18%;
+    width: 19%;
 }
 
 .curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__teacher {
-    width: 20%;
+    width: 25%;
 }
 
 .teacher-curriculum-book {
@@ -4496,16 +4496,30 @@ body.application-modal-open {
 }
 
 html.application-modal-open .app-sidebar-scroll-region {
-    overflow-y: hidden !important;
+    overflow-y: auto !important;
 }
 
 html.application-modal-open .app-sidebar-shell {
-    z-index: 0 !important;
-    pointer-events: none;
-    visibility: hidden;
+    display: flex !important;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    align-self: flex-start;
+    z-index: 90;
+    pointer-events: auto;
+}
+
+@media (min-width: 1024px) {
+    html.application-modal-open .app-sidebar-shell {
+        position: fixed !important;
+        inset-block: 0;
+        inset-inline-start: 0;
+    }
 }
 
 html.application-modal-open .app-main {
+    z-index: auto;
     overflow: visible;
 }
 
@@ -4861,6 +4875,21 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
 
 .student-progress-latest-points-note-cell {
     min-width: 0;
+}
+
+.student-progress-points-type-cell {
+    min-width: 0;
+    max-width: 10rem;
+}
+
+.student-progress-points-type {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .student-progress-latest-points-note {
@@ -5569,6 +5598,18 @@ button.dashboard-curriculum-hotbar__marker {
     color: #d4d4d4;
     font-size: 0.66rem;
     font-weight: 500;
+}
+
+.dashboard-curriculum-hotbar[data-curriculum-pace='ahead'] .dashboard-curriculum-hotbar__tooltip span {
+    color: #a7f3d0;
+}
+
+.dashboard-curriculum-hotbar[data-curriculum-pace='behind'][data-progress-tone='warning'] .dashboard-curriculum-hotbar__tooltip span {
+    color: #fde68a;
+}
+
+.dashboard-curriculum-hotbar[data-curriculum-pace='behind'][data-progress-tone='danger'] .dashboard-curriculum-hotbar__tooltip span {
+    color: #fecdd3;
 }
 
 html:not(.dark) .dashboard-curriculum-hotbar__track {
@@ -6645,6 +6686,16 @@ html[lang^='ar'] .student-inline__meta {
     inset: 0;
     background: rgba(8, 11, 9, 0.72);
     backdrop-filter: blur(10px);
+}
+
+@media (min-width: 1024px) {
+    .admin-modal:not(.admin-modal--full-viewport) .admin-modal__backdrop {
+        inset-inline-start: var(--app-sidebar-width, 17rem);
+    }
+
+    .app-sidebar-is-collapsed .admin-modal__backdrop {
+        inset-inline-start: 0;
+    }
 }
 
 .admin-modal__viewport {
@@ -9116,6 +9167,7 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     aspect-ratio: 1;
     box-sizing: border-box;
     border-radius: 50%;
+    clip-path: circle(50%);
     background: currentColor;
     opacity: 0.9;
     transform: translateY(-50%);
@@ -9135,6 +9187,19 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     vertical-align: middle;
 }
 
+.student-juz-progress-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.student-juz-progress-table [data-juz-progress-spacer] {
+    width: 0.81rem;
+    min-width: 0.81rem;
+    max-width: 0.81rem;
+    padding: 0 !important;
+}
+
 [data-student-progress-row-number] > .mobile-scroll-table-value {
     display: inline !important;
     inline-size: auto;
@@ -9149,6 +9214,104 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
 .student-juz-status-action:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 3px;
+}
+
+.student-juz-status-action__hover-icon {
+    position: absolute;
+    inset-inline-start: .525rem;
+    top: 50%;
+    width: 1rem;
+    height: 1rem;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity 140ms ease;
+}
+
+.student-juz-status-action--hover-icon:is(:hover, :focus-visible)::before {
+    opacity: 0;
+}
+
+.student-juz-status-action--hover-icon:is(:hover, :focus-visible) .student-juz-status-action__hover-icon {
+    opacity: 1;
+}
+
+.student-juz-awqaf-status {
+    overflow: visible;
+    cursor: default;
+    outline: none;
+}
+
+.student-juz-awqaf-status:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.student-juz-awqaf-tooltip {
+    position: absolute;
+    z-index: 12;
+    left: 50%;
+    bottom: calc(100% + 0.55rem);
+    display: block;
+    width: max-content;
+    transform: translateX(-50%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0.55rem;
+    padding: 0.35rem 0.55rem;
+    background: rgba(10, 10, 10, 0.96);
+    color: #fff;
+    direction: rtl;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 0.7rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+.student-juz-awqaf-status:is(:hover, :focus-visible) .student-juz-awqaf-tooltip {
+    opacity: 1;
+}
+
+.old-memorization-actions {
+    display: grid;
+    gap: 1rem;
+    color: var(--app-text);
+}
+
+.admin-modal:has([data-old-memorization-actions]) .admin-modal__header {
+    justify-content: center;
+    text-align: center;
+}
+
+[dir='rtl'] .admin-modal:has([data-old-memorization-actions]) .admin-modal__header {
+    text-align: center;
+}
+
+.admin-modal:has([data-old-memorization-actions]) .admin-modal__header > :first-child {
+    width: 100%;
+}
+
+.admin-modal:has([data-old-memorization-actions]) .admin-modal__header-actions:empty {
+    display: none;
+}
+
+.old-memorization-actions__choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.old-memorization-actions__choices .pill-link {
+    min-height: 3.25rem;
+    justify-content: center;
+}
+
+@media (max-width: 639px) {
+    .old-memorization-actions__choices {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .student-juz-status-action__plus {
@@ -13116,6 +13279,29 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
     }
 }
 
+/* Keep the five progress summaries together on compact portrait tablets.
+   Their intrinsic content width may wrap the set once, but never forces the
+   phone-sized two-column layout used below 700px. */
+@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait) {
+    .student-progress-highlights {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 0.65rem !important;
+    }
+
+    .student-progress-highlights > .stat-card {
+        min-width: max-content;
+        max-width: 100%;
+        flex: 1 1 7rem;
+        padding: 1rem 0.8rem;
+    }
+
+    .student-progress-highlights .metric-value {
+        white-space: nowrap;
+        font-size: clamp(1.65rem, 4.5vw, 2.5rem);
+    }
+}
+
 /* Mobile table command bars: title and symbol actions share the header row. */
 @media (max-width: 1023px) {
     [data-mobile-title-action-row] {
@@ -13991,6 +14177,12 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
 
 .memorization-page-picker__nav svg { width: 1.25rem; height: 1.25rem; }
 [dir='ltr'] .memorization-page-picker__nav svg { transform: rotate(180deg); }
+.memorization-page-picker__nav--wrap {
+    border: 0;
+    color: #e6bf73;
+    background: transparent;
+    box-shadow: none;
+}
 .memorization-page-picker__nav:disabled { opacity: 0.25; cursor: default; }
 .memorization-page-picker__grid {
     --memorization-page-gap: clamp(0.25rem, 1vw, 0.5rem);
@@ -14039,6 +14231,7 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
 @media (hover: hover) {
     .memorization-page-picker__page:not([aria-pressed='true']):hover,
     .memorization-page-picker__nav:not(:disabled):hover { background: rgba(105, 169, 125, 0.15); border-color: #579a70; }
+    .memorization-page-picker__nav--wrap:not(:disabled):hover { border: 0; background: rgba(180, 139, 63, 0.24); box-shadow: none; color: #e6bf73; }
 }
 .memorization-page-picker__complete { padding: 1.5rem 0.5rem; text-align: center; color: var(--app-text); }
 

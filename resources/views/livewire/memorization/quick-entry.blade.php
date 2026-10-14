@@ -158,9 +158,16 @@ new class extends Component
     public function navigateJuz(int $direction): void
     {
         $numbers = $this->unfinishedJuzs->pluck('number');
+
+        if ($numbers->count() < 2) {
+            return;
+        }
+
         $next = $direction < 0
             ? $numbers->filter(fn ($number) => $number < $this->selectedJuzNumber)->last()
             : $numbers->first(fn ($number) => $number > $this->selectedJuzNumber);
+
+        $next ??= $direction < 0 ? $numbers->last() : $numbers->first();
 
         if ($next !== null) {
             $this->selectJuz($next);
@@ -493,8 +500,12 @@ new class extends Component
             @if ($selectedStudentId)
                 <section class="memorization-page-picker" wire:key="page-picker-{{ $selectedStudentId }}" data-memorization-page-picker>
                     @if ($displayedJuz)
+                        @php($juzNumbers = $unfinishedJuzs->pluck('number'))
+                        @php($canNavigateJuz = $juzNumbers->count() > 1)
+                        @php($nextJuzWraps = $canNavigateJuz && $selectedJuzNumber === $juzNumbers->last())
+                        @php($previousJuzWraps = $canNavigateJuz && $selectedJuzNumber === $juzNumbers->first())
                         <div class="memorization-page-picker__heading">
-                            <button type="button" wire:click="navigateJuz(1)" class="memorization-page-picker__nav" @disabled(! $unfinishedJuzs->contains(fn ($juz) => $juz['number'] > $selectedJuzNumber)) title="{{ __('workflow.memorization.quick_entry.picker.next') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.next') }}" wire:loading.attr="disabled">
+                            <button type="button" wire:click="navigateJuz(1)" @class(['memorization-page-picker__nav', 'memorization-page-picker__nav--wrap' => $nextJuzWraps]) @disabled(! $canNavigateJuz) title="{{ __('workflow.memorization.quick_entry.picker.next') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.next') }}" wire:loading.attr="disabled" @if($nextJuzWraps) data-juz-navigation-wrap="next" @endif>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
                             </button>
                             <div class="memorization-page-picker__title memorization-juz-switcher" x-data="{
@@ -533,7 +544,7 @@ new class extends Component
                                     </div>
                                 </template>
                             </div>
-                            <button type="button" wire:click="navigateJuz(-1)" class="memorization-page-picker__nav" @disabled(! $unfinishedJuzs->contains(fn ($juz) => $juz['number'] < $selectedJuzNumber)) title="{{ __('workflow.memorization.quick_entry.picker.previous') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.previous') }}" wire:loading.attr="disabled">
+                            <button type="button" wire:click="navigateJuz(-1)" @class(['memorization-page-picker__nav', 'memorization-page-picker__nav--wrap' => $previousJuzWraps]) @disabled(! $canNavigateJuz) title="{{ __('workflow.memorization.quick_entry.picker.previous') }}" aria-label="{{ __('workflow.memorization.quick_entry.picker.previous') }}" wire:loading.attr="disabled" @if($previousJuzWraps) data-juz-navigation-wrap="previous" @endif>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m15 5-7 7 7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
                             </button>
                         </div>

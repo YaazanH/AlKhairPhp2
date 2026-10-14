@@ -1492,21 +1492,17 @@ new class extends Component
                             </summary>
 
                             <div class="overflow-x-auto" data-table-scroll-region>
-                                <table class="curriculum-progress-details-table table-content text-sm {{ $hasChapterNumbers ? 'curriculum-progress-details-table--with-chapter' : '' }}" data-curriculum-progress-details-table>
+                                <table class="curriculum-progress-details-table curriculum-progress-details-table--with-chapter table-content text-sm" data-curriculum-progress-details-table data-has-chapter-column="{{ $hasChapterNumbers ? 'true' : 'false' }}">
                                     <colgroup>
+                                        <col class="curriculum-progress-details-table__chapter">
                                         <col class="curriculum-progress-details-table__lesson">
-                                        @if($hasChapterNumbers)
-                                            <col class="curriculum-progress-details-table__chapter">
-                                        @endif
                                         <col class="curriculum-progress-details-table__status">
                                         <col class="curriculum-progress-details-table__date">
                                         <col class="curriculum-progress-details-table__teacher">
                                     </colgroup>
                                     <thead><tr>
-                                        <th class="px-5 py-3 text-start">{{ __('curricula.fields.lesson') }}</th>
-                                        @if($hasChapterNumbers)
-                                            <th class="px-5 py-3 text-center">{{ __('curricula.fields.chapter_number') }}</th>
-                                        @endif
+                                        <th class="px-5 py-3 text-center" data-curriculum-chapter-column>{{ $hasChapterNumbers ? __('curricula.fields.chapter_number') : '#' }}</th>
+                                        <th class="px-5 py-3 text-start" data-curriculum-lesson-column>{{ __('curricula.fields.lesson') }}</th>
                                         <th class="px-5 py-3 text-center">{{ __('curricula.fields.status') }}</th>
                                         <th class="px-5 py-3 text-center">{{ __('curricula.fields.date') }}</th>
                                         <th class="px-5 py-3 text-start">{{ __('curricula.fields.teacher') }}</th>
@@ -1514,10 +1510,8 @@ new class extends Component
                                     <tbody class="divide-y divide-white/6">
                                         @foreach ($subject['lessons'] as $lesson)
                                             <tr>
-                                                <td class="px-5 py-3 font-semibold text-white">{{ $lesson['name'] }}</td>
-                                                @if($hasChapterNumbers)
-                                                    <td class="px-5 py-3 text-center"><bdi>{{ filled($lesson['chapter_number']) ? $lesson['chapter_number'] : '—' }}</bdi></td>
-                                                @endif
+                                                <td class="px-5 py-3 text-center" data-curriculum-chapter-column><bdi>{{ $hasChapterNumbers ? (filled($lesson['chapter_number']) ? $lesson['chapter_number'] : '—') : $loop->iteration }}</bdi></td>
+                                                <td class="px-5 py-3 font-semibold text-white" data-curriculum-lesson-column>{{ $lesson['name'] }}</td>
                                                 <td class="px-5 py-3 text-center">
                                                     <span class="group-curriculum-status {{ $lesson['status'] === 'taught' ? '' : 'group-curriculum-status--missing' }}" title="{{ __('curricula.status.'.$lesson['status']) }}" aria-label="{{ __('curricula.status.'.$lesson['status']) }}" data-curriculum-lesson-status-icon>{{ $lesson['status'] === 'taught' ? '✓' : '×' }}</span>
                                                 </td>

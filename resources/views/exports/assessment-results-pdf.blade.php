@@ -4,21 +4,27 @@
     <meta charset="utf-8">
     <style>
         @page { margin: 10mm 10mm 18mm; footer: pdf-footer; }
-        body { color:#172033; font-family:dubai,sans-serif; font-size:11pt; }
+        body { color:#172033; font-family:dubai,sans-serif; font-size:11px; font-weight:400; }
         .heading { background:#cfe7d6; margin:0 0 4mm; table-layout:fixed; width:100%; }
-        .heading td { border:0; padding:2mm 3mm; vertical-align:middle; }
-        .heading-side { width:38mm; }
-        .heading-logo { text-align:right; }
+        .heading-row-cell { border:0; height:18mm; padding:2mm 3mm; vertical-align:middle; }
+        .heading-side { width:22%; }
+        .heading-logo { text-align:right; width:30%; }
         .heading-logo img { height:18mm; max-width:35mm; width:auto; }
-        .heading-copy { text-align:center; }
-        .heading-title { font-size:20pt; font-weight:bold; }
-        .heading-group { font-size:15pt; font-weight:500; margin-top:1mm; }
-        .heading-meta { border:1px solid #b8c2ca !important; font-size:9pt; padding:1.5mm 2mm !important; text-align:left; }
+        .heading-copy { text-align:center; width:48%; }
+        .heading-title { font-family:dubai,sans-serif; font-size:20px; font-weight:bold; }
+        .heading-group { font-size:13px; font-weight:500; margin-top:1mm; }
+        .heading-meta { font-size:9px; vertical-align:middle; }
+        .heading-meta[dir="rtl"] { position:relative; left:-2mm; }
+        .heading-meta-shell { height:18mm; table-layout:fixed; width:100%; }
+        .heading-meta-shell td { border:0; height:18mm; padding:0; vertical-align:middle; }
         .heading-meta-table { border-collapse:collapse; table-layout:fixed; width:100%; }
-        .heading-meta-table td { border:0; padding:.4mm 0; white-space:nowrap; }
-        .heading-meta-label { font-family:dubaimedium,sans-serif; font-weight:500; text-align:{{ app()->isLocale('ar') ? 'right' : 'left' }}; }
-        .heading-meta-spacer { width:2mm; }
-        .heading-meta-value { text-align:{{ app()->isLocale('ar') ? 'left' : 'right' }}; }
+        .heading-meta-table td { border:0; height:auto; padding:0 0 .8mm; vertical-align:middle; white-space:nowrap; }
+        .heading-meta-label { font-family:dubaimedium,sans-serif; font-weight:normal; width:58%; }
+        .heading-meta-value { direction:ltr; width:42%; }
+        .heading-meta[dir="rtl"] .heading-meta-label { padding-left:.8mm; text-align:left; }
+        .heading-meta[dir="rtl"] .heading-meta-value { padding-right:.8mm; text-align:right; }
+        .heading-meta[dir="ltr"] .heading-meta-label { padding-right:.8mm; text-align:right; }
+        .heading-meta[dir="ltr"] .heading-meta-value { padding-left:.8mm; text-align:left; }
         table { border-collapse:collapse; width:100%; }
         th, td { border:1px solid #b8c2ca; padding:2.5mm 2mm; }
         th { background:#dfece2; border-bottom:3px double #b8c2ca; font-weight:bold; text-align:center; }
@@ -36,9 +42,9 @@
 @forelse ($groups as $group)
     @if (! $loop->first)<pagebreak />@endif
     <table class="heading" dir="ltr"><tr>
-        <td class="heading-side heading-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><table class="heading-meta-table"><tr><td class="heading-meta-label">{{ __('workflow.assessments.results.pdf.due_date') }}</td><td class="heading-meta-spacer"></td><td class="heading-meta-value" dir="ltr">{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?? '—') }}</td></tr><tr><td class="heading-meta-label">{{ __('workflow.assessments.results.pdf.average_mark') }}</td><td class="heading-meta-spacer"></td><td class="heading-meta-value" dir="ltr">{{ $group->average_mark !== null ? number_format((float) $group->average_mark, 2) : '—' }}</td></tr></table></td>
-        <td class="heading-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></td>
-        <td class="heading-side heading-logo">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td>
+        <td class="heading-row-cell heading-side heading-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><table class="heading-meta-shell"><tr><td><table class="heading-meta-table"><tr><td class="heading-meta-label">{{ __('workflow.assessments.results.pdf.due_date') }}</td><td class="heading-meta-value" dir="ltr">{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?? '—') }}</td></tr><tr><td class="heading-meta-label">{{ __('workflow.assessments.results.pdf.average_mark') }}</td><td class="heading-meta-value" dir="ltr">{{ $group->average_mark !== null ? number_format((float) $group->average_mark, 2) : '—' }}</td></tr></table></td></tr></table></td>
+        <td class="heading-row-cell heading-copy" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}"><div class="heading-title">{{ $assessment->title }}</div><div class="heading-group">{{ $group->name }}</div></td>
+        <td class="heading-row-cell heading-side heading-logo">@if($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td>
     </tr></table>
     <table>
         <thead><tr>

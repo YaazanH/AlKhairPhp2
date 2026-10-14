@@ -33,10 +33,12 @@ use App\Services\AccessScopeService;
 use App\Services\CourseCompletionRuleService;
 use App\Services\CourseEndService;
 use App\Services\CourseLifecycleService;
+use App\Services\QuranPartialTestService;
 use App\Support\AvatarDefaults;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -45,26 +47,79 @@ class StudentProgressPageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_record_tables_have_number_columns_except_for_quran_juz_progress(): void
+    public function test_record_tables_have_number_columns_and_quran_progress_has_a_number_width_spacer(): void
     {
         $source = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
 
         $this->assertSame(12, substr_count($source, 'data-student-progress-number-column'));
         $this->assertSame(12, substr_count($source, 'data-student-progress-row-number'));
         $this->assertMatchesRegularExpression(
-            '/data-student-progress-juz-table><thead><tr>\s*<th[^>]*>\{\{ __\(\'workflow\.student_progress\.juz_progress\.headers\.juz\'\) \}\}<\/th>/',
+            '/data-student-progress-juz-table><thead><tr>\s*<th[^>]*data-juz-progress-spacer[^>]*><\/th>\s*<th[^>]*>\{\{ __\(\'workflow\.student_progress\.juz_progress\.headers\.juz\'\) \}\}<\/th>/',
             $source,
         );
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertMatchesRegularExpression('/\[data-juz-progress-spacer\]\s*\{[^}]*width:\s*0\.81rem;[^}]*min-width:\s*0\.81rem;[^}]*max-width:\s*0\.81rem;/s', $styles);
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("cell.matches('[data-table-number-column], [data-juz-progress-spacer]')", $script);
     }
 
-    public function test_latest_points_notes_stay_on_one_line_and_ellipsis_overflow(): void
+    public function test_quran_progress_uses_ten_rows_and_header_only_arrow_pagination(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [$parentUser, $student] = $this->makeScopedProgressData();
+        foreach (range(2, 12) as $juzNumber) {
+            QuranJuz::create([
+                'juz_number' => $juzNumber,
+                'from_page' => (($juzNumber - 1) * 20) + 1,
+                'to_page' => $juzNumber * 20,
+            ]);
+        }
+        $student->externalMemorizedJuzs()->syncWithoutDetaching(
+            QuranJuz::query()->orderBy('juz_number')->limit(12)->pluck('id')->all()
+        );
+        $this->actingAs($parentUser);
+
+        $component = Volt::test('students.progress', ['student' => $student])
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows instanceof LengthAwarePaginator
+                && $rows->perPage() === 10
+                && $rows->count() === 10
+                && $rows->total() >= 12
+                && $rows->currentPage() === 1)
+            ->assertSee('data-student-juz-header-pagination', false)
+            ->assertSee("wire:click=\"previousPage('studentProgressJuzPage')\"", false)
+            ->assertSee("wire:click=\"nextPage('studentProgressJuzPage')\"", false)
+            ->assertDontSee('app-pagination-container', false);
+
+        $component
+            ->call('nextPage', 'studentProgressJuzPage')
+            ->assertViewHas('quranJuzProgress', fn ($rows) => $rows->currentPage() === 2
+                && $rows->count() <= 10
+                && $rows->firstItem() === 11);
+    }
+
+    public function test_latest_points_type_and_notes_stay_on_one_line_and_ellipsis_overflow(): void
     {
         $source = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
         $styles = file_get_contents(resource_path('css/app.css'));
 
+        $this->assertStringContainsString('student-progress-points-type-cell', $source);
+        $this->assertStringContainsString('class="student-progress-points-type" title=', $source);
+        $this->assertMatchesRegularExpression('/\.student-progress-points-type\s*\{[^}]*overflow:\s*hidden;[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s', $styles);
         $this->assertStringContainsString('student-progress-latest-points-note-cell', $source);
         $this->assertStringContainsString('class="student-progress-latest-points-note" title=', $source);
         $this->assertMatchesRegularExpression('/\.student-progress-latest-points-note\s*\{[^}]*overflow:\s*hidden;[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s', $styles);
+    }
+
+    public function test_ipad_mini_portrait_keeps_progress_highlights_in_one_wrapping_row(): void
+    {
+        $source = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('student-progress-highlights mobile-compact-highlights', $source);
+        $this->assertMatchesRegularExpression('/@media \(min-width: 700px\) and \(max-width: 899px\) and \(orientation: portrait\)\s*\{[^}]*\.student-progress-highlights\s*\{[^}]*display:\s*flex !important;[^}]*flex-wrap:\s*wrap;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.student-progress-highlights > \.stat-card\s*\{[^}]*min-width:\s*max-content;[^}]*flex:\s*1 1 7rem;/s', $styles);
     }
 
     public function test_parent_can_view_only_their_child_progress(): void
@@ -235,6 +290,158 @@ class StudentProgressPageTest extends TestCase
 
         $this->assertSame(3, substr_count($response->getContent(), 'data-old-memorization-placeholder'));
         $response->assertSee('<bdi dir="ltr" data-old-memorization-placeholder>-</bdi>', false);
+    }
+
+    public function test_old_memorization_can_start_partial_saber_and_become_available_for_quick_partial_then_final_entry(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student] = $this->makeScopedProgressData();
+        $juz = QuranJuz::query()->firstOrFail();
+        $student->externalMemorizedJuzs()->sync([$juz->id]);
+
+        $manager = User::factory()->create(['username' => 'old-memorization-manager', 'phone' => '8111099']);
+        $manager->assignRole('manager');
+        $manager->givePermissionTo('quran-tests.quick-entry');
+        $this->actingAs($manager);
+
+        $component = Volt::test('students.progress', ['student' => $student])
+            ->assertSee('wire:click="openOldMemorizationActions('.$juz->id.')"', false)
+            ->call('openOldMemorizationActions', $juz->id)
+            ->assertSet('oldMemorizationJuzId', $juz->id)
+            ->assertSee('data-old-memorization-actions', false)
+            ->assertSeeText(__('workflow.student_progress.juz_progress.old_memorization.prompt', ['juz' => $juz->juz_number]))
+            ->assertSeeText(__('workflow.student_progress.juz_progress.old_memorization.start_partial'))
+            ->assertDontSee('class="admin-modal__close"', false)
+            ->assertSee('data-start-old-memorization-partial', false)
+            ->assertSee('data-enter-old-memorization-awqaf', false)
+            ->call('enterAwqafSaberForOldMemorization')
+            ->assertSet('oldMemorizationJuzId', null)
+            ->assertSet('showAwqafTestModal', true)
+            ->call('closeAwqafTest')
+            ->call('openOldMemorizationActions', $juz->id)
+            ->call('startPartialSaberForOldMemorization')
+            ->assertHasNoErrors()
+            ->assertSet('oldMemorizationJuzId', null);
+
+        $partialTest = QuranPartialTest::query()
+            ->where('student_id', $student->id)
+            ->where('juz_id', $juz->id)
+            ->firstOrFail();
+        $this->assertSame('in_progress', $partialTest->status);
+        $this->assertTrue($partialTest->from_external_memorization);
+        $this->assertCount(4, $partialTest->parts);
+
+        $student->externalMemorizedJuzs()->detach($juz->id);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.awaiting'))
+            ->assertDontSeeText(__('workflow.student_progress.juz_progress.statuses.memorized_before'))
+            ->assertDontSee('data-old-memorization-final-placeholder', false)
+            ->assertDontSee('data-old-memorization-action', false);
+
+        $student->externalMemorizedJuzs()->attach($juz->id);
+        app(QuranPartialTestService::class)->deleteTest($partialTest);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.memorized_before'))
+            ->assertSee('data-old-memorization-action', false)
+            ->call('openOldMemorizationActions', $juz->id)
+            ->call('startPartialSaberForOldMemorization')
+            ->assertHasNoErrors();
+
+        $partialTest = QuranPartialTest::query()
+            ->where('student_id', $student->id)
+            ->where('juz_id', $juz->id)
+            ->firstOrFail();
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('partialStudentId', $student->id)
+            ->assertViewHas('partialJuzs', fn ($juzs) => $juzs->pluck('id')->contains($juz->id))
+            ->assertSet('partialTestId', $partialTest->id);
+
+        $partialTest->parts()->update(['status' => 'passed', 'passed_on' => '2026-10-13']);
+        $partialTest->update(['status' => 'passed', 'passed_on' => '2026-10-13']);
+
+        Volt::test('quran-tests.quick-entry')
+            ->set('finalStudentId', $student->id)
+            ->assertViewHas('finalJuzs', fn ($juzs) => $juzs->pluck('id')->contains($juz->id));
+    }
+
+    public function test_old_memorization_awqaf_origin_survives_removing_the_student_setting(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student] = $this->makeScopedProgressData();
+        $juz = QuranJuz::query()->firstOrFail();
+        $student->externalMemorizedJuzs()->sync([$juz->id]);
+
+        $manager = User::factory()->create(['username' => 'old-awqaf-manager', 'phone' => '8111100']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->call('openOldMemorizationActions', $juz->id)
+            ->call('enterAwqafSaberForOldMemorization')
+            ->assertSet('awqafFromExternalMemorization', true)
+            ->set('awqafScore', '91')
+            ->call('saveAwqafTest')
+            ->assertHasNoErrors();
+
+        $test = QuranTest::query()
+            ->where('student_id', $student->id)
+            ->where('juz_id', $juz->id)
+            ->where('from_external_memorization', true)
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertTrue($test->from_external_memorization);
+
+        $student->externalMemorizedJuzs()->detach($juz->id);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.completed_with_awqaf'))
+            ->assertSee('data-old-memorization-final-placeholder', false)
+            ->assertDontSee('data-old-memorization-action', false);
+    }
+
+    public function test_failed_old_memorization_awqaf_attempt_does_not_change_the_juz_status(): void
+    {
+        $this->seed(RoleSeeder::class);
+        [, $student] = $this->makeScopedProgressData();
+        $juz = QuranJuz::query()->firstOrFail();
+        $student->externalMemorizedJuzs()->sync([$juz->id]);
+
+        $manager = User::factory()->create(['username' => 'failed-old-awqaf-manager', 'phone' => '8111101']);
+        $manager->assignRole('manager');
+        $this->actingAs($manager);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->call('openOldMemorizationActions', $juz->id)
+            ->call('enterAwqafSaberForOldMemorization')
+            ->set('awqafStatus', 'failed')
+            ->call('saveAwqafTest')
+            ->assertHasNoErrors();
+
+        $student->externalMemorizedJuzs()->detach($juz->id);
+
+        Volt::test('students.progress', ['student' => $student])
+            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.memorized_before'))
+            ->assertDontSeeText(__('workflow.student_progress.juz_progress.statuses.awaiting'))
+            ->assertSee('data-old-memorization-action', false);
+    }
+
+    public function test_juz_action_pills_swap_their_dot_for_the_requested_hover_icon(): void
+    {
+        $source = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('wire:click="showMissingPages({{ $row->juz->id }})" class="status-chip student-juz-status-action student-juz-status-action--hover-icon', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="eye" class="student-juz-status-action__hover-icon" />', $source);
+        $this->assertStringContainsString('wire:click="openOldMemorizationActions({{ $row->juz->id }})" class="status-chip student-juz-status-action student-juz-status-action--hover-icon', $source);
+        $this->assertStringContainsString('<x-admin-action-icon name="add" class="student-juz-status-action__hover-icon" />', $source);
+        $this->assertStringContainsString('.student-juz-status-action--hover-icon:is(:hover, :focus-visible)::before', $styles);
+        $this->assertMatchesRegularExpression('/\.student-juz-status-action__hover-icon\s*\{[^}]*inset-inline-start:\s*\.525rem;[^}]*width:\s*1rem;[^}]*height:\s*1rem;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.student-juz-status-action__plus\s*\{[^}]*inset-inline-start:\s*\.525rem;[^}]*width:\s*1rem;[^}]*height:\s*1rem;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.status-chip::before\s*\{[^}]*width:\s*0\.45rem;[^}]*height:\s*0\.45rem;[^}]*aspect-ratio:\s*1;[^}]*border-radius:\s*50%;[^}]*clip-path:\s*circle\(50%\);/s', $styles);
+        $this->assertStringNotContainsString('cursor: help;', $styles);
     }
 
     public function test_assessments_box_excludes_final_exam_results(): void
@@ -978,22 +1185,33 @@ class StudentProgressPageTest extends TestCase
             ->call('openAwqafTest', $juz->id)
             ->assertSet('showAwqafTestModal', true)
             ->assertDontSee('wire:click="closeAwqafTest" class="pill-link"', false)
+            ->assertSee('wire:model.live="awqafStatus" required data-clearable="false"', false)
             ->call('saveAwqafTest')
-            ->assertHasErrors(['awqafScore' => 'required_if'])
+            ->assertHasErrors(['awqafScore' => 'required'])
             ->set('awqafTestedOn', '2026-09-16')
             ->set('awqafScore', '60')
             ->set('awqafStatus', 'failed')
+            ->assertDontSee('wire:model="awqafScore"', false)
+            ->assertDontSee('<option value="cancelled">', false)
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
             ->assertSet('showAwqafTestModal', false)
             ->assertSee('wire:click="openAwqafTest('.$juz->id.')" class="status-chip student-juz-status-action student-juz-status-action--awqaf', false)
             ->call('openAwqafTest', $juz->id)
             ->set('awqafTestedOn', '2026-09-17')
-            ->set('awqafScore', '88')
+            ->set('awqafScore', '80')
             ->set('awqafStatus', 'passed')
             ->call('saveAwqafTest')
             ->assertHasNoErrors()
             ->assertDontSee('wire:click="openAwqafTest(', false);
+
+        $failedAwqafTest = QuranTest::query()
+            ->where('enrollment_id', $currentEnrollment->id)
+            ->where('juz_id', $juz->id)
+            ->where('status', 'failed')
+            ->firstOrFail();
+
+        $this->assertNull($failedAwqafTest->score);
 
         $passedAwqafTest = QuranTest::query()
             ->where('enrollment_id', $currentEnrollment->id)
@@ -1002,37 +1220,24 @@ class StudentProgressPageTest extends TestCase
             ->firstOrFail();
 
         $component
-            ->assertSee('wire:click="showAwqafDetails('.$passedAwqafTest->id.')"', false)
             ->assertSee('data-juz-awqaf-status', false)
-            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.finished'))
-            ->assertDontSee('>سبر الأوقاف</button>', false)
-            ->assertDontSeeText('تم سبره بالأوقاف')
-            ->call('showAwqafDetails', $passedAwqafTest->id)
-            ->assertSet('awqafDetailsTestId', $passedAwqafTest->id)
-            ->assertSee('data-student-progress-awqaf-details', false)
-            ->assertSeeText(__('workflow.student_progress.juz_progress.awqaf_details.title'))
-            ->assertSeeText('Current Awqaf Course')
-            ->assertSeeText('88%')
-            ->call('closeAwqafDetails')
-            ->assertSet('awqafDetailsTestId', null)
+            ->assertSeeText(__('workflow.student_progress.juz_progress.statuses.completed_with_awqaf'))
+            ->assertSee('class="student-juz-awqaf-tooltip"', false)
+            ->assertSee('17-09-2026', false)
+            ->assertSeeText('80%')
+            ->assertDontSee('wire:click="showAwqafDetails(', false)
             ->assertDontSee('data-student-progress-awqaf-details', false);
 
         $this->assertDatabaseHas('quran_tests', [
             'enrollment_id' => $currentEnrollment->id,
             'juz_id' => $juz->id,
-            'score' => 88,
+            'score' => 80,
             'status' => 'passed',
             'attempt_no' => 2,
         ]);
 
-        $progressSource = file_get_contents(resource_path('views/livewire/students/progress.blade.php'));
-        $this->assertStringNotContainsString("awqaf_details.result')", $progressSource);
-        $this->assertStringNotContainsString("awqaf_details.teacher')", $progressSource);
-        $this->assertStringNotContainsString("awqaf_details.group')", $progressSource);
-        $this->assertStringNotContainsString("awqaf_details.notes')", $progressSource);
         $progressStyles = file_get_contents(resource_path('css/app.css'));
-        $this->assertMatchesRegularExpression('/\[data-student-progress-awqaf-details\] dd\s*\{[^}]*overflow:\s*hidden;[^}]*white-space:\s*nowrap;[^}]*text-overflow:\s*ellipsis;/s', $progressStyles);
-        $this->assertStringContainsString('record-course-name mt-2 font-semibold text-white" title=', $progressSource);
+        $this->assertMatchesRegularExpression('/\.student-juz-awqaf-status:is\(:hover, :focus-visible\) \.student-juz-awqaf-tooltip\s*\{[^}]*opacity:\s*1;/s', $progressStyles);
     }
 
     public function test_progress_page_omits_timeline_and_preserves_student_scope(): void

@@ -17,6 +17,7 @@ use App\Support\RoleRegistry;
 use App\Support\ScheduleTimeSlots;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -24,6 +25,8 @@ new class extends Component {
     use AuthorizesPermissions, AuthorizesTeacherAssignments, WithPagination;
 
     public Group $currentGroup;
+    #[Locked]
+    public ?int $archiveCourseId = null;
     public bool $showEditModal = false;
     public bool $showScheduleModal = false;
     public bool $showAddStudentModal = false;
@@ -48,17 +51,46 @@ new class extends Component {
         $this->authorizePermission('groups.view');
         $this->currentGroup = Group::query()->findOrFail($group->id);
         $this->authorizeScopedGroupAccess($this->currentGroup);
+
+        $routeCourse = request()->route('course');
+        if ($routeCourse !== null) {
+            $archiveCourse = $routeCourse instanceof Course
+                ? $routeCourse
+                : Course::query()->findOrFail($routeCourse);
+
+            abort_unless(! $archiveCourse->is_active && $this->currentGroup->course_id === $archiveCourse->id, 404);
+            $this->archiveCourseId = $archiveCourse->id;
+        }
+
         $this->progressDate = now()->toDateString();
         $this->roster_enrolled_at = now()->toDateString();
     }
 
     public function with(): array
     {
-        $group = Group::query()->with(['course', 'academicYear', 'teacher', 'assistantTeacher', 'gradeLevel', 'curriculum'])->withCount(['enrollments as active_students_count' => fn ($q) => $q->where('status', 'active')])->findOrFail($this->currentGroup->id);
-        $roster = $this->scopeEnrollmentsQuery(Enrollment::query())->where('group_id', $group->id)->where('status', 'active')->with(['student.parentProfile', 'student.gradeLevel', 'student.quranCurrentJuz', 'student.user'])->orderByDesc('enrolled_at')->paginate(10, ['*'], 'rosterPage');
-        $availableStudents = $this->scopeStudentsQuery(Student::query())->where('status', 'active')->whereDoesntHave('enrollments', fn ($q) => $q->withTrashed()->forCourseOfGroup($group->id))->orderBy('first_name')->orderBy('last_name')->get();
+        $isArchiveView = $this->archiveCourseId !== null;
+        $groupQuery = Group::query()->with(['course', 'academicYear', 'teacher', 'assistantTeacher', 'gradeLevel', 'curriculum']);
+        $groupQuery->withCount($isArchiveView
+            ? ['enrollments as active_students_count']
+            : ['enrollments as active_students_count' => fn ($query) => $query->where('status', 'active')]);
+        $group = $groupQuery->findOrFail($this->currentGroup->id);
+
+        $rosterQuery = Enrollment::query();
+        if ($isArchiveView) {
+            $rosterQuery->withTrashed();
+        }
+        $roster = $this->scopeEnrollmentsQuery($rosterQuery)
+            ->where('group_id', $group->id)
+            ->when(! $isArchiveView, fn ($query) => $query->where('status', 'active'))
+            ->with(['student.parentProfile', 'student.gradeLevel', 'student.quranCurrentJuz', 'student.user'])
+            ->orderByDesc('enrolled_at')
+            ->paginate(10, ['*'], 'rosterPage');
+        $availableStudents = $isArchiveView
+            ? collect()
+            : $this->scopeStudentsQuery(Student::query())->where('status', 'active')->whereDoesntHave('enrollments', fn ($q) => $q->withTrashed()->forCourseOfGroup($group->id))->orderBy('first_name')->orderBy('last_name')->get();
 
         return [
+            'isArchiveView' => $isArchiveView,
             'groupRecord' => $group,
             'roster' => $roster,
             'availableStudents' => $availableStudents,
@@ -469,14 +501,18 @@ new class extends Component {
         && $groupRecord->academicYear?->is_active
         && auth()->user()?->can('groups.update');
     $showGroupActionStack = $canManageGroup || $canCopyGroup || $canCopyGroupSummary || $canReactivateGroup;
+    $groupBackRoute = $isArchiveView
+        ? route('courses.archive-overview', ['course' => $groupRecord->course_id, 'section' => 'groups'])
+        : route('groups.index');
 @endphp
 
-<div class="page-stack">
+<div class="page-stack" @if($isArchiveView) data-archived-group-native-view @endif>
     <section class="page-hero p-6 lg:p-8">
         <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                @unless($isAssignedTeacher)<x-back-link :href="route('groups.index')" navigate />@endunless
+                @unless($isAssignedTeacher)<x-back-link :href="$groupBackRoute" navigate />@endunless
                 <h1 class="font-display mt-4 text-4xl text-white md:text-5xl">{{ $groupRecord->name }}</h1>
+                @if($isArchiveView)<p class="mt-3 text-base text-neutral-300" data-archive-course-subtitle>{{ $groupRecord->course?->name }}</p>@endif
             </div>
 
             <div class="group-show-hero-widgets flex flex-col gap-3 lg:flex-row lg:items-start">
@@ -549,8 +585,8 @@ new class extends Component {
             <div class="admin-grid-meta__title">{{ __('crud.groups.roster.title') }}</div>
             <div class="admin-toolbar__controls">
                 <div class="admin-toolbar__actions">
-                    @if ($groupIsEditable)
-                        <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', $groupRecord) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}" data-group-roster-pdf-action><x-pdf-export-icon /></a>
+                    @if ($groupIsEditable || $isArchiveView)
+                        <a target="_blank" rel="noopener" href="{{ route('groups.roster.pdf', array_filter(['group' => $groupRecord, 'archive_course_id' => $archiveCourseId])) }}" class="admin-icon-button" title="{{ __('crud.groups.roster.download_pdf_action') }}" aria-label="{{ __('crud.groups.roster.download_pdf_action') }}" data-group-roster-pdf-action><x-pdf-export-icon /></a>
                     @endif
                     @if ($groupIsEditable)
                         @can('enrollments.create')
@@ -576,6 +612,7 @@ new class extends Component {
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.fields.enrolled_at') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.parent_name') }}</th>
                             <th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.father_mobile') }}</th>
+                            @if($isArchiveView)<th class="px-5 py-4 text-left lg:px-6">{{ __('crud.groups.roster.table.headers.status') }}</th>@endif
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/6">
@@ -596,6 +633,7 @@ new class extends Component {
                                 <td class="px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y') ?: '—') }}</td>
                                 <td class="record-person-name px-5 py-4 text-neutral-300 lg:px-6">{{ $enrollment->student?->parentProfile?->father_name ?: '—' }}</td>
                                 <td class="record-phone px-5 py-4 text-neutral-300 lg:px-6" dir="ltr">{{ $enrollment->student?->parentProfile?->father_phone ?: '—' }}</td>
+                                @if($isArchiveView)<td class="px-5 py-4 lg:px-6"><span class="status-chip status-chip--slate">{{ __('crud.common.status_options.'.$enrollment->status) }}</span></td>@endif
                             </tr>
                         @endforeach
                     </tbody>
@@ -607,20 +645,25 @@ new class extends Component {
 
     <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" close-method="showAddStudentModal" max-width="2xl"><div class="space-y-4"><div><label class="mb-1 block text-sm">{{ __('crud.students.table.headers.name') }}</label><select wire:model="roster_student_id" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('workflow.common.student_name_placeholder') }}" class="w-full rounded-xl px-4 py-3" data-record-label="person"><option value="">{{ __('crud.common.select') }}</option>@foreach($availableStudents as $student)<option value="{{ $student->id }}">{{ $student->full_name }}</option>@endforeach</select>@error('roster_student_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div><div><label class="mb-1 block text-sm">{{ __('crud.groups.roster.fields.enrolled_at') }}</label><input wire:model="roster_enrolled_at" type="date" class="w-full rounded-xl px-4 py-3"></div><div class="flex gap-2"><button wire:click="addStudent(false)" class="pill-link pill-link--accent">{{ __('crud.groups.roster.add_student') }}</button><button wire:click="addStudent(true)" class="pill-link">{{ __('crud.common.actions.add_and_new') }}</button></div></div></x-admin.modal>
 
-    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" max-width="3xl">
+    <x-admin.modal :show="$showScheduleModal" :title="__('crud.groups.actions.schedule')" :close-method="$isArchiveView ? 'closeSchedules' : null" max-width="3xl">
         <x-slot:header-actions>
-            <button type="button" wire:click="saveAndCloseSchedules" class="admin-modal__close" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-group-schedule-save>
-                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3.75h11.25L19.5 7v13.25H5V3.75Z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
-                </svg>
-            </button>
+            @unless($isArchiveView)
+                <button type="button" wire:click="saveAndCloseSchedules" class="admin-modal__close" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-group-schedule-save>
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 3.75h11.25L19.5 7v13.25H5V3.75Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.75v5.5h8v-5.5M8.25 20.25v-6.5h8v6.5" />
+                    </svg>
+                </button>
+            @endunless
         </x-slot:header-actions>
         <section class="surface-table settings-record-table overflow-visible" data-searchable-select-table-surface>
             <div class="overflow-visible">
                 <table class="w-full text-sm">
-                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th><th class="admin-actions-column w-32 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th></tr></thead>
+                    <thead><tr><th class="px-4 py-3">{{ __('schedules.group.form.fields.day') }}</th><th class="px-4 py-3">{{ __('schedules.group.form.fields.timing') }}</th>@unless($isArchiveView)<th class="admin-actions-column w-32 px-4 py-3 text-center">{{ __('schedules.group.table.headers.actions') }}</th>@endunless</tr></thead>
                     <tbody>
+                        @if($isArchiveView && $schedules->isEmpty())
+                            <tr><td colspan="2" class="admin-empty-state">{{ __('schedules.group.table.empty') }}</td></tr>
+                        @endif
                         @foreach($schedules as $schedule)
                             <tr wire:key="group-show-schedule-{{ $schedule->id }}-{{ $editingScheduleId === $schedule->id ? 'edit' : 'view' }}" data-group-schedule-row>
                                 @if($editingScheduleId === $schedule->id)
@@ -633,11 +676,11 @@ new class extends Component {
                                 @else
                                     <td class="px-4 py-3">{{ $days[$schedule->day_of_week] }}</td>
                                     <td class="px-4 py-3">{{ $timeSlots[$schedule->time_slot ?: \App\Support\ScheduleTimeSlots::closest($schedule->starts_at?->format('H:i'))] }}</td>
-                                    <td class="px-4 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editSchedule({{ $schedule->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-group-schedule-edit><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button></div></td>
+                                    @unless($isArchiveView)<td class="px-4 py-3"><div class="flex justify-end gap-2"><button type="button" wire:click="editSchedule({{ $schedule->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-group-schedule-edit><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"/></svg></button></div></td>@endunless
                                 @endif
                             </tr>
                         @endforeach
-                        @if($editingScheduleId === null)<tr class="schedule-add-row">
+                        @if(! $isArchiveView && $editingScheduleId === null)<tr class="schedule-add-row">
                             <td class="px-4 py-3"><select wire:model.live="day_of_week" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.day') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.day') }}</option>@foreach($days as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('day_of_week')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                             <td class="px-4 py-3"><select wire:model.live="time_slot" data-search-input="true" data-open-on-focus="true" data-hide-placeholder-option="true" data-search-placeholder="{{ __('schedules.group.form.placeholders.timing') }}" class="h-11 w-full rounded-xl px-3 text-sm"><option value="">{{ __('schedules.group.form.placeholders.timing') }}</option>@foreach($timeSlots as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>@error('time_slot')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                             <td class="px-4 py-3"></td>

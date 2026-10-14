@@ -35,7 +35,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('@media (max-width: 699px)', $styles);
         $this->assertStringContainsString('@media (min-width: 700px) and (max-width: 1279px)', $styles);
         $this->assertSame(3, substr_count($styles, '@media (min-width: 700px) and (max-width: 1279px)'));
-        $this->assertSame(2, substr_count($styles, '@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait)'));
+        $this->assertSame(3, substr_count($styles, '@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait)'));
         $this->assertStringNotContainsString('@media (min-width: 700px) and (max-width: 1023px)', $styles);
         $this->assertMatchesRegularExpression('/\.attendance-days-toolbar__controls,.*?\{[^}]*display:\s*flex !important;[^}]*flex-direction:\s*row !important;/s', $styles);
         $this->assertMatchesRegularExpression('/\.attendance-days-toolbar__filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);[^}]*width:\s*100%;/s', $styles);
@@ -527,6 +527,55 @@ class ManagementPagesTest extends TestCase
             $source = file_get_contents(resource_path('views/'.$view));
 
             $this->assertStringContainsString('margin-header:10mm', str_replace(' ', '', $source), $view);
+        }
+    }
+
+    public function test_matching_report_pdfs_use_the_final_saber_header_type_scale(): void
+    {
+        $finalSaber = file_get_contents(resource_path('views/reports/course-final-tests.blade.php'));
+        $assessmentResults = file_get_contents(resource_path('views/exports/assessment-results-pdf.blade.php'));
+        $groupRoster = file_get_contents(resource_path('views/exports/group-roster-pdf.blade.php'));
+        $pointMarket = file_get_contents(resource_path('views/reports/course-point-market-department.blade.php'));
+
+        $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;', $finalSaber);
+        $this->assertStringContainsString('.header-subtitle{font-size:13px;', $finalSaber);
+        $this->assertStringContainsString('.header-meta{font-size:9px;', $finalSaber);
+        $this->assertStringContainsString('body { color:#172033; font-family:dubai,sans-serif; font-size:11px; font-weight:400; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-title { font-family:dubai,sans-serif; font-size:20px;', $assessmentResults);
+        $this->assertStringContainsString('.heading-group { font-size:13px;', $assessmentResults);
+        $this->assertStringContainsString('.heading-copy { text-align:center; width:48%; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-logo { text-align:right; width:30%; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta { font-size:9px; vertical-align:middle; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-shell { height:18mm;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-label { font-family:dubaimedium,sans-serif; font-weight:normal;', $assessmentResults);
+        $this->assertStringNotContainsString('heading-meta-spacer', $assessmentResults);
+        $this->assertStringContainsString("h1 {\n            font-size: 20px;", $groupRoster);
+        $this->assertStringContainsString(".group-line {\n            font-size: 13px;", $groupRoster);
+        $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;', $pointMarket);
+        $this->assertStringContainsString('.header-subtitle{font-size:13px;', $pointMarket);
+        $this->assertStringContainsString('.header-meta{font-size:9px}', $pointMarket);
+
+        foreach ([
+            'reports/teacher-attendance.blade.php',
+            'reports/student-attendance.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertStringContainsString('.header-title { font-size:20px;', $source, $view);
+            $this->assertStringContainsString('.header-subtitle { font-size:13px; font-weight:500; margin-top:1mm; }', $source, $view);
+            $this->assertStringContainsString('.header-copy { text-align:center; width:48%; }', $source, $view);
+            $this->assertStringContainsString('.header-copy-content { position:relative; left:-5mm; }', $source, $view);
+            $this->assertStringContainsString('.header-logo { width:30%; }', $source, $view);
+            $this->assertStringContainsString('.header-meta { font-size:9px; vertical-align:middle; }', $source, $view);
+            $this->assertStringContainsString('.header-meta-table { border-collapse:collapse; direction:ltr;', $source, $view);
+            $this->assertStringContainsString('margin-left:17.5mm; table-layout:fixed; width:17mm;', $source, $view);
+            $this->assertStringContainsString('.meta-label { font-family:dubaimedium,sans-serif; font-weight:normal; width:3mm; }', $source, $view);
+            $this->assertStringContainsString('text-align:left; vertical-align:middle; width:14mm;', $source, $view);
+            $this->assertStringContainsString('<table class="header-meta-table" dir="ltr">', $source, $view);
+            $this->assertStringContainsString('.header-meta-shell { height:18mm;', $source, $view);
+            $this->assertStringContainsString('.meta-label { font-family:dubaimedium,sans-serif; font-weight:normal;', $source, $view);
+            $this->assertStringContainsString('padding-top:.55mm !important; padding-bottom:.25mm !important;', $source, $view);
+            $this->assertStringNotContainsString('date-spacer', $source, $view);
         }
     }
 
@@ -2525,7 +2574,7 @@ class ManagementPagesTest extends TestCase
         $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?attendance-row-number.*?text-align:\s*center !important;/s', $styles);
         $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?attendance-days-number.*?padding-inline:\s*0\.875rem !important;.*?text-align:\s*center !important;.*?direction:\s*ltr;/s', $styles);
         $this->assertStringContainsString("const balancedRecordTableSelector = [\n    '.surface-table table',", $script);
-        $this->assertStringContainsString("cell.matches('[data-table-number-column]')", $script);
+        $this->assertStringContainsString("cell.matches('[data-table-number-column], [data-juz-progress-spacer]')", $script);
         $this->assertStringNotContainsString("cell.matches('[data-table-number-column], .table-cell-compact, .admin-actions-column')", $script);
         $this->assertStringContainsString('* 3.5;', $script);
         $this->assertStringContainsString('const flexibleColumnCount = headerCells.length - compactColumnIndexes.size - hiddenColumnIndexes.size;', $script);

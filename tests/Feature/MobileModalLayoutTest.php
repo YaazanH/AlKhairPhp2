@@ -87,10 +87,14 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString('if (applicationModalScrollY === null) applicationModalScrollY = window.scrollY;', $script);
         $this->assertStringContainsString("body.application-modal-open {\n        position: fixed;\n        top: calc(-1 * var(--application-modal-scroll-y, 0px));", $styles);
         $this->assertStringContainsString("html.application-modal-open,\nbody.application-modal-open {\n    overflow: hidden !important;", $styles);
-        $this->assertStringContainsString("html.application-modal-open .app-sidebar-scroll-region {\n    overflow-y: hidden !important;", $styles);
-        $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n    z-index: 0 !important;\n    pointer-events: none;\n    visibility: hidden;", $styles);
-        $this->assertStringContainsString("html.application-modal-open .app-main {\n    overflow: visible;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-scroll-region {\n    overflow-y: auto !important;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n    display: flex !important;\n    flex-direction: column;\n    height: 100dvh;\n    min-height: 100dvh;\n    max-height: 100dvh;\n    align-self: flex-start;\n    z-index: 90;\n    pointer-events: auto;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n        position: fixed !important;\n        inset-block: 0;\n        inset-inline-start: 0;", $styles);
+        $this->assertStringNotContainsString('visibility: hidden;', $this->modalOpenStyles($styles));
+        $this->assertStringContainsString("html.application-modal-open .app-main {\n    z-index: auto;\n    overflow: visible;", $styles);
         $this->assertStringContainsString(".admin-modal__backdrop {\n    position: fixed;", $styles);
+        $this->assertStringContainsString(".admin-modal:not(.admin-modal--full-viewport) .admin-modal__backdrop {\n        inset-inline-start: var(--app-sidebar-width, 17rem);", $styles);
+        $this->assertStringContainsString(".app-sidebar-is-collapsed .admin-modal__backdrop {\n        inset-inline-start: 0;", $styles);
         $this->assertStringContainsString(".admin-modal__body {\n    max-height: calc(100vh - 10rem);\n    overflow: auto;\n    overscroll-behavior: contain;", $styles);
 
         $this->assertStringContainsString('.admin-modal .admin-modal__dialog {', $styles);
@@ -119,6 +123,7 @@ class MobileModalLayoutTest extends TestCase
         );
 
         $this->assertStringContainsString('class="admin-modal__backdrop"', $dismissible);
+        $this->assertStringContainsString('wire:click="closeExample"', $dismissible);
         $this->assertStringContainsString('class="admin-modal__viewport"', $dismissible);
         $this->assertStringContainsString('wire:click.self="closeExample"', $dismissible);
         $this->assertStringContainsString('data-admin-modal-backdrop-close', $dismissible);
@@ -144,6 +149,13 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString('restoreSearchableSelectOverflow(wrapper);', $script);
         $this->assertStringContainsString("closeSearchableSelect(existingWrapper);\n        existingWrapper.remove();", $script);
         $this->assertStringContainsString("closeSearchableSelect(wrapper);\n            wrapper.remove();", $script);
+    }
+
+    private function modalOpenStyles(string $styles): string
+    {
+        preg_match_all('/html\\.application-modal-open[^}]+}/s', $styles, $matches);
+
+        return implode("\n", $matches[0]);
     }
 
     public function test_livewire_table_search_restores_focus_after_a_debounced_update(): void

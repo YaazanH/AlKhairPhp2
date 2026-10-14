@@ -1345,6 +1345,13 @@ return [
             'show_missing' => 'Missing pages',
             'add_awqaf_test' => 'Awqaf Saber',
             'awqaf_unavailable' => 'The saber cannot be recorded because the student is not currently enrolled in a course.',
+            'old_memorization' => [
+                'title' => 'Choose saber type',
+                'prompt' => 'Choose the required action for Juz :juz',
+                'start_partial' => 'Start the trial Saber',
+                'partial_started' => 'Partial saber started',
+                'enter_awqaf' => 'Enter Awqaf saber',
+            ],
             'awqaf_details' => [
                 'title' => 'Awqaf saber details',
                 'open' => 'View Awqaf saber details for Juz :juz',
@@ -1373,6 +1380,7 @@ return [
                 'missing' => 'Missing pages',
                 'awaiting' => 'Awaiting test',
                 'finished' => 'Finished',
+                'completed_with_awqaf' => 'Completed with Awqaf',
                 'memorized_before' => 'Old memorisation',
             ],
         ],

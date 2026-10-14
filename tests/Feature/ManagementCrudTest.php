@@ -61,15 +61,19 @@ class ManagementCrudTest extends TestCase
             'logo' => null,
         ])->render();
 
-        $this->assertStringContainsString('@page{margin:0 14mm 18mm;margin-header:10mm', $html);
+        $this->assertStringContainsString('@page{margin:10mm 14mm 18mm;footer:pdf-footer}@page :first{margin-top:0;margin-header:10mm;header:pdf-first-header}', $html);
         $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;font-weight:bold}', $html);
+        $this->assertStringContainsString('.header-subtitle{font-size:13px;font-weight:500', $html);
+        $this->assertStringContainsString('.header-meta{font-size:9px;vertical-align:middle}', $html);
+        $this->assertStringContainsString('.header-row-cell{border:0;height:18mm;padding:0;vertical-align:middle}', $html);
         $this->assertStringContainsString('.report-table thead th{font-family:dubai,sans-serif;font-weight:bold}', $html);
         $this->assertStringContainsString('.meta-label{font-family:dubaimedium,sans-serif;font-weight:normal', $html);
         $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{text-align:left;padding-left:.8mm}', $html);
         $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value{text-align:right;padding-right:.8mm}', $html);
-        $this->assertStringContainsString('.header-meta-table td{border:0;padding:0 0 0.8mm;vertical-align:middle;white-space:nowrap}', $html);
-        $this->assertStringContainsString('class="header-side header-continuation"', $html);
-        $this->assertStringNotContainsString('{!! $headerMeta !!}<div class="continued">', $html);
+        $this->assertStringContainsString('.header-meta-table td{border:0;height:auto;padding:0 0 0.8mm;vertical-align:middle;white-space:nowrap}', $html);
+        $this->assertStringContainsString('class="header-meta-shell"', $html);
+        $this->assertStringNotContainsString('header-continuation', $html);
+        $this->assertSame(1, substr_count($html, '<htmlpageheader'));
         $this->assertStringNotContainsString('report-page-gap', $html);
         $this->assertStringContainsString('class="header-meta-table"', $html);
         $this->assertStringContainsString('class="meta-label" style="text-align:', $html);
