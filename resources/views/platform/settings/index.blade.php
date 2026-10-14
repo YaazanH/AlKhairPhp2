@@ -7,6 +7,7 @@
         </header>
         <div class="platform-settings-layout">
             <nav class="platform-settings-tabs" aria-label="{{ __('platform-workspace.settings_sections') }}">
+                <a href="#branding">{{ __('platform-workspace.branding') }}</a>
                 <a href="#preferences">{{ __('platform-workspace.preferences') }}</a>
                 @if($canViewSubscriptions)<a href="#subscriptions">{{ __('platform-workspace.subscription_policy') }}</a>@endif
                 @if($canManageBackups)<a href="#backups">{{ __('platform-workspace.backup_policy') }}</a>@endif
@@ -14,6 +15,17 @@
                 @if($canManageRequests)<a href="#requests">{{ __('platform-workspace.request_options') }}</a>@endif
             </nav>
             <div class="platform-settings-sections">
+                <section id="branding" class="platform-settings-panel" data-platform-branding>
+                    <h2>{{ __('platform-workspace.branding') }}</h2>
+                    <p>{{ __('platform-workspace.branding_help') }}</p>
+                    <div class="mt-5 grid gap-5 md:grid-cols-[minmax(0,1fr)_10rem] md:items-center">
+                        <x-platform-brand class="w-full max-w-xl rounded-2xl border border-zinc-200 object-contain" />
+                        <div>
+                            <x-platform-brand variant="icon" class="mx-auto h-28 w-28 rounded-3xl object-cover shadow-sm" />
+                            <p class="mt-3 text-center text-xs text-zinc-500">{{ __('platform-workspace.branding_icon_help') }}</p>
+                        </div>
+                    </div>
+                </section>
                 <section id="preferences" class="platform-settings-panel">
                     <h2>{{ __('platform-workspace.preferences') }}</h2>
                     <p>{{ __('platform-workspace.preferences_help') }}</p>

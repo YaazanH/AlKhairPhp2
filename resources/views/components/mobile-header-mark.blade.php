@@ -1,7 +1,11 @@
 @props(['label' => null])
 
 @php($label = $label ?: app(\App\Support\BrandIdentity::class)->currentName())
+@php($mobileLogoUrl = app(\App\Support\BrandIdentity::class)->mobileLogoUrl())
 
+@if ($mobileLogoUrl)
+<img src="{{ $mobileLogoUrl }}" alt="{{ $label }}" {{ $attributes->class(['object-contain max-w-24']) }} data-tenant-mobile-logo />
+@else
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 324.39 489.47" role="img" aria-label="{{ $label }}" fill="currentColor" {{ $attributes }}>
   <g id="New_Logo" data-name="New Logo">
     <g>
@@ -34,3 +38,4 @@
     </g>
   </g>
 </svg>
+@endif

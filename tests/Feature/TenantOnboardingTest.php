@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AppSetting;
+use App\Models\FinanceCurrency;
 use App\Models\Landlord\Feature;
 use App\Models\Landlord\Plan;
 use App\Models\Landlord\Tenant;
+use App\Models\StudentGender;
 use App\Models\User;
 use App\Services\Landlord\TenantContext;
 use App\Services\Landlord\TenantSetupManager;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class TenantOnboardingTest extends TestCase
@@ -230,6 +233,48 @@ class TenantOnboardingTest extends TestCase
         $this->getJson('/api/v1/students')
             ->assertStatus(409)
             ->assertSee('setup_required: foundation');
+    }
+
+    public function test_organisation_settings_save_independent_mobile_logo_and_restore_default(): void
+    {
+        Storage::fake('public');
+        $this->actingAs($this->admin());
+        FinanceCurrency::query()->updateOrCreate(['code' => 'SYP'], ['name' => 'Syrian pound', 'is_active' => true, 'show_in_dropdowns' => true, 'is_local' => true]);
+        StudentGender::query()->updateOrCreate(['code' => 'male'], ['name' => ['en' => 'Male', 'ar' => 'ذكر'], 'is_active' => true, 'is_default' => true]);
+
+        $component = Volt::test('settings.organization')
+            ->call('openOrganizationModal')
+            ->assertSee('data-tenant-branding-logos', false)
+            ->assertSee('wire:model="tenant_mobile_logo_upload"', false)
+            ->set('school_name', 'Mobile branding centre')
+            ->set('tenant_logo_upload', UploadedFile::fake()->image('main.png'))
+            ->set('tenant_mobile_logo_upload', UploadedFile::fake()->image('compact.png'))
+            ->call('saveOrganizationSettings')
+            ->assertHasNoErrors();
+
+        $main = AppSetting::groupValues('general')->get('tenant_logo_path');
+        $mobile = AppSetting::groupValues('general')->get('tenant_mobile_logo_path');
+        Storage::disk('public')->assertExists($main);
+        Storage::disk('public')->assertExists($mobile);
+        $this->assertNotSame($main, $mobile);
+        $this->assertSame($main, $this->tenant->fresh()->logo_path);
+
+        $component->set('tenant_mobile_logo_upload', UploadedFile::fake()->create('invalid.txt', 5, 'text/plain'))
+            ->call('saveOrganizationSettings')->assertHasErrors('tenant_mobile_logo_upload');
+        $this->assertSame($mobile, AppSetting::groupValues('general')->get('tenant_mobile_logo_path'));
+        Storage::disk('public')->assertExists($mobile);
+
+        $component->set('tenant_mobile_logo_upload', UploadedFile::fake()->image('replacement.png'))
+            ->call('saveOrganizationSettings')->assertHasNoErrors();
+        $replacement = AppSetting::groupValues('general')->get('tenant_mobile_logo_path');
+        Storage::disk('public')->assertMissing($mobile);
+        Storage::disk('public')->assertExists($replacement);
+
+        $component->set('remove_tenant_mobile_logo', true)->call('saveOrganizationSettings')->assertHasNoErrors();
+        $this->assertNull(AppSetting::groupValues('general')->get('tenant_mobile_logo_path'));
+        Storage::disk('public')->assertMissing($replacement);
+        Storage::disk('public')->assertExists($main);
+        $this->assertSame($main, $this->tenant->fresh()->logo_path);
     }
 
     private function admin(): User

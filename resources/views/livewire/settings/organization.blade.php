@@ -80,6 +80,12 @@ new class extends Component
 
     public $tenant_logo_upload = null;
 
+    public $tenant_mobile_logo_upload = null;
+
+    public string $tenant_mobile_logo_path = '';
+
+    public bool $remove_tenant_mobile_logo = false;
+
     public bool $showOrganizationModal = false;
 
     public bool $barcode_scanner_enabled = true;
@@ -674,7 +680,7 @@ new class extends Component
     public function closeOrganizationModal(): void
     {
         $this->showOrganizationModal = false;
-        $this->reset('pdf_logo_upload');
+        $this->reset('pdf_logo_upload', 'tenant_logo_upload', 'tenant_mobile_logo_upload', 'remove_tenant_mobile_logo');
         $this->resetValidation();
     }
 
@@ -688,7 +694,6 @@ new class extends Component
         ]);
 
         $this->persistPdfLogoUpload();
-        $this->persistTenantIdentity($validated['school_name']);
         session()->flash('status', __('settings.organization.messages.logo_saved'));
     }
 
@@ -1008,6 +1013,9 @@ new class extends Component
             'parent_number_prefix' => ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9_-]*$/'],
             'parent_number_length' => ['required', 'integer', 'min:0', 'max:12'],
             'school_name' => ['required', 'string', 'max:255'],
+            'tenant_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
+            'tenant_mobile_logo_upload' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:'.config('uploads.image_max_kb')],
+            'remove_tenant_mobile_logo' => ['boolean'],
             'school_phone' => ['nullable', 'string', 'max:50'],
             'school_timezone' => ['required', 'string', 'max:100', 'timezone:all_with_bc'],
             'default_user_avatar_upload' => ['nullable', 'image', 'max:'.config('uploads.image_max_kb')],
@@ -1091,6 +1099,9 @@ new class extends Component
 
         $this->persistPdfLogoUpload();
 
+        $this->persistTenantIdentity($validated['school_name']);
+        $this->persistTenantMobileLogo();
+
         if ($studentNumberFormatChanged) {
             app(StudentNumberService::class)->syncAll();
         }
@@ -1123,6 +1134,29 @@ new class extends Component
         }
     }
 
+    protected function persistTenantMobileLogo(): void
+    {
+        if (! app(TenantContext::class)->hasTenant()) {
+            return;
+        }
+
+        if (! $this->tenant_mobile_logo_upload && ! $this->remove_tenant_mobile_logo) {
+            return;
+        }
+
+        $oldPath = (string) AppSetting::groupValues('general')->get('tenant_mobile_logo_path');
+        $newPath = $this->tenant_mobile_logo_upload
+            ? $this->tenant_mobile_logo_upload->store('logo/mobile', 'public')
+            : null;
+        AppSetting::storeValue('general', 'tenant_mobile_logo_path', $newPath);
+        $this->tenant_mobile_logo_path = (string) $newPath;
+        $this->reset('tenant_mobile_logo_upload', 'remove_tenant_mobile_logo');
+
+        if ($oldPath && $oldPath !== $newPath && str_starts_with($oldPath, 'logo/mobile/')) {
+            Storage::disk('public')->delete($oldPath);
+        }
+    }
+
     protected function persistTenantIdentity(string $name): void
     {
         $context = app(TenantContext::class);
@@ -1133,15 +1167,16 @@ new class extends Component
         $tenant = $context->tenant();
         $logoPath = (string) AppSetting::groupValues('general')->get('tenant_logo_path');
         if ($this->tenant_logo_upload) {
-            if ($logoPath) {
-                Storage::disk('public')->delete($logoPath);
-            }
+            $oldPath = $logoPath;
             $logoPath = $this->tenant_logo_upload->store('logo', 'public');
             AppSetting::storeValue('general', 'tenant_logo_path', $logoPath);
             $this->reset('tenant_logo_upload');
+            if ($oldPath && $oldPath !== $logoPath) {
+                Storage::disk('public')->delete($oldPath);
+            }
         }
 
-        $tenant->update(['name' => trim($name), 'logo_path' => $logoPath ?: null]);
+        $tenant->update(['name' => trim($name), 'logo_path' => $logoPath ?: $tenant->logo_path]);
     }
 
     public function removeDefaultAvatar(string $type): void
@@ -1384,6 +1419,7 @@ new class extends Component
         $this->default_teacher_avatar_path = (string) ($media->get('default_teacher_avatar_path') ?? '');
         $this->default_parent_avatar_path = (string) ($media->get('default_parent_avatar_path') ?? '');
         $this->pdf_logo_path = (string) ($settings->get('pdf_logo_path') ?? '');
+        $this->tenant_mobile_logo_path = (string) ($settings->get('tenant_mobile_logo_path') ?? '');
         $this->barcode_scanner_enabled = (bool) (AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
         $this->memorization_saber_entries_enabled = (bool) ($settings->get('memorization_saber_entries_enabled') ?? true);
         $this->activity_entries_enabled = (bool) ($settings->get('activity_entries_enabled') ?? true);
@@ -1903,11 +1939,28 @@ new class extends Component
                     @error('school_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
                 </div>
                 @if (app(\App\Services\Landlord\TenantContext::class)->hasTenant())
-                    <div class="mt-4">
-                        <label class="mb-1 block text-sm font-medium">Tenant logo</label>
-                        <input wire:model="tenant_logo_upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="block w-full text-sm">
-                        <p class="mt-1 text-xs text-neutral-500">This logo is used across the tenant app, public website, and Platform tenant list.</p>
-                        @error('tenant_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2" data-tenant-branding-logos>
+                        <div>
+                            <label for="tenant-logo-upload" class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.tenant_logo') }}</label>
+                            @if ($logoUrl = app(\App\Support\BrandIdentity::class)->currentLogoUrl())
+                                <img src="{{ $logoUrl }}" alt="{{ __('settings.organization.fields.tenant_logo') }}" class="mb-2 h-16 max-w-40 object-contain">
+                            @endif
+                            <input id="tenant-logo-upload" wire:model="tenant_logo_upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="block w-full text-sm">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.tenant_logo_help') }}</p>
+                            @error('tenant_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
+                        <div>
+                            <label for="tenant-mobile-logo-upload" class="mb-1 block text-sm font-medium">{{ __('settings.organization.fields.tenant_mobile_logo') }}</label>
+                            <div class="mb-2 flex h-16 items-center">
+                                <x-mobile-header-mark class="h-12 max-w-24 text-emerald-700 dark:text-emerald-300" />
+                            </div>
+                            <input id="tenant-mobile-logo-upload" wire:model="tenant_mobile_logo_upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="block w-full text-sm">
+                            <p class="mt-1 text-xs text-neutral-500">{{ __('settings.organization.fields.tenant_mobile_logo_help') }}</p>
+                            @if ($tenant_mobile_logo_path)
+                                <label class="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" wire:model="remove_tenant_mobile_logo">{{ __('settings.organization.fields.remove_tenant_mobile_logo') }}</label>
+                            @endif
+                            @error('tenant_mobile_logo_upload') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror
+                        </div>
                     </div>
                 @endif
                 <div class="mt-4 grid items-end gap-4 md:grid-cols-3" data-organization-contact-fields>

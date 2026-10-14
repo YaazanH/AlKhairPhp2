@@ -1,17 +1,21 @@
 @props(['title' => null])
 @php
-    $brandName = app(\App\Support\BrandIdentity::class)->platformName();
-    $pageTitle = $title && $title !== $brandName ? $title.' | '.$brandName : $brandName;
+    $branding = app(\App\Support\BrandIdentity::class);
+    $brandName = $branding->platformName();
     $currentLocale = app()->getLocale();
     $direction = config('app.supported_locales.'.$currentLocale.'.direction', 'ltr');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $direction }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>{{ $pageTitle }}</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('partials.head', [
+        'title' => $title ?: $brandName,
+        'metaDescription' => __('platform.login.description'),
+        'metaImage' => $branding->platformLogoUrl(),
+        'metaImageAlt' => $brandName,
+        'faviconUrl' => $branding->platformIconUrl(),
+        'themeColor' => '#0b3b31',
+    ])
     @vite('resources/css/platform-workspace.css')
     @if(request()->routeIs('platform.dashboard', 'platform.tenants.index'))
         @vite('resources/css/platform-dashboard.css')

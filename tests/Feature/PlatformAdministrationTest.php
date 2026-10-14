@@ -153,6 +153,8 @@ class PlatformAdministrationTest extends TestCase
             ->assertOk()
             ->assertSee('<title>Platform Administration | AlKhair Platform</title>', false)
             ->assertSee('data-platform-login', false)
+            ->assertSee(asset('images/platform-brand/alkhair-platform-logo.png'), false)
+            ->assertSee(asset('images/platform-brand/alkhair-platform-icon-v2.png'), false)
             ->assertSee('action="'.route('platform.login.store').'"', false)
             ->assertSee('name="email"', false)
             ->assertSee('href="'.route('login').'"', false);

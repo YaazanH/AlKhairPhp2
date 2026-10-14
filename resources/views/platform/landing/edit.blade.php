@@ -14,7 +14,7 @@
         </section>
         @if($workspaceView === 'draft')
             @if(!$canManage)<p class="rounded-xl border bg-white p-4 text-sm">{{ __('platform-content.readonly') }}</p>@endif
-            <nav class="platform-content-sections" aria-label="{{ __('platform-content.draft') }}">@foreach(['identity', 'hero', 'structure', ...$sections] as $section)<a href="#website-{{ $section }}">{{ __('platform-content.sections.'.$section) }}</a>@endforeach</nav>
+            <nav class="platform-content-sections" aria-label="{{ __('platform-content.draft') }}">@foreach(['identity', 'hero', 'structure', ...$sections, 'social'] as $section)<a href="#website-{{ $section }}">{{ __('platform-content.sections.'.$section) }}</a>@endforeach</nav>
             @if($canManage)<form method="POST" action="{{ route('platform.landing.update') }}" enctype="multipart/form-data" class="space-y-5" data-content-draft>@csrf @method('PUT')<input type="hidden" name="workspace_form" value="website_draft">@else<div class="space-y-5">@endif
                 @foreach(['identity' => ['brand', 'meta_title', 'meta_description'], 'hero' => ['hero_eyebrow', 'hero_title', 'hero_body', 'hero_primary_label', 'hero_secondary_label']] as $key => $paths)
                     <details id="website-{{ $key }}" class="platform-content-panel rounded-3xl border bg-white p-6" open>
@@ -44,6 +44,19 @@
                         @endif
                     </details>
                 @endforeach
+                <details id="website-social" class="platform-content-panel rounded-3xl border bg-white p-6" open>
+                    <summary class="cursor-pointer text-lg font-bold">{{ __('platform-content.sections.social') }}</summary>
+                    <p class="mt-3 text-sm text-zinc-500">{{ __('platform-content.social_help') }}</p>
+                    <div class="mt-5 grid gap-4 md:grid-cols-2">
+                        @foreach(\App\Support\PlatformLandingContent::SOCIAL_PLATFORMS as $platform)
+                            <label class="grid gap-1 text-sm font-medium text-zinc-700">
+                                <span>{{ __('landing.social_links.'.$platform) }}</span>
+                                <input type="url" name="content[social_links][{{ $platform }}]" value="{{ old('content.social_links.'.$platform, $content['social_links'][$platform] ?? '') }}" maxlength="2048" inputmode="url" dir="ltr" placeholder="https://" class="rounded-xl border border-zinc-300 bg-white px-3 py-2" @readonly(!$canManage)>
+                                @error('content.social_links.'.$platform)<span class="text-xs font-medium text-red-700">{{ $message }}</span>@enderror
+                            </label>
+                        @endforeach
+                    </div>
+                </details>
                 @if($canManage)<div class="platform-content-savebar"><p class="text-sm" data-draft-status data-unsaved-message="{{ __('platform-content.unsaved') }}">{{ __('platform-content.save_help') }}</p><button class="rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white">{{ __('platform-content.save') }}</button></div></form>@else</div>@endif
         @elseif($workspaceView === 'publishing')
             <section class="rounded-3xl border bg-white p-6"><h2 class="text-lg font-bold">{{ __('platform-content.preview') }}</h2><p class="mt-2 text-sm text-zinc-500">{{ __('platform-content.preview_help') }}</p><div class="mt-4 flex flex-wrap gap-3">@foreach(['en' => 'English', 'ar' => 'العربية'] as $language => $label)<a href="{{ route('platform.landing.preview', ['language' => $language]) }}" target="_blank" rel="noopener noreferrer" class="rounded-xl border px-4 py-3 text-sm font-semibold">{{ $label }} ↗</a>@endforeach</div></section>

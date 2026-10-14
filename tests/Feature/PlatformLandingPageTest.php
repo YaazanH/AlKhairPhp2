@@ -43,6 +43,10 @@ class PlatformLandingPageTest extends TestCase
             ->assertOk()
             ->assertSee('Give your team clarity')
             ->assertSee('Request a guided demo')
+            ->assertSee('property="og:image" content="'.asset('images/platform-brand/alkhair-platform-logo.png').'"', false)
+            ->assertSee('name="twitter:image" content="'.asset('images/platform-brand/alkhair-platform-logo.png').'"', false)
+            ->assertSee('rel="icon" href="'.asset('images/platform-brand/alkhair-platform-icon-v2.png').'"', false)
+            ->assertSee('class="landing-brand__mark"', false)
             ->assertSee(route('platform.login'), false);
 
         $this->withHeader('Accept-Language', 'ar-SY,ar;q=0.9')->get('http://localhost/')
@@ -169,6 +173,7 @@ class PlatformLandingPageTest extends TestCase
         $this->assertTrue(collect($normalized['feature_items'])->contains(fn (array $item) => $item['title']['en'] === 'Revenue you can understand'));
         $this->assertTrue(collect($normalized['showcase_items'])->contains(fn (array $item) => $item['title']['en'] === 'Revenue and finance in one view'));
         $this->assertTrue(collect($normalized['showcase_items'])->contains(fn (array $item) => $item['title']['en'] === 'Parent and student portals'));
+        $this->assertSame(array_fill_keys(PlatformLandingContent::SOCIAL_PLATFORMS, null), $normalized['social_links']);
     }
 
     public function test_manage_and_publish_permissions_are_separate_and_public_content_changes_only_after_publish(): void
@@ -212,6 +217,36 @@ class PlatformLandingPageTest extends TestCase
         $invalid['hero_title']['ar'] = '';
         $this->actingAs($owner, 'platform')->put(route('platform.landing.update'), $this->formPayload($invalid))->assertRedirect();
         $this->actingAs($owner, 'platform')->post(route('platform.landing.publish'))->assertSessionHasErrors('hero_title.ar');
+    }
+
+    public function test_social_links_are_validated_and_follow_the_draft_publish_workflow(): void
+    {
+        $owner = $this->administrator('social-editor@example.test');
+        $content = PlatformLandingContent::defaults();
+        $content['social_links']['instagram'] = 'https://www.instagram.com/alkhair.platform';
+        $content['social_links']['whatsapp'] = 'https://wa.me/963900000000';
+
+        $this->actingAs($owner, 'platform')->put(route('platform.landing.update'), $this->formPayload($content))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame('https://www.instagram.com/alkhair.platform', PlatformLandingPage::query()->sole()->draft_content['social_links']['instagram']);
+        $this->get('http://localhost/')
+            ->assertDontSee('https://www.instagram.com/alkhair.platform', false)
+            ->assertDontSee('landing-footer__social', false);
+
+        $this->actingAs($owner, 'platform')->post(route('platform.landing.publish'))->assertRedirect();
+        $this->get('http://localhost/')
+            ->assertSee('landing-footer__social', false)
+            ->assertSee('href="https://www.instagram.com/alkhair.platform"', false)
+            ->assertSee('href="https://wa.me/963900000000"', false)
+            ->assertSee('rel="noopener noreferrer"', false);
+        $this->withHeader('Accept-Language', 'ar-SY,ar;q=0.9')->get('http://localhost/')
+            ->assertSee('تابع منصة الخير');
+
+        $invalid = PlatformLandingContent::defaults();
+        $invalid['social_links']['facebook'] = 'javascript:alert(1)';
+        $this->actingAs($owner, 'platform')->put(route('platform.landing.update'), $this->formPayload($invalid))
+            ->assertSessionHasErrors('content.social_links.facebook');
     }
 
     public function test_editor_can_upload_and_publicly_serve_a_real_product_screenshot(): void

@@ -53,14 +53,21 @@ class PlatformLandingPageController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $socialPlatforms = implode(',', PlatformLandingContent::SOCIAL_PLATFORMS);
+        $rules = [
             'content' => ['required', 'array'],
+            'content.social_links' => ['nullable', 'array:'.$socialPlatforms],
             'section_order' => ['required', 'array'],
             'section_order.*' => ['required', 'integer', 'min:1', 'max:5'],
             'enabled_sections' => ['nullable', 'array'],
             'showcase_images' => ['nullable', 'array'],
             'showcase_images.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-        ]);
+        ];
+        foreach (PlatformLandingContent::SOCIAL_PLATFORMS as $platform) {
+            $rules['content.social_links.'.$platform] = ['nullable', 'string', 'max:2048', 'url:http,https'];
+        }
+        $data = $request->validate($rules);
+        $data['content'] = (array) $request->input('content', []);
         $content = $data['content'];
         $content['section_order'] = $data['section_order'];
         $content['enabled_sections'] = $data['enabled_sections'] ?? [];

@@ -9,6 +9,7 @@ use App\Services\Landlord\TenantContext;
 use App\Services\WebsiteService;
 use App\Support\BrandIdentity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -27,7 +28,10 @@ class BrandIdentityTest extends TestCase
     {
         app()->setLocale('en');
 
-        $this->assertSame('AlKhair Platform', app(BrandIdentity::class)->currentName());
+        $branding = app(BrandIdentity::class);
+        $this->assertSame('AlKhair Platform', $branding->currentName());
+        $this->assertSame(asset('images/platform-brand/alkhair-platform-logo.png'), $branding->platformLogoUrl());
+        $this->assertSame(asset('images/platform-brand/alkhair-platform-icon-v2.png'), $branding->platformIconUrl());
 
         app(TenantContext::class)->set(new Tenant(['name' => 'Al Noor Learning Centre']));
 
@@ -38,6 +42,29 @@ class BrandIdentityTest extends TestCase
         $this->assertStringContainsString('<title>Dashboard | Al Noor Learning Centre</title>', $head);
         $this->assertStringContainsString('property="og:site_name" content="Al Noor Learning Centre"', $head);
         $this->assertStringNotContainsString('جامع الخير', $head);
+    }
+
+    public function test_mobile_logo_is_independent_of_the_main_logo_and_retains_default_mark(): void
+    {
+        $branding = app(BrandIdentity::class);
+        $this->assertNull($branding->mobileLogoUrl());
+        app(TenantContext::class)->set(new Tenant(['name' => 'Mobile centre', 'logo_path' => 'logo/main.png']));
+        $default = Blade::render('<x-mobile-header-mark />');
+        $this->assertStringContainsString('<svg', $default);
+
+        AppSetting::storeValue('general', 'tenant_mobile_logo_path', 'logo/mobile/compact.png');
+        $this->assertSame(asset('storage/logo/mobile/compact.png'), $branding->mobileLogoUrl());
+        $this->assertSame(asset('storage/logo/main.png'), $branding->currentLogoUrl());
+        $custom = Blade::render('<x-mobile-header-mark />');
+        $this->assertStringContainsString('data-tenant-mobile-logo', $custom);
+        $this->assertStringContainsString('storage/logo/mobile/compact.png', $custom);
+        $this->assertStringNotContainsString('<svg', $custom);
+
+        AppSetting::storeValue('general', 'tenant_mobile_logo_path', null);
+        $this->assertStringContainsString('<svg', Blade::render('<x-mobile-header-mark />'));
+        app(TenantContext::class)->clear();
+        Schema::dropIfExists('app_settings');
+        $this->assertNull($branding->mobileLogoUrl());
     }
 
     public function test_tenant_organisation_name_overrides_legacy_website_branding(): void

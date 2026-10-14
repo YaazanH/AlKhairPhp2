@@ -50,6 +50,11 @@ class PlatformLandingPageManager
             }
         }
 
+        foreach (PlatformLandingContent::SOCIAL_PLATFORMS as $platform) {
+            $url = $this->text(Arr::get($input, 'social_links.'.$platform));
+            Arr::set($content, 'social_links.'.$platform, $url !== '' ? $url : null);
+        }
+
         $orders = collect(PlatformLandingContent::SECTIONS)
             ->mapWithKeys(fn ($section) => [$section => (int) Arr::get($input, 'section_order.'.$section, 99)])
             ->sort()->keys()->values()->all();

@@ -2,6 +2,8 @@
     $locale = app()->getLocale();
     $direction = config('app.supported_locales.'.$locale.'.direction', 'ltr');
     $oppositeLocale = $locale === 'ar' ? 'en' : 'ar';
+    $branding = app(\App\Support\BrandIdentity::class);
+    $socialLinks = collect($content['social_links'] ?? [])->filter(fn ($url) => filled($url));
     $defaultStoryImages = [
         'A useful daily overview' => asset('images/platform-landing/daily-overview-v2.webp'),
         'Progress with context' => asset('images/platform-landing/learner-progress-v2.webp'),
@@ -39,7 +41,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{{ $content['meta_description'] }}">
     <meta name="theme-color" content="#f4efe5">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ $branding->platformName() }}">
+    <meta property="og:title" content="{{ $content['meta_title'] }}">
+    <meta property="og:description" content="{{ $content['meta_description'] }}">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:image" content="{{ $branding->platformLogoUrl() }}">
+    <meta property="og:image:secure_url" content="{{ $branding->platformLogoUrl() }}">
+    <meta property="og:image:width" content="1672">
+    <meta property="og:image:height" content="941">
+    <meta property="og:image:alt" content="{{ $branding->platformName() }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $content['meta_title'] }}">
+    <meta name="twitter:description" content="{{ $content['meta_description'] }}">
+    <meta name="twitter:image" content="{{ $branding->platformLogoUrl() }}">
+    <meta name="twitter:image:alt" content="{{ $branding->platformName() }}">
     <title>{{ $content['meta_title'] }}</title>
+    <link rel="icon" href="{{ $branding->platformIconUrl() }}">
+    <link rel="shortcut icon" href="{{ $branding->platformIconUrl() }}">
+    <link rel="apple-touch-icon" href="{{ $branding->platformIconUrl() }}">
     @vite(['resources/css/app.css', 'resources/css/platform-landing.css', 'resources/js/platform-landing.js'])
 </head>
 <body class="landing-body landing-body--studio">
@@ -51,7 +71,7 @@
     <header class="landing-header">
         <div class="landing-container landing-header__inner">
             <a href="{{ route('home') }}" class="landing-brand" aria-label="{{ $content['brand'] }}">
-                <span class="landing-brand__mark" aria-hidden="true"><span></span><span></span><span></span></span>
+                <x-platform-brand variant="icon" class="landing-brand__mark" />
                 <span class="landing-brand__wordmark">{{ $content['brand'] }}</span>
             </a>
 
@@ -422,9 +442,9 @@
 
     <footer class="landing-footer">
         <div class="landing-container landing-footer__inner">
-            <div class="landing-footer__top">
+            <div @class(['landing-footer__top', 'landing-footer__top--without-social' => $socialLinks->isEmpty()])>
                 <div class="landing-footer__identity">
-                    <a class="landing-brand" href="{{ route('home') }}"><span class="landing-brand__mark"><span></span><span></span><span></span></span><span class="landing-brand__wordmark">{{ $content['brand'] }}</span></a>
+                    <a class="landing-brand" href="{{ route('home') }}"><x-platform-brand variant="icon" class="landing-brand__mark" /><span class="landing-brand__wordmark">{{ $content['brand'] }}</span></a>
                     <p>{{ __('landing.footer') }}</p>
                 </div>
                 <nav class="landing-footer__nav" aria-label="{{ __('landing.primary_navigation') }}">
@@ -434,6 +454,19 @@
                         @endif
                     @endforeach
                 </nav>
+                @if($socialLinks->isNotEmpty())
+                    <div class="landing-footer__social">
+                        <h2>{{ __('landing.follow_us') }}</h2>
+                        <div>
+                            @foreach($socialLinks as $platform => $url)
+                                <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ __('landing.social_visit', ['platform' => __('landing.social_links.'.$platform)]) }}">
+                                    <span aria-hidden="true">{{ $platform === 'x' ? 'X' : strtoupper(substr($platform, 0, 1)) }}</span>
+                                    {{ __('landing.social_links.'.$platform) }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
                 <div class="landing-footer__actions"><a href="{{ route('platform.login') }}">{{ __('landing.sign_in') }}</a><a href="{{ ($preview ?? false) ? route('platform.landing.preview', ['language' => $oppositeLocale, 'revision' => request('revision')]) : route('locale.switch', $oppositeLocale) }}">{{ $oppositeLocale === 'ar' ? 'العربية' : 'English' }}</a></div>
             </div>
             <div class="landing-footer__bottom"><span>{{ __('landing.footer_note') }}</span><a href="#main-content">{{ __('landing.back_to_top') }} <i aria-hidden="true">↑</i></a></div>

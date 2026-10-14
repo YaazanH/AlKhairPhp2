@@ -62,6 +62,29 @@ class PlatformNavigationTest extends TestCase
         }
     }
 
+    public function test_platform_account_uses_tenant_style_menu_with_platform_guard_routes(): void
+    {
+        $owner = $this->administrator('account-menu@example.test');
+
+        foreach (['en', 'ar'] as $locale) {
+            app()->setLocale($locale);
+            $this->actingAs($owner, 'platform')->get(route('platform.settings.index'))
+                ->assertOk()
+                ->assertSee('data-platform-account', false)
+                ->assertSee('data-flux-profile', false)
+                ->assertSee('id="platform-account-menu"', false)
+                ->assertSee('aria-controls="platform-account-menu"', false)
+                ->assertSee('x-show="open"', false)
+                ->assertSee($owner->email)
+                ->assertSee('account-preference-switch--language', false)
+                ->assertSee('account-preference-switch--appearance', false)
+                ->assertSee('href="'.route('platform.settings.index').'"', false)
+                ->assertSee('action="'.route('platform.logout').'"', false)
+                ->assertDontSee('href="'.route('settings.profile').'"', false)
+                ->assertDontSee('action="'.route('logout').'"', false);
+        }
+    }
+
     public function test_navigation_shows_only_destinations_granted_to_a_platform_role(): void
     {
         $this->administrator('owner@example.test');
@@ -88,6 +111,9 @@ class PlatformNavigationTest extends TestCase
         $owner = $this->administrator('settings-owner@example.test');
         $this->actingAs($owner, 'platform')->get(route('platform.settings.index'))->assertOk()
             ->assertSee('data-platform-settings', false)
+            ->assertSee('data-platform-branding', false)
+            ->assertSee(asset('images/platform-brand/alkhair-platform-logo.png'), false)
+            ->assertSee(asset('images/platform-brand/alkhair-platform-icon-v2.png'), false)
             ->assertSee('action="'.route('platform.subscription-settings.update').'"', false)
             ->assertSee('action="'.route('platform.backups.settings.update').'"', false)
             ->assertSee('action="'.route('platform.metrics.settings.update').'"', false)

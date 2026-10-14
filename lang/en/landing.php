@@ -109,5 +109,8 @@ return [
     'enquiry_received' => 'Thank you. Your request has reached the Platform team.',
     'footer' => 'A calmer way to run learning, people, and operations.',
     'footer_note' => 'One workspace. Clearer work. More room to grow.',
+    'follow_us' => 'Follow AlKhair',
+    'social_visit' => 'Visit AlKhair on :platform',
+    'social_links' => ['facebook' => 'Facebook', 'instagram' => 'Instagram', 'youtube' => 'YouTube', 'x' => 'X', 'linkedin' => 'LinkedIn', 'tiktok' => 'TikTok', 'whatsapp' => 'WhatsApp'],
     'back_to_top' => 'Back to top',
 ];

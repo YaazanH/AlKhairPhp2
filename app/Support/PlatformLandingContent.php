@@ -8,6 +8,8 @@ class PlatformLandingContent
 {
     public const SECTIONS = ['features', 'showcase', 'packages', 'faq', 'contact'];
 
+    public const SOCIAL_PLATFORMS = ['facebook', 'instagram', 'youtube', 'x', 'linkedin', 'tiktok', 'whatsapp'];
+
     public static function defaults(): array
     {
         return [
@@ -51,6 +53,7 @@ class PlatformLandingContent
             'contact_kicker' => ['en' => 'Start a useful conversation', 'ar' => 'ابدأ حواراً مفيداً'],
             'contact_title' => ['en' => 'Tell us how your organisation works', 'ar' => 'حدثنا عن طريقة عمل مؤسستك'],
             'contact_body' => ['en' => 'We will listen first, then show you the parts of the Platform that match your priorities.', 'ar' => 'سنستمع أولاً، ثم نعرض لك الأجزاء التي تناسب أولويات مؤسستك.'],
+            'social_links' => array_fill_keys(self::SOCIAL_PLATFORMS, null),
             'section_order' => self::SECTIONS,
             'enabled_sections' => array_fill_keys(self::SECTIONS, true),
         ];
@@ -97,6 +100,13 @@ class PlatformLandingContent
             ->unique()->concat(self::SECTIONS)->unique()->values()->all();
         $content['enabled_sections'] = collect(self::SECTIONS)
             ->mapWithKeys(fn ($section) => [$section => (bool) Arr::get($content, 'enabled_sections.'.$section, true)])
+            ->all();
+        $content['social_links'] = collect(self::SOCIAL_PLATFORMS)
+            ->mapWithKeys(function (string $platform) use ($content): array {
+                $url = Arr::get($content, 'social_links.'.$platform);
+
+                return [$platform => is_string($url) && filled($url) ? trim($url) : null];
+            })
             ->all();
 
         return $content;

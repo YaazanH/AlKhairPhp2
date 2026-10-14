@@ -1,6 +1,7 @@
 @php
     $currentLocale = app()->getLocale();
     $direction = config('app.supported_locales.'.$currentLocale.'.direction', 'ltr');
+    $branding = app(\App\Support\BrandIdentity::class);
 @endphp
 
 <!DOCTYPE html>
@@ -9,6 +10,9 @@
         @include('partials.head', [
             'title' => __('platform.login.title'),
             'metaDescription' => __('platform.login.description'),
+            'metaImage' => $branding->platformLogoUrl(),
+            'metaImageAlt' => $branding->platformName(),
+            'faviconUrl' => $branding->platformIconUrl(),
             'themeColor' => '#07150d',
         ])
         @vite('resources/css/auth-design.css')
@@ -28,7 +32,7 @@
                 <section class="auth-studio__intro hidden flex-col justify-between border-e border-white/10 p-10 lg:flex xl:p-14">
                     <div class="flex items-center justify-between gap-5">
                         <a href="{{ route('home') }}" class="inline-flex items-center gap-3">
-                            <span class="platform-login-accent flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-lg font-bold">A</span>
+                            <x-platform-brand variant="icon" class="h-12 w-12 rounded-2xl object-cover" />
                             <span>
                                 <span class="platform-login-text block text-sm font-semibold">{{ __('platform.brand.name') }}</span>
                                 <span class="platform-login-subtle block text-xs">{{ __('platform.brand.administration') }}</span>
@@ -63,7 +67,7 @@
                     <div class="w-full max-w-md">
                         <div class="mb-8 flex items-center justify-between gap-4 lg:hidden">
                             <a href="{{ route('home') }}" class="inline-flex items-center gap-3">
-                                <span class="platform-login-accent flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 font-bold">A</span>
+                                <x-platform-brand variant="icon" class="h-11 w-11 rounded-xl object-cover" />
                                 <span class="platform-login-text text-sm font-semibold">{{ __('platform.brand.name') }}</span>
                             </a>
                         </div>
