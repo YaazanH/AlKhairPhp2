@@ -3,6 +3,42 @@ export function groupOptionColumns(serializedColumns, phone) {
     return phone ? columns.slice(0, 1) : columns;
 }
 
+export function fitGroupOptionColumnWidths(naturalWidths, rowWidth, minimumGap = 16) {
+    const widths = naturalWidths.map(width => Math.max(0, Math.ceil(width)));
+    const availableWidth = Math.max(0, Math.floor(rowWidth - ((widths.length + 1) * minimumGap)));
+    const naturalTotal = widths.reduce((total, width) => total + width, 0);
+
+    if (naturalTotal <= availableWidth || naturalTotal === 0) {
+        return widths;
+    }
+
+    let remainingWidth = availableWidth;
+
+    return widths.map((width, index) => {
+        if (index === widths.length - 1) {
+            return remainingWidth;
+        }
+
+        const fittedWidth = Math.floor((width / naturalTotal) * availableWidth);
+        remainingWidth -= fittedWidth;
+
+        return fittedWidth;
+    });
+}
+
+export function widestGroupOptionColumnWidths(columnSets, measure) {
+    const columnCount = Math.max(0, ...columnSets.map(columns => columns.length));
+
+    return Array.from({ length: columnCount }, (_, column) => Math.max(
+        0,
+        ...columnSets.map(columns => measure(columns[column] || '', column)),
+    ));
+}
+
+export function stableGroupOptionRowWidth(wrapperWidth, listInlinePadding = 0, panelInlineBorder = 0) {
+    return Math.max(0, Math.floor(wrapperWidth - listInlinePadding - panelInlineBorder));
+}
+
 export function containedGroupMenu(trigger, bounds, desiredHeight = 240) {
     const gap = 6;
     const below = Math.max(0, bounds.bottom - trigger.bottom - gap);
@@ -15,6 +51,15 @@ export function containedGroupMenu(trigger, bounds, desiredHeight = 240) {
         width,
         left: Math.max(bounds.left, Math.min(trigger.left, bounds.right - width)),
         gap,
+    };
+}
+
+export function visibleMenuTrigger(trigger, bounds) {
+    return {
+        top: Math.max(bounds.top, Math.min(trigger.top, bounds.bottom)),
+        bottom: Math.max(bounds.top, Math.min(trigger.bottom, bounds.bottom)),
+        left: trigger.left,
+        width: trigger.width,
     };
 }
 

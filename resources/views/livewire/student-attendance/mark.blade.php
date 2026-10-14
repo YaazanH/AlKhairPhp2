@@ -30,18 +30,28 @@ new class extends Component
 
     public ?int $rosterStudentId = null;
 
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
     public function mount(GroupAttendanceDay $groupAttendanceDay): void
     {
         $this->authorizePermission('attendance.student.view');
+        $this->archiveCourseId = request()->integer('archive_course_id') ?: null;
+        $this->archiveReadOnly = $this->archiveCourseId !== null;
 
-        $this->currentGroupDay = GroupAttendanceDay::query()
-            ->with(['studentAttendanceDay', 'group.course', 'group.academicYear', 'group.teacher', 'records'])
-            ->where(function ($query): void {
+        $groupDayQuery = GroupAttendanceDay::query()
+            ->with(['studentAttendanceDay', 'group.course', 'group.academicYear', 'group.teacher', 'records']);
+        if ($this->archiveCourseId) {
+            $groupDayQuery->whereHas('studentAttendanceDay', fn ($day) => $day->where('course_id', $this->archiveCourseId));
+        } else {
+            $groupDayQuery->where(function ($query): void {
                 $query
                     ->whereNull('student_attendance_day_id')
                     ->orWhereHas('studentAttendanceDay', fn ($dayQuery) => $dayQuery->whereNull('course_finished_at'));
-            })
-            ->findOrFail($groupAttendanceDay->id);
+            });
+        }
+        $this->currentGroupDay = $groupDayQuery->findOrFail($groupAttendanceDay->id);
 
         $this->authorizeScopedGroupAttendanceDayAccess($this->currentGroupDay);
 
@@ -56,7 +66,8 @@ new class extends Component
         $enrollments = Enrollment::query()
             ->with('student')
             ->where('group_id', $groupDay->group_id)
-            ->where('status', 'active')
+            ->whereIn('status', $this->archiveReadOnly ? ['active', 'completed'] : ['active'])
+            ->eligibleForAttendanceOn($groupDay->attendance_date)
             ->orderBy(
                 Student::query()
                     ->select('first_name')
@@ -95,6 +106,7 @@ new class extends Component
 
     public function openAddStudentModal(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizeRosterEnrollment();
         $this->reset('rosterStudentId');
         $this->resetValidation('rosterStudentId');
@@ -110,6 +122,7 @@ new class extends Component
 
     public function addStudent(bool $addAnother = false): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizeRosterEnrollment();
         $this->validate(['rosterStudentId' => ['required', 'integer', 'exists:students,id']]);
 
@@ -125,7 +138,7 @@ new class extends Component
             Enrollment::create([
                 'student_id' => $student->id,
                 'group_id' => $this->currentGroupDay->group_id,
-                'enrolled_at' => now()->toDateString(),
+                'enrolled_at' => $this->currentGroupDay->attendance_date->toDateString(),
                 'status' => 'active',
             ]);
             $this->loadDay();
@@ -170,6 +183,7 @@ new class extends Component
 
     public function saveAttendance(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.student.take');
 
         if ($this->currentGroupDay->studentAttendanceDay?->fresh()->status === 'closed') {
@@ -192,6 +206,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroupDay->group_id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->currentGroupDay->attendance_date)
             ->get();
 
         foreach ($enrollments as $enrollment) {
@@ -233,6 +248,7 @@ new class extends Component
 
     public function saveDaySummary(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.student.take');
 
         $validated = $this->validate([
@@ -252,6 +268,7 @@ new class extends Component
 
     public function saveEnrollmentStatus(int $enrollmentId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.student.take');
 
         if ($this->currentGroupDay->studentAttendanceDay?->fresh()->status === 'closed') {
@@ -274,6 +291,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroupDay->group_id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->currentGroupDay->attendance_date)
             ->findOrFail($enrollmentId);
         $this->authorizeScopedEnrollmentAccess($enrollment);
 
@@ -301,7 +319,7 @@ new class extends Component
 
     protected function loadDay(): void
     {
-        if ($this->currentGroupDay->studentAttendanceDay) {
+        if ($this->currentGroupDay->studentAttendanceDay && ! $this->archiveReadOnly) {
             app(StudentAttendanceDayService::class)->fillMissingStatuses(
                 $this->currentGroupDay->studentAttendanceDay,
                 null,
@@ -337,11 +355,21 @@ new class extends Component
     }
 }; ?>
 
-<div class="page-stack">
+<div
+    class="page-stack"
+    data-offline-attendance-root
+    data-sync-url="{{ route('attendance.offline-sync') }}"
+    data-sync-synced-label="{{ __('workflow.offline_attendance.synced') }}"
+    data-sync-pending-label="{{ __('workflow.offline_attendance.pending') }}"
+    data-sync-poor-label="{{ __('workflow.offline_attendance.poor_connection') }}"
+    data-sync-offline-label="{{ __('workflow.offline_attendance.offline_pending') }}"
+    data-sync-offline-ready-label="{{ __('workflow.offline_attendance.offline_ready') }}"
+    data-sync-conflict-label="{{ __('workflow.offline_attendance.conflict') }}"
+>
     <section class="page-hero attendance-mark-hero p-6 lg:p-8">
         <div class="group-show-hero-layout flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <x-back-link :href="route('attendance.show', ['type' => 'students', 'day' => $groupDayRecord->studentAttendanceDay->id])" navigate />
+                <x-back-link :href="route('attendance.show', array_filter(['type' => 'students', 'day' => $groupDayRecord->studentAttendanceDay->id, 'archive_course_id' => $archiveCourseId]))" navigate />
                 <div class="eyebrow mt-4">{{ __('ui.nav.student_attendance') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.marking.title') }}</h1>
             </div>
@@ -358,7 +386,7 @@ new class extends Component
                         </div>
                         <div class="group-show-detail attendance-mark-hero__course">
                             <dt>{{ __('workflow.student_attendance.context.course') }}</dt>
-                            <dd title="{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}"><span class="record-course-name">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</span></dd>
+                            <dd title="{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}">{{ $groupDayRecord->group?->course?->name ?: __('workflow.common.no_course') }}</dd>
                         </div>
                         <div class="group-show-detail">
                             <dt>{{ __('workflow.student_attendance.context.date') }}</dt>
@@ -374,19 +402,13 @@ new class extends Component
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    @if ($isDayClosed)
-        <div class="soft-callout p-4 text-sm text-amber-100">
-            {{ __('workflow.student_attendance.messages.closed_day_locked') }}
-        </div>
-    @endif
-
     <section class="surface-table">
         <div class="admin-grid-meta items-center">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.table.title') }}</div>
                 <div class="admin-grid-meta__summary">{{ trans_choice('workflow.student_attendance.table.present_students', $presentCount, ['count' => \Illuminate\Support\Number::format($presentCount, locale: app()->getLocale() === 'ar' ? 'ar-u-nu-arab' : app()->getLocale())]) }}</div>
             </div>
-            @if ($canAddStudent)
+            @if (! $archiveReadOnly && $canAddStudent)
                 <button type="button" wire:click="openAddStudentModal" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.groups.roster.add_student') }}" aria-label="{{ __('crud.groups.roster.add_student') }}" data-attendance-add-student><x-admin-action-icon name="add" /></button>
             @endif
         </div>
@@ -410,7 +432,13 @@ new class extends Component
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($enrollments as $enrollment)
-                            <tr wire:key="attendance-enrollment-{{ $currentGroupDay->id }}-{{ $enrollment->id }}">
+                            <tr
+                                wire:key="attendance-enrollment-{{ $currentGroupDay->id }}-{{ $enrollment->id }}"
+                                data-offline-attendance-row
+                                data-attendance-type="student"
+                                data-attendance-day-id="{{ $currentGroupDay->id }}"
+                                data-attendance-entity-id="{{ $enrollment->id }}"
+                            >
                                 <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
                                 <td class="attendance-person-column px-5 py-4 lg:px-6">
                                     <div class="student-inline">
@@ -423,12 +451,13 @@ new class extends Component
                                 <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ \App\Support\DateDisplay::html($enrollment->enrolled_at?->format('d-m-Y')) }}</td>
                                 <td class="attendance-desktop-only px-5 py-4 text-white lg:px-6">{{ $enrollment->final_points_cached }}</td>
                                 <td class="student-attendance-status-column px-5 py-4 lg:px-6">
-                                    @if ($isDayClosed)
+                                    @if ($archiveReadOnly || $isDayClosed)
                                         <span class="text-neutral-200">{{ $statuses->firstWhere('id', (int) ($selected_statuses[$enrollment->id] ?? 0))?->name ?: $statuses->firstWhere('is_default', true)?->name ?: $statuses->first()?->name ?: '-' }}</span>
                                     @else
                                         <select
                                             wire:key="attendance-status-{{ $currentGroupDay->id }}-{{ $enrollment->id }}"
                                             data-search-input="false" data-dropdown-search="false" data-attendance-status-select
+                                            data-offline-attendance-select
                                             wire:model="selected_statuses.{{ $enrollment->id }}"
                                             wire:change="saveEnrollmentStatus({{ $enrollment->id }})"
                                             @disabled(! auth()->user()->can('attendance.student.take'))
@@ -450,6 +479,7 @@ new class extends Component
             </div>
         @endif
     </section>
+    @unless ($archiveReadOnly)
     <x-admin.modal :show="$showAddStudentModal" :title="__('crud.groups.roster.add_student')" :description="__('workflow.student_attendance.enrollment.help')" close-method="closeAddStudentModal" max-width="xl">
         <form wire:submit="addStudent(true)" class="space-y-5">
             <div class="admin-form-field">
@@ -468,4 +498,5 @@ new class extends Component
             </div>
         </form>
     </x-admin.modal>
+    @endunless
 </div>

@@ -1,6 +1,19 @@
 <?php
 
 return [
+    'offline_attendance' => [
+        'synced' => 'Attendance is synced',
+        'pending' => 'Saving attendance changes',
+        'poor_connection' => 'Weak connection — changes are saved on this device',
+        'offline_pending' => 'Offline — changes are saved on this device',
+        'offline_ready' => 'Attendance is available offline',
+        'conflict' => 'Some attendance changes need review',
+        'conflicts' => [
+            'closed_day' => 'The attendance day was closed before synchronization.',
+            'roster_changed' => 'The attendance roster changed before synchronization.',
+            'status_changed' => 'The selected attendance status is no longer available.',
+        ],
+    ],
     'common' => [
         'student_name_placeholder' => 'Student name',
         'not_available' => '-',
@@ -397,6 +410,8 @@ return [
                 'teacher' => 'Teacher',
                 'job_title' => 'Job title',
                 'percentage' => 'Attendance percentage',
+                'role_short' => 'Role',
+                'percentage_short' => 'Rate',
                 'attendance' => 'Attendance',
                 'actions' => 'Actions',
             ],
@@ -1270,6 +1285,10 @@ return [
         'messages' => [
             'photo_updated' => 'Student photo updated successfully.',
         ],
+        'photo_source' => [
+            'upload' => 'Upload photo',
+            'camera' => 'Open camera',
+        ],
         'filters' => [
             'title' => 'Course filter',
             'copy' => 'Limit the progress view to one course when the student has multiple enrolments.',
@@ -1288,6 +1307,7 @@ return [
             'birth_year' => 'Year of birth',
             'father_name' => 'Father name',
             'group' => 'Group',
+            'not_enrolled_active_course' => 'The student is not currently enrolled in an active course.',
             'parent' => 'Parent',
             'school' => 'School',
             'grade' => 'Grade',
@@ -1298,6 +1318,14 @@ return [
             'last_recitation' => 'Last recitation',
             'joined_at' => 'Joined',
             'notes' => 'Student notes',
+        ],
+        'quick_enrollment' => [
+            'action' => 'Enrol student in a group',
+            'title' => 'Quick group enrolment',
+            'group' => 'Group',
+            'placeholder' => 'Select a group',
+            'empty' => 'No groups are available in active courses.',
+            'save' => 'Enrol',
         ],
         'parent_details' => [
             'title' => 'Parent details',
@@ -1317,6 +1345,25 @@ return [
             'show_missing' => 'Missing pages',
             'add_awqaf_test' => 'Awqaf Saber',
             'awqaf_unavailable' => 'The saber cannot be recorded because the student is not currently enrolled in a course.',
+            'old_memorization' => [
+                'title' => 'Choose saber type',
+                'prompt' => 'Choose the required action for Juz :juz',
+                'start_partial' => 'Start the trial Saber',
+                'partial_started' => 'Partial saber started',
+                'enter_awqaf' => 'Enter Awqaf saber',
+            ],
+            'awqaf_details' => [
+                'title' => 'Awqaf saber details',
+                'open' => 'View Awqaf saber details for Juz :juz',
+                'juz' => 'Juz',
+                'date' => 'Date',
+                'score' => 'Score',
+                'result' => 'Result',
+                'teacher' => 'Teacher',
+                'group' => 'Group',
+                'course' => 'Course',
+                'notes' => 'Notes',
+            ],
             'missing_title' => 'Missing pages for Juz :juz',
             'missing_subtitle' => 'These pages are not recorded as memorised for the selected course filter.',
             'missing_count' => 'Missing-page count',
@@ -1333,6 +1380,7 @@ return [
                 'missing' => 'Missing pages',
                 'awaiting' => 'Awaiting test',
                 'finished' => 'Finished',
+                'completed_with_awqaf' => 'Completed with Awqaf',
                 'memorized_before' => 'Old memorisation',
             ],
         ],

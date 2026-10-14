@@ -527,6 +527,39 @@ class FinanceService
         ]);
     }
 
+    public function arabicCurrencyName(FinanceCurrency $currency): string
+    {
+        $translationKey = 'finance.currency_names.'.preg_replace('/[^A-Z0-9]+/', '_', Str::upper(trim($currency->code)));
+        $translatedName = __($translationKey, [], 'ar');
+
+        return $translatedName !== $translationKey ? $translatedName : $currency->name;
+    }
+
+    public function arabicDefiniteCurrencyName(FinanceCurrency $currency): string
+    {
+        $translationKey = 'finance.currency_names_definite.'.preg_replace('/[^A-Z0-9]+/', '_', Str::upper(trim($currency->code)));
+        $translatedName = __($translationKey, [], 'ar');
+
+        return $translatedName !== $translationKey ? $translatedName : $this->arabicCurrencyName($currency);
+    }
+
+    public function defaultExchangeDescription(FinanceCurrency $fromCurrency, FinanceCurrency $toCurrency): string
+    {
+        return __('finance.descriptions.currency_exchange', [
+            'from' => $this->arabicCurrencyName($fromCurrency),
+            'to' => $this->arabicCurrencyName($toCurrency),
+        ], 'ar');
+    }
+
+    public function defaultFundTransferDescription(FinanceCashBox $fromCashBox, FinanceCashBox $toCashBox, FinanceCurrency $currency): string
+    {
+        return __('finance.descriptions.fund_transfer', [
+            'from' => $fromCashBox->name,
+            'to' => $toCashBox->name,
+            'currency' => $this->arabicDefiniteCurrencyName($currency),
+        ], 'ar');
+    }
+
     public function formatCurrencyAmount(float|int|string|null $amount, ?FinanceCurrency $currency, bool $withCode = true): string
     {
         $decimals = max(0, min(6, (int) ($currency?->decimal_places ?? 2)));
@@ -1221,6 +1254,9 @@ class FinanceService
     public function recordCashBoxTransfer(FinanceCashBox $fromCashBox, FinanceCashBox $toCashBox, FinanceCurrency $currency, float $amount, string $date, ?User $user = null, ?string $notes = null): FinanceCashBoxTransfer
     {
         return DB::transaction(function () use ($amount, $currency, $date, $fromCashBox, $notes, $toCashBox, $user): FinanceCashBoxTransfer {
+            $notes = filled($notes)
+                ? trim((string) $notes)
+                : $this->defaultFundTransferDescription($fromCashBox, $toCashBox, $currency);
             $pairUuid = (string) Str::uuid();
 
             $transferNo = $this->nextTransferNumber();
@@ -1260,6 +1296,9 @@ class FinanceService
     public function recordCurrencyExchange(FinanceCashBox $fromCashBox, FinanceCurrency $fromCurrency, float $fromAmount, FinanceCashBox $toCashBox, FinanceCurrency $toCurrency, float $toAmount, string $date, ?User $user = null, ?string $notes = null): FinanceCurrencyExchange
     {
         return DB::transaction(function () use ($date, $fromAmount, $fromCashBox, $fromCurrency, $notes, $toAmount, $toCashBox, $toCurrency, $user): FinanceCurrencyExchange {
+            $notes = filled($notes)
+                ? trim((string) $notes)
+                : $this->defaultExchangeDescription($fromCurrency, $toCurrency);
             $pairUuid = (string) Str::uuid();
             $fromRateToBase = (float) $fromCurrency->rate_to_base;
             $toRateToBase = $toAmount > 0

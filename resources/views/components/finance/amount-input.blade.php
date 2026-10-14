@@ -26,6 +26,6 @@
         inputmode="decimal"
         data-thousand-separator
         class="finance-amount-input__value w-full rounded-xl px-4 py-3 text-left text-sm"
-        placeholder="{{ $placeholder }}"
+        placeholder="{{ filled($placeholder) ? $placeholder : __('finance.fields.amount') }}"
     >
 </div>

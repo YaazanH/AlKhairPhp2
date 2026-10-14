@@ -47,6 +47,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->attendance_date)
             ->orderBy('enrolled_at')
             ->get();
 
@@ -133,6 +134,7 @@ new class extends Component
             ->with('student')
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($validated['attendance_date'])
             ->get();
 
         foreach ($enrollments as $enrollment) {
@@ -181,6 +183,7 @@ new class extends Component
             ->with(['student', 'group'])
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->attendance_date)
             ->findOrFail($enrollmentId);
         $this->authorizeScopedEnrollmentAccess($enrollment);
 
@@ -244,6 +247,7 @@ new class extends Component
         $this->selected_statuses = Enrollment::query()
             ->where('group_id', $this->currentGroup->id)
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($this->attendance_date)
             ->pluck('id')
             ->mapWithKeys(fn (int $enrollmentId) => [
                 $enrollmentId => $savedStatuses[$enrollmentId] ?? $defaultStatusId,
@@ -266,12 +270,6 @@ new class extends Component
 
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
-    @endif
-
-    @if ($isDayClosed)
-        <div class="soft-callout p-4 text-sm text-amber-100">
-            {{ __('workflow.student_attendance.messages.closed_day_locked') }}
-        </div>
     @endif
 
     <div class="grid gap-4 md:grid-cols-3">

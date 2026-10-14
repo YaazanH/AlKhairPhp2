@@ -1,4 +1,5 @@
 @php
+    $archiveCourse = $archiveCourse ?? null;
     $logo = 'data:image/jpeg;base64,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';
     $logo = $logoImage ?? null;
     $teacherName = $group->teacher ? trim($group->teacher->first_name.' '.$group->teacher->last_name) : null;
@@ -24,7 +25,7 @@
         .page-header {
             background: #cfe7d6;
             border: 0;
-            padding: 1mm 3mm;
+            padding: 2mm 3mm;
         }
 
         .title-row {
@@ -35,7 +36,7 @@
         }
 
         .logo {
-            text-align: right;
+            text-align: center;
             vertical-align: middle;
             width: 22%;
         }
@@ -71,7 +72,9 @@
 
         .title-row td {
             border: 0;
-            padding: 3.5px 4px;
+            height: 18mm;
+            padding: 0;
+            vertical-align: middle;
         }
 
         .meta-label {
@@ -129,10 +132,36 @@
             padding: 2mm 0;
             text-align: center;
         }
+
+        @if ($archiveCourse)
+        .page-header,
+        .title-row,
+        .footer {
+            background: #ead8c3;
+        }
+
+        th {
+            background: rgba(241, 228, 212, 0.82);
+            border-color: #c7ad90;
+            border-bottom-color: #c7ad90;
+        }
+
+        td {
+            border-color: #c7ad90;
+        }
+
+        tbody tr:nth-child(even) td {
+            background: rgba(250, 245, 238, 0.58);
+        }
+
+        .footer {
+            color: #765033;
+        }
+        @endif
     </style>
 </head>
-<body>
-    <htmlpageheader name="roster-header"><div class="page-header"><table class="title-row" dir="ltr"><tr><td class="header-spacer"></td><td class="header-copy" dir="rtl"><h1>قائمة بيانات الطلاب</h1><div class="group-line">{{ $groupLine !== '' ? $groupLine : $group->name }}</div></td><td class="logo" dir="rtl">@if ($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div></htmlpageheader>
+<body class="{{ $archiveCourse ? 'archive-palette' : '' }}">
+    <htmlpageheader name="roster-header"><div class="page-header"><table class="title-row" dir="ltr"><tr><td class="header-spacer"></td><td class="header-copy" dir="rtl"><h1>قائمة بيانات الطلاب</h1><div class="group-line">{{ $groupLine !== '' ? $groupLine : $group->name }}</div></td><td class="logo" dir="rtl">@if ($archiveCourse)@include('exports.partials.archive-pdf-mark', ['course' => $archiveCourse])@elseif ($logo)<img src="{{ $logo }}" alt="" height="18mm" max-height="18mm" max-width="35mm" style="height:18mm;max-height:18mm;max-width:35mm;width:auto">@endif</td></tr></table></div></htmlpageheader>
     <htmlpagefooter name="roster-footer"><div class="footer">صفحة {PAGENO} من {nbpg}</div></htmlpagefooter>
 
     <table class="report-table">

@@ -13,10 +13,13 @@ new class extends Component {
 
     public Course $course;
 
-    public function mount(Course $course): void
+    public bool $archiveReadOnly = false;
+
+    public function mount(Course $course, bool $archiveReadOnly = false): void
     {
         $this->authorizePermission('courses.view');
         $this->course = $course;
+        $this->archiveReadOnly = $archiveReadOnly;
     }
 
     public function with(): array
@@ -76,7 +79,7 @@ new class extends Component {
         .course-end-final-tests-table th:nth-child(4), .course-end-final-tests-table td:nth-child(4) { width: 20%; }
         .course-end-final-tests-table th:nth-child(5), .course-end-final-tests-table td:nth-child(5) { width: 19%; }
         .course-end-final-tests-table th:nth-child(6), .course-end-final-tests-table td:nth-child(6) { width: 23%; }
-        @media (max-width: 767px) {
+        @media (max-width: 699px) {
             .surface-table .course-end-students-desktop { display: none !important; }
             .course-end-students-mobile { display: grid; gap: .75rem; padding: 0 1rem 1rem; }
             .course-end-final-tests-dual { display: none; }
@@ -93,9 +96,11 @@ new class extends Component {
         }
     </style>
     <section class="page-hero p-6 lg:p-8"><div><x-back-link :href="route('courses.index')" navigate /><div class="eyebrow mt-4">{{ __('course_end.eyebrow') }}</div><h1 class="font-display mt-4 text-4xl text-white">{{ __('course_end.title') }}</h1><p class="mt-3 text-neutral-200"><span class="record-course-name">{{ $course->name }}</span> — {{ __('course_end.preview_notice') }}</p></div></section>
+    @unless ($archiveReadOnly)
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         @foreach(['students','points_before','points_after','memorized_pages','final_tests'] as $key)<article class="stat-card"><div class="kpi-label">{{ __('course_end.highlights.'.$key) }}</div><div class="metric-value mt-3">{{ number_format($summary[$key]) }}</div></article>@endforeach
     </section>
+    @endunless
     <section class="surface-table"><div class="admin-grid-meta"><div><div class="admin-grid-meta__title">{{ __('course_end.students_title') }}</div><div class="admin-grid-meta__summary">{{ __('course_end.student_records', ['count' => number_format($studentResultCount)]) }}</div></div><a href="{{ route('courses.end.students.xlsx', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.export_excel') }}" aria-label="{{ __('finance.actions.export_excel') }}" data-course-students-xlsx-action><x-invoice-xlsx-export-icon /></a></div>
         <div class="course-end-students-mobile">
             @forelse($students as $row)
@@ -125,11 +130,11 @@ new class extends Component {
         @php($finalTestColumnSize = max(1, (int) ceil($finalTestDesktopRows->count() / 2)))
         @php($finalTestColumns = $finalTestDesktopRows->isEmpty() ? collect([collect()]) : $finalTestDesktopRows->chunk($finalTestColumnSize))
         <div class="course-end-final-tests-single {{ $finalTestsUseTwoColumns ? '' : 'course-end-final-tests-single--full' }}">
-            <table class="course-end-final-tests-mobile-table w-full table-fixed text-sm">
-                <thead><tr><th data-table-number-column>#</th><th>{{ __('course_end.table.name') }}</th><th>{{ __('course_end.table.juz') }}</th><th>{{ __('course_end.table.mark') }}</th><th>{{ __('course_end.table.grade') }}</th></tr></thead>
+            <table class="course-end-table course-end-final-tests-mobile-table w-full table-fixed text-sm">
+                <thead><tr><th data-table-number-column class="px-4 py-3">#</th><th class="px-4 py-3">{{ __('course_end.table.name') }}</th><th class="px-4 py-3">{{ __('course_end.table.juz') }}</th><th class="px-4 py-3">{{ __('course_end.table.mark') }}</th><th class="px-4 py-3">{{ __('course_end.table.grade') }}</th></tr></thead>
                 <tbody class="divide-y divide-white/6">
                     @forelse($finalTestMobileRows as $rowIndex => $row)
-                        <tr><td class="text-neutral-400">{{ $finalTestsMobile->firstItem() + $rowIndex }}</td><td class="font-medium text-white"><span class="record-person-name">{{ $row['name'] }}</span></td><td>{{ $row['juz'] }}</td><td>{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
+                        <tr><td class="px-4 py-3 text-neutral-400">{{ $finalTestsMobile->firstItem() + $rowIndex }}</td><td class="px-4 py-3 font-medium text-white"><span class="record-person-name">{{ $row['name'] }}</span></td><td class="px-4 py-3">{{ $row['juz'] }}</td><td class="px-4 py-3">{{ $row['marks'] ?? \App\Support\PercentageFormatter::format($row['mark']) }}</td><td class="px-4 py-3 font-medium text-emerald-100">{{ __('course_end.grades.'.$row['grade']) }}</td></tr>
                     @empty
                         <tr><td colspan="5" class="admin-empty-state">{{ __('course_end.empty') }}</td></tr>
                     @endforelse
@@ -156,9 +161,11 @@ new class extends Component {
         @if($finalTestsMobile->hasPages())<div class="course-end-final-tests-mobile-pagination border-t border-white/8 px-5 py-4">{{ $finalTestsMobile->links() }}</div>@endif
     </section>
     <div class="grid gap-4 lg:grid-cols-2">
-        <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar" data-mobile-title-action-row><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_end.print_cards') }}" aria-label="{{ __('course_end.print_cards') }}" data-course-report-cards-print-action><x-admin-action-icon name="print" /></a></div></div></section>
-        @can('finance.expense-requests.view')
+        @unless ($archiveReadOnly)
+            <section class="surface-panel p-5 lg:p-6"><div class="admin-toolbar" data-mobile-title-action-row><div class="admin-toolbar__title">{{ __('course_end.report_cards') }}</div><div class="admin-toolbar__actions"><a href="{{ route('courses.end.report-cards.create', $course) }}" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_end.print_cards') }}" aria-label="{{ __('course_end.print_cards') }}" data-course-report-cards-print-action><x-admin-action-icon name="print" /></a></div></div></section>
+        @endunless
+        @if (! $archiveReadOnly && auth()->user()->can('finance.expense-requests.view'))
             <section class="surface-panel p-5 lg:p-6" data-course-point-market-tab><div class="admin-toolbar" data-mobile-title-action-row><div class="admin-toolbar__title">{{ __('course_end.point_market.title') }}</div><div class="admin-toolbar__actions"><x-open-action-button :href="route('courses.end.point-market', $course)" wire:navigate class="admin-icon-button--accent" :label="__('course_end.point_market.open')" data-course-point-market-open-action /></div></div></section>
-        @endcan
+        @endif
     </div>
 </div>

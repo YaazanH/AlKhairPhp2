@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\Group;
 use App\Models\User;
 use App\Support\OperationalFeatureSettings;
+use App\Support\RoleRegistry;
 
 class SidebarNavigationService
 {
@@ -71,6 +72,7 @@ class SidebarNavigationService
             'finance_revenue_requests' => $this->item('ui.nav.finance_income', 'income-hand', 'finance.revenue-requests.index', ['finance.revenue-requests.*'], 'finance', 30, ['finance.revenue-requests.view']),
             'finance_exchange' => $this->item('ui.nav.finance_exchange', 'arrows-right-left', 'finance.exchange.index', ['finance.exchange.*'], 'finance', 40, ['finance.exchange.view']),
             'finance_reports' => $this->item('ui.nav.finance_reports', 'document-chart-bar', 'finance.reports.index', ['finance.reports.*'], 'finance', 50, ['finance.reports.view']),
+            'finance_pull_requests' => $this->item('ui.nav.finance_withdrawal_requests', 'withdrawal-hand', 'finance.pull-requests.index', ['finance.pull-requests.*'], 'finance', 60, ['finance.pull-requests.view'], ['finance.pull-requests.review']),
 
             'dashboard_settings' => $this->item('ui.nav.dashboard_settings', 'cog-6-tooth', 'settings.organization', ['settings.organization', 'settings.tracking', 'settings.course-completion', 'settings.points', 'settings.access-control', 'settings.sidebar-navigation', 'settings.backups'], 'configuration', 10, ['settings.manage']),
             'finance_settings' => $this->item('ui.nav.finance_settings', 'finance-settings', 'settings.finance', ['settings.finance'], 'configuration', 15, ['finance.settings.manage']),
@@ -256,6 +258,10 @@ class SidebarNavigationService
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
+                if ($itemKey === 'finance_pull_requests' && ! $this->withdrawalRequestsEnabled()) {
+                    continue;
+                }
+
                 if (in_array($itemKey, ['activities', 'family_activities'], true) && ! OperationalFeatureSettings::activitiesEnabled()) {
                     continue;
                 }
@@ -266,7 +272,7 @@ class SidebarNavigationService
                     ? 'platform'
                     : ($settings['items'][$itemKey]['group_key'] ?? $itemDefinition['group_key']);
 
-                if ($configuredGroupKey !== $groupKey || ! $this->userCanSeeItem($user, $itemDefinition)) {
+                if ($configuredGroupKey !== $groupKey || ! $this->userCanSeeItem($user, $itemDefinition, $itemKey)) {
                     continue;
                 }
 
@@ -329,10 +335,19 @@ class SidebarNavigationService
         ];
     }
 
-    protected function userCanSeeItem(User $user, array $itemDefinition): bool
+    protected function userCanSeeItem(User $user, array $itemDefinition, ?string $itemKey = null): bool
     {
         if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
             return app(CurriculumAccessService::class)->canView($user);
+        }
+
+        /* Teachers must retain their withdrawal-request entry even if an
+           additional assignment also grants them the reviewer permission that
+           normally distinguishes finance administrators. */
+        if ($itemKey === 'finance_pull_requests'
+            && $user->hasRole(RoleRegistry::TEACHER)
+            && $user->can('finance.pull-requests.view')) {
+            return true;
         }
 
         foreach ($itemDefinition['excluded_permissions'] ?? [] as $permission) {
@@ -362,6 +377,8 @@ class SidebarNavigationService
 
         return $teacherId ? Group::query()
             ->where('is_active', true)
+            ->whereNull('course_finished_at')
+            ->whereHas('course', fn ($query) => $query->where('is_active', true)->whereNull('finished_at'))
             ->where(fn ($query) => $query->where('teacher_id', $teacherId)->orWhere('assistant_teacher_id', $teacherId))
             ->orderByDesc('starts_on')->orderByDesc('id')->first() : null;
     }

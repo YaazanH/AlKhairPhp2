@@ -34,6 +34,16 @@ class CommunityContactPageTest extends TestCase
         $this->assertStringContainsString('<x-delete-action-button', $source);
         $this->assertStringNotContainsString('wire:click="delete({{ $contact->id }})"', $source);
         $this->assertStringNotContainsString("pill-link pill-link--compact whitespace-nowrap px-4\">{{ __('crud.common.actions.edit') }}", $source);
+        $this->assertStringNotContainsString('statusFilter', $source);
+        $this->assertStringNotContainsString('wire:model="is_active"', $source);
+        $this->assertStringNotContainsString('<x-clear-filter-button', $source);
+        $this->assertStringNotContainsString('community_contacts.table.headers.status', $source);
+        $this->assertStringContainsString('community_contacts.table.headers.notes', $source);
+        $this->assertStringContainsString('data-community-contact-notes', $source);
+        $this->assertStringNotContainsString('secondary_phone', $source);
+        $this->assertStringNotContainsString('wire:model="email"', $source);
+        $this->assertStringNotContainsString("orWhere('email'", $source);
+        $this->assertStringNotContainsString('$contact->email', $source);
 
         Volt::test('community-contacts.index')
             ->call('openCreateModal')
@@ -41,7 +51,6 @@ class CommunityContactPageTest extends TestCase
             ->assertSee('data-icon-name="save"', false)
             ->assertDontSee('data-create-and-new-action', false)
             ->assertDontSee('wire:model="is_active"', false)
-            ->assertSet('is_active', true)
             ->set('name', 'Ahmad Driver')
             ->set('category', 'Bus driver')
             ->set('phone', '0999000111')
@@ -50,19 +59,21 @@ class CommunityContactPageTest extends TestCase
             ->assertHasNoErrors();
 
         $contact = CommunityContact::query()->where('name', 'Ahmad Driver')->firstOrFail();
+        $contact->update(['is_active' => false]);
 
         Volt::test('community-contacts.index')
             ->call('edit', $contact->id)
-            ->assertSee('wire:model="is_active"', false)
+            ->assertDontSee('wire:model="is_active"', false)
             ->assertSee('data-community-contact-delete-action', false)
             ->set('category', 'Transport')
-            ->set('is_active', false)
+            ->set('notes', 'Available for weekend trips.')
             ->call('save')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('community_contacts', [
             'id' => $contact->id,
             'category' => 'Transport',
+            'notes' => 'Available for weekend trips.',
             'is_active' => false,
         ]);
 

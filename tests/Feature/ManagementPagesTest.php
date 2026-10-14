@@ -26,6 +26,149 @@ class ManagementPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_assessment_result_statuses_are_kashida_balanced_to_the_absent_label(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/assessments/results.blade.php'));
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertSame(2, substr_count($view, 'data-assessment-status-label'));
+        $this->assertSame(2, substr_count($view, "data-assessment-status-target=\"{{ __('workflow.common.result_status.absent') }}\""));
+        $this->assertStringContainsString(".' %'", $view);
+        $this->assertStringContainsString("\$displayStatus === 'absent' ? '--'", $view);
+        $this->assertStringContainsString('function synchronizeAssessmentStatusTypography()', $script);
+        $this->assertStringContainsString("label.dataset.assessmentStatus !== 'absent'", $script);
+        $this->assertStringContainsString('justifyFinanceLabelToWidth(label, targetWidth)', $script);
+    }
+
+    public function test_ipad_mini_portrait_uses_tablet_instead_of_phone_layout(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString('--breakpoint-md: 43.75rem;', $styles);
+        $this->assertStringContainsString('@media (max-width: 699px)', $styles);
+        $this->assertStringContainsString('@media (min-width: 700px) and (max-width: 1279px)', $styles);
+        $this->assertSame(3, substr_count($styles, '@media (min-width: 700px) and (max-width: 1279px)'));
+        $this->assertSame(3, substr_count($styles, '@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait)'));
+        $this->assertStringNotContainsString('@media (min-width: 700px) and (max-width: 1023px)', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-toolbar__controls,.*?\{[^}]*display:\s*flex !important;[^}]*flex-direction:\s*row !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-toolbar__filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);[^}]*width:\s*100%;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-toolbar \.admin-toolbar__actions\s*\{[^}]*justify-self:\s*end !important;[^}]*width:\s*auto;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\) and \(max-width:\s*1279px\).*?body \.surface-table > \.attendance-days-toolbar \.attendance-days-toolbar__controls.*?flex-flow:\s*row nowrap !important;.*?body \.attendance-days-toolbar \.attendance-days-toolbar__filters.*?flex:\s*1 1 auto !important;.*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\) !important;.*?body \.attendance-days-toolbar \.admin-toolbar__actions.*?flex:\s*0 0 auto !important;/s', $styles);
+        foreach (['attendance/index.blade.php', 'student-attendance/index.blade.php', 'teachers/attendance.blade.php'] as $view) {
+            $source = file_get_contents(resource_path('views/livewire/'.$view));
+            $this->assertStringContainsString('attendance-days-toolbar__controls', $source, $view);
+            $this->assertStringContainsString('attendance-days-toolbar__filters', $source, $view);
+            $this->assertStringContainsString('data-mobile-table-filter-group', $source, $view);
+            $this->assertSame(0, substr_count($source, 'attendance-days-metric') % 2, $view);
+            $this->assertStringNotContainsString('attendance-days-metric px-5 py-4 text-right', $source, $view);
+            $this->assertSame(2, substr_count($source, 'attendance-days-status px-5 py-4'), $view);
+            $this->assertSame(1, substr_count($source, 'attendance-days-status__content'), $view);
+        }
+        $attendanceIndex = file_get_contents(resource_path('views/livewire/attendance/index.blade.php'));
+        $this->assertSame(2, substr_count($attendanceIndex, 'attendance-days-enrolled'));
+        $this->assertStringContainsString("child.matches('[data-mobile-table-filter-group],", $script);
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\) and \(max-width:\s*899px\) and \(orientation:\s*portrait\).*?\.attendance-days-enrolled\s*\{[^}]*display:\s*none !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\) and \(max-width:\s*899px\) and \(orientation:\s*portrait\).*?body \.mobile-table-filters:not\(\.mobile-table-filters--open\) > \.mobile-table-filter-criterion\s*\{[^}]*display:\s*none !important;.*?body \.mobile-table-filters:not\(\.mobile-table-filters--open\) > \.mobile-table-filter-trigger\s*\{[^}]*display:\s*inline-flex !important;.*?body \.mobile-table-header-controls\.mobile-table-filters\.mobile-table-filters--open\s*\{[^}]*position:\s*fixed !important;[^}]*max-width:\s*26rem !important;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/body \.mobile-table-filters:not\(\.mobile-table-filters--open\) > \.mobile-table-filter-trigger\s*\{[^}]*border:\s*1px solid rgba\(151, 219, 174, 0\.28\) !important;[^}]*background:\s*rgba\(11, 143, 67, 0\.16\) !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/body \.surface-table > \.attendance-days-toolbar\s*\{[^}]*display:\s*flex !important;[^}]*justify-content:\s*space-between !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/body \.surface-table > \.attendance-days-toolbar > \.admin-grid-meta__title\s*\{[^}]*display:\s*block !important;[^}]*flex:\s*1 1 auto;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-toolbar__controls\.mobile-table-filters:not\(\.mobile-table-filters--open\).*?\{[^}]*width:\s*auto !important;[^}]*flex:\s*0 0 auto !important;/s', $styles);
+        $this->assertStringContainsString("html[dir='rtl'] body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open", $styles);
+        $this->assertMatchesRegularExpression('/body \.mobile-table-header-controls\.mobile-table-filters\.mobile-table-filters--open > \[data-mobile-table-filter-group\]\s*\{[^}]*display:\s*grid !important;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-table :is\(th, td\):is\(\.attendance-days-date, \.attendance-days-course\)\s*\{[^}]*text-align:\s*start !important;/s', $styles);
+        $this->assertMatchesRegularExpression("/html\[dir='rtl'\] \.surface-table \.attendance-days-table :is\(th, td\):is\(\.attendance-days-metric, \.attendance-days-status\)\s*\{[^}]*text-align:\s*right !important;/s", $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-table \.attendance-days-status__content\s*\{[^}]*display:\s*flex;[^}]*width:\s*100%;[^}]*justify-content:\s*flex-start;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-days-table \.status-chip\s*\{[^}]*min-inline-size:\s*4\.5rem;[^}]*max-width:\s*100%;[^}]*padding-inline-start:\s*1\.57rem;[^}]*padding-inline-end:\s*0\.77rem;/s', $styles);
+        $this->assertStringContainsString('grid-template-columns: minmax(0, 0.8fr) minmax(20rem, 1.2fr);', $styles);
+        $this->assertMatchesRegularExpression('/\.attendance-mark-hero \.group-show-hero-layout\s*\{[^}]*align-items:\s*start;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*1024px\) and \(max-width:\s*1279px\).*?\.attendance-day-header\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;.*?\.attendance-day-header > \.attendance-day-navigation-row\s*\{[^}]*grid-area:\s*auto;[^}]*width:\s*100%;[^}]*margin-inline-end:\s*0;.*?\.attendance-day-header \.attendance-navigation\.quick-saber-type-switch\s*\{[^}]*grid-auto-flow:\s*column;[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(min-width: 1280px\).*?\[data-student-attendance-day-date-metric\].*?\.attendance-day-date-content > bdi\s*\{[^}]*margin-block-start:\s*0\.875rem;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?\[data-student-attendance-day-date-metric\].*?\.attendance-day-date-content > bdi\s*\{[^}]*margin-block-start:\s*0\.25rem;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?\[data-student-attendance-day-date-metric\].*?display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.surface-table table\.attendance-days-table\s*\{[^}]*table-layout:\s*fixed;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.surface-table table\.attendance-records-table\s*\{[^}]*table-layout:\s*fixed;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\) and \(max-width:\s*1279px\).*?table\.attendance-day-groups-table\s*\{[^}]*table-layout:\s*auto;/s', $styles);
+        $this->assertMatchesRegularExpression("/html\\[dir='rtl'\\] \\.surface-table \\.attendance-day-groups-table :is\\(th, td\\)\\.attendance-group-count\\s*\\{[^}]*text-align:\\s*right !important;[^}]*font-variant-numeric:\\s*tabular-nums;/s", $styles);
+        $this->assertMatchesRegularExpression("/@media \\(min-width:\\s*700px\\) and \\(max-width:\\s*899px\\) and \\(orientation:\\s*portrait\\).*?table\\.attendance-day-groups-table\\s*\\{[^}]*table-layout:\\s*fixed !important;.*?\\.attendance-day-groups-table :is\\(\\.attendance-person-column, \\.attendance-teacher-column\\)\\s*\\{[^}]*width:\\s*calc\\(\\(100% - 14\\.5rem\\) \\/ 2\\) !important;.*?html\\[dir='rtl'\\] \\.surface-table \\.attendance-day-groups-table :is\\(th, td\\)\\.attendance-teacher-column\\s*\\{[^}]*text-align:\\s*right !important;.*?html\\[dir='rtl'\\] \\.surface-table \\.attendance-day-groups-table :is\\(th, td\\)\\.attendance-group-count\\s*\\{[^}]*width:\\s*5\\.75rem !important;[^}]*text-align:\\s*right !important;/s", $styles);
+        $this->assertStringNotContainsString('attendance-day-groups-table.table--single-row-actions :is(.attendance-person-column, .attendance-teacher-column)', $styles);
+        $groupAttendance = file_get_contents(resource_path('views/livewire/student-attendance/show.blade.php'));
+        $this->assertSame(0, substr_count($groupAttendance, 'attendance-group-count px-5 py-4 text-center'));
+        $this->assertSame(4, substr_count($groupAttendance, 'attendance-group-count px-5 py-4'));
+        $this->assertStringContainsString('attendance-desktop-only attendance-teacher-column', $groupAttendance);
+        $this->assertStringContainsString('<col class="attendance-desktop-only attendance-teacher-column">', $groupAttendance);
+        $this->assertStringNotContainsString('attendance-desktop-only table-cell-compact attendance-teacher-column', $groupAttendance);
+        $this->assertMatchesRegularExpression('/<colgroup>.*?attendance-row-number.*?attendance-person-column.*?attendance-teacher-column.*?attendance-group-count.*?attendance-group-count.*?admin-actions-column.*?<\/colgroup>/s', $groupAttendance);
+        $this->assertStringNotContainsString('attendance-teacher-column px-5 py-4 text-left', $groupAttendance);
+        $this->assertStringContainsString('teacher-attendance-role-column', $styles);
+        $this->assertStringContainsString('teacher-attendance-percentage-column', $styles);
+        $this->assertMatchesRegularExpression("/html\[dir='rtl'\] \.surface-table \.teacher-attendance-records-table :is\(th, td\)\.teacher-attendance-role-column\s*\{[^}]*width:\s*8\.5rem;[^}]*white-space:\s*nowrap;[^}]*text-align:\s*right !important;/s", $styles);
+        $this->assertMatchesRegularExpression("/@media \(min-width:\s*700px\) and \(max-width:\s*899px\) and \(orientation:\s*portrait\).*?html\[dir='rtl'\] \.surface-table \.teacher-attendance-records-table :is\(th, td\)\.teacher-attendance-role-column\s*\{[^}]*text-align:\s*right !important;.*?\.teacher-attendance-percentage-column\s*\{[^}]*display:\s*none !important;/s", $styles);
+        $this->assertMatchesRegularExpression('/\.teacher-attendance-records-table \.teacher-attendance-percentage-column\s*\{[^}]*width:\s*5rem;[^}]*white-space:\s*nowrap;[^}]*text-align:\s*center !important;/s', $styles);
+        $this->assertStringContainsString('teacher-attendance-heading-tablet', $styles);
+        $teacherAttendance = file_get_contents(resource_path('views/livewire/teachers/attendance-show.blade.php'));
+        $this->assertMatchesRegularExpression('/<colgroup>.*?attendance-row-number.*?attendance-person-column.*?teacher-attendance-role-column.*?teacher-attendance-percentage-column.*?teacher-attendance-status-column.*?teacher-attendance-actions-column.*?<\/colgroup>/s', $teacherAttendance);
+        $this->assertStringContainsString("__('workflow.teacher_attendance.table.headers.role_short')", $teacherAttendance);
+        $this->assertStringNotContainsString('teacher-attendance-role-column px-5 py-4 text-left', $teacherAttendance);
+        $this->assertStringContainsString('.attendance-person-column > div:not(.md\:hidden)', $styles);
+        $this->assertStringContainsString("window.matchMedia('(max-width: 699px)').matches", $script);
+        $this->assertStringContainsString("window.matchMedia('(min-width: 700px)').matches", $script);
+        $this->assertStringNotContainsString('max-width: 767px', $styles);
+        $this->assertStringNotContainsString('min-width: 768px', $styles);
+        $this->assertStringNotContainsString("matchMedia('(max-width: 767px)')", $script);
+        $this->assertStringNotContainsString("matchMedia('(min-width: 768px)')", $script);
+    }
+
+    public function test_student_attendance_count_is_hidden_only_on_phones(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $view = file_get_contents(resource_path('views/livewire/student-attendance/show.blade.php'));
+
+        $this->assertStringContainsString('attendance-day-toolbar__student-count', $view);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\)\s*\{[^}]*\.student-attendance-toolbar \.attendance-day-toolbar__student-count\s*\{[^}]*display:\s*none;/s', $styles);
+    }
+
+    public function test_teacher_attendance_phone_summary_uses_the_list_total(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $view = file_get_contents(resource_path('views/livewire/teachers/attendance-show.blade.php'));
+
+        $this->assertStringContainsString('teacher-attendance-summary__present', $view);
+        $this->assertStringContainsString('teacher-attendance-summary__listed', $view);
+        $this->assertStringContainsString("workflow.teacher_attendance.stats.available_teachers', \$stats['teachers']", $view);
+        $this->assertMatchesRegularExpression('/\.teacher-attendance-summary__listed\s*\{[^}]*display:\s*none;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\)\s*\{.*?\.teacher-attendance-summary__present\s*\{[^}]*display:\s*none;.*?\.teacher-attendance-summary__listed\s*\{[^}]*display:\s*inline;/s', $styles);
+    }
+
+    public function test_teacher_attendance_phone_table_does_not_keep_hidden_desktop_columns(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $view = file_get_contents(resource_path('views/livewire/teachers/attendance-show.blade.php'));
+
+        $this->assertStringContainsString('teacher-attendance-table-scroll overflow-x-auto overflow-y-visible', $view);
+        $this->assertMatchesRegularExpression("/@media \(max-width: 699px\).*?\.teacher-attendance-table-scroll\s*\{[^}]*overflow-x:\s*hidden;.*?col\.teacher-attendance-role-column,.*?col\.teacher-attendance-percentage-column\s*\{[^}]*display:\s*none;.*?\.teacher-attendance-records-table \.attendance-row-number\s*\{[^}]*width:\s*2\.5rem !important;.*?\.teacher-attendance-records-table \.teacher-attendance-status-column\s*\{[^}]*width:\s*8\.75rem !important;/s", $styles);
+    }
+
+    public function test_shared_four_cell_detail_cards_keep_values_to_one_ellipsized_line(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        foreach ([
+            'livewire/groups/show.blade.php',
+            'livewire/student-attendance/mark.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertStringContainsString('group-show-details__grid', $source, $view);
+            $this->assertSame(4, preg_match_all('/<div class="group-show-detail(?:\s[^"]*)?">/', $source), $view);
+        }
+
+        $this->assertMatchesRegularExpression('/\.group-show-detail :is\(dt, dd\)\s*\{[^}]*max-width:\s*100%;[^}]*white-space:\s*nowrap;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.group-show-detail dt\s*\{[^}]*font-weight:\s*500;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.group-show-detail dd\s*\{[^}]*font-weight:\s*700;/s', $styles);
+        $this->assertStringNotContainsString('.group-show-detail dd > *', $styles);
+    }
+
     public function test_numeric_inputs_hide_native_stepper_controls_globally(): void
     {
         $styles = file_get_contents(resource_path('css/app.css'));
@@ -341,7 +484,7 @@ class ManagementPagesTest extends TestCase
         $pdfLogoSelectors = [
             'reports/teacher-attendance.blade.php' => ['selector' => '.pdf-header img', 'count' => 1, 'height' => 18, 'max_width' => 35],
             'reports/student-attendance.blade.php' => ['selector' => '.pdf-header img', 'count' => 1, 'height' => 18, 'max_width' => 35],
-            'reports/course-final-tests.blade.php' => ['selector' => '.pdf-header img', 'count' => 2, 'height' => 18, 'max_width' => 35],
+            'reports/course-final-tests.blade.php' => ['selector' => '.pdf-header img', 'count' => 1, 'height' => 18, 'max_width' => 35],
             'reports/course-point-market-department.blade.php' => ['selector' => '.pdf-header img', 'count' => 2, 'height' => 18, 'max_width' => 35],
             'exports/group-roster-pdf.blade.php' => ['selector' => '.logo img', 'count' => 1, 'height' => 18, 'max_width' => 35],
             'exports/assessment-results-pdf.blade.php' => ['selector' => '.heading-logo img', 'count' => 1, 'height' => 18, 'max_width' => 35],
@@ -366,6 +509,68 @@ class ManagementPagesTest extends TestCase
 
         $financePreview = file_get_contents(resource_path('views/reports/partials/finance-ledger-document.blade.php'));
         $this->assertMatchesRegularExpression('/\.ledger-report-doc__logo img\s*\{[^}]*height:\s*68px;[^}]*max-width:\s*120px;[^}]*width:\s*auto;/s', $financePreview);
+    }
+
+    public function test_archived_pdf_exports_use_the_warm_archive_palette_and_kashida_mark(): void
+    {
+        $mark = view('exports.partials.archive-pdf-mark', [
+            'course' => (object) ['name' => 'دورة صيف 2026 س'],
+        ])->render();
+
+        $this->assertStringContainsString('data-archive-pdf-mark', $mark);
+        $this->assertStringContainsString('color:#a65a2e', $mark);
+        $this->assertStringContainsString('font-weight:bold', $mark);
+        $this->assertStringContainsString('text-justify:kashida', $mark);
+        $this->assertStringContainsString('width:32mm;margin:0 auto', $mark);
+        $this->assertStringContainsString('data-archive-pdf-mark-title', $mark);
+        $this->assertGreaterThanOrEqual(49, substr_count($mark, 'ـ'));
+        $this->assertStringContainsString('دورة', $mark);
+
+        $watermark = file_get_contents(app_path('Support/ArchivePdfWatermark.php'));
+        $watermarkImage = resource_path('images/archive-watermark.png');
+        $this->assertFileExists($watermarkImage);
+        $this->assertSame('image/png', mime_content_type($watermarkImage));
+        $this->assertStringContainsString("resource_path('images/archive-watermark.png')", $watermark);
+        $this->assertStringContainsString('size: [200, 168.85]', $watermark);
+        $this->assertStringContainsString('position: WatermarkImage::POSITION_CENTER_PAGE', $watermark);
+        $this->assertStringContainsString('alpha: 0.25', $watermark);
+        $this->assertStringContainsString('behindContent: true', $watermark);
+        $this->assertStringContainsString('$mpdf->showWatermarkImage = true;', $watermark);
+
+        foreach ([
+            'AssessmentResultPdfController.php',
+            'AdminExportController.php',
+            'StudentAttendanceExportController.php',
+            'TeacherAttendanceExportController.php',
+            'CourseEndExportController.php',
+        ] as $controller) {
+            $source = file_get_contents(app_path('Http/Controllers/'.$controller));
+            $this->assertStringContainsString('ArchivePdfWatermark::apply($mpdf, $archiveCourse);', $source, $controller);
+        }
+
+        foreach (['reports/student-attendance.blade.php', 'reports/teacher-attendance.blade.php'] as $attendanceView) {
+            $attendanceSource = file_get_contents(resource_path('views/'.$attendanceView));
+            $this->assertMatchesRegularExpression('/\.meta-value\s*\{[^}]*position:relative;[^}]*top:\.35mm;/', $attendanceSource, $attendanceView);
+        }
+
+        foreach ([
+            'exports/group-roster-pdf.blade.php',
+            'exports/assessment-results-pdf.blade.php',
+            'reports/student-attendance.blade.php',
+            'reports/teacher-attendance.blade.php',
+            'reports/course-final-tests.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertStringContainsString('$archiveCourse', $source, $view);
+            $this->assertStringContainsString('archive-pdf-mark', $source, $view);
+            $this->assertStringContainsString('@elseif', $source, $view);
+            $this->assertStringContainsString('archive-palette', $source, $view);
+            $this->assertStringContainsString('#ead8c3', $source, $view);
+            $this->assertMatchesRegularExpression('/background\s*:\s*rgba\(241,\s*228,\s*212,\s*(?:0?\.82)\)/', $source, $view);
+            $this->assertMatchesRegularExpression('/background\s*:\s*rgba\(250,\s*245,\s*238,\s*(?:0?\.58)\)/', $source, $view);
+            $this->assertStringContainsString('#c7ad90', $source, $view);
+        }
     }
 
     public function test_non_financial_pdfs_keep_exactly_four_millimetres_between_header_and_table(): void
@@ -399,6 +604,96 @@ class ManagementPagesTest extends TestCase
 
             $this->assertStringContainsString('margin-header:10mm', str_replace(' ', '', $source), $view);
         }
+    }
+
+    public function test_matching_report_pdfs_use_the_final_saber_header_type_scale(): void
+    {
+        $finalSaber = file_get_contents(resource_path('views/reports/course-final-tests.blade.php'));
+        $assessmentResults = file_get_contents(resource_path('views/exports/assessment-results-pdf.blade.php'));
+        $groupRoster = file_get_contents(resource_path('views/exports/group-roster-pdf.blade.php'));
+        $pointMarket = file_get_contents(resource_path('views/reports/course-point-market-department.blade.php'));
+
+        $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;', $finalSaber);
+        $this->assertStringContainsString('.header-subtitle{font-size:13px;', $finalSaber);
+        $this->assertStringContainsString('.header-meta{font-size:9px;', $finalSaber);
+        $this->assertStringContainsString('body { color:#172033; font-family:dubai,sans-serif; font-size:11px; font-weight:400; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-title { font-family:dubai,sans-serif; font-size:20px;', $assessmentResults);
+        $this->assertStringContainsString('.heading-group { font-size:13px;', $assessmentResults);
+        $this->assertStringContainsString('.heading-copy { text-align:center; width:56%; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-logo { text-align:center; width:22%; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta { font-size:9px; vertical-align:middle; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-shell { height:18mm;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-label { direction:rtl; font-family:dubaimedium,sans-serif; font-weight:normal;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-table { border-collapse:collapse; direction:ltr; margin:0 auto; table-layout:fixed; width:28mm !important; }', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-label { direction:rtl;', $assessmentResults);
+        $this->assertStringContainsString('.heading-meta-value { direction:ltr; unicode-bidi:embed; text-align:left; width:16.5mm; }', $assessmentResults);
+        $this->assertStringContainsString('dir="ltr" style="padding-right:3mm;text-align:right"', $assessmentResults);
+        $this->assertStringContainsString('<table class="heading-meta-table" dir="ltr">', $assessmentResults);
+        $this->assertStringContainsString('data-assessment-meta-label="date"', $assessmentResults);
+        $this->assertStringContainsString("'passed' => 'ناج'.str_repeat('ـ', 16).'ح'", $assessmentResults);
+        $this->assertStringContainsString("'failed' => 'راس'.str_repeat('ـ', 11).'ب'", $assessmentResults);
+        $this->assertStringContainsString('$decimals = abs($number - round($number)) < 0.00001 ? 0 : 2;', $assessmentResults);
+        $this->assertStringContainsString("return number_format(\$number, \$decimals, '.', '').' %';", $assessmentResults);
+        $this->assertStringContainsString("\$resultStatus = \$result?->status ?? 'absent';", $assessmentResults);
+        $this->assertStringContainsString('<td class="score" dir="ltr">{{ $resultStatus === \'absent\' ? \'--\' : $formatAssessmentPercentage($result?->score ?? 0) }}</td>', $assessmentResults);
+        $this->assertStringContainsString("\$isSingleGroupPdf ? ' status-'.\$resultStatus : ''", $assessmentResults);
+        $this->assertStringContainsString('.status-passed { color:#166534; }', $assessmentResults);
+        $this->assertStringContainsString('.status-failed { color:#991b1b; }', $assessmentResults);
+        $this->assertStringContainsString('.status-absent { color:#172033; }', $assessmentResults);
+        $this->assertStringContainsString("'ـ'", $assessmentResults);
+        $this->assertStringNotContainsString('heading-meta-spacer', $assessmentResults);
+        $this->assertStringContainsString("h1 {\n            font-size: 20px;", $groupRoster);
+        $this->assertStringContainsString(".group-line {\n            font-size: 13px;", $groupRoster);
+        $this->assertStringContainsString(".logo {\n            text-align: center;", $groupRoster);
+        $this->assertStringContainsString('.header-spacer { width: 22%; }', $groupRoster);
+        $this->assertStringContainsString('width: 56%;', $groupRoster);
+        $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;', $pointMarket);
+        $this->assertStringContainsString('.header-subtitle{font-size:13px;', $pointMarket);
+        $this->assertStringContainsString('.header-meta{font-size:9px}', $pointMarket);
+        $this->assertStringContainsString('.header-side{width:22%}', $pointMarket);
+        $this->assertStringContainsString('.header-copy{text-align:center;width:56%}', $pointMarket);
+        $this->assertStringContainsString('.header-visual{text-align:center}', $pointMarket);
+        $this->assertStringContainsString('.header-side{width:22%}', $finalSaber);
+        $this->assertStringContainsString('.header-copy{text-align:center;width:56%}', $finalSaber);
+        $this->assertStringContainsString('.header-visual{text-align:center}', $finalSaber);
+        $this->assertStringContainsString('.header-meta-table{direction:ltr;margin:0 auto;table-layout:fixed;width:28mm !important}', $finalSaber);
+        $this->assertStringContainsString('data-final-saber-meta-label="date"', $finalSaber);
+
+        foreach ([
+            'reports/teacher-attendance.blade.php',
+            'reports/student-attendance.blade.php',
+        ] as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertStringContainsString('.header-title { font-size:20px;', $source, $view);
+            $this->assertStringContainsString('.header-subtitle { font-size:13px; font-weight:500; margin-top:1mm; }', $source, $view);
+            $this->assertStringContainsString('.header-copy { text-align:center; width:56%; }', $source, $view);
+            $this->assertStringNotContainsString('.header-copy-content { position:relative;', $source, $view);
+            $this->assertStringContainsString('.header-logo { text-align:center; width:22%; }', $source, $view);
+            $this->assertStringContainsString('.header-meta { font-size:9px; vertical-align:middle; }', $source, $view);
+            $this->assertStringContainsString('.header-meta-table { border-collapse:collapse; direction:ltr;', $source, $view);
+            $this->assertStringContainsString('margin:0 auto; table-layout:fixed; width:21mm !important;', $source, $view);
+            $this->assertStringContainsString('.meta-label { font-family:dubaimedium,sans-serif; font-weight:normal; text-align:left; width:4.5mm; }', $source, $view);
+            $this->assertMatchesRegularExpression('/\.meta-value\s*\{[^}]*direction:ltr;[^}]*unicode-bidi:embed;[^}]*text-align:left;[^}]*width:16\.5mm;/', $source, $view);
+            $this->assertStringContainsString('<table class="header-meta-table" dir="ltr">', $source, $view);
+            $this->assertStringContainsString('.header-meta-shell { height:18mm;', $source, $view);
+            $this->assertStringContainsString('<td class="meta-value" dir="ltr">', $source, $view);
+            $this->assertStringContainsString('<td class="meta-label">من</td>', $source, $view);
+            $this->assertStringNotContainsString('date-spacer', $source, $view);
+        }
+
+        $studentAttendance = file_get_contents(resource_path('views/reports/student-attendance.blade.php'));
+        $teacherAttendance = file_get_contents(resource_path('views/reports/teacher-attendance.blade.php'));
+        $teacherExport = file_get_contents(app_path('Http/Controllers/TeacherAttendanceExportController.php'));
+
+        $this->assertStringContainsString('.number,.percentage { direction:ltr; text-align:center; white-space:nowrap; }', $studentAttendance);
+        $this->assertStringContainsString("{{ \$student['percentage'] }}&nbsp;%", $studentAttendance);
+        $this->assertStringContainsString('.number,.percentage { direction:ltr; text-align:center; white-space:nowrap; }', $teacherAttendance);
+        $this->assertStringContainsString('.role { direction:rtl; text-align:center; unicode-bidi:isolate; white-space:nowrap; }', $teacherAttendance);
+        $this->assertStringContainsString("{{ \$teacher['percentage'] }}&nbsp;%", $teacherAttendance);
+        $this->assertStringContainsString("aria-label=\"{{ \$teacher['role_label'] }}\"", $teacherAttendance);
+        $this->assertStringContainsString('ArabicKashidaJustifier::toWidth(', $teacherExport);
+        $this->assertStringContainsString('$targetRoleWidth', $teacherExport);
     }
 
     public function test_row_open_actions_use_the_shared_open_symbol_without_visible_text(): void
@@ -541,15 +836,27 @@ class ManagementPagesTest extends TestCase
 
         $this->assertStringNotContainsString('<colgroup>', $points);
         $this->assertStringNotContainsString('.points-ledger-table, .student-notes-table', $script);
-        $this->assertStringContainsString("@if (\$stateFilter === 'all')", $points);
+        $this->assertStringContainsString("@if (! \$archiveReadOnly && \$stateFilter === 'all')", $points);
         $this->assertStringContainsString('data-shows-state=', $points);
-        $this->assertStringContainsString('status-text {{ $transaction->points >= 0', $points);
+        $this->assertSame(2, substr_count($points, "'status-text--emerald' => \$state !== 'voided' && \$transaction->points >= 0"));
+        $this->assertSame(2, substr_count($points, "'status-text--rose' => \$state !== 'voided' && \$transaction->points < 0"));
+        $this->assertStringNotContainsString("\$state === 'voided' ? 'status-text--rose'", $points);
         $this->assertStringContainsString("'status-text--amber' => \$state === 'inactive_source'", $points);
         $this->assertStringContainsString("'status-text--rose' => \$state === 'voided'", $points);
         $this->assertStringContainsString('\'points-ledger-row--voided\' => $state === \'voided\'', $points);
-        $this->assertStringContainsString('.points-ledger-row--voided > td:not(.points-ledger-col--void-reason)::after {', $styles);
-        $this->assertStringContainsString("height: 1px;\n    background: rgba(215, 241, 223, 0.72);", $styles);
-        $this->assertStringNotContainsString('text-decoration-line: line-through;', $styles);
+        $this->assertStringContainsString('.points-ledger-row--voided [data-points-ledger-strike],', $styles);
+        $this->assertStringContainsString('.points-ledger-mobile__item--voided [data-points-ledger-strike],', $styles);
+        $this->assertStringContainsString('.points-ledger-row--voided [data-points-ledger-strike] > :is(span, bdi),', $styles);
+        $this->assertStringContainsString('.points-ledger-mobile__item--voided [data-points-ledger-strike] > :is(span, bdi) {', $styles);
+        $this->assertGreaterThanOrEqual(12, substr_count($points, 'data-points-ledger-strike'));
+        $this->assertSame(2, substr_count($points, '<span data-points-ledger-strike>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format(\'d-m-Y\')) }}</span>'));
+        $this->assertSame(2, substr_count($points, '<span data-points-ledger-strike>{{ $transaction->entered_at?->format(\'H:i\') }}</span>'));
+        $this->assertStringContainsString('text-decoration-line: line-through;', $styles);
+        $this->assertStringContainsString('text-decoration-color: rgba(251, 113, 133, 0.72);', $styles);
+        $this->assertStringContainsString('text-decoration-thickness: 0.075em;', $styles);
+        $this->assertStringContainsString('text-decoration-skip-ink: none;', $styles);
+        $this->assertStringNotContainsString('[data-points-ledger-value]::after', $styles);
+        $this->assertStringNotContainsString('.points-ledger-row--voided > td:not(.points-ledger-col--void-reason)::after', $styles);
         $this->assertStringNotContainsString("\$transaction->points >= 0 ? 'status-chip", $points);
         $this->assertSame(4, substr_count($points, 'points-ledger-action'));
         $this->assertStringNotContainsString('.points-ledger-action {', $styles);
@@ -639,6 +946,10 @@ class ManagementPagesTest extends TestCase
         $this->assertMatchesRegularExpression('/\.student-progress-data-table__expand\s*\{[^}]*color:\s*#fff4db;/s', $styles);
         $this->assertStringContainsString('html:not(.dark) .student-progress-data-table__expand,', $styles);
         $this->assertMatchesRegularExpression('/\.student-progress-data-table__header \.admin-grid-meta__title\s*\{[^}]*line-height:\s*1\.5rem;/s', $styles);
+        $this->assertStringContainsString("'student-progress-data-table--empty' => \$empty", $studentProgress);
+        $this->assertStringContainsString('admin-empty-state student-progress-data-table__empty', $studentProgress);
+        $this->assertMatchesRegularExpression('/\.student-progress-data-table--empty\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.student-progress-data-table__empty\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1 1 auto;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/s', $styles);
 
         $icon = file_get_contents(resource_path('views/components/admin-action-icon.blade.php'));
 
@@ -1337,7 +1648,6 @@ class ManagementPagesTest extends TestCase
             'livewire/reports/student-activity-summary.blade.php' => 'clearFilters',
             'livewire/reports/students-ranking.blade.php' => 'clearFilters',
             'livewire/reports/index.blade.php' => 'clearFilters',
-            'livewire/community-contacts/index.blade.php' => 'clearFilters',
             'livewire/finance/cash-box.blade.php' => 'resetFilters',
         ] as $view => $method) {
             $source = file_get_contents(resource_path('views/'.$view));
@@ -1689,11 +1999,12 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('[data-student-progress-enrollments] > [data-table-scroll-region] {', $styles);
         $this->assertStringContainsString('overflow-x: hidden !important;', $styles);
         $this->assertStringContainsString("[data-student-progress-enrollments='overview'] table > thead > tr > :nth-child(5) {", $styles);
-        $this->assertStringContainsString('.student-progress-data-table > [data-table-scroll-region] {', $styles);
+        $this->assertStringContainsString('.surface-table > :is(.overflow-x-auto, .table-scroll-region) {', $styles);
         $this->assertStringContainsString('border-bottom-left-radius: 0;', $styles);
         $this->assertStringContainsString('border-bottom-right-radius: 0;', $styles);
-        $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {', $styles);
-        $this->assertStringContainsString('.student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {', $styles);
+        $this->assertStringContainsString('table > tbody > tr:not(:has(> td:only-child[colspan])):hover > td {', $styles);
+        $this->assertStringNotContainsString('table > tbody:last-of-type > tr:last-child:not(:has(> td:only-child[colspan])):hover > td:first-child', $styles);
+        $this->assertStringNotContainsString('table > tbody:last-of-type > tr:last-child:not(:has(> td:only-child[colspan])):hover > td:last-child', $styles);
         $this->assertStringContainsString('[data-student-progress-assessments] table.table-content :is(th, td) {', $styles);
         $this->assertStringNotContainsString('responsive-records-mobile', $studentProgressView);
         $this->assertStringNotContainsString('responsive-records-desktop', $studentProgressView);
@@ -1748,6 +2059,7 @@ class ManagementPagesTest extends TestCase
             'finance_revenue_requests' => 'income-hand',
             'finance_exchange' => 'arrows-right-left',
             'finance_reports' => 'document-chart-bar',
+            'finance_pull_requests' => 'withdrawal-hand',
             'dashboard_settings' => 'cog-6-tooth',
             'finance_settings' => 'finance-settings',
             'public_website_settings' => 'globe-alt',
@@ -2368,17 +2680,19 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('.surface-table table.table-content:has(> thead > tr > :nth-child(9))', $styles);
         $this->assertStringContainsString('padding-inline: calc(var(--table-content-column-gap) / 2) !important;', $styles);
         $this->assertStringContainsString('table.table-content--balanced', $styles);
+        $this->assertStringContainsString('.surface-table.balanced-table-measure-host table.table-content--measuring', $styles);
         $this->assertStringContainsString('.app-main table:has(> thead > tr:first-child > [data-table-number-column]:first-child)', $styles);
         $this->assertStringContainsString('width: 3.5rem !important;', $styles);
         $this->assertStringContainsString('padding-inline-start: 0.75rem !important;', $styles);
         $this->assertStringContainsString('padding-inline-end: 0.625rem !important;', $styles);
         $this->assertStringContainsString('width: 3.75rem !important;', $styles);
         $this->assertStringContainsString('padding-inline: 0.875rem !important;', $styles);
-        $this->assertMatchesRegularExpression('/@media \(max-width: 767px\).*?data-table-number-column.*?text-align:\s*center !important;/s', $styles);
-        $this->assertMatchesRegularExpression('/@media \(max-width: 767px\).*?attendance-row-number.*?text-align:\s*center !important;/s', $styles);
-        $this->assertMatchesRegularExpression('/@media \(max-width: 767px\).*?attendance-days-number.*?padding-inline:\s*0\.875rem !important;.*?text-align:\s*center !important;.*?direction:\s*ltr;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?data-table-number-column.*?text-align:\s*center !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?attendance-row-number.*?text-align:\s*center !important;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\).*?attendance-days-number.*?padding-inline:\s*0\.875rem !important;.*?text-align:\s*center !important;.*?direction:\s*ltr;/s', $styles);
         $this->assertStringContainsString("const balancedRecordTableSelector = [\n    '.surface-table table',", $script);
-        $this->assertStringContainsString("cell.matches('[data-table-number-column]')", $script);
+        $this->assertStringContainsString("cell.matches('[data-table-number-column], [data-juz-progress-spacer]')", $script);
+        $this->assertStringNotContainsString("cell.matches('[data-table-number-column], .table-cell-compact, .admin-actions-column')", $script);
         $this->assertStringContainsString('* 3.5;', $script);
         $this->assertStringContainsString('const flexibleColumnCount = headerCells.length - compactColumnIndexes.size - hiddenColumnIndexes.size;', $script);
         $this->assertStringContainsString('const sharedFreeWidth = (availableWidth - measuredTotal) / flexibleColumnCount;', $script);
@@ -2395,7 +2709,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('!(cells.length === 1 && cells[0].colSpan > 1)', $script);
         $this->assertStringContainsString('const tallestRowHeight = Math.max(...rows.map((row) => row.getBoundingClientRect().height));', $script);
         $this->assertStringContainsString('row.style.setProperty(\'height\', `${Math.ceil(tallestRowHeight)}px`)', $script);
-        $this->assertStringContainsString('.attendance-days-table, .attendance-records-table, .attendance-day-groups-table', $script);
+        $this->assertStringContainsString('.attendance-days-table, .attendance-records-table, .assessment-index-table', $script);
+        $this->assertStringNotContainsString('.attendance-days-table, .attendance-records-table, .attendance-day-groups-table', $script);
         $this->assertStringContainsString(".table-content :is(th, td).table-cell-compact {\n    width: 1%;\n    white-space: nowrap;", $styles);
         $this->assertStringContainsString(".table-content :is(th, td).admin-actions-column {\n    width: 1%;\n    white-space: nowrap;", $styles);
         $this->assertStringContainsString('.settings-admin-page table.min-w-full:not(.curriculum-subject-resource-grid):not(.settings-academic-year-table)', $styles);
@@ -2447,7 +2762,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('if (singleRowActionIsDelete(action))', $script);
         $this->assertStringContainsString("action.hasAttribute('data-keep-visible-table-action')", $script);
         $this->assertStringContainsString("if (hasVisibleAction) {\n            table.querySelectorAll('tbody > tr[data-single-row-action]').forEach(clearSingleRowAction);", $script);
-        $this->assertStringContainsString("window.matchMedia('(min-width: 768px)').matches", $script);
+        $this->assertStringContainsString("window.matchMedia('(min-width: 700px)').matches", $script);
         $this->assertStringContainsString('if (!replacesButtonsWithRows) return;', $script);
         $this->assertStringContainsString("function initializeSingleActionTableRows() {\n    bindSingleActionTableRowListeners();\n\n    if (singleRowActionFrame !== null) {\n        window.cancelAnimationFrame(singleRowActionFrame);\n        singleRowActionFrame = null;\n    }\n\n    enhanceSingleActionTableRows();", $script);
         $this->assertStringNotContainsString("function initializeSingleActionTableRows() {\n    bindSingleActionTableRowListeners();\n    scheduleSingleActionTableRows();", $script);
@@ -2478,20 +2793,26 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('tr[data-single-row-action] {', $styles);
         $this->assertStringContainsString('tr:not(:has(> td:only-child[colspan])):hover', $styles);
         $this->assertStringContainsString('tr:only-child:has(> td:only-child[colspan]):hover', $styles);
-        $this->assertStringContainsString('tr:last-child:not(:has(> td:only-child[colspan])):hover', $styles);
-        $this->assertStringContainsString('background-size: 100% 100%;', $styles);
+        $this->assertStringContainsString('tr:not(:has(> td:only-child[colspan])):hover > td', $styles);
         $this->assertStringContainsString('table > tbody > tr[data-single-row-action] .single-row-action__control', $styles);
         $this->assertStringContainsString('table.table--single-row-actions :is(.single-row-action__header, .single-row-action__cell)', $styles);
         $this->assertStringContainsString('table.table--single-row-actions > colgroup > col.single-row-action__column', $styles);
         $this->assertStringContainsString("display: none !important;\n    width: 0 !important;", $styles);
         $this->assertStringContainsString('table.table--single-row-actions > thead > tr:first-child > .single-row-action__visible-header', $styles);
         $this->assertStringContainsString('width: var(--single-row-action-column-width) !important;', $styles);
-        $this->assertStringContainsString("@media (max-width: 767px) {\n    .app-main table > tbody > tr[data-single-row-action]", $styles);
+        $this->assertStringContainsString("@media (max-width: 699px) {\n    .app-main table > tbody > tr[data-single-row-action]", $styles);
         $this->assertStringContainsString('display: table-cell !important;', $styles);
         $this->assertStringContainsString('display: none !important;', $styles);
         $this->assertStringNotContainsString('attendance-desktop-only admin-actions-column teacher-attendance-actions-column', $teacherAttendance);
         $this->assertStringContainsString('data-teacher-attendance-remove-action', $teacherAttendance);
-        $this->assertStringContainsString('data-keep-visible-table-action', file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php')));
+        $financeDashboard = file_get_contents(resource_path('views/livewire/finance/dashboard.blade.php'));
+        $this->assertStringContainsString('data-keep-visible-table-action', $financeDashboard);
+        $this->assertStringContainsString('admin-actions-column px-4 py-3 text-center', $financeDashboard);
+        $this->assertStringContainsString('data-finance-dashboard-review-action', $financeDashboard);
+        $this->assertStringContainsString('class="admin-icon-button" title="{{ __(\'finance.actions.review\') }}" aria-label="{{ __(\'finance.actions.review\') }}"', $financeDashboard);
+        $this->assertStringContainsString('<x-admin-action-icon name="review" />', $financeDashboard);
+        $this->assertStringNotContainsString('class="pill-link pill-link--compact" data-keep-visible-table-action>{{ __(\'finance.actions.review\') }}', $financeDashboard);
+        $this->assertSame(2, substr_count(file_get_contents(resource_path('views/livewire/finance/expense-requests.blade.php')), 'data-keep-visible-table-action'));
         $this->assertStringContainsString('data-income-direct-print data-keep-visible-table-action', file_get_contents(resource_path('views/livewire/finance/revenue-requests.blade.php')));
         $this->assertStringContainsString('data-financial-record-view-action data-keep-visible-table-action', file_get_contents(resource_path('views/livewire/finance/reports.blade.php')));
         $this->assertStringContainsString('.surface-table .teacher-attendance-records-table .teacher-attendance-actions-column {', $styles);
@@ -2509,7 +2830,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString(':is(.overflow-x-auto, .table-scroll-region, .responsive-records-desktop) > table > :is(tbody, tfoot) > tr > td > :is(div, p, a, .mobile-scroll-table-value):not(:has(> *))', $styles);
         $this->assertStringContainsString('max-inline-size: min(22rem, 78vw);', $styles);
         $this->assertStringContainsString("text-overflow: ellipsis;\n        line-height: 1.45;\n        -webkit-box-orient: vertical;\n        -webkit-line-clamp: 2;\n        line-clamp: 2;", $styles);
-        $this->assertStringContainsString("if (!window.matchMedia('(max-width: 767px)').matches)", $script);
+        $this->assertStringContainsString("if (!window.matchMedia('(max-width: 699px)').matches)", $script);
         $this->assertStringContainsString("value.className = 'mobile-scroll-table-value';", $script);
         $this->assertStringContainsString('if (cell.children.length > 0)', $script);
         $this->assertStringContainsString('> :is(tbody, tfoot) > tr > :first-child > .mobile-scroll-table-value', $styles);

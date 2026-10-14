@@ -16,6 +16,7 @@ use App\Services\PdfBrandingService;
 use App\Services\QuranProgressionService;
 use App\Services\XlsxExportService;
 use App\Support\ArabicSearch;
+use App\Support\ArchivePdfWatermark;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
@@ -283,7 +284,7 @@ class AdminExportController extends Controller
     {
         abort_unless($request->user()?->can('groups.view'), 403);
 
-        ['group' => $group, 'enrollments' => $enrollments] = $this->groupRosterPayload($request, $group, $scopes);
+        ['group' => $group, 'enrollments' => $enrollments, 'archiveCourse' => $archiveCourse] = $this->groupRosterPayload($request, $group, $scopes);
 
         $tempDir = storage_path('app/mpdf');
         if (! is_dir($tempDir)) {
@@ -304,9 +305,11 @@ class AdminExportController extends Controller
         $mpdf->autoScriptToLang = false;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality('rtl');
+        ArchivePdfWatermark::apply($mpdf, $archiveCourse);
         $mpdf->WriteHTML(view('exports.group-roster-pdf', [
             'enrollments' => $enrollments,
             'group' => $group,
+            'archiveCourse' => $archiveCourse,
             'logoImage' => app(PdfBrandingService::class)->logoSource(),
         ])->render());
 
@@ -473,8 +476,28 @@ class AdminExportController extends Controller
             $request->user()
         )->findOrFail($group->id);
 
+        $archiveCourseId = $request->integer('archive_course_id') ?: null;
+        $isArchiveExport = $archiveCourseId !== null;
+
+        $archiveCourse = null;
+        if ($isArchiveExport) {
+            $archiveCourse = Course::query()
+                ->whereKey($archiveCourseId)
+                ->where('is_active', false)
+                ->firstOrFail();
+
+            abort_unless($group->course_id === $archiveCourse->id, 404);
+        } else {
+            abort_unless($group->isAccessibleInActiveWorkspace(), 404);
+        }
+
+        $enrollmentQuery = Enrollment::query();
+        if ($isArchiveExport) {
+            $enrollmentQuery->withTrashed();
+        }
+
         $enrollments = $scopes->scopeEnrollments(
-            Enrollment::query()
+            $enrollmentQuery
                 ->with(['student.parentProfile', 'student.gradeLevel', 'student.quranCurrentJuz', 'student.user'])
                 ->where('group_id', $group->id),
             $request->user()
@@ -486,6 +509,7 @@ class AdminExportController extends Controller
         return [
             'enrollments' => $enrollments,
             'group' => $group,
+            'archiveCourse' => $archiveCourse,
         ];
     }
 

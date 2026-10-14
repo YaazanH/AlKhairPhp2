@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ApplyApplicationTimezone;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
+use App\Http\Middleware\EnsureGroupIsAccessible;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
@@ -45,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'no-store' => PreventPageCaching::class,
+            'active-group' => EnsureGroupIsAccessible::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

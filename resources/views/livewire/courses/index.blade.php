@@ -32,6 +32,10 @@ new class extends Component
 
     public string $ends_on = '';
 
+    public string $curriculum_days_per_week = '1';
+
+    public bool $curriculumDaysPerWeekCustomized = false;
+
     public bool $is_active = true;
 
     public bool $is_default = false;
@@ -67,6 +71,8 @@ new class extends Component
     public ?int $editingScheduleRow = null;
 
     public bool $syncScheduleToGroups = false;
+
+    public bool $syncCurriculumDaysToSchedule = false;
 
     public bool $showCalendarModal = false;
 
@@ -184,6 +190,7 @@ new class extends Component
             ],
             'starts_on' => ['required', 'date'],
             'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
+            'curriculum_days_per_week' => ['required', 'integer', 'between:1,7'],
             'is_default' => ['boolean'],
             'awards_points' => ['boolean'],
         ];
@@ -221,6 +228,7 @@ new class extends Component
         $validated['starts_on'] = $validated['starts_on'] ?: null;
         $validated['ends_on'] = $validated['ends_on'] ?: null;
         $validated['academic_year_id'] = (int) $validated['academic_year_id'];
+        $validated['curriculum_days_per_week'] = (int) $validated['curriculum_days_per_week'];
         $validated['is_active'] = $existingCourse?->is_active ?? true;
         $validated['is_default'] = $validated['is_default']
             || ! Course::query()->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))->where('is_default', true)->exists();
@@ -228,6 +236,7 @@ new class extends Component
         $wasCreating = ! $this->editingId;
         $showScheduleAfterSave = $wasCreating || $this->copySetup;
         $syncGroups = $this->copySetup;
+        $syncCurriculumDaysToSchedule = $wasCreating && ! $this->curriculumDaysPerWeekCustomized;
 
         $course = DB::transaction(function () use ($validated, $existingCourse): Course {
             $course = Course::query()->updateOrCreate(
@@ -264,7 +273,7 @@ new class extends Component
 
         if ($showScheduleAfterSave) {
             $this->showFormModal = false;
-            $this->openCourseSchedule($course->id, $syncGroups);
+            $this->openCourseSchedule($course->id, $syncGroups, $syncCurriculumDaysToSchedule);
             $this->resetFormState();
             $this->copySetup = false;
 
@@ -292,6 +301,8 @@ new class extends Component
         $this->description = $course->description ?? '';
         $this->starts_on = $course->starts_on?->format('Y-m-d') ?? '';
         $this->ends_on = $course->ends_on?->format('Y-m-d') ?? '';
+        $this->curriculum_days_per_week = (string) $course->curriculum_days_per_week;
+        $this->curriculumDaysPerWeekCustomized = false;
         $this->is_active = $course->is_active;
         $this->is_default = $course->is_default;
         $this->awards_points = $course->awards_points;
@@ -497,12 +508,13 @@ new class extends Component
         return $candidate;
     }
 
-    public function openCourseSchedule(int $courseId, bool $syncGroups = false): void
+    public function openCourseSchedule(int $courseId, bool $syncGroups = false, bool $syncCurriculumDaysToSchedule = false): void
     {
         $course = Course::query()->with('schedules')->findOrFail($courseId);
         $this->schedulingCourseId = $course->id;
         $this->scheduleRows = $course->schedules->map(fn ($schedule) => ['day_of_week' => (string) $schedule->day_of_week, 'time_slot' => $schedule->time_slot])->values()->all();
         $this->syncScheduleToGroups = $syncGroups;
+        $this->syncCurriculumDaysToSchedule = $syncCurriculumDaysToSchedule;
         $this->showScheduleModal = true;
         $this->resetScheduleRow();
         $this->resetValidation();
@@ -585,6 +597,14 @@ new class extends Component
 
         $course = Course::query()->findOrFail($this->schedulingCourseId);
         app(CourseScheduleService::class)->replace($course, $this->scheduleRows, $this->syncScheduleToGroups);
+        if ($this->syncCurriculumDaysToSchedule) {
+            $course->update([
+                'curriculum_days_per_week' => collect($this->scheduleRows)
+                    ->pluck('day_of_week')
+                    ->unique()
+                    ->count(),
+            ]);
+        }
         $this->closeCourseSchedule();
         session()->flash('status', __('schedules.group.messages.updated'));
     }
@@ -595,7 +615,13 @@ new class extends Component
         $this->schedulingCourseId = null;
         $this->scheduleRows = [];
         $this->syncScheduleToGroups = false;
+        $this->syncCurriculumDaysToSchedule = false;
         $this->resetScheduleRow();
+    }
+
+    public function updatedCurriculumDaysPerWeek(): void
+    {
+        $this->curriculumDaysPerWeekCustomized = true;
     }
 
     public function openCourseCalendar(int $courseId): void
@@ -909,6 +935,8 @@ new class extends Component
         $this->description = '';
         $this->starts_on = '';
         $this->ends_on = '';
+        $this->curriculum_days_per_week = '1';
+        $this->curriculumDaysPerWeekCustomized = false;
         $this->is_active = true;
         $this->is_default = Course::query()->where('is_default', true)->doesntExist();
         $this->awards_points = true;
@@ -1110,7 +1138,7 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-3" data-course-dates-and-curriculum-days>
                 <div>
                     <label for="course-starts-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.starts_on') }}</label>
                     <input id="course-starts-on" wire:model="starts_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
@@ -1123,6 +1151,14 @@ new class extends Component
                     <label for="course-ends-on" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.ends_on') }}</label>
                     <input id="course-ends-on" wire:model="ends_on" type="date" required class="w-full rounded-xl px-4 py-3 text-sm">
                     @error('ends_on')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="course-curriculum-days-per-week" class="mb-1 block text-sm font-medium">{{ __('crud.courses.form.fields.curriculum_days_per_week') }}</label>
+                    <input id="course-curriculum-days-per-week" wire:model.live="curriculum_days_per_week" type="number" min="1" max="7" required class="w-full rounded-xl px-4 py-3 text-sm" data-course-curriculum-days-per-week>
+                    @error('curriculum_days_per_week')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>
@@ -1149,20 +1185,24 @@ new class extends Component
                     </thead>
                     <tbody>
                         @foreach($calendarRows as $index => $row)
-                            <tr wire:key="course-calendar-entry-{{ $row['id'] ?? 'new-'.$index }}-{{ $editingCalendarRow === $index ? 'edit' : 'view' }}" data-course-calendar-entry-row>
+                            <tr wire:key="course-calendar-entry-{{ $row['id'] ?? 'new-'.$index }}-{{ $editingCalendarRow === $index ? 'edit' : 'view' }}" data-course-calendar-entry-row data-calendar-entry-kind="{{ $editingCalendarRow === $index ? 'form' : 'record' }}" style="--calendar-entry-color: {{ $row['color'] }};">
                                 @if($editingCalendarRow === $index)
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="px-4 py-3 align-top" data-calendar-entry-cell="date">
+                                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.date') }}</span>
                                         <x-course-calendar-date-range :course="$calendarCourse" />
                                     </td>
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="px-4 py-3 align-top" data-calendar-entry-cell="name">
+                                        <span class="calendar-entry-mobile-heading">{{ __('crud.common.actions.edit') }}</span>
+                                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.name') }}</span>
                                         <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
                                         @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                                     </td>
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="px-4 py-3 align-top" data-calendar-entry-cell="color">
+                                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.color') }}</span>
                                         <x-course-calendar-color-picker :colors="$calendarColors" />
                                         @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                                     </td>
-                                    <td class="px-2 py-3 align-top">
+                                    <td class="px-2 py-3 align-top" data-calendar-entry-cell="actions">
                                         <div class="flex flex-nowrap items-center justify-center gap-2">
                                             <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.update') }}" aria-label="{{ __('crud.common.actions.update') }}" data-course-calendar-entry-update>
                                                 <x-admin-action-icon name="save" />
@@ -1173,14 +1213,14 @@ new class extends Component
                                         </div>
                                     </td>
                                 @else
-                                    <td class="px-4 py-3"><div class="calendar-entry-dates"><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y')) }}</bdi>@if(! empty($row['end_date']) && $row['end_date'] !== $row['date'])<span>{{ __('course_calendar.manager.fields.end_date') }}</span><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['end_date'])->format('d-m-Y')) }}</bdi>@endif</div></td>
-                                    <td class="px-4 py-3 font-medium text-white">{{ $row['name'] }}</td>
-                                    <td class="px-4 py-3">
+                                    <td class="px-4 py-3" data-calendar-entry-cell="date"><div class="calendar-entry-dates"><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['date'])->format('d-m-Y')) }}</bdi>@if(! empty($row['end_date']) && $row['end_date'] !== $row['date'])<span aria-hidden="true">←</span><bdi dir="ltr">{{ \App\Support\DateDisplay::html(\Carbon\CarbonImmutable::parse($row['end_date'])->format('d-m-Y')) }}</bdi>@endif</div></td>
+                                    <td class="px-4 py-3 font-medium text-white" data-calendar-entry-cell="name">{{ $row['name'] }}</td>
+                                    <td class="px-4 py-3" data-calendar-entry-cell="color">
                                         <span class="inline-flex items-center gap-2">
                                             <span class="size-5 rounded-full border border-white/20" style="background-color: {{ $row['color'] }}" aria-hidden="true"></span>
                                         </span>
                                     </td>
-                                    <td class="px-2 py-3">
+                                    <td class="px-2 py-3" data-calendar-entry-cell="actions">
                                         <div class="flex flex-nowrap items-center justify-center gap-2">
                                             <button type="button" wire:click="editCalendarRow({{ $index }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}" data-course-calendar-entry-edit>
                                                 <x-admin-action-icon name="edit" />
@@ -1191,22 +1231,26 @@ new class extends Component
                             </tr>
                         @endforeach
                         @if($calendarRows === [])
-                            <tr><td colspan="4" class="admin-empty-state">{{ __('course_calendar.manager.empty') }}</td></tr>
+                            <tr data-calendar-entry-kind="empty"><td colspan="4" class="admin-empty-state">{{ __('course_calendar.manager.empty') }}</td></tr>
                         @endif
                         @if($editingCalendarRow === null)
-                        <tr class="schedule-add-row" data-course-calendar-entry-add-row>
-                            <td class="px-4 py-3 align-top">
+                        <tr class="schedule-add-row" data-course-calendar-entry-add-row data-calendar-entry-kind="form">
+                            <td class="px-4 py-3 align-top" data-calendar-entry-cell="date">
+                                <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.date') }}</span>
                                 <x-course-calendar-date-range :course="$calendarCourse" />
                             </td>
-                            <td class="px-4 py-3 align-top">
+                            <td class="px-4 py-3 align-top" data-calendar-entry-cell="name">
+                                <span class="calendar-entry-mobile-heading">{{ __('course_calendar.manager.actions.add') }}</span>
+                                <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.name') }}</span>
                                 <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
                                 @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                             </td>
-                            <td class="px-4 py-3 align-top">
+                            <td class="px-4 py-3 align-top" data-calendar-entry-cell="color">
+                                <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.color') }}</span>
                                 <x-course-calendar-color-picker :colors="$calendarColors" />
                                 @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
                             </td>
-                            <td class="px-2 py-3 text-center align-top">
+                            <td class="px-2 py-3 text-center align-top" data-calendar-entry-cell="actions">
                                 <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ __('course_calendar.manager.actions.add') }}" aria-label="{{ __('course_calendar.manager.actions.add') }}" data-course-calendar-entry-save>
                                     <x-admin-action-icon name="add" />
                                 </button>
@@ -1215,6 +1259,35 @@ new class extends Component
                         @endif
                     </tbody>
                 </table>
+            </div>
+            <div class="course-calendar-mobile-form" data-course-calendar-mobile-form>
+                <div>
+                    <span class="calendar-entry-mobile-heading">{{ $editingCalendarRow === null ? __('course_calendar.manager.actions.add') : __('crud.common.actions.edit') }}</span>
+                    <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.name') }}</span>
+                    <input wire:model="calendarName" type="text" maxlength="255" class="h-11 w-full rounded-xl px-3" placeholder="{{ __('course_calendar.manager.placeholders.name') }}" aria-label="{{ __('course_calendar.manager.fields.name') }}">
+                    @error('calendarName')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.date') }}</span>
+                    <x-course-calendar-date-range :course="$calendarCourse" />
+                </div>
+                <div class="course-calendar-mobile-form__footer">
+                    <div>
+                        <span class="calendar-entry-mobile-label">{{ __('course_calendar.manager.fields.color') }}</span>
+                        <x-course-calendar-color-picker :colors="$calendarColors" />
+                        @error('calendarColor')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="flex flex-nowrap items-end gap-2">
+                        <button type="button" wire:click="saveCalendarRow" class="admin-icon-button admin-icon-button--accent" title="{{ $editingCalendarRow === null ? __('course_calendar.manager.actions.add') : __('crud.common.actions.update') }}" aria-label="{{ $editingCalendarRow === null ? __('course_calendar.manager.actions.add') : __('crud.common.actions.update') }}" data-course-calendar-mobile-save>
+                            <x-admin-action-icon :name="$editingCalendarRow === null ? 'add' : 'save'" />
+                        </button>
+                        @if($editingCalendarRow !== null)
+                            <button type="button" wire:click="deleteCalendarRow({{ $editingCalendarRow }})" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-course-calendar-mobile-delete>
+                                <x-icons.trash class="size-5" />
+                            </button>
+                        @endif
+                    </div>
+                </div>
             </div>
         </section>
                     @error('calendarRows')<div class="mt-3 text-sm text-red-400">{{ $message }}</div>@enderror
@@ -1295,6 +1368,7 @@ new class extends Component
                             <x-admin-action-icon name="reactivate" class="admin-modal-action__icon" />
                         </button>
                     @endif
+                    <x-open-action-button :href="route('courses.archive-overview', $archivedCourse)" wire:navigate class="admin-modal-action-button hidden md:inline-flex" :label="__('course_archive_overview.action')" data-course-archive-view-action />
                     @can('courses.create')
                         @if ($currentActiveAcademicYearId)
                             <button type="button" wire:click="duplicateArchived({{ $archivedCourse->id }})" wire:confirm="{{ __('crud.courses.copy.confirm_archive') }}" class="admin-icon-button admin-modal-action-button border-sky-300/30 bg-sky-400/10 text-sky-100" title="{{ __('crud.common.actions.copy') }}" aria-label="{{ __('crud.common.actions.copy') }}" data-course-archive-copy-action>

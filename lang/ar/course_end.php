@@ -19,8 +19,8 @@ return [
     'sorted_notice' => 'مرتبة حسب مجموع النقاط المحتسب بعد القواعد',
     'final_tests_title' => 'السبر النهائي',
     'final_tests_report_title' => 'بيان الأجزاء المسبورة',
-    'final_tests_total' => 'الأجزاء:',
-    'date_label' => 'التاريخ:',
+    'final_tests_total' => 'عدد الأجزاء',
+    'date_label' => 'التاريخ',
     'continued' => 'متابعة',
     'empty' => 'لا يوجد طلاب مسجلون في هذه الدورة.',
     'table' => [
@@ -95,6 +95,7 @@ return [
         'messages' => [
             'invoices_added' => 'تمت إضافة الفواتير المحددة.',
             'department_created' => 'تمت إضافة القسم.',
+            'department_deleted' => 'تم حذف القسم.',
             'items_added' => 'تمت إضافة الأصناف المحددة إلى القسم.',
             'item_removed' => 'تمت إزالة الصنف من القسم.',
             'settings_saved' => 'تم حفظ سعر النقطة.',

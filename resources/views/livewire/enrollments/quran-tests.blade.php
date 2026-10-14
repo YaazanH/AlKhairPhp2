@@ -57,8 +57,8 @@ new class extends Component {
         $validated = $this->validate([
             'juz_id' => ['required', 'exists:quran_juzs,id'],
             'tested_on' => ['required', 'date'],
-            'score' => ['nullable', 'numeric', 'between:0,100'],
-            'status' => ['required', 'in:passed,failed,cancelled'],
+            'score' => ['exclude_unless:status,passed', 'required', 'numeric', 'min:80', 'max:100'],
+            'status' => ['required', 'in:passed,failed'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -89,7 +89,7 @@ new class extends Component {
             'juz_id' => (int) $validated['juz_id'],
             'quran_test_type_id' => $testType->id,
             'tested_on' => $validated['tested_on'],
-            'score' => $validated['score'] !== '' ? $validated['score'] : null,
+            'score' => $validated['status'] === 'passed' ? $validated['score'] : null,
             'status' => $validated['status'],
             'attempt_no' => app(QuranProgressionService::class)->nextAttemptNumber(
                 $this->currentEnrollment,
@@ -198,21 +198,22 @@ new class extends Component {
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label for="quran-test-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
-                            <input id="quran-test-score" wire:model="score" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl px-4 py-3 text-sm">
-                            @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                        </div>
-
-                        <div>
+                        <div @class(['md:col-span-2' => $status === 'failed'])>
                             <label for="quran-test-status" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label>
-                            <select id="quran-test-status" wire:model="status" class="w-full rounded-xl px-4 py-3 text-sm">
+                            <select id="quran-test-status" wire:model.live="status" required data-clearable="false" class="w-full rounded-xl px-4 py-3 text-sm">
                                 <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
                                 <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
-                                <option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option>
                             </select>
                             @error('status') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                         </div>
+
+                        @if ($status === 'passed')
+                            <div>
+                                <label for="quran-test-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
+                                <input id="quran-test-score" wire:model="score" type="number" min="80.00" max="100" step="0.01" required class="w-full rounded-xl px-4 py-3 text-sm">
+                                @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                            </div>
+                        @endif
                     </div>
 
                     <div>

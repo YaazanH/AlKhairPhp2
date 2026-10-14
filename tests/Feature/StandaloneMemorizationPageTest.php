@@ -36,6 +36,8 @@ class StandaloneMemorizationPageTest extends TestCase
         $this->assertStringContainsString('data-memorization-page-picker', $source);
         $this->assertStringNotContainsString('id="quick-memorization-from"', $source);
         $this->assertStringContainsString('.memorization-page-picker__grid', $styles);
+        $this->assertMatchesRegularExpression('/\.memorization-page-picker__nav--wrap\s*\{[^}]*border:\s*0;[^}]*color:\s*#e6bf73;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s', $styles);
+        $this->assertMatchesRegularExpression('/\.memorization-page-picker__nav--wrap:not\(:disabled\):hover\s*\{[^}]*border:\s*0;[^}]*background:\s*rgba\(180, 139, 63, 0\.24\);[^}]*box-shadow:\s*none;[^}]*color:\s*#e6bf73;/s', $styles);
         $this->assertStringContainsString('class="admin-action-cluster admin-action-cluster--end quick-memorization-save-actions"', $source);
         $this->assertStringContainsString('class="admin-icon-button admin-icon-button--accent quick-entry-save-action"', $source);
         $this->assertStringContainsString('<x-admin-action-icon name="save" />', $source);
@@ -554,7 +556,12 @@ class StandaloneMemorizationPageTest extends TestCase
         Volt::test('memorization.quick-entry')->set('selectedStudentId', $student->id)
             ->set('selectedPages', [542])->call('navigateJuz', -1)
             ->assertSet('selectedJuzNumber', 25)->assertSet('selectedPages', [])
-            ->call('navigateJuz', 1)->assertSet('selectedJuzNumber', 28);
+            ->call('navigateJuz', 1)->assertSet('selectedJuzNumber', 28)
+            ->assertSee('data-juz-navigation-wrap="next"', false)
+            ->set('selectedPages', [542])->call('navigateJuz', 1)
+            ->assertSet('selectedJuzNumber', 3)->assertSet('selectedPages', [])
+            ->assertSee('data-juz-navigation-wrap="previous"', false)
+            ->call('navigateJuz', -1)->assertSet('selectedJuzNumber', 28);
 
         $student->externalMemorizedJuzs()->sync(QuranJuz::pluck('id'));
         Volt::test('memorization.quick-entry')->set('selectedStudentId', $student->id)
@@ -601,7 +608,7 @@ class StandaloneMemorizationPageTest extends TestCase
         $component = Volt::test('memorization.quick-entry')->set('selectedStudentId', $student->id)
             ->assertSet('selectedJuzNumber', 24);
         $this->assertSame(range(1, 24), $component->get('unfinishedJuzs')->pluck('number')->all());
-        $component->call('navigateJuz', 1)->assertSet('selectedJuzNumber', 24);
+        $component->call('navigateJuz', 1)->assertSet('selectedJuzNumber', 1);
 
         foreach (range(25, 30) as $number) {
             $component->set('selectedJuzNumber', $number)->set('selectedPages', [$juzs[$number]->from_page])

@@ -284,7 +284,7 @@ new class extends Component {
     <x-settings.admin-nav section="dashboard" current="settings.sidebar-navigation" />
 
     @if (session('status'))
-        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
+        <div class="flash-success rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
     <div class="space-y-6" x-data="{ draggedItem: null, draggedGroup: null, itemDropTarget: null, groupDropTarget: null, settledItem: null, settledGroup: null }">

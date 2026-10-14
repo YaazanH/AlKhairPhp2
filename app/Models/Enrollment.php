@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class Enrollment extends Model
@@ -88,6 +89,17 @@ class Enrollment extends Model
                 ->whereHas('course', fn (Builder $courseQuery) => $courseQuery->where('is_active', true)))
             ->orderByDesc('enrolled_at')
             ->orderByDesc('id');
+    }
+
+    public function scopeEligibleForAttendanceOn(Builder $query, string|Carbon $attendanceDate): Builder
+    {
+        return $query->whereDate('enrolled_at', '<=', Carbon::parse($attendanceDate)->toDateString());
+    }
+
+    public function isEligibleForAttendanceOn(string|Carbon $attendanceDate): bool
+    {
+        return $this->enrolled_at !== null
+            && $this->enrolled_at->lte(Carbon::parse($attendanceDate)->startOfDay());
     }
 
     public function belongsToFinishedCourse(): bool

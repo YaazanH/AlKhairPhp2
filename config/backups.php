@@ -6,6 +6,7 @@ return [
     'temporary_directory' => storage_path('app/backup-tmp'),
     'encryption_chunk_size' => 1024 * 1024,
     'process_timeout_seconds' => (int) env('BACKUP_PROCESS_TIMEOUT', 3600),
+    'operation_lock_seconds' => (int) env('BACKUP_OPERATION_LOCK_SECONDS', 3900),
     'minimum_free_space_mb' => (int) env('BACKUP_MINIMUM_FREE_SPACE_MB', 256),
     'max_upload_mb' => (int) env('BACKUP_MAX_UPLOAD_MB', 50),
     'data_roots' => [

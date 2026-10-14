@@ -29,20 +29,24 @@ class CourseEndService
 
     public function studentRows(Course $course): Collection
     {
-        $settings = $this->rules->settings();
+        $settings = $this->rules->settingsForCourse($course);
 
         return $this->enrollments($course)
-            ->map(function (Enrollment $enrollment) use ($settings): array {
+            ->map(function (Enrollment $enrollment) use ($course, $settings): array {
                 $criteria = $this->rules->criteriaForEnrollment($enrollment, $settings);
-                $pointsBefore = (int) PointTransaction::query()
+                $pointsQuery = PointTransaction::query()
                     ->where('enrollment_id', $enrollment->id)
-                    ->effectiveActive()
-                    ->where('source_type', '!=', CourseCompletionRuleService::ADJUSTMENT_SOURCE_TYPE)
-                    ->sum('points');
+                    ->where('source_type', '!=', CourseCompletionRuleService::ADJUSTMENT_SOURCE_TYPE);
+                $course->is_active && ! $course->finished_at
+                    ? $pointsQuery->effectiveActive()
+                    : $pointsQuery->notVoided();
+                $pointsBefore = (int) $pointsQuery->sum('points');
                 $pointsAfter = $this->calculatedPoints($pointsBefore, $criteria['passed'], $settings);
                 $finals = $enrollment->quranFinalTests->filter(fn ($test) => $test->attempts->contains('status', 'passed'));
                 $scores = $finals->map(fn ($test) => $test->attempts->firstWhere('status', 'passed')?->score)->filter(fn ($score) => $score !== null);
-                $attendance = $enrollment->studentAttendanceRecords;
+                $attendance = $enrollment->studentAttendanceRecords
+                    ->filter(fn ($record) => $record->attendanceDay?->attendance_date
+                        && $enrollment->isEligibleForAttendanceOn($record->attendanceDay->attendance_date));
                 $regularAssessmentResults = $enrollment->assessmentResults
                     ->filter(fn ($result) => ! $this->isFinalAssessment($result))
                     ->where('status', '!=', 'absent');
@@ -121,20 +125,40 @@ class CourseEndService
                     ];
                 }))
             ->groupBy('student_id')
-            ->map(function (Collection $studentTests): array {
+            ->flatMap(function (Collection $studentTests): Collection {
                 $studentTests = $studentTests->sortBy(fn (array $row) => (int) $row['juz'])->values();
-                $scores = $studentTests->pluck('mark')->map(fn ($score) => (float) $score);
-                $averageScore = round((float) $scores->average(), 2);
+                $runs = [];
 
-                return [
-                    'name' => (string) $studentTests->first()['name'],
-                    'student_id' => (int) $studentTests->first()['student_id'],
-                    'juz' => $studentTests->pluck('juz')->filter(fn ($juz) => $juz !== null)->implode(' - '),
-                    'mark' => $averageScore,
-                    'marks' => $scores->map(fn ($score) => PercentageFormatter::format($score))->implode(' - '),
-                    'grade' => self::finalTestGradeKey($averageScore),
-                    'test_count' => $studentTests->count(),
-                ];
+                foreach ($studentTests as $test) {
+                    $lastRunIndex = array_key_last($runs);
+                    $previousJuz = $lastRunIndex === null
+                        ? null
+                        : collect($runs[$lastRunIndex])->last()['juz'];
+                    $juz = $test['juz'];
+
+                    if ($lastRunIndex === null || $juz === null || $previousJuz === null || (int) $juz !== (int) $previousJuz + 1) {
+                        $runs[] = [];
+                        $lastRunIndex = array_key_last($runs);
+                    }
+
+                    $runs[$lastRunIndex][] = $test;
+                }
+
+                return collect($runs)->map(function (array $run): array {
+                    $tests = collect($run);
+                    $scores = $tests->pluck('mark')->map(fn ($score) => (float) $score);
+                    $averageScore = round((float) $scores->average(), 2);
+
+                    return [
+                        'name' => (string) $tests->first()['name'],
+                        'student_id' => (int) $tests->first()['student_id'],
+                        'juz' => $tests->pluck('juz')->filter(fn ($juz) => $juz !== null)->implode(' - '),
+                        'mark' => $averageScore,
+                        'marks' => $scores->map(fn ($score) => PercentageFormatter::format($score))->implode(' - '),
+                        'grade' => self::finalTestGradeKey($averageScore),
+                        'test_count' => $tests->count(),
+                    ];
+                });
             })
             ->sortBy(fn (array $row) => mb_strtolower($row['name']))
             ->values();
@@ -158,6 +182,7 @@ class CourseEndService
                 'student',
                 'group.attendanceDays',
                 'memorizationSessions.pages',
+                'studentAttendanceRecords.attendanceDay',
                 'studentAttendanceRecords.status',
                 'quranFinalTests.juz',
                 'quranFinalTests.attempts',
@@ -172,7 +197,8 @@ class CourseEndService
 
     public function enrollmentTotalPoints(Enrollment $enrollment, ?array $settings = null): int
     {
-        $settings ??= $this->rules->settings();
+        $enrollment->loadMissing('group.course');
+        $settings ??= $this->rules->settingsForCourse($enrollment->group?->course);
         $criteria = $this->rules->criteriaForEnrollment($enrollment, $settings);
         // Historical enrolments retain their own points even when their course is inactive.
         // Exclude earlier completion adjustments so the criteria are applied only once.

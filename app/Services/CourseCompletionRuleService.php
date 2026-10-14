@@ -8,6 +8,7 @@ use App\Models\AssessmentResult;
 use App\Models\AssessmentType;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\PointTransaction;
 use App\Models\PointType;
@@ -19,6 +20,7 @@ use Illuminate\Support\Collection;
 class CourseCompletionRuleService
 {
     public const ADJUSTMENT_POINT_TYPE_CODE = 'course-completion-adjustment';
+
     public const ADJUSTMENT_SOURCE_TYPE = 'course_completion_rule';
 
     public function settings(): array
@@ -43,6 +45,24 @@ class CourseCompletionRuleService
         $resolved['final_rule_rows'] = $this->finalRuleRows($settings, $resolved);
 
         return $resolved;
+    }
+
+    public function snapshot(): array
+    {
+        return [
+            ...$this->settings(),
+            'grade_names' => GradeLevel::query()->pluck('name', 'id')->all(),
+            'assessment_type_names' => AssessmentType::query()->pluck('name', 'id')->all(),
+        ];
+    }
+
+    public function settingsForCourse(?Course $course): array
+    {
+        if ($course?->finished_at && filled($course->completion_settings_snapshot)) {
+            return $course->completion_settings_snapshot;
+        }
+
+        return $this->settings();
     }
 
     public function saveSettings(array $validated): void
@@ -183,7 +203,7 @@ class CourseCompletionRuleService
         ];
     }
 
-    public function groups(array $filters): \Illuminate\Support\Collection
+    public function groups(array $filters): Collection
     {
         $filters = $this->filters($filters);
 
@@ -336,7 +356,7 @@ class CourseCompletionRuleService
     {
         return is_array($stored)
             ? collect($stored)->map(fn ($id) => (int) $id)->filter()->unique()->values()->all()
-            : \App\Models\GradeLevel::query()->where('is_active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+            : GradeLevel::query()->where('is_active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
     protected function assessmentRuleGradeIds(Collection $settings, array $requirements, array $legacyGradeIds): array

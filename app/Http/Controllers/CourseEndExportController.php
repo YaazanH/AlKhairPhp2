@@ -6,6 +6,8 @@ use App\Models\Course;
 use App\Services\CourseEndService;
 use App\Services\PdfBrandingService;
 use App\Services\XlsxExportService;
+use App\Support\ArabicKashidaJustifier;
+use App\Support\ArchivePdfWatermark;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Mpdf\Mpdf;
@@ -33,15 +35,42 @@ class CourseEndExportController extends Controller
         $mpdf = new Mpdf(PdfOptions::make([
             'format' => 'A4',
             'orientation' => 'P',
-            'margin_right' => 14,
+            'margin_right' => 10,
             'margin_bottom' => 14,
-            'margin_left' => 14,
+            'margin_left' => 10,
             'setAutoTopMargin' => 'stretch',
             'autoMarginPadding' => 4,
         ]));
         $mpdf->SetDirectionality('rtl');
+        $dateLabel = __('course_end.date_label');
+        $partsLabel = __('course_end.final_tests_total');
+
+        if (app()->isLocale('ar')) {
+            $mpdf->SetFont('dubaimedium', '', 9);
+            // mPDF shapes inserted tatweels more narrowly than GetStringWidth reports.
+            // The visual compensation keeps التاريخ level with عدد الأجزاء in Dubai Medium.
+            $targetMetaLabelWidth = max(
+                $mpdf->GetStringWidth($dateLabel),
+                $mpdf->GetStringWidth($partsLabel) * 1.15,
+            );
+            $dateLabel = ArabicKashidaJustifier::toWidth(
+                $dateLabel,
+                $targetMetaLabelWidth,
+                fn (string $value): float => $mpdf->GetStringWidth($value),
+            );
+        }
+
         $logo = app(PdfBrandingService::class)->logoSource();
-        $mpdf->WriteHTML(view('reports.course-final-tests', compact('course', 'rows', 'logo'))->render());
+        $archiveCourse = $course->is_active ? null : $course;
+        ArchivePdfWatermark::apply($mpdf, $archiveCourse);
+        $mpdf->WriteHTML(view('reports.course-final-tests', compact(
+            'course',
+            'rows',
+            'logo',
+            'archiveCourse',
+            'dateLabel',
+            'partsLabel',
+        ))->render());
 
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',

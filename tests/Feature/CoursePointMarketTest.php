@@ -180,6 +180,16 @@ class CoursePointMarketTest extends TestCase
             ->assertSee('wire:model.live="selectedItemIds" value="'.$notebook->id.'"', false);
 
         $this->assertDatabaseMissing('course_point_market_items', ['id' => $allocation->id]);
+
+        $component
+            ->call('openDepartmentSettings', $department->id)
+            ->assertSee('data-point-market-department-save-action', false)
+            ->assertSee('data-point-market-department-delete-action', false)
+            ->call('deleteDepartment')
+            ->assertHasNoErrors()
+            ->assertSet('showDepartmentSettingsModal', false);
+
+        $this->assertDatabaseMissing('course_point_market_departments', ['id' => $department->id]);
     }
 
     public function test_point_market_uses_compact_numbers_and_standard_department_labels(): void

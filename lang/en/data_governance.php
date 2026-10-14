@@ -68,6 +68,7 @@ return [
             'active_enrollments' => 'Active enrolments',
             'starts_on' => 'Starts on',
             'ends_on' => 'Ends on',
+            'curriculum_days_per_week' => 'Curriculum days per week',
             'monthly_fee' => 'Monthly fee',
         ],
         'record_fields' => [
@@ -81,7 +82,8 @@ return [
             'father_name' => 'Father name', 'father_work' => 'Father occupation', 'father_phone' => 'Father telephone',
             'mother_name' => 'Mother name', 'mother_phone' => 'Mother telephone', 'home_phone' => 'Home telephone',
             'address' => 'Address', 'is_active' => 'Status', 'name' => 'Name', 'capacity' => 'Capacity',
-            'starts_on' => 'Starts on', 'ends_on' => 'Ends on', 'monthly_fee' => 'Monthly fee',
+            'starts_on' => 'Starts on', 'ends_on' => 'Ends on',
+            'curriculum_days_per_week' => 'Curriculum days per week', 'monthly_fee' => 'Monthly fee',
             'enrolled_at' => 'Enrolled on', 'left_at' => 'Left on', 'course_finished_at' => 'Course finished at',
             'course_finished_previous_status' => 'Previous course-finish status',
             'course_finished_previous_left_at' => 'Previous leaving date', 'course_finished_was_active' => 'Active before finishing',

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Group;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 class CurriculumProgressService
@@ -39,6 +41,65 @@ class CurriculumProgressService
             'total' => $total,
             'completed' => round($completed, 1),
             'percentage' => $total > 0 ? round(($completed / $total) * 100, 1) : 0.0,
+        ];
+    }
+
+    public function pacedSummary(Group $group, ?CarbonInterface $asOf = null): array
+    {
+        $summary = $this->summary($group);
+        $group->loadMissing('course');
+        $course = $group->course;
+
+        if (! $course?->starts_on || ! $course?->ends_on || $summary['total'] === 0) {
+            return [
+                ...$summary,
+                'expected_completed' => $summary['completed'],
+                'expected_percentage' => $summary['percentage'],
+                'percentage_gap' => 0.0,
+                'lessons_behind' => 0.0,
+                'lessons_ahead' => 0.0,
+                'pace' => 'on_track',
+                'tone' => 'success',
+            ];
+        }
+
+        $date = CarbonImmutable::instance($asOf ?? now())->startOfDay();
+        $startsOn = CarbonImmutable::instance($course->starts_on)->startOfDay();
+        $endsOn = CarbonImmutable::instance($course->ends_on)->startOfDay();
+        $daysPerWeek = max(1, min(7, (int) ($course->curriculum_days_per_week ?: 1)));
+
+        if ($date->lt($startsOn)) {
+            $expectedCompleted = 0;
+        } elseif ($date->gte($endsOn)) {
+            $expectedCompleted = (int) $summary['total'];
+        } else {
+            $elapsedDays = $startsOn->diffInDays($date);
+            $courseWeeks = max(1 / 7, $startsOn->diffInDays($endsOn) / 7);
+            $elapsedWeeks = min($courseWeeks, $elapsedDays / 7);
+            $courseTeachingDays = $courseWeeks * $daysPerWeek;
+            $elapsedTeachingDays = $elapsedWeeks * $daysPerWeek;
+            $lessonsPerTeachingDay = $summary['total'] / $courseTeachingDays;
+
+            $expectedCompleted = min(
+                (int) $summary['total'],
+                (int) floor($elapsedTeachingDays * $lessonsPerTeachingDay),
+            );
+        }
+
+        $expectedPercentage = round(($expectedCompleted / $summary['total']) * 100, 1);
+        $difference = round((float) $summary['completed'] - $expectedCompleted, 1);
+        $percentageGap = max(0.0, round($expectedPercentage - (float) $summary['percentage'], 1));
+        $lessonsBehind = $difference < 0 ? abs($difference) : 0.0;
+
+        return [
+            ...$summary,
+            'expected_completed' => $expectedCompleted,
+            'expected_percentage' => $expectedPercentage,
+            'percentage_gap' => $percentageGap,
+            'lessons_behind' => $lessonsBehind,
+            'lessons_ahead' => $difference > 0 ? $difference : 0.0,
+            'pace' => $difference < 0 ? 'behind' : ($difference > 0 ? 'ahead' : 'on_track'),
+            'tone' => $lessonsBehind > 2 ? 'danger' : ($lessonsBehind > 0 ? 'warning' : 'success'),
         ];
     }
 

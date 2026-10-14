@@ -5,6 +5,7 @@ import {
     cameraStreamConstraints,
     prepareInlineCameraVideo,
     requestCameraStream,
+    shouldUseCanvasCameraPreview,
 } from '../../resources/js/quick-attendance-camera.js';
 
 test('camera video is prepared for inline muted playback before iOS receives the stream', () => {
@@ -23,6 +24,13 @@ test('camera video is prepared for inline muted playback before iOS receives the
     assert.equal(attributes.has('muted'), true);
     assert.equal(attributes.has('playsinline'), true);
     assert.equal(attributes.has('webkit-playsinline'), true);
+});
+
+test('iPhone and touch-capable iPad desktop mode use the canvas camera preview', () => {
+    assert.equal(shouldUseCanvasCameraPreview({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' }), true);
+    assert.equal(shouldUseCanvasCameraPreview({ platform: 'MacIntel', maxTouchPoints: 5 }), true);
+    assert.equal(shouldUseCanvasCameraPreview({ userAgent: 'Mozilla/5.0 (Linux; Android 15)', platform: 'Linux armv8l', maxTouchPoints: 5 }), false);
+    assert.equal(shouldUseCanvasCameraPreview({ userAgent: 'Mozilla/5.0 (Macintosh)', platform: 'MacIntel', maxTouchPoints: 0 }), false);
 });
 
 test('inline playback is configured before the camera stream is attached', async () => {

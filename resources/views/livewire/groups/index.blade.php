@@ -897,7 +897,9 @@ new class extends Component
                                 <td class="table-cell-compact whitespace-nowrap px-5 py-4 lg:px-6"><span class="{{ $groupStatusClass }}">{{ $groupStatusLabel }}</span></td>
                                 <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     <div class="flex flex-nowrap justify-end gap-2">
-                                        <x-open-action-button :href="route('groups.show', $group)" wire:navigate :label="__('crud.common.actions.open')" />
+                                        @if ($group->isAccessibleInActiveWorkspace())
+                                            <x-open-action-button :href="route('groups.show', $group)" wire:navigate :label="__('crud.common.actions.open')" />
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
