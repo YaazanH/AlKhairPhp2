@@ -531,7 +531,7 @@ new class extends Component
                 </div>
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('finance.reports.report_notes') }}</label>
-                <textarea wire:model.live="report_notes" rows="2" maxlength="4000" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+                <textarea wire:model.live="report_notes" rows="2" maxlength="4000" placeholder="{{ __('finance.reports.report_notes') }}" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
             </div>
 
             <div class="flex flex-wrap justify-end gap-3">

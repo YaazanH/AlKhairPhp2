@@ -223,6 +223,9 @@ return [
         'users' => 'Users',
     ],
     'descriptions' => [
+        'currency_exchange' => 'Exchange :from to :to',
+        'donation_income_default' => 'Donations for the Quran course',
+        'fund_transfer' => 'Transfer from :from to :to in :currency',
         'request_deleted_plain' => 'Deleted finance request',
         'withdrawal_cleanup' => 'One-time withdrawal-request cleanup',
         'generated_from_pull' => 'Generated from withdrawal request :request.',
@@ -231,6 +234,16 @@ return [
         'invoice_pull_return' => 'Returned remaining amount for invoice :invoice and withdrawal request :request.',
         'pull_request_return' => 'Returned remaining amount for withdrawal request :request.',
         'request_deleted' => 'Deleted finance entry :request.',
+    ],
+    'currency_names' => [
+        'USD' => 'US Dollar',
+        'SYP' => 'Syrian Pound',
+        'SYP_OLD' => 'Old Syrian Pound',
+    ],
+    'currency_names_definite' => [
+        'USD' => 'the US Dollar',
+        'SYP' => 'the Syrian Pound',
+        'SYP_OLD' => 'the Old Syrian Pound',
     ],
     'filters' => [
         'active_only' => 'Active only',

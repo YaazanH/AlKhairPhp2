@@ -3,13 +3,99 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class MobileModalLayoutTest extends TestCase
 {
+    public function test_program_notifications_use_one_dismissible_five_second_toast(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('adminToastRegion().replaceChildren(toast)', $script);
+        $this->assertStringContainsString("close.addEventListener('click', () => dismissAdminToast(toast))", $script);
+        $this->assertStringContainsString('window.setTimeout(() => dismissAdminToast(toast), 5000)', $script);
+        $this->assertStringContainsString('.flash-success:not([data-inline-flash]), [data-toast-message]', $script);
+        $this->assertStringContainsString("window.Livewire?.hook('morph.added', ({ el }) => initializeFlashToasts(el))", $script);
+        $this->assertStringContainsString('function adminToastIconName(message, type)', $script);
+        $this->assertStringContainsString("if (/(نسخة احتياطية|نسخ احتياطي|backup)/u.test(text)) return 'backup';", $script);
+        $this->assertStringContainsString("backup: '<ellipse cx=\"11\" cy=\"5.5\"", $script);
+        $this->assertMatchesRegularExpression('/\.admin-toast-region\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*max\(1rem, env\(safe-area-inset-bottom\)\);/s', $styles);
+        $this->assertMatchesRegularExpression('/\.admin-toast-region\s*\{[^}]*inset-inline:\s*1rem;[^}]*width:\s*auto;/s', $styles);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 699px\)\s*\{\s*\.admin-toast__message\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s', $styles);
+        $this->assertStringContainsString("@media (min-width: 700px) {\n    .admin-toast-region {\n        inset-inline-start: auto;\n        inset-inline-end: 1rem;\n        width: min(20vw, 24rem);", $styles);
+        $this->assertStringContainsString('.flash-notification-source {', $styles);
+    }
+
+    public function test_authenticated_session_messages_all_feed_the_global_toast_system(): void
+    {
+        foreach (File::allFiles(resource_path('views')) as $view) {
+            $path = $view->getPathname();
+            if (str_contains($path, DIRECTORY_SEPARATOR.'auth'.DIRECTORY_SEPARATOR)) {
+                continue;
+            }
+
+            $contents = $view->getContents();
+            preg_match_all(
+                '/<(?<tag>div|p|span)(?<attrs>[^>]*)>\s*\{\{\s*session\([\'\"]status[\'\"]\)\s*\}\}\s*<\/\k<tag>>/s',
+                $contents,
+                $matches,
+                PREG_SET_ORDER,
+            );
+
+            foreach ($matches as $match) {
+                $this->assertMatchesRegularExpression(
+                    '/(?:\bflash-success\b|\bdata-toast-message\b)/',
+                    $match['attrs'],
+                    "Session status in [{$path}] must be consumed by the global toast system.",
+                );
+            }
+        }
+
+        $quickEntry = File::get(resource_path('views/livewire/memorization/quick-entry.blade.php'));
+        $this->assertMatchesRegularExpression(
+            '/data-toast-message\s+data-toast-type="error"[^>]*>\{\{\s*session\(\'error\'\)\s*\}\}/s',
+            $quickEntry,
+        );
+    }
+
+    public function test_clearable_textboxes_receive_a_meaningful_placeholder_from_their_label(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+        $amountInput = file_get_contents(resource_path('views/components/finance/amount-input.blade.php'));
+
+        $this->assertStringContainsString('function initializeClearableTextboxPlaceholders(root = document)', $script);
+        $this->assertStringContainsString("control.matches('[data-clearable=\"false\"], [data-no-auto-placeholder]')", $script);
+        $this->assertStringContainsString("window.Livewire?.hook('morph.updated', ({ el }) => initializeClearableTextboxPlaceholders(el))", $script);
+        $this->assertStringContainsString("filled(\$placeholder) ? \$placeholder : __('finance.fields.amount')", $amountInput);
+    }
+
     public function test_mobile_modals_clip_shell_overflow_and_stack_form_fields(): void
     {
         $styles = file_get_contents(resource_path('css/app.css'));
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString("document.querySelectorAll('.admin-modal, dialog[open], [role=\"dialog\"][aria-modal=\"true\"]')", $script);
+        $this->assertStringContainsString('function isVisibleApplicationModal(modal)', $script);
+        $this->assertStringContainsString("style.display !== 'none' && style.visibility !== 'hidden'", $script);
+        $this->assertStringContainsString("document.addEventListener('livewire:navigated', startApplicationModalScrollLock);", $script);
+        $this->assertStringContainsString("window.addEventListener('pageshow', startApplicationModalScrollLock);", $script);
+        $this->assertStringContainsString("window.addEventListener('focus', startApplicationModalScrollLock);", $script);
+        $this->assertStringContainsString("document.addEventListener('visibilitychange'", $script);
+        $this->assertStringContainsString("attributeFilter: ['hidden', 'open', 'aria-hidden', 'class', 'style']", $script);
+        $this->assertStringContainsString('if (applicationModalScrollY === null) applicationModalScrollY = window.scrollY;', $script);
+        $this->assertStringContainsString("body.application-modal-open {\n        position: fixed;\n        top: calc(-1 * var(--application-modal-scroll-y, 0px));", $styles);
+        $this->assertStringContainsString("html.application-modal-open,\nbody.application-modal-open {\n    overflow: hidden !important;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-scroll-region {\n    overflow-y: auto !important;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n    display: flex !important;\n    flex-direction: column;\n    height: 100dvh;\n    min-height: 100dvh;\n    max-height: 100dvh;\n    align-self: flex-start;\n    z-index: 90;\n    pointer-events: auto;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n        position: fixed !important;\n        inset-block: 0;\n        inset-inline-start: 0;", $styles);
+        $this->assertStringNotContainsString('visibility: hidden;', $this->modalOpenStyles($styles));
+        $this->assertStringContainsString("html.application-modal-open .app-main {\n    z-index: auto;\n    overflow: visible;", $styles);
+        $this->assertStringContainsString(".admin-modal__backdrop {\n    position: fixed;", $styles);
+        $this->assertStringContainsString(".admin-modal:not(.admin-modal--full-viewport) .admin-modal__backdrop {\n        inset-inline-start: var(--app-sidebar-width, 17rem);", $styles);
+        $this->assertStringContainsString(".app-sidebar-is-collapsed .admin-modal__backdrop {\n        inset-inline-start: 0;", $styles);
+        $this->assertStringContainsString(".admin-modal__body {\n    max-height: calc(100vh - 10rem);\n    overflow: auto;\n    overscroll-behavior: contain;", $styles);
 
         $this->assertStringContainsString('.admin-modal .admin-modal__dialog {', $styles);
         $this->assertStringContainsString('.admin-modal .admin-modal__body {', $styles);
@@ -22,6 +108,31 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString(".print-template-settings-dialog [class*='grid-cols-']", $styles);
         $this->assertStringContainsString(".admin-modal__viewport {\n        align-items: center;", $styles);
         $this->assertStringContainsString(".admin-modal .searchable-select__panel {\n        position: absolute;\n        inset-inline: 0;\n        top: calc(100% + 0.35rem);\n        bottom: auto;", $styles);
+    }
+
+    public function test_only_modals_with_an_x_close_button_close_from_the_backdrop(): void
+    {
+        $dismissible = Blade::render(
+            '<x-admin.modal :show="true" title="Example" close-method="closeExample">Content</x-admin.modal>',
+        );
+        $forcedAction = Blade::render(
+            '<x-admin.modal :show="true" title="Example" close-method="closeExample" :dismissible="false">Content</x-admin.modal>',
+        );
+        $headerless = Blade::render(
+            '<x-admin.modal :show="true" :hide-header="true" close-method="closeExample">Content</x-admin.modal>',
+        );
+
+        $this->assertStringContainsString('class="admin-modal__backdrop"', $dismissible);
+        $this->assertStringContainsString('wire:click="closeExample"', $dismissible);
+        $this->assertStringContainsString('class="admin-modal__viewport"', $dismissible);
+        $this->assertStringContainsString('wire:click.self="closeExample"', $dismissible);
+        $this->assertStringContainsString('data-admin-modal-backdrop-close', $dismissible);
+        $this->assertStringContainsString('class="admin-modal__close"', $dismissible);
+
+        $this->assertStringNotContainsString('data-admin-modal-backdrop-close', $forcedAction);
+        $this->assertStringNotContainsString('class="admin-modal__close"', $forcedAction);
+        $this->assertStringNotContainsString('data-admin-modal-backdrop-close', $headerless);
+        $this->assertStringNotContainsString('class="admin-modal__close"', $headerless);
     }
 
     public function test_searchable_dropdowns_temporarily_release_every_clipping_popup_ancestor(): void
@@ -38,6 +149,13 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString('restoreSearchableSelectOverflow(wrapper);', $script);
         $this->assertStringContainsString("closeSearchableSelect(existingWrapper);\n        existingWrapper.remove();", $script);
         $this->assertStringContainsString("closeSearchableSelect(wrapper);\n            wrapper.remove();", $script);
+    }
+
+    private function modalOpenStyles(string $styles): string
+    {
+        preg_match_all('/html\\.application-modal-open[^}]+}/s', $styles, $matches);
+
+        return implode("\n", $matches[0]);
     }
 
     public function test_livewire_table_search_restores_focus_after_a_debounced_update(): void

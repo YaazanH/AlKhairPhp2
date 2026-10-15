@@ -8,7 +8,7 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
-    $monthLabel = \App\Support\ArabicMonthFormatter::monthYearWithHijri(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::hijriMonthYearLabel(now());
 @endphp
 
 <!DOCTYPE html>
@@ -16,7 +16,13 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
+    <body
+        class="app-body"
+        data-current-user-id="{{ auth()->id() }}"
+        data-attendance-sync-url="{{ route('attendance.offline-sync') }}"
+        data-attendance-sync-conflict-label="{{ __('workflow.offline_attendance.conflict') }}"
+        data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}"
+    >
         @php
             $primaryRole = auth()->user()->primaryRoleName();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;
@@ -38,7 +44,7 @@
                 <div class="app-sidebar-scroll-region">
                     <div class="px-1 pt-2">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" :justify-subtitle-to-title="true" />
+                            <x-app-logo :title="__('ui.app.quran_course')" :subtitle="$monthLabel" :justify-subtitle-to-title="true" :subtitle-justification-target="__('ui.app.quran_course_short')" />
                         </a>
                     </div>
 

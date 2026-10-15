@@ -26,6 +26,7 @@ new class extends Component {
     public string $transfer_amount = '';
     public string $transfer_date = '';
     public string $transfer_notes = '';
+    public string $transfer_default_notes = '';
 
     public string $filter_start_date = '';
     public string $filter_end_date = '';
@@ -43,6 +44,7 @@ new class extends Component {
         $this->transfer_currency_id = $localCurrency->id;
         $this->adjust_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
         $this->transfer_from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
+        $this->syncDefaultTransferNotes();
     }
 
     public function with(): array
@@ -70,9 +72,14 @@ new class extends Component {
             'localCurrency' => $financeService->localCurrency(),
             'adjustCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->adjust_currency_id)->get(),
             'adjustCurrencies' => $financeService->currenciesForCashBox($this->adjust_cash_box_id)->get(),
-            'transferFromCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
-            'transferToCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->get(),
-            'transferCurrencies' => $financeService->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
+            'transferFromCashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
+            'transferToCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)
+                ->when(! $this->transfer_currency_id, fn ($query) => $query->whereRaw('1 = 0'))
+                ->when($this->transfer_from_cash_box_id, fn ($query) => $query->where('finance_cash_boxes.id', '!=', $this->transfer_from_cash_box_id))
+                ->get(),
+            'transferCurrencies' => $financeService->currenciesForCashBox($this->transfer_from_cash_box_id)
+                ->when(! $this->transfer_from_cash_box_id, fn ($query) => $query->whereRaw('1 = 0'))
+                ->get(),
             'transactionTypes' => collect(['income', 'expense', 'return', 'exchange', 'transfer']),
             'transactions' => $transactionsQuery->paginate($this->perPage),
         ];
@@ -159,20 +166,35 @@ new class extends Component {
 
     public function updatedTransferFromCashBoxId(): void
     {
+        $this->transfer_to_cash_box_id = null;
+
         if ($this->transfer_from_cash_box_id && $this->transfer_currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->transfer_from_cash_box_id)->whereKey($this->transfer_currency_id)->exists()) {
             $this->transfer_currency_id = app(FinanceService::class)->currenciesForCashBox($this->transfer_from_cash_box_id)->value('id');
         }
+
+        if (! $this->transfer_from_cash_box_id) {
+            $this->transfer_currency_id = null;
+        }
+
+        $this->syncDefaultTransferNotes();
     }
 
     public function updatedTransferCurrencyId(): void
     {
-        if ($this->transfer_from_cash_box_id && $this->transfer_currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->whereKey($this->transfer_from_cash_box_id)->exists()) {
-            $this->transfer_from_cash_box_id = null;
+        if ($this->transfer_from_cash_box_id && $this->transfer_currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->transfer_from_cash_box_id)->whereKey($this->transfer_currency_id)->exists()) {
+            $this->transfer_currency_id = app(FinanceService::class)->currenciesForCashBox($this->transfer_from_cash_box_id)->value('id');
         }
 
-        if ($this->transfer_to_cash_box_id && $this->transfer_currency_id && ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->whereKey($this->transfer_to_cash_box_id)->exists()) {
+        if ($this->transfer_to_cash_box_id && ($this->transfer_to_cash_box_id === $this->transfer_from_cash_box_id || ! app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)->whereKey($this->transfer_to_cash_box_id)->exists())) {
             $this->transfer_to_cash_box_id = null;
         }
+
+        $this->syncDefaultTransferNotes();
+    }
+
+    public function updatedTransferToCashBoxId(): void
+    {
+        $this->syncDefaultTransferNotes();
     }
 
     public function transfer(): void
@@ -190,10 +212,22 @@ new class extends Component {
             'transfer_to_cash_box_id' => ['required', 'exists:finance_cash_boxes,id'],
         ]);
 
-        app(FinanceService::class)->recordCashBoxTransfer(
-            app(FinanceService::class)->cashBoxForUser((int) $validated['transfer_from_cash_box_id'], auth()->user()),
-            app(FinanceService::class)->cashBoxForUser((int) $validated['transfer_to_cash_box_id'], auth()->user()),
-            FinanceCurrency::query()->findOrFail($validated['transfer_currency_id']),
+        $financeService = app(FinanceService::class);
+        $fromCashBox = $financeService->cashBoxForUser((int) $validated['transfer_from_cash_box_id'], auth()->user());
+        $toCashBox = $financeService->cashBoxForUser((int) $validated['transfer_to_cash_box_id'], auth()->user());
+        $currency = FinanceCurrency::query()->findOrFail($validated['transfer_currency_id']);
+
+        if (! $financeService->currenciesForCashBox($fromCashBox->id)->whereKey($currency->id)->exists()
+            || ! $financeService->currenciesForCashBox($toCashBox->id)->whereKey($currency->id)->exists()) {
+            $this->addError('transfer_currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+            return;
+        }
+
+        $financeService->recordCashBoxTransfer(
+            $fromCashBox,
+            $toCashBox,
+            $currency,
             (float) $validated['transfer_amount'],
             $validated['transfer_date'],
             auth()->user(),
@@ -203,7 +237,34 @@ new class extends Component {
         $this->reset(['transfer_to_cash_box_id', 'transfer_amount', 'transfer_notes']);
         $this->transfer_from_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->transfer_currency_id)?->id;
         $this->transfer_date = now()->toDateString();
+        $this->syncDefaultTransferNotes();
         session()->flash('status', __('finance.messages.transfer_posted'));
+    }
+
+    protected function syncDefaultTransferNotes(): void
+    {
+        $previousDefault = $this->transfer_default_notes;
+        $fromCashBox = $this->transfer_from_cash_box_id ? app(FinanceService::class)->accessibleCashBoxes(auth()->user())->find($this->transfer_from_cash_box_id) : null;
+        $toCashBox = $this->transfer_to_cash_box_id ? app(FinanceService::class)->accessibleCashBoxes(auth()->user())->find($this->transfer_to_cash_box_id) : null;
+        $currency = $this->transfer_currency_id ? FinanceCurrency::query()->find($this->transfer_currency_id) : null;
+
+        if (! $fromCashBox || ! $toCashBox || ! $currency) {
+            if ($this->transfer_notes === $previousDefault) {
+                $this->transfer_notes = '';
+            }
+
+            $this->transfer_default_notes = '';
+
+            return;
+        }
+
+        $nextDefault = app(FinanceService::class)->defaultFundTransferDescription($fromCashBox, $toCashBox, $currency);
+
+        if (blank($this->transfer_notes) || $this->transfer_notes === $previousDefault) {
+            $this->transfer_notes = $nextDefault;
+        }
+
+        $this->transfer_default_notes = $nextDefault;
     }
 
     protected function financeSettingEnabled(string $key): bool
@@ -249,7 +310,7 @@ new class extends Component {
                     <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.to') }}</label><select wire:model.live="transfer_to_cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($transferToCashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select></div>
                     <div class="md:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="transfer_amount" currency-model="transfer_currency_id" :currencies="$transferCurrencies" /></div>
                     <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.date') }}</label><input wire:model="transfer_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm"></div>
-                    <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="transfer_notes" type="text" class="w-full rounded-xl px-4 py-3 text-sm"></div>
+                    <div><label class="mb-1 block text-sm font-medium">{{ __('finance.common.notes') }}</label><input wire:model="transfer_notes" type="text" placeholder="{{ __('finance.common.notes') }}" class="w-full rounded-xl px-4 py-3 text-sm"></div>
                     <div class="md:col-span-2"><button type="submit" class="pill-link pill-link--accent">{{ __('finance.actions.post_transfer') }}</button></div>
                 </form>
             </div>

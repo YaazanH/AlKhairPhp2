@@ -247,6 +247,22 @@ new class extends Component
         session()->flash('status', __('course_end.point_market.messages.settings_saved'));
     }
 
+    public function deleteDepartment(): void
+    {
+        $this->authorizePointMarketUpdate();
+        $department = CoursePointMarketDepartment::query()
+            ->where('course_id', $this->course->id)
+            ->findOrFail($this->settingsDepartmentId);
+
+        app(CoursePointMarketService::class)->deleteDepartment($this->course, $department);
+        $this->expandedDepartmentIds = array_values(array_filter(
+            $this->expandedDepartmentIds,
+            fn ($departmentId) => (int) $departmentId !== (int) $department->id,
+        ));
+        $this->closeDepartmentSettingsModal();
+        session()->flash('status', __('course_end.point_market.messages.department_deleted'));
+    }
+
     public function removeDepartmentItem(int $itemId): void
     {
         $this->authorizePointMarketUpdate();
@@ -370,7 +386,7 @@ new class extends Component
         .point-market-prefixed-input__prefix { display: flex; align-items: center; border-inline-end: 1px solid var(--app-border); padding-inline: 1rem; color: var(--app-muted); font-weight: 600; white-space: nowrap; }
         .point-market-prefixed-input > input { min-width: 0; flex: 1; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
         .dark .point-market-prefixed-input { border-color: rgba(216, 204, 185, .16); background: rgba(31, 24, 19, .88); }
-        @media (max-width: 767px) {
+        @media (max-width: 699px) {
             .point-market-hero__layout { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
             .point-market-hero__summary { gap: .4rem; }
             .point-market-modal-table { font-size: .68rem; }
@@ -407,7 +423,7 @@ new class extends Component
     </section>
 
     @if (session('status'))
-        <div class="soft-callout p-4 text-sm text-emerald-100">{{ session('status') }}</div>
+        <div class="flash-success soft-callout p-4 text-sm text-emerald-100">{{ session('status') }}</div>
     @endif
 
     <section class="surface-table" data-point-market-generic-table>
@@ -568,6 +584,9 @@ new class extends Component
 
     <x-admin.modal :show="$showDepartmentSettingsModal" :title="__('course_end.point_market.department_settings')" close-method="closeDepartmentSettingsModal" max-width="xl" compact>
         <div><label class="mb-1 block text-sm font-medium">{{ __('course_end.point_market.department.point_price') }} ({{ $localCurrency->symbol ?: $localCurrency->code }})</label><input type="text" inputmode="decimal" data-thousand-separator wire:model="pointPrice" class="w-full rounded-xl px-4 py-3">@error('pointPrice')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
-        <div class="point-market-modal-actions mt-5"><button type="button" wire:click="saveDepartmentSettings" class="pill-link pill-link--accent">{{ __('course_end.point_market.save_settings') }}</button></div>
+        <div class="point-market-modal-actions mt-5">
+            <button type="button" wire:click="saveDepartmentSettings" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('course_end.point_market.save_settings') }}" aria-label="{{ __('course_end.point_market.save_settings') }}" data-point-market-department-save-action><x-admin-action-icon name="save" class="admin-modal-action__icon" /></button>
+            <x-delete-action-button wire:click="deleteDepartment" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" :label="__('crud.common.actions.delete')" data-point-market-department-delete-action />
+        </div>
     </x-admin.modal>
 </div>

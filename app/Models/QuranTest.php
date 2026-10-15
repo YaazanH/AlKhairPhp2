@@ -21,6 +21,7 @@ class QuranTest extends Model
         'status',
         'attempt_no',
         'notes',
+        'from_external_memorization',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class QuranTest extends Model
             'tested_on' => 'date',
             'score' => 'decimal:2',
             'attempt_no' => 'integer',
+            'from_external_memorization' => 'boolean',
         ];
     }
 

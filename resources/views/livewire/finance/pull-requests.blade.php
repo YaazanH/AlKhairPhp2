@@ -5,6 +5,7 @@ use App\Livewire\Concerns\FormatsFinanceNumbers;
 use App\Livewire\Concerns\HandlesFinanceRequestMaintenance;
 use App\Livewire\Concerns\HandlesWithdrawalRefusal;
 use App\Models\AppSetting;
+use App\Models\FinanceCurrency;
 use App\Models\FinancePullRequestKind;
 use App\Models\FinanceRequest;
 use App\Models\Invoice;
@@ -32,6 +33,8 @@ new class extends Component
     public ?int $finance_pull_request_kind_id = null;
 
     public ?int $cash_box_id = null;
+
+    public ?int $currency_id = null;
 
     public ?int $teacher_id = null;
 
@@ -66,21 +69,34 @@ new class extends Component
     public function mount(): void
     {
         $this->authorizePermission('finance.pull-requests.view');
+        $this->currency_id = app(FinanceService::class)->localCurrency()->id;
     }
 
     public function with(): array
     {
         $localCurrency = app(FinanceService::class)->localCurrency();
         $canReview = auth()->user()?->can('finance.pull-requests.review') ?? false;
+        $financeService = app(FinanceService::class);
         $kinds = FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get();
+        $reviewCurrencyId = $this->reviewingRequestId
+            ? FinanceRequest::query()->whereKey($this->reviewingRequestId)->value('requested_currency_id')
+            : null;
 
         if (! $this->finance_pull_request_kind_id && $kinds->isNotEmpty()) {
             $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId() ?: $kinds->first()->id;
         }
 
         return [
-            'cashBoxes' => app(FinanceService::class)->accessibleCashBoxesForCurrency(auth()->user(), $localCurrency->id)->get(),
+            'cashBoxes' => $financeService->accessibleCashBoxes(auth()->user())->get(),
+            'currencies' => $canReview
+                ? $financeService->currenciesForCashBox($this->cash_box_id)
+                    ->when(! $this->cash_box_id, fn ($query) => $query->whereRaw('1 = 0'))
+                    ->get()
+                : collect([$localCurrency]),
             'localCurrency' => $localCurrency,
+            'reviewCashBoxes' => $financeService->accessibleCashBoxesForCurrency(auth()->user(), $reviewCurrencyId)
+                ->when(! $reviewCurrencyId, fn ($query) => $query->whereRaw('1 = 0'))
+                ->get(),
             'reviewRequest' => $this->reviewingRequestId
                 ? FinanceRequest::query()->with(['cashBox', 'pullRequestKind', 'requestedBy', 'teacher', 'requestedCurrency', 'acceptedCurrency'])->where('type', FinanceRequest::TYPE_PULL)->find($this->reviewingRequestId)
                 : null,
@@ -120,6 +136,7 @@ new class extends Component
 
         $rules = [
             'cash_box_id' => [$canReview ? 'required' : 'nullable', 'exists:finance_cash_boxes,id'],
+            'currency_id' => ['required', 'exists:finance_currencies,id'],
             'finance_pull_request_kind_id' => ['required', Rule::exists('finance_categories', 'id')->where('type', 'expense')->where('is_active', true)],
             'request_date' => [auth()->user()?->can('finance.entries.update') ? 'required' : 'nullable', 'date'],
             'requested_amount' => ['required', 'numeric', 'gt:0'],
@@ -133,7 +150,18 @@ new class extends Component
         }
 
         $validated = $this->validate($rules);
-        $currency = app(FinanceService::class)->localCurrency();
+        $currency = FinanceCurrency::query()->findOrFail((int) $validated['currency_id']);
+        $cashBox = null;
+
+        if ($canReview) {
+            $cashBox = app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user());
+
+            if (! app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($currency->id)->exists()) {
+                $this->addError('currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+                return;
+            }
+        }
 
         $request = FinanceRequest::query()->create([
             'request_no' => app(FinanceService::class)->nextRequestNumber(FinanceRequest::TYPE_PULL),
@@ -157,7 +185,7 @@ new class extends Component
                 app(FinanceService::class)->acceptRequest(
                     $request,
                     (float) $validated['requested_amount'],
-                    app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user()),
+                    $cashBox,
                     auth()->user(),
                     'Auto-posted by finance management.',
                     $kind->mode === FinancePullRequestKind::MODE_COUNT ? (int) $validated['requested_count'] : null,
@@ -188,6 +216,28 @@ new class extends Component
     {
         $this->resetCreateForm();
         $this->showCreateModal = false;
+    }
+
+    public function updatedCashBoxId(): void
+    {
+        if (! $this->cash_box_id) {
+            $this->currency_id = null;
+
+            return;
+        }
+
+        $currencies = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id);
+
+        if (! $this->currency_id || ! (clone $currencies)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = (clone $currencies)->value('id');
+        }
+    }
+
+    public function updatedCurrencyId(): void
+    {
+        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->value('id');
+        }
     }
 
     public function openReviewModal(int $requestId): void
@@ -370,6 +420,7 @@ new class extends Component
         $this->requested_count = '';
         $this->request_date = now()->toDateString();
         $this->cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $localCurrency->id)?->id;
+        $this->currency_id = $localCurrency->id;
         $this->finance_pull_request_kind_id = app(FinanceService::class)->defaultPullRequestKindId();
         $this->teacher_id = null;
         $this->requested_reason = '';
@@ -424,31 +475,39 @@ new class extends Component
         close-method="closeCreateModal"
         max-width="5xl"
     >
-        <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-4">
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model.live="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }} ({{ $localCurrency->code }})</label><input wire:model="requested_amount" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            @can('finance.entries.update')
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            @endcan
-            @if ($selectedPullKind?->mode === 'count')
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.people_count') }}</label><input wire:model="requested_count" type="text" inputmode="numeric" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_count') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            @endif
+        <form wire:submit="submitRequest" class="space-y-4" data-finance-entry-create-form>
+            <div class="finance-entry-form__row grid gap-4 lg:grid-cols-2" data-finance-entry-primary-row>
+                <div data-finance-entry-type><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model.live="finance_pull_request_kind_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-3 text-sm">@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                @can('finance.entries.update')
+                    <div data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                @endcan
+            </div>
             @can('finance.pull-requests.review')
                 <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.teacher') }}</label><select wire:model="teacher_id" class="w-full rounded-xl px-4 py-3 text-sm" data-record-label="person"><option value="">{{ __('finance.actions.choose_teacher') }}</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ $teacher->first_name }} {{ $teacher->last_name }}</option>@endforeach</select>@error('teacher_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
             @endcan
-            <div class="lg:col-span-4"><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
+            <div class="finance-entry-form__row grid gap-4 lg:grid-cols-2" data-finance-entry-value-row>
+                @can('finance.pull-requests.review')
+                    <div data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="cash_box_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                    <div data-finance-entry-amount><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="requested_amount" currency-model="currency_id" :currencies="$currencies" />@error('requested_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror @error('currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                @else
+                    <div data-finance-entry-amount><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }} ({{ $localCurrency->code }})</label><input wire:model="requested_amount" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ __('finance.fields.amount') }}" class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                @endcan
+            </div>
+            @if ($selectedPullKind?->mode === 'count')
+                <div><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.people_count') }}</label><input wire:model="requested_count" type="text" inputmode="numeric" data-thousand-separator placeholder="{{ __('finance.fields.people_count') }}" class="w-full rounded-xl px-4 py-3 text-sm">@error('requested_count') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            @endif
+            <div data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" placeholder="{{ __('finance.common.description') }}" class="w-full rounded-xl px-4 py-3 text-sm"></textarea></div>
             @if ($terms !== '')
-                <div class="lg:col-span-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
                     <label class="flex flex-wrap items-center gap-3">
                         <input wire:model="accepted_terms" type="checkbox" class="rounded">
                         <span>{{ __('finance.pull_requests.terms_agree_prefix') }}</span>
                         <button type="button" wire:click="openTermsModal" class="font-semibold text-emerald-200 underline decoration-emerald-300/40 underline-offset-4 hover:text-white">{{ __('finance.pull_requests.terms_button') }}</button>
                     </label>
                 </div>
-                @error('accepted_terms') <div class="lg:col-span-4 text-sm text-red-400">{{ $message }}</div> @enderror
+                @error('accepted_terms') <div class="text-sm text-red-400">{{ $message }}</div> @enderror
             @endif
-            <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
+            <div class="flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                 <x-admin.save-button data-withdrawal-request-save />
             </div>
@@ -507,13 +566,13 @@ new class extends Component
             <form wire:submit="accept({{ $reviewRequest->id }})" class="mt-5 grid gap-4 lg:grid-cols-4" data-withdrawal-review>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.accepted') }}</label>
-                    <input wire:model="review_amounts.{{ $reviewRequest->id }}" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input wire:model="review_amounts.{{ $reviewRequest->id }}" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ __('finance.fields.accepted') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error("review_amounts.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 @if ($reviewIsCount)
                     <div>
                         <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.people_count') }}</label>
-                        <input wire:model="review_counts.{{ $reviewRequest->id }}" type="text" inputmode="numeric" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                        <input wire:model="review_counts.{{ $reviewRequest->id }}" type="text" inputmode="numeric" data-thousand-separator placeholder="{{ __('finance.fields.people_count') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         @error("review_counts.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
                 @endif
@@ -528,7 +587,7 @@ new class extends Component
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label>
                     <select wire:model="review_cash_boxes.{{ $reviewRequest->id }}" class="w-full rounded-xl px-4 py-3 text-sm">
                         <option value="">{{ __('finance.actions.choose_box') }}</option>
-                        @foreach ($cashBoxes as $box)
+                        @foreach ($reviewCashBoxes as $box)
                             <option value="{{ $box->id }}">{{ $box->name }}</option>
                         @endforeach
                     </select>
@@ -536,7 +595,7 @@ new class extends Component
                 </div>
                 <div class="lg:col-span-4">
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.expense_details') }}</label>
-                    <textarea wire:model="review_notes.{{ $reviewRequest->id }}" rows="2" class="w-full rounded-xl px-4 py-3 text-sm" data-withdrawal-expense-details></textarea>
+                    <textarea wire:model="review_notes.{{ $reviewRequest->id }}" rows="2" placeholder="{{ __('finance.fields.expense_details') }}" class="w-full rounded-xl px-4 py-3 text-sm" data-withdrawal-expense-details></textarea>
                     @error("review_notes.{$reviewRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 <div class="lg:col-span-4 flex flex-wrap justify-end gap-3">
@@ -578,12 +637,12 @@ new class extends Component
             <form wire:submit="settleCount({{ $settlementRequest->id }})" class="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.final_count') }}</label>
-                    <input wire:model="settlement_counts.{{ $settlementRequest->id }}" type="text" inputmode="numeric" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input wire:model="settlement_counts.{{ $settlementRequest->id }}" type="text" inputmode="numeric" data-thousand-separator placeholder="{{ __('finance.fields.final_count') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error("settlement_counts.{$settlementRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.remaining_amount') }}</label>
-                    <input wire:model="settlement_remaining_amounts.{{ $settlementRequest->id }}" type="text" inputmode="decimal" data-thousand-separator class="w-full rounded-xl px-4 py-3 text-sm">
+                    <input wire:model="settlement_remaining_amounts.{{ $settlementRequest->id }}" type="text" inputmode="decimal" data-thousand-separator placeholder="{{ __('finance.fields.remaining_amount') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                     @error("settlement_remaining_amounts.{$settlementRequest->id}") <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 <div class="md:col-span-2 flex flex-wrap justify-end gap-3">

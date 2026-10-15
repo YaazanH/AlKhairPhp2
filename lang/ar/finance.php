@@ -223,6 +223,9 @@ return [
         'users' => 'المستخدمون',
     ],
     'descriptions' => [
+        'currency_exchange' => 'صرافة :from إلى :to',
+        'donation_income_default' => 'تبرعات لدورة القرآن الكريم',
+        'fund_transfer' => 'نقل من :from إلى :to بـ :currency',
         'request_deleted_plain' => 'طلب مالي محذوف',
         'withdrawal_cleanup' => 'تنظيف طلبات السحب لمرة واحدة',
         'generated_from_pull' => 'تم إنشاؤه من طلب السحب :request.',
@@ -231,6 +234,16 @@ return [
         'invoice_pull_return' => 'إرجاع مبلغ متبق من الفاتورة :invoice وطلب السحب :request.',
         'pull_request_return' => 'إرجاع مبلغ متبق من طلب السحب :request.',
         'request_deleted' => 'حذف القيد المالي :request.',
+    ],
+    'currency_names' => [
+        'USD' => 'دولار أمريكي',
+        'SYP' => 'ليرة سورية',
+        'SYP_OLD' => 'ليرة سورية قديمة',
+    ],
+    'currency_names_definite' => [
+        'USD' => 'الدولار الأمريكي',
+        'SYP' => 'الليرة السورية',
+        'SYP_OLD' => 'الليرة السورية القديمة',
     ],
     'filters' => [
         'active_only' => 'النشطة فقط',

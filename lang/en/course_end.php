@@ -95,6 +95,7 @@ return [
         'messages' => [
             'invoices_added' => 'The selected invoices were added.',
             'department_created' => 'The department was added.',
+            'department_deleted' => 'The department was deleted.',
             'items_added' => 'The selected items were added to the department.',
             'item_removed' => 'The item was removed from the department.',
             'settings_saved' => 'The point price was saved.',

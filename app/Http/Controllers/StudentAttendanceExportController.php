@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
+use App\Support\ArchivePdfWatermark;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
@@ -26,7 +27,10 @@ class StudentAttendanceExportController extends Controller
         ]);
 
         $course = Course::query()->findOrFail($validated['course_id']);
-        $groups = Group::query()->with('course')->where('course_id', $course->id)->where('is_active', true)->orderBy('name')->get()
+        $archiveCourse = $course->is_active ? null : $course;
+        $groups = Group::query()->with('course')->where('course_id', $course->id)
+            ->when($course->is_active, fn ($query) => $query->where('is_active', true))
+            ->orderBy('name')->get()
             ->filter(fn (Group $group) => app(AccessScopeService::class)->canAccessGroup($request->user(), $group))->values();
         abort_if($groups->isEmpty(), 403);
 
@@ -34,13 +38,19 @@ class StudentAttendanceExportController extends Controller
             $students = Enrollment::query()
                 ->with('student.parentProfile')
                 ->where('group_id', $group->id)
+                ->eligibleForAttendanceOn($validated['date_to'])
                 ->where(function ($query) use ($validated) {
                     $query->where('status', 'active')
                         ->orWhereHas('studentAttendanceRecords.attendanceDay', fn ($attendanceQuery) => $attendanceQuery
                             ->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']]));
                 })->get()->map(function (Enrollment $enrollment) use ($validated): array {
+                    $eligibleFrom = Carbon::parse($validated['date_from']);
+                    if ($enrollment->enrolled_at?->greaterThan($eligibleFrom)) {
+                        $eligibleFrom = $enrollment->enrolled_at;
+                    }
+
                     $records = $enrollment->studentAttendanceRecords()->whereHas('attendanceDay', fn ($query) => $query
-                        ->whereBetween('attendance_date', [$validated['date_from'], $validated['date_to']]));
+                        ->whereBetween('attendance_date', [$eligibleFrom->toDateString(), $validated['date_to']]));
                     $listedDays = (clone $records)->distinct('group_attendance_day_id')->count('group_attendance_day_id');
                     $presentDays = (clone $records)->whereHas('status', fn ($query) => $query->where('is_present', true))->count();
 
@@ -55,10 +65,11 @@ class StudentAttendanceExportController extends Controller
         });
 
         $logo = app(PdfBrandingService::class)->logoSource();
-        $html = view('reports.student-attendance', compact('groupReports', 'course', 'validated', 'logo'))->render();
+        $html = view('reports.student-attendance', compact('groupReports', 'course', 'archiveCourse', 'validated', 'logo'))->render();
         PdfOptions::ensureMemoryCapacity();
         $mpdf = new Mpdf(PdfOptions::make(['format' => 'A4', 'orientation' => 'P']));
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+        ArchivePdfWatermark::apply($mpdf, $archiveCourse);
         $mpdf->WriteHTML($html);
 
         return response($mpdf->Output('', 'S'), 200, [

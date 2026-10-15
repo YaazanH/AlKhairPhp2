@@ -46,7 +46,7 @@
         @if ($edit_supports_counterparty_name)
             <div>
                 <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.revenue_name') }}</label>
-                <input wire:model="edit_counterparty_name" type="text" class="w-full rounded-xl px-4 py-3 text-sm">
+                <input wire:model="edit_counterparty_name" type="text" placeholder="{{ __('finance.fields.revenue_name') }}" class="w-full rounded-xl px-4 py-3 text-sm">
                 <p class="mt-1 text-xs text-neutral-500">{{ __('finance.messages.revenue_name_mask_help') }}</p>
                 @error('edit_counterparty_name') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
@@ -60,7 +60,7 @@
 
         <div>
             <label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label>
-            <textarea wire:model="edit_requested_reason" rows="3" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+            <textarea wire:model="edit_requested_reason" rows="3" placeholder="{{ __('finance.common.description') }}" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
             @error('edit_requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
         </div>
 
@@ -85,7 +85,7 @@
     <form wire:submit="deleteFinanceRequestEntry" class="space-y-4">
         <div>
             <label class="mb-1 block text-sm font-medium">{{ __('finance.fields.reason') }}</label>
-            <textarea wire:model="delete_reason" rows="3" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
+            <textarea wire:model="delete_reason" rows="3" placeholder="{{ __('finance.fields.reason') }}" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
             @error('delete_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
         </div>
 

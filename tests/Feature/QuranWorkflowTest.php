@@ -16,6 +16,7 @@ use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\QuranPartialTestPart;
+use App\Models\QuranTest;
 use App\Models\QuranTestType;
 use App\Models\Student;
 use App\Models\StudentPageAchievement;
@@ -111,7 +112,7 @@ class QuranWorkflowTest extends TestCase
 
         Volt::test('teachers.attendance-show', ['teacherAttendanceDay' => $day])
             ->assertSee(__('workflow.teacher_attendance.table.headers.percentage'))
-            ->assertSee('class="attendance-desktop-only px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="50"', false)
+            ->assertSee('class="attendance-desktop-only teacher-attendance-percentage-column px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="50"', false)
             ->assertDontSee(__('crud.common.status_options.active'));
 
         Volt::test('teachers.attendance')
@@ -203,6 +204,7 @@ class QuranWorkflowTest extends TestCase
         $openDayComponent
             ->call('openManualTeacherModal')
             ->assertSee('admin-modal__dialog--xl admin-modal__dialog--compact', false)
+            ->assertSee('data-teacher-attendance-manual-save', false)
             ->set('manual_teacher_id', (string) $extraTeacher->id)
             ->call('addManualTeacher')
             ->assertHasNoErrors();
@@ -604,6 +606,7 @@ class QuranWorkflowTest extends TestCase
             'passed_on' => '2026-09-08',
             'status' => 'passed',
             'student_id' => $enrollment->student_id,
+            'from_external_memorization' => true,
         ]);
 
         foreach (range(1, 4) as $partNumber) {
@@ -623,6 +626,7 @@ class QuranWorkflowTest extends TestCase
             ->assertHasNoErrors();
 
         $finalTest = QuranFinalTest::query()->firstOrFail();
+        $this->assertTrue($finalTest->from_external_memorization);
 
         $otherJuzs = QuranJuz::query()->whereKeyNot($juz->id)->orderBy('juz_number')->take(3)->get();
         $externallyMemorizedJuz = $otherJuzs->shift();
@@ -677,6 +681,10 @@ class QuranWorkflowTest extends TestCase
             ->set('juz_id', $juz->id)
             ->set('tested_on', '2026-09-10')
             ->set('status', 'passed')
+            ->set('score', '79.99')
+            ->call('saveQuranTest')
+            ->assertHasErrors(['score' => 'min'])
+            ->set('score', '80')
             ->call('saveQuranTest')
             ->assertHasErrors(['juz_id']);
 
@@ -701,6 +709,7 @@ class QuranWorkflowTest extends TestCase
             ->set('juz_id', $juz->id)
             ->set('tested_on', '2026-09-10')
             ->set('status', 'passed')
+            ->set('score', '80')
             ->call('saveQuranTest')
             ->assertHasNoErrors();
 
@@ -710,6 +719,7 @@ class QuranWorkflowTest extends TestCase
             'quran_test_type_id' => $awqaf->id,
             'attempt_no' => 1,
             'teacher_id' => $enrollment->group->teacher_id,
+            'score' => 80,
         ]);
 
         $this->assertFalse(
@@ -722,8 +732,60 @@ class QuranWorkflowTest extends TestCase
             ->set('juz_id', $juz->id)
             ->set('tested_on', '2026-09-11')
             ->set('status', 'passed')
+            ->set('score', '90')
             ->call('saveQuranTest')
             ->assertHasErrors(['juz_id']);
+    }
+
+    public function test_failed_awqaf_entry_hides_and_discards_the_score(): void
+    {
+        [, $enrollment] = $this->workflowContext('teacher');
+        $awqaf = QuranTestType::query()->where('code', 'awqaf')->firstOrFail();
+        $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
+
+        $finalTest = QuranFinalTest::query()->create([
+            'created_by' => auth()->id(),
+            'enrollment_id' => $enrollment->id,
+            'juz_id' => $juz->id,
+            'passed_on' => '2026-09-09',
+            'status' => 'passed',
+            'student_id' => $enrollment->student_id,
+        ]);
+
+        $finalTest->attempts()->create([
+            'attempt_no' => 1,
+            'score' => 92,
+            'status' => 'passed',
+            'teacher_id' => $enrollment->group->teacher_id,
+            'tested_on' => '2026-09-09',
+        ]);
+
+        $component = Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
+            ->set('juz_id', $juz->id)
+            ->set('tested_on', '2026-09-10')
+            ->set('score', '73')
+            ->assertSee('id="quran-test-status" wire:model.live="status" required data-clearable="false"', false)
+            ->assertSee('id="quran-test-score" wire:model="score" type="number" min="80.00"', false);
+
+        $this->assertTrue(
+            strpos($component->html(), 'id="quran-test-status"') < strpos($component->html(), 'id="quran-test-score"')
+        );
+
+        $component
+            ->set('status', 'failed')
+            ->assertDontSee('id="quran-test-score"', false)
+            ->assertDontSee('<option value="cancelled">', false)
+            ->call('saveQuranTest')
+            ->assertHasNoErrors();
+
+        $test = QuranTest::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('juz_id', $juz->id)
+            ->where('quran_test_type_id', $awqaf->id)
+            ->firstOrFail();
+
+        $this->assertSame('failed', $test->status);
+        $this->assertNull($test->score);
     }
 
     public function test_point_ledger_allows_manual_entries_and_voiding(): void

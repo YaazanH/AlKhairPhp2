@@ -27,6 +27,9 @@ class CourseLifecycleService
             $wasAwardingPoints = $course->finished_at
                 ? $course->course_finished_was_awarding_points
                 : $course->awards_points;
+            $completionSettingsSnapshot = $course->finished_at && filled($course->completion_settings_snapshot)
+                ? $course->completion_settings_snapshot
+                : app(CourseCompletionRuleService::class)->snapshot();
 
             $course->forceFill([
                 'finished_at' => $course->finished_at ?: $finishedAt,
@@ -34,6 +37,7 @@ class CourseLifecycleService
                 'is_default' => false,
                 'awards_points' => false,
                 'course_finished_was_awarding_points' => (bool) $wasAwardingPoints,
+                'completion_settings_snapshot' => $completionSettingsSnapshot,
             ])->save();
 
             $groupIds = Group::query()
@@ -210,6 +214,7 @@ class CourseLifecycleService
                 'is_active' => true,
                 'awards_points' => (bool) $course->course_finished_was_awarding_points,
                 'course_finished_was_awarding_points' => null,
+                'completion_settings_snapshot' => null,
             ])->save();
         });
     }

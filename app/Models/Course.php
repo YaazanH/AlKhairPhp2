@@ -47,12 +47,14 @@ class Course extends Model
         'description',
         'starts_on',
         'ends_on',
+        'curriculum_days_per_week',
         'finished_at',
         'is_active',
         'is_default',
         'show_in_report_filters',
         'awards_points',
         'course_finished_was_awarding_points',
+        'completion_settings_snapshot',
     ];
 
     protected function casts(): array
@@ -60,12 +62,14 @@ class Course extends Model
         return [
             'starts_on' => 'date',
             'ends_on' => 'date',
+            'curriculum_days_per_week' => 'integer',
             'finished_at' => 'datetime',
             'is_active' => 'boolean',
             'is_default' => 'boolean',
             'show_in_report_filters' => 'boolean',
             'awards_points' => 'boolean',
             'course_finished_was_awarding_points' => 'boolean',
+            'completion_settings_snapshot' => 'array',
         ];
     }
 

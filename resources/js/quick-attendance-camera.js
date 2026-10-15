@@ -9,6 +9,15 @@ export function prepareInlineCameraVideo(video) {
     video.setAttribute('webkit-playsinline', '');
 }
 
+export function shouldUseCanvasCameraPreview(navigatorLike = {}) {
+    const userAgent = String(navigatorLike.userAgent || '');
+    const platform = String(navigatorLike.platform || '');
+    const touchPoints = Number(navigatorLike.maxTouchPoints || 0);
+
+    return /iPad|iPhone|iPod/i.test(userAgent)
+        || (/Mac/i.test(platform) && touchPoints > 1);
+}
+
 export function cameraStreamConstraints(supportedConstraints = {}) {
     const supportsFacingMode = supportedConstraints.facingMode !== false;
 

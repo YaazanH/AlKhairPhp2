@@ -3,12 +3,22 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AppSetting;
+use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\GroupAttendanceDay;
+use App\Models\PointTransaction;
+use App\Models\PointType;
 use App\Models\Student;
+use App\Models\StudentAttendanceDay;
+use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
+use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
+use App\Services\CourseLifecycleService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +76,510 @@ class CourseReportFiltersTest extends TestCase
 
         $this->assertTrue($course->fresh()->show_in_report_filters);
         $this->assertEquals($original, $course->fresh()->only(array_keys($original)));
+    }
+
+    public function test_inactive_course_archive_has_a_read_only_overview_beside_copy(): void
+    {
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Archived overview course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+
+        Volt::test('courses.index')
+            ->call('openArchive', $course->id)
+            ->assertSeeInOrder(['data-course-archive-view-action', 'data-course-archive-copy-action'], false)
+            ->assertSee('data-open-action', false)
+            ->assertSee(route('courses.archive-overview', $course), false)
+            ->assertSee('hidden md:inline-flex', false)
+            ->assertSee('data-icon-name="open"', false);
+
+        $this->get(route('courses.archive-overview', $course))
+            ->assertOk()
+            ->assertSee('data-course-archive-overview', false)
+            ->assertSee('data-read-only="true"', false)
+            ->assertSee(__('course_archive_overview.archive_name', ['course' => $course->name]))
+            ->assertSee('data-course-archive-date-range', false)
+            ->assertSee('data-course-archive-finished-date', false)
+            ->assertSee('data-course-archive-metrics', false)
+            ->assertSeeInOrder([
+                __('course_archive_overview.sections.groups'),
+                __('course_archive_overview.sections.attendance'),
+                __('course_archive_overview.sections.assessments'),
+                __('course_archive_overview.sections.points'),
+                __('course_archive_overview.sections.end'),
+            ])
+            ->assertDontSee('data-course-archive-section="notes"', false);
+
+        $archiveSource = file_get_contents(resource_path('views/livewire/courses/archive-overview.blade.php'));
+        $this->assertMatchesRegularExpression('/@media \(min-width:\s*700px\) and \(max-width:\s*899px\) and \(orientation:\s*portrait\).*?\.archive-manager-highlights\s*\{[^}]*grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\);.*?\.archive-manager-highlights \.stat-card\s*\{[^}]*grid-column:\s*span 3;[^}]*height:\s*6\.5rem;.*?\.archive-manager-highlights \.stat-card:nth-child\(n \+ 5\)\s*\{[^}]*grid-column:\s*span 4;.*?\.archive-manager-highlights \.metric-value\s*\{[^}]*font-size:\s*clamp\(1\.45rem, 3\.2vw, 1\.8rem\);[^}]*white-space:\s*nowrap;/s', $archiveSource);
+        $this->assertStringNotContainsString('StudentNote::query()', $archiveSource);
+        $this->assertStringNotContainsString("section === 'notes'", $archiveSource);
+
+        $overview = Volt::test('courses.archive-overview', ['course' => $course]);
+
+        foreach (['groups', 'assessments', 'points', 'end'] as $section) {
+            $overview
+                ->call('showSection', $section)
+                ->assertSet('section', $section)
+                ->assertSee('data-course-archive-real-component="'.$section.'"', false);
+        }
+
+        Volt::test('assessments.index', [
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])
+            ->assertSet('courseFilter', (string) $course->id)
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertDontSee('data-archive-course-table-subtitle', false)
+            ->assertSee($course->name)
+            ->assertDontSee('assessment-course-filter', false);
+
+        $overview
+            ->call('showSection', 'end')
+            ->assertSee('data-course-archive-completion-settings', false)
+            ->assertSeeInOrder(['data-archive-settings-condition', 'data-archive-settings-grade-scope'], false)
+            ->assertSee('data-course-archive-settings-summary', false)
+            ->assertSee(__('course_archive_overview.completion_settings.title'));
+
+        $archiveSource = file_get_contents(resource_path('views/livewire/courses/archive-overview.blade.php'));
+        $completionSettingsSource = file_get_contents(resource_path('views/livewire/courses/partials/archive-completion-settings.blade.php'));
+        $this->assertStringContainsString('grid-template-columns: minmax(7rem, .7fr) minmax(0, 2fr)', $archiveSource);
+        $this->assertStringContainsString('direction: rtl; grid-column: 1;', $archiveSource);
+        $this->assertStringContainsString('direction: rtl; grid-column: 2;', $archiveSource);
+        $this->assertStringContainsString('grid-template-columns: repeat(2, minmax(0, 1fr))', $archiveSource);
+        $this->assertStringNotContainsString('completion_settings.read_only', $archiveSource);
+        $this->assertStringNotContainsString('completion_settings.read_only', $completionSettingsSource);
+
+        $overview
+            ->call('showSection', 'attendance')
+            ->assertSee('data-course-archive-real-component="attendance"', false)
+            ->assertDontSee('data-course-archive-legacy-view', false);
+    }
+
+    public function test_course_archive_opens_with_groups_and_preserves_the_historical_roster(): void
+    {
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Historical course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $group = Group::create([
+            'academic_year_id' => $this->year->id,
+            'course_id' => $course->id,
+            'teacher_id' => $this->teacher->id,
+            'name' => 'Historical group',
+            'is_active' => false,
+            'course_finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $student = Student::create([
+            'first_name' => 'Historical',
+            'last_name' => 'Student',
+            'birth_date' => '2012-01-01',
+            'status' => 'inactive',
+        ]);
+        Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-01-10',
+            'status' => 'completed',
+            'course_finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $otherCourse = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Other historical course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $otherGroup = Group::create([
+            'academic_year_id' => $this->year->id,
+            'course_id' => $otherCourse->id,
+            'teacher_id' => $this->teacher->id,
+            'name' => 'Other historical group',
+            'is_active' => false,
+            'course_finished_at' => '2026-08-31 12:00:00',
+        ]);
+
+        $archivedGroupRoute = route('courses.archive-overview.groups.show', [$course, $group]);
+        $archivedRosterPdfRoute = route('groups.roster.pdf', [
+            'group' => $group,
+            'archive_course_id' => $course->id,
+        ]);
+
+        Volt::test('courses.archive-overview', ['course' => $course])
+            ->assertSet('section', 'groups')
+            ->assertSee('data-course-archive-groups-table', false)
+            ->assertSee('data-archive-groups-table-layout', false)
+            ->assertSee('data-archive-group-grade-column', false)
+            ->assertSee('<colgroup><col style="width:4%"><col style="width:19%"><col style="width:19%"><col style="width:19%"><col style="width:12%"><col style="width:6%"><col style="width:10%"><col style="width:11%"></colgroup>', false)
+            ->assertSee('data-group-curriculum-status', false)
+            ->assertSee('group-curriculum-status--missing', false)
+            ->assertSee('Historical group')
+            ->assertSee($archivedGroupRoute, false)
+            ->assertDontSee('wire:click="openArchivedGroup', false)
+            ->assertDontSee('data-course-archive-group-detail', false);
+
+        $this->get($archivedGroupRoute)
+            ->assertOk()
+            ->assertSee('data-archived-group-native-view', false)
+            ->assertSee('data-group-roster-table', false)
+            ->assertSee('Historical Student')
+            ->assertSee(__('crud.common.status_options.completed'))
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee(__('course_archive_overview.archive_name', ['course' => $course->name]))
+            ->assertSee(__('crud.groups.roster.title'))
+            ->assertDontSee('قائمة الطلاب الحالية')
+            ->assertSeeInOrder([$group->name, 'data-archive-course-subtitle', $course->name], false)
+            ->assertSee(route('courses.archive-overview', ['course' => $course, 'section' => 'groups']), false)
+            ->assertDontSee('data-group-hero-schedule-action', false)
+            ->assertDontSee('data-group-hero-edit-action', false)
+            ->assertSee('data-group-roster-pdf-action', false)
+            ->assertSee($archivedRosterPdfRoute, false);
+
+        $this->get($archivedRosterPdfRoute)
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->get(route('groups.roster.pdf', $group))->assertNotFound();
+
+        $this->get(route('courses.archive-overview.groups.show', [$course, $otherGroup]))->assertNotFound();
+        $this->get(route('groups.roster.pdf', [
+            'group' => $otherGroup,
+            'archive_course_id' => $course->id,
+        ]))->assertNotFound();
+    }
+
+    public function test_inactive_or_finished_groups_are_not_accessible_from_the_live_groups_workspace(): void
+    {
+        $activeCourse = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Active course',
+            'is_active' => true,
+        ]);
+        $archivedCourse = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Archived course',
+            'is_active' => false,
+            'finished_at' => '2026-08-31 12:00:00',
+        ]);
+        $groupDefaults = ['academic_year_id' => $this->year->id, 'teacher_id' => $this->teacher->id];
+        $activeGroup = Group::create([...$groupDefaults, 'course_id' => $activeCourse->id, 'name' => 'Open group', 'is_active' => true]);
+        $inactiveGroup = Group::create([...$groupDefaults, 'course_id' => $activeCourse->id, 'name' => 'Inactive group', 'is_active' => false]);
+        $finishedGroup = Group::create([...$groupDefaults, 'course_id' => $activeCourse->id, 'name' => 'Finished group', 'is_active' => true, 'course_finished_at' => '2026-08-31 12:00:00']);
+        $archivedCourseGroup = Group::create([...$groupDefaults, 'course_id' => $archivedCourse->id, 'name' => 'Archived course group', 'is_active' => true]);
+
+        $this->get(route('groups.show', $activeGroup))->assertOk();
+        $this->get(route('groups.show', $inactiveGroup))->assertNotFound();
+        $this->get(route('groups.schedules', $finishedGroup))->assertNotFound();
+        $this->get(route('groups.attendance', $archivedCourseGroup))->assertNotFound();
+        $this->get(route('groups.roster.export', $inactiveGroup))->assertNotFound();
+        $this->get(route('groups.roster.pdf', $inactiveGroup))->assertNotFound();
+
+        Volt::test('groups.index')
+            ->set('statusFilter', 'inactive')
+            ->assertSee('Inactive group')
+            ->assertDontSee(route('groups.show', $inactiveGroup), false);
+    }
+
+    public function test_archive_tabs_hide_lifecycle_statuses_and_voided_points(): void
+    {
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Clean archive course',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2026-09-30',
+            'is_active' => false,
+            'finished_at' => '2026-09-30 12:00:00',
+        ]);
+        $group = Group::create([
+            'teacher_id' => $this->teacher->id,
+            'academic_year_id' => $this->year->id,
+            'course_id' => $course->id,
+            'name' => 'Clean archive group',
+            'is_active' => false,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Archive',
+            'last_name' => 'Points Student',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'completed',
+        ]);
+        $retainedType = PointType::create([
+            'name' => 'Retained archive points',
+            'code' => 'retained-archive-points',
+            'category' => 'manual',
+            'default_points' => 5,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+        $voidedType = PointType::create([
+            'name' => 'Deleted archive points',
+            'code' => 'deleted-archive-points',
+            'category' => 'manual',
+            'default_points' => 5,
+            'allow_manual_entry' => true,
+            'allow_negative' => false,
+            'is_active' => true,
+        ]);
+
+        foreach ([[$retainedType, null], [$voidedType, '2026-09-29 12:00:00']] as [$type, $voidedAt]) {
+            PointTransaction::create([
+                'student_id' => $student->id,
+                'enrollment_id' => $enrollment->id,
+                'point_type_id' => $type->id,
+                'source_type' => 'manual',
+                'points' => 5,
+                'entered_at' => '2026-09-20 12:00:00',
+                'voided_at' => $voidedAt,
+                'void_reason' => $voidedAt ? 'Deleted before archive' : null,
+            ]);
+        }
+
+        StudentAttendanceDay::create([
+            'course_id' => $course->id,
+            'attendance_date' => '2026-09-20',
+            'status' => 'closed',
+        ]);
+
+        Volt::test('points.index', [
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])
+            ->assertSee('Retained archive points')
+            ->assertDontSee('Deleted archive points')
+            ->assertDontSee('id="points-state-filter"', false)
+            ->assertDontSee('data-points-ledger-state=', false)
+            ->assertDontSee(__('workflow.common.ledger_state.inactive_source'))
+            ->assertSee('data-has-void-reason="false"', false)
+            ->assertSee('data-shows-state="false"', false);
+
+        Volt::test('attendance.index', [
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertDontSee('data-archive-course-table-subtitle', false)
+            ->assertSee($course->name)
+            ->assertDontSee('id="student-attendance-status"', false)
+            ->assertDontSee('attendance-days-status', false);
+
+        Volt::test('assessments.index', [
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])->assertDontSee('id="assessment-status-filter"', false);
+
+        Volt::test('courses.archive-overview', ['course' => $course])
+            ->assertSeeInOrder([
+                'data-course-archive-start-date',
+                '01-09-2026',
+                'archive-course-date-range__arrow',
+                'data-course-archive-end-date',
+                '30-09-2026',
+            ], false);
+
+        $archiveSource = file_get_contents(resource_path('views/livewire/courses/archive-overview.blade.php'));
+        $this->assertStringContainsString('.archive-course-date-range__values bdi { margin-top: 0; }', $archiveSource);
+        $this->assertStringContainsString('align-self: center; line-height: 1;', $archiveSource);
+    }
+
+    public function test_archive_completion_settings_use_the_snapshot_saved_when_the_course_finished(): void
+    {
+        AppSetting::storeValue('course_completion', 'required_memorized_pages', 80, 'integer');
+        AppSetting::storeValue('course_completion', 'retain_percentage', 40, 'integer');
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Snapshotted completion settings',
+            'is_active' => true,
+        ]);
+
+        app(CourseLifecycleService::class)->finish($course);
+        AppSetting::storeValue('course_completion', 'required_memorized_pages', 5, 'integer');
+        AppSetting::storeValue('course_completion', 'retain_percentage', 90, 'integer');
+
+        Volt::test('courses.archive-overview', ['course' => $course->fresh()])
+            ->call('showSection', 'end')
+            ->assertViewHas('completionSettings', fn (array $settings) => $settings['required_memorized_pages'] === 80
+                && $settings['retain_percentage'] === 40);
+    }
+
+    public function test_archive_attendance_average_is_students_present_per_day_and_rows_open_read_only_details(): void
+    {
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Attendance archive',
+            'is_active' => false,
+            'finished_at' => '2026-09-30 12:00:00',
+        ]);
+        $group = Group::create([
+            'teacher_id' => $this->teacher->id,
+            'academic_year_id' => $this->year->id,
+            'course_id' => $course->id,
+            'name' => 'Archive group',
+            'is_active' => false,
+        ]);
+        $present = AttendanceStatus::create([
+            'name' => 'Present in archive',
+            'code' => 'archive-present',
+            'scope' => 'student',
+            'is_present' => true,
+            'is_active' => true,
+        ]);
+        $enrollments = collect(['First', 'Second', 'Third'])->map(function (string $firstName) use ($group) {
+            $student = Student::create([
+                'first_name' => $firstName,
+                'last_name' => 'Archived student',
+                'birth_date' => '2013-01-01',
+                'status' => 'active',
+            ]);
+
+            return Enrollment::create([
+                'student_id' => $student->id,
+                'group_id' => $group->id,
+                'enrolled_at' => '2026-09-01',
+                'status' => 'completed',
+            ]);
+        });
+
+        foreach ([['2026-09-20', 2], ['2026-09-21', 3]] as [$date, $presentCount]) {
+            $day = StudentAttendanceDay::create([
+                'course_id' => $course->id,
+                'attendance_date' => $date,
+                'status' => 'closed',
+            ]);
+            $groupDay = GroupAttendanceDay::create([
+                'group_id' => $group->id,
+                'student_attendance_day_id' => $day->id,
+                'attendance_date' => $date,
+                'status' => 'closed',
+            ]);
+
+            foreach ($enrollments->take($presentCount) as $enrollment) {
+                StudentAttendanceRecord::create([
+                    'group_attendance_day_id' => $groupDay->id,
+                    'enrollment_id' => $enrollment->id,
+                    'attendance_status_id' => $present->id,
+                ]);
+            }
+        }
+
+        $latestDay = StudentAttendanceDay::query()->latest('attendance_date')->firstOrFail();
+        $latestGroupDay = $latestDay->groupAttendanceDays()->firstOrFail();
+        $teacherDay = TeacherAttendanceDay::create([
+            'attendance_date' => '2026-09-21',
+            'status' => 'closed',
+        ]);
+        TeacherAttendanceRecord::create([
+            'teacher_attendance_day_id' => $teacherDay->id,
+            'teacher_id' => $this->teacher->id,
+            'archived_course_id' => $course->id,
+            'course_finished_at' => $course->finished_at,
+            'attendance_status_id' => $present->id,
+        ]);
+
+        $archivedAttendance = Volt::test('attendance.index', [
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])
+            ->assertSet('export_course_id', (string) $course->id)
+            ->assertSet('export_date_from', '2026-09-20')
+            ->assertSet('export_date_to', '2026-09-21')
+            ->assertSee('data-export-action', false)
+            ->assertSee($course->name)
+            ->call('openExportModal')
+            ->assertSet('showExportModal', true)
+            ->assertSee('data-archive-attendance-export-course', false);
+
+        $archivedAttendance
+            ->call('switchExportType', 'teachers')
+            ->assertSee('teacher-attendance/export/pdf', false)
+            ->call('switchExportType', 'students')
+            ->assertSee('student-attendance/export/pdf', false);
+
+        $this->get(route('student-attendance.export', [
+            'course_id' => $course->id,
+            'date_from' => '2026-09-20',
+            'date_to' => '2026-09-21',
+        ]))->assertOk()->assertHeader('content-type', 'application/pdf');
+
+        $this->get(route('teacher-attendance.export', [
+            'course_id' => $course->id,
+            'date_from' => '2026-09-20',
+            'date_to' => '2026-09-21',
+        ]))->assertOk()->assertHeader('content-type', 'application/pdf');
+
+        Volt::test('courses.archive-overview', ['course' => $course])
+            ->assertViewHas('metrics', fn (array $metrics) => collect($metrics)
+                ->firstWhere('label', __('dashboard.manager.stats.average_daily_attendance.label'))['value'] === 3)
+            ->assertViewHas('metrics', fn (array $metrics) => collect($metrics)
+                ->firstWhere('label', __('dashboard.manager.stats.total_points.label'))['value'] === 0)
+            ->assertViewHas('metrics', fn (array $metrics) => collect($metrics)
+                ->firstWhere('label', __('course_end.highlights.points_after'))['value'] === 600)
+            ->assertSee('data-course-archive-real-component="groups"', false);
+
+        Volt::test('student-attendance.show', [
+            'studentAttendanceDay' => $latestDay,
+            'unified' => true,
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])
+            ->assertSee('Archive group')
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
+            ->assertDontSee('data-student-attendance-day-delete-action', false);
+
+        $this->get(route('attendance.show', [
+            'type' => 'students',
+            'day' => $latestDay,
+            'archive_course_id' => $course->id,
+        ]))
+            ->assertOk()
+            ->assertSee('Archive group');
+
+        $this->get(route('student-attendance.mark', [
+            'groupAttendanceDay' => $latestGroupDay,
+            'archive_course_id' => $course->id,
+        ]))
+            ->assertOk()
+            ->assertSee('First Archived student')
+            ->assertSee('Present in archive');
+
+        Volt::test('teachers.attendance-show', [
+            'teacherAttendanceDay' => $teacherDay,
+            'unified' => true,
+            'archiveCourseId' => $course->id,
+            'archiveReadOnly' => true,
+        ])
+            ->assertSee('Report Teacher')
+            ->assertSee('data-archive-course-subtitle', false)
+            ->assertSee($course->name)
+            ->assertDontSee('data-teacher-attendance-day-delete-action', false);
+
+        foreach ([
+            'livewire/assessments/results.blade.php',
+            'livewire/attendance/show.blade.php',
+        ] as $view) {
+            $this->assertStringContainsString('data-archive-course-subtitle', file_get_contents(resource_path('views/'.$view)));
+        }
+    }
+
+    public function test_active_course_cannot_open_the_archived_course_overview(): void
+    {
+        $course = Course::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Active course',
+            'is_active' => true,
+        ]);
+
+        $this->get(route('courses.archive-overview', $course))->assertNotFound();
     }
 
     public function test_view_only_user_cannot_toggle_report_visibility(): void

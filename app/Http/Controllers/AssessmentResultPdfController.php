@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assessment;
+use App\Models\Course;
 use App\Models\Group;
 use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
+use App\Support\ArchivePdfWatermark;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
 use Illuminate\Http\Request;
@@ -25,7 +27,18 @@ class AssessmentResultPdfController extends Controller
             $groupIds->push($assessment->group_id);
         }
 
+        $archiveCourseId = $request->integer('archive_course_id') ?: null;
+        $archiveCourse = null;
+        if ($archiveCourseId !== null) {
+            $archiveCourse = Course::query()->findOrFail($archiveCourseId);
+            abort_unless(
+                Group::query()->whereIn('id', $groupIds)->where('course_id', $archiveCourseId)->exists(),
+                404,
+            );
+        }
+
         $selectedGroupId = $request->integer('group_id');
+        $sortStudentsByMark = $selectedGroupId === 0;
         if ($selectedGroupId !== 0) {
             abort_unless($groupIds->contains($selectedGroupId), 404);
             $groupIds = collect([$selectedGroupId]);
@@ -33,16 +46,28 @@ class AssessmentResultPdfController extends Controller
 
         $groups = $scopes->scopeGroups(Group::query()->whereIn('id', $groupIds), $request->user())
             ->with(['enrollments' => fn ($query) => $query
-                ->where('status', 'active')
+                ->whereIn('status', $archiveCourseId !== null ? ['active', 'completed'] : ['active'])
                 ->with([
                     'student',
                     'assessmentResults' => fn ($results) => $results->where('assessment_id', $assessment->id),
                 ])])
             ->orderBy('name')
             ->get()
-            ->map(function (Group $group) {
+            ->map(function (Group $group) use ($sortStudentsByMark) {
                 $group->setRelation('enrollments', $group->enrollments
-                    ->sortBy(fn ($enrollment) => mb_strtolower($enrollment->student?->full_name ?? ''))
+                    ->sort(function ($first, $second) use ($sortStudentsByMark) {
+                        $firstScore = (float) ($first->assessmentResults->first()?->score ?? 0);
+                        $secondScore = (float) ($second->assessmentResults->first()?->score ?? 0);
+
+                        if ($sortStudentsByMark && ($scoreComparison = $secondScore <=> $firstScore) !== 0) {
+                            return $scoreComparison;
+                        }
+
+                        return strnatcasecmp(
+                            mb_strtolower($first->student?->full_name ?? ''),
+                            mb_strtolower($second->student?->full_name ?? ''),
+                        );
+                    })
                     ->values());
 
                 $group->setAttribute('average_mark', $group->enrollments
@@ -72,9 +97,12 @@ class AssessmentResultPdfController extends Controller
         $mpdf->autoScriptToLang = false;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+        ArchivePdfWatermark::apply($mpdf, $archiveCourse);
         $mpdf->WriteHTML(view('exports.assessment-results-pdf', [
             'assessment' => $assessment,
+            'archiveCourse' => $archiveCourse,
             'groups' => $groups,
+            'isSingleGroupPdf' => $selectedGroupId !== 0,
             'logo' => app(PdfBrandingService::class)->logoSource(),
         ])->render());
 

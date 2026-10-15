@@ -5,6 +5,7 @@ return [
     'pages' => '{1} :count page|[0,*] :count pages',
     'points' => '{1} :count point|[0,*] :count points',
     'students' => '{1} :count student|[0,*] :count students',
+    'teachers' => '{1} :count teacher|[0,*] :count teachers',
     'groups' => '{1} :count group|[0,*] :count groups',
     'days' => '{1} :count day|[0,*] :count days',
     'sessions' => '{1} :count session|[0,*] :count sessions',
