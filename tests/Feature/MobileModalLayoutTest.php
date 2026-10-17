@@ -163,7 +163,8 @@ class MobileModalLayoutTest extends TestCase
         $script = file_get_contents(resource_path('js/app.js'));
 
         $this->assertStringContainsString('function isLivewireSearchInput(element)', $script);
-        $this->assertStringContainsString("window.Livewire?.hook('commit', ({ component, succeed }) =>", $script);
+        $this->assertStringContainsString("window.Livewire?.hook('morph', ({ component }) =>", $script);
+        $this->assertStringContainsString("window.Livewire?.hook('morphed', ({ component }) =>", $script);
         $this->assertStringContainsString('window.requestAnimationFrame(() => restoreLivewireSearchFocus(component, state));', $script);
         $this->assertStringContainsString('input.focus({ preventScroll: true });', $script);
         $this->assertStringContainsString('input.setSelectionRange(state.selectionStart, state.selectionEnd', $script);

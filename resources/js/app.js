@@ -4333,24 +4333,34 @@ function restoreLivewireSearchFocus(component, state) {
 }
 
 document.addEventListener('livewire:initialized', () => {
-    window.Livewire?.hook('commit', ({ component, succeed }) => {
+    const searchFocusStates = new WeakMap();
+
+    window.Livewire?.hook('morph', ({ component }) => {
+        searchFocusStates.delete(component);
         const input = document.activeElement;
 
         if (!isLivewireSearchInput(input) || !component.el.contains(input)) {
             return;
         }
 
-        const state = {
+        // Capture immediately before the DOM changes. The user can keep typing
+        // or move the caret while the search request is in flight.
+        searchFocusStates.set(component, {
             id: input.id,
             model: livewireBoundModelName(input),
             selectionStart: input.selectionStart,
             selectionEnd: input.selectionEnd,
             selectionDirection: input.selectionDirection,
-        };
-
-        succeed(() => {
-            window.requestAnimationFrame(() => restoreLivewireSearchFocus(component, state));
         });
+    });
+
+    window.Livewire?.hook('morphed', ({ component }) => {
+        const state = searchFocusStates.get(component);
+        searchFocusStates.delete(component);
+
+        if (!state) return;
+
+        window.requestAnimationFrame(() => restoreLivewireSearchFocus(component, state));
     });
 });
 
