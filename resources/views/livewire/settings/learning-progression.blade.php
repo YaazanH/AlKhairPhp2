@@ -231,7 +231,7 @@ new class extends Component {
                     <div class="mt-1">{{ __('learning_progression.locked_copy') }}</div>
                 </div>
             @elseif (! $configured)
-                <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm leading-6 text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">{{ __('learning_progression.first_setup') }}</div>
+                <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm leading-6 text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">{{ __($profile === \App\Services\LearningProgressionService::PROFILE_QURAN ? 'learning_progression.quran_first_setup' : 'learning_progression.first_setup') }}</div>
             @endif
 
             @error('progression') <div class="text-sm text-red-600">{{ $message }}</div> @enderror

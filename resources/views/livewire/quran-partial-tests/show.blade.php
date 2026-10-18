@@ -101,6 +101,8 @@ new class extends Component
     {
         $this->authorizePermission('quran-partial-tests.record');
 
+        app(\App\Services\LearningProgressionService::class)->ensureConfigured('attempt');
+
         if ($this->editingAttemptId && $this->hasRelatedFinalTest()) {
             abort(409);
         }
@@ -359,6 +361,7 @@ new class extends Component
 
     <x-admin.modal :show="$showAttemptModal" :title="__($editingAttemptId ? 'workflow.quran_partial_tests.attempts.edit_title' : 'workflow.quran_partial_tests.attempts.title')" :description="__('workflow.quran_partial_tests.attempts.copy')" close-method="closeAttemptModal" max-width="xl" compact>
         <form wire:submit="saveAttempt" class="space-y-4">
+            <x-quran-test-setup-warning />
             @if ($editingAttemptId)
                 <div>
                     <label for="partial-attempt-student-readonly" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>

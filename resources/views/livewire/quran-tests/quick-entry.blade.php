@@ -140,6 +140,8 @@ new class extends Component
         abort_unless(auth()->user()?->can('quran-partial-tests.record'), 403);
         \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
 
+        app(\App\Services\LearningProgressionService::class)->ensureConfigured('partialJuzId');
+
         $validated = $this->validate([
             'partialStudentId' => ['required', 'integer'],
             'partialJuzId' => ['required', 'integer'],
@@ -174,6 +176,8 @@ new class extends Component
     {
         abort_unless(auth()->user()?->can('quran-final-tests.record'), 403);
         \App\Support\OperationalFeatureSettings::ensureQuranTestsEnabled();
+
+        app(\App\Services\LearningProgressionService::class)->ensureConfigured('finalJuzId');
 
         $validated = $this->validate([
             'finalStudentId' => ['required', 'integer'],
@@ -409,6 +413,8 @@ new class extends Component
     @if (session('status'))
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
+
+    <x-quran-test-setup-warning />
 
     <section class="surface-panel p-5 lg:p-6">
         @if (! $entriesEnabled)

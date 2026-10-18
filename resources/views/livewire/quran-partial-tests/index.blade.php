@@ -264,6 +264,8 @@ new class extends Component
         OperationalFeatureSettings::ensureQuranTestsEnabled();
         OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
+        app(\App\Services\LearningProgressionService::class)->ensureConfigured('juz_id');
+
         $validated = $this->validate([
             'selectedStudentId' => ['required', 'exists:students,id'],
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
@@ -580,6 +582,7 @@ new class extends Component
 
     <x-admin.modal :show="$showFormModal" :title="__('workflow.quran_partial_tests.form.title')" close-method="closeFormModal" max-width="2xl">
         <form wire:submit="save" class="space-y-3" data-searchable-refresh>
+            <x-quran-test-setup-warning />
             <div class="grid gap-3 md:grid-cols-2">
                 <div>
                     <label for="partial-test-student" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_partial_tests.form.student') }}</label>

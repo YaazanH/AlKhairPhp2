@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\Landlord\Tenant;
 use App\Models\ParentProfile;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
@@ -17,6 +18,9 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\CourseLifecycleService;
+use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
+use App\Services\LearningProgressionService;
 use App\Services\MemorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
@@ -58,6 +62,49 @@ class StandaloneMemorizationPageTest extends TestCase
             ->assertSee(__('quick-tests.disabled_help'))
             ->assertDontSee('data-quick-entry-help', false)
             ->assertDontSee('wire:submit="save"', false);
+    }
+
+    #[DataProvider('quickEntryLocales')]
+    public function test_quick_entry_records_memorization_before_test_setup_is_saved(string $locale): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        app()->setLocale($locale);
+        session(['locale' => $locale]);
+
+        $this->partialMock(CurrentModuleAccess::class)->shouldReceive('enabled')->andReturnTrue();
+        app(TenantContext::class)->set(new Tenant([
+            'uuid' => 'quick-entry-setup-tenant',
+            'learning_path_type' => Tenant::LEARNING_PATH_QURAN,
+        ]));
+        AppSetting::storeValue('learning_progression', 'configured', false, 'boolean');
+
+        try {
+            Volt::test('memorization.quick-entry')
+                ->set('selectedStudentId', $enrollment->student_id)
+                ->set('selectedJuzNumber', 30)
+                ->set('selectedPages', [582])
+                ->call('save')
+                ->assertHasNoErrors()
+                ->assertDontSee(__('learning_progression.errors.not_configured'))
+                ->assertSet('selectedStudentId', null)
+                ->assertSet('selectedPages', []);
+
+            $this->assertDatabaseHas('memorization_sessions', [
+                'enrollment_id' => $enrollment->id,
+                'teacher_id' => $teacher->id,
+                'from_page' => 582,
+                'to_page' => 582,
+            ]);
+            $this->assertFalse(app(LearningProgressionService::class)->settings()['configured']);
+            $this->assertFalse(app(LearningProgressionService::class)->isLocked());
+        } finally {
+            app(TenantContext::class)->clear();
+        }
+    }
+
+    public static function quickEntryLocales(): array
+    {
+        return ['english' => ['en'], 'arabic' => ['ar']];
     }
 
     public function test_teacher_workbench_uses_the_logged_in_teacher_for_new_memorization_entries(): void

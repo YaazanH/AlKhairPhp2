@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\Landlord\Tenant;
 use App\Models\ParentProfile;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
@@ -14,16 +15,88 @@ use App\Models\QuranPartialTest;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
+use App\Services\Landlord\TenantContext;
 use App\Services\MemorizationService;
 use App\Services\QuranPartialTestService;
 use App\Services\SidebarNavigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class QuickQuranTestEntryTest extends TestCase
 {
     use RefreshDatabase;
+
+    #[DataProvider('setupWarningLocales')]
+    public function test_all_quran_test_entry_forms_explain_missing_setup_even_for_administrators(string $locale): void
+    {
+        [$user, , $student, $enrollment, $juz] = $this->context();
+        $user->assignRole('super_admin');
+        app()->setLocale($locale);
+        session(['locale' => $locale, 'locale_user_selected' => true]);
+        $this->partialMock(CurrentModuleAccess::class)->shouldReceive('enabled')->andReturnTrue();
+        app(TenantContext::class)->set(new Tenant([
+            'uuid' => 'quran-test-setup-tenant',
+            'learning_path_type' => Tenant::LEARNING_PATH_QURAN,
+        ]));
+        AppSetting::storeValue('learning_progression', 'configured', false, 'boolean');
+
+        try {
+            $message = __('learning_progression.errors.not_configured');
+
+            Volt::test('quran-tests.quick-entry')
+                ->assertSee($message)
+                ->assertSee(route('settings.learning-progression'))
+                ->set('partialStudentId', $student->id)
+                ->set('mistakeCount', '1')
+                ->call('savePartial')
+                ->assertHasErrors('partialJuzId')
+                ->assertSee($message)
+                ->assertSet('partialStudentId', $student->id)
+                ->assertSet('mistakeCount', '1');
+
+            Volt::test('quran-tests.quick-entry')
+                ->call('switchTab', 'final')
+                ->set('finalStudentId', $student->id)
+                ->set('finalMark', '90')
+                ->call('saveFinal')
+                ->assertHasErrors('finalJuzId')
+                ->assertSee($message)
+                ->assertSet('finalMark', '90');
+
+            foreach (['quran-partial-tests.index', 'quran-final-tests.index', 'quran-tests.index'] as $view) {
+                Volt::test($view)
+                    ->call('openCreateModal')
+                    ->assertSee($message)
+                    ->set('selectedStudentId', $student->id)
+                    ->set('juz_id', $juz->id)
+                    ->call('save')
+                    ->assertHasErrors('juz_id')
+                    ->assertSee($message)
+                    ->assertSet('selectedStudentId', $student->id);
+            }
+
+            Volt::test('enrollments.quran-tests', ['enrollment' => $enrollment])
+                ->assertSee($message)
+                ->set('juz_id', $juz->id)
+                ->call('saveQuranTest')
+                ->assertHasErrors('juz_id')
+                ->assertSee($message);
+
+            $this->assertDatabaseCount('quran_partial_tests', 0);
+            $this->assertDatabaseCount('quran_final_tests', 0);
+            $this->assertDatabaseCount('quran_tests', 0);
+        } finally {
+            app(TenantContext::class)->clear();
+        }
+    }
+
+    public static function setupWarningLocales(): array
+    {
+        return ['english' => ['en'], 'arabic' => ['ar']];
+    }
 
     public function test_quick_saber_entry_shows_input_suffixes_and_replaces_the_form_when_entries_are_disabled(): void
     {

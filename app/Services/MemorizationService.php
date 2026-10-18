@@ -28,7 +28,7 @@ class MemorizationService
         bool $skipDuplicatePages = false,
     ): MemorizationSession {
         if ($session === null) {
-            app(LearningProgressionService::class)->ensureConfigured('from_page');
+            app(LearningProgressionService::class)->ensureQuranPath('from_page');
         }
 
         return DB::transaction(function () use ($enrollment, $validated, $session, $skipDuplicatePages): MemorizationSession {

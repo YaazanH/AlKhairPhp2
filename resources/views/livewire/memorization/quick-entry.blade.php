@@ -600,6 +600,16 @@ new class extends Component
             </div>
             @endif
 
+            @if ($errors->any())
+                <div role="alert" class="rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100" data-quick-memorization-errors>
+                    <ul class="list-inside list-disc space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="admin-action-cluster admin-action-cluster--end quick-memorization-save-actions">
                 <button type="submit" class="admin-icon-button admin-icon-button--accent quick-entry-save-action" title="{{ __('workflow.memorization.quick_entry.form.save') }}" aria-label="{{ __('workflow.memorization.quick_entry.form.save') }}" data-quick-memorization-save-action wire:loading.attr="disabled" wire:target="save,confirmDuplicateSave" @disabled($selectedStudentId && ! $displayedJuz)><x-admin-action-icon name="save" /></button>
             </div>

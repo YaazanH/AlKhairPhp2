@@ -279,6 +279,7 @@ new class extends Component
         if (! $this->editingTestId) {
             OperationalFeatureSettings::ensureQuranTestsEnabled();
             OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            app(\App\Services\LearningProgressionService::class)->ensureConfigured('juz_id');
         }
 
         $editingTest = $this->editingTestId
@@ -849,6 +850,7 @@ new class extends Component
         compact
     >
         <form wire:submit="save" class="space-y-4" data-searchable-refresh>
+            <x-quran-test-setup-warning />
             <fieldset class="space-y-4" @disabled(! $this->canAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']))>
                 <div class="grid gap-4 md:grid-cols-3" data-awqaf-saber-identity-row>
                     <div>

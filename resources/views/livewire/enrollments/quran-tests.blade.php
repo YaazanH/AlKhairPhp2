@@ -54,6 +54,8 @@ new class extends Component {
     {
         $this->authorizeAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']);
 
+        app(\App\Services\LearningProgressionService::class)->ensureConfigured('juz_id');
+
         $validated = $this->validate([
             'juz_id' => ['required', 'exists:quran_juzs,id'],
             'tested_on' => ['required', 'date'],
@@ -175,6 +177,7 @@ new class extends Component {
                 </div>
 
                 <form wire:submit="saveQuranTest" class="space-y-4">
+                    <x-quran-test-setup-warning />
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label for="quran-test-date" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label>

@@ -20,7 +20,9 @@ use App\Models\ParentProfile;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
 use App\Models\Student;
+use App\Models\Teacher;
 use App\Models\User;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\Landlord\TenantContext;
 use App\Services\LearningProgressionService;
 use App\Services\MemorizationService;
@@ -182,7 +184,7 @@ class LearningProgressionTest extends TestCase
         ]);
     }
 
-    public function test_saas_tenant_must_configure_progression_before_recording_quran_progress(): void
+    public function test_saas_tenant_must_configure_progression_before_recording_quran_tests(): void
     {
         $context = app(TenantContext::class);
         $context->set(new Tenant([
@@ -242,32 +244,61 @@ class LearningProgressionTest extends TestCase
         $this->assertTrue($settings['awqaf_test_enabled']);
     }
 
-    public function test_quran_recording_services_apply_the_saas_setup_gate(): void
+    public function test_memorization_does_not_require_or_lock_quran_test_setup(): void
     {
         [, $enrollment] = $this->studentEnrollment();
         $juz = QuranJuz::query()->where('juz_number', 1)->firstOrFail();
-        app(TenantContext::class)->set(new Tenant([
-            'uuid' => 'recording-gate-tenant',
-            'name' => 'Recording Gate Tenant',
-            'slug' => 'recording-gate',
-            'database_name' => 'recording_gate',
-            'status' => Tenant::STATUS_ACTIVE,
-        ]));
+        $teacher = Teacher::query()->create(['first_name' => 'Progress', 'last_name' => 'Teacher', 'phone' => '0998111222', 'status' => 'active']);
+        $this->partialMock(CurrentModuleAccess::class)->shouldReceive('enabled')->andReturnTrue();
+        $this->useLearningPath(Tenant::LEARNING_PATH_QURAN);
+        AppSetting::storeValue('learning_progression', 'configured', false, 'boolean');
 
         try {
-            app(MemorizationService::class)->saveSession($enrollment, []);
-            $this->fail('Memorization started before progression setup.');
-        } catch (ValidationException $exception) {
-            $this->assertSame(
-                __('learning_progression.errors.not_configured'),
-                $exception->errors()['from_page'][0],
-            );
+            app(MemorizationService::class)->saveSession($enrollment, [
+                'teacher_id' => $teacher->id,
+                'recorded_on' => now()->toDateString(),
+                'entry_type' => 'new',
+                'from_page' => $juz->from_page,
+                'to_page' => $juz->to_page,
+            ]);
+
+            $service = app(LearningProgressionService::class);
+            $this->assertDatabaseCount('memorization_sessions', 1);
+            $this->assertDatabaseCount('student_page_achievements', $juz->to_page - $juz->from_page + 1);
+            $this->assertFalse($service->isLocked());
+            $this->assertTrue($service->configurationRequired());
+
+            foreach (['partial', 'final', 'awqaf'] as $test) {
+                try {
+                    $service->ensureTestEnabled($test);
+                    $this->fail('Quran test started before setup was saved.');
+                } catch (LogicException $exception) {
+                    $this->assertSame(__('learning_progression.errors.not_configured'), $exception->getMessage());
+                }
+            }
+
+            $service->storeQuranSettings([
+                'partial_test_enabled' => true,
+                'partial_test_required_for_final' => true,
+                'final_test_enabled' => true,
+                'final_test_required_for_awqaf' => true,
+                'awqaf_test_enabled' => true,
+            ]);
+            $this->assertFalse($service->configurationRequired());
+            app(QuranPartialTestService::class)->create($enrollment->fresh('student'), $juz);
+            $this->assertTrue($service->isLocked());
+        } finally {
+            app(TenantContext::class)->clear();
         }
+    }
 
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(__('learning_progression.errors.not_configured'));
+    public function test_memorization_still_rejects_a_lesson_level_learning_path(): void
+    {
+        $this->useLearningPath(Tenant::LEARNING_PATH_LESSON_LEVEL);
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage(__('learning_progression.errors.wrong_learning_path'));
 
-        app(QuranPartialTestService::class)->create($enrollment->fresh('student'), $juz);
+        app(MemorizationService::class)->saveSession(new Enrollment, []);
     }
 
     public function test_progression_locks_after_a_quran_test_cycle_exists(): void

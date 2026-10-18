@@ -14,7 +14,6 @@ use App\Models\QuranPartialTest;
 use App\Models\QuranTest;
 use App\Models\Student;
 use App\Models\StudentLearningProgression;
-use App\Models\StudentPageAchievement;
 use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
 use Illuminate\Support\Collection;
@@ -197,7 +196,6 @@ class LearningProgressionService
     public function isLocked(): bool
     {
         return StudentLearningProgression::query()->exists()
-            || StudentPageAchievement::query()->exists()
             || QuranPartialTest::query()->exists()
             || QuranFinalTest::query()->exists()
             || QuranTest::query()->exists();
@@ -233,15 +231,20 @@ class LearningProgressionService
 
     public function ensureConfigured(string $errorKey = 'learning_progression'): void
     {
-        if ($this->settings()['profile'] !== self::PROFILE_QURAN) {
-            throw ValidationException::withMessages([
-                $errorKey => __('learning_progression.errors.wrong_learning_path'),
-            ]);
-        }
+        $this->ensureQuranPath($errorKey);
 
         if ($this->configurationRequired()) {
             throw ValidationException::withMessages([
                 $errorKey => __('learning_progression.errors.not_configured'),
+            ]);
+        }
+    }
+
+    public function ensureQuranPath(string $errorKey = 'learning_progression'): void
+    {
+        if ($this->settings()['profile'] !== self::PROFILE_QURAN) {
+            throw ValidationException::withMessages([
+                $errorKey => __('learning_progression.errors.wrong_learning_path'),
             ]);
         }
     }
