@@ -5,7 +5,10 @@
     'viewAllAction',
 ])
 
-<div {{ $attributes->class(['surface-table student-progress-data-table']) }}>
+<div {{ $attributes->class([
+    'surface-table student-progress-data-table',
+    'student-progress-data-table--empty' => $empty,
+]) }}>
     <div class="admin-grid-meta student-progress-data-table__header">
         <div class="admin-grid-meta__title">{{ $title }}</div>
         @unless ($empty)
@@ -23,7 +26,7 @@
     </div>
 
     @if ($empty)
-        <div class="admin-empty-state">{{ $emptyText }}</div>
+        <div class="admin-empty-state student-progress-data-table__empty">{{ $emptyText }}</div>
     @else
         <div class="table-scroll-region overflow-x-auto" data-table-scroll-region>
             <table class="table-content text-sm">

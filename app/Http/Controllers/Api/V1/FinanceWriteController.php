@@ -90,10 +90,11 @@ class FinanceWriteController extends Controller
     public function storeActivityRegistration(Request $request, Activity $activity)
     {
         $this->authorizePermission($request, 'activities.registrations.manage');
+        $this->authorizeActivityScope($request, $activity);
+        $validated = $this->validatedActivityRegistrationData($request, $activity);
+        $this->authorizeRelatedRegistrationScope($request, $validated);
 
-        $registration = ActivityRegistration::query()->create(
-            $this->validatedActivityRegistrationData($request, $activity),
-        );
+        $registration = ActivityRegistration::query()->create($validated);
 
         app(FinanceService::class)->syncActivityTotals($activity->fresh());
 
@@ -106,9 +107,13 @@ class FinanceWriteController extends Controller
     public function updateActivityRegistration(Request $request, Activity $activity, ActivityRegistration $registration)
     {
         $this->authorizePermission($request, 'activities.registrations.manage');
+        $this->authorizeActivityScope($request, $activity);
         abort_unless($registration->activity_id === $activity->id, 404);
+        $this->authorizeActivityRegistrationScope($request, $registration);
+        $validated = $this->validatedActivityRegistrationData($request, $activity, $registration);
+        $this->authorizeRelatedRegistrationScope($request, $validated);
 
-        $registration->update($this->validatedActivityRegistrationData($request, $activity, $registration));
+        $registration->update($validated);
 
         app(FinanceService::class)->syncActivityTotals($activity->fresh());
 
@@ -121,7 +126,9 @@ class FinanceWriteController extends Controller
     public function destroyActivityRegistration(Request $request, Activity $activity, ActivityRegistration $registration)
     {
         $this->authorizePermission($request, 'activities.registrations.manage');
+        $this->authorizeActivityScope($request, $activity);
         abort_unless($registration->activity_id === $activity->id, 404);
+        $this->authorizeActivityRegistrationScope($request, $registration);
 
         if ($registration->payments()->whereNull('voided_at')->exists()) {
             return response()->json([
@@ -141,6 +148,7 @@ class FinanceWriteController extends Controller
     public function storeActivityPayment(Request $request, Activity $activity)
     {
         $this->authorizePermission($request, 'activities.payments.manage');
+        $this->authorizeActivityScope($request, $activity);
 
         $validated = $request->validate([
             'activity_registration_id' => ['required', 'integer', Rule::exists('activity_registrations', 'id')->whereNull('deleted_at')],
@@ -152,6 +160,7 @@ class FinanceWriteController extends Controller
         ]);
 
         $registration = ActivityRegistration::query()->where('activity_id', $activity->id)->findOrFail($validated['activity_registration_id']);
+        $this->authorizeActivityRegistrationScope($request, $registration);
 
         $payment = ActivityPayment::query()->create([
             'activity_registration_id' => $registration->id,
@@ -175,7 +184,9 @@ class FinanceWriteController extends Controller
     public function voidActivityPayment(Request $request, Activity $activity, ActivityPayment $activityPayment)
     {
         $this->authorizePermission($request, 'activities.payments.manage');
+        $this->authorizeActivityScope($request, $activity);
         abort_unless($activityPayment->registration?->activity_id === $activity->id, 404);
+        $this->authorizeActivityPaymentScope($request, $activityPayment);
 
         if (! $activityPayment->voided_at) {
             DB::transaction(function () use ($activity, $activityPayment, $request): void {
@@ -200,6 +211,7 @@ class FinanceWriteController extends Controller
     public function storeActivityExpense(Request $request, Activity $activity)
     {
         $this->authorizePermission($request, 'activities.expenses.manage');
+        $this->authorizeActivityScope($request, $activity);
 
         $expense = ActivityExpense::query()->create($this->validatedActivityExpenseData($request, $activity));
 
@@ -215,7 +227,9 @@ class FinanceWriteController extends Controller
     public function updateActivityExpense(Request $request, Activity $activity, ActivityExpense $activityExpense)
     {
         $this->authorizePermission($request, 'activities.expenses.manage');
+        $this->authorizeActivityScope($request, $activity);
         abort_unless($activityExpense->activity_id === $activity->id, 404);
+        $this->authorizeActivityExpenseScope($request, $activityExpense);
 
         $previousAmount = (float) $activityExpense->amount;
 
@@ -233,7 +247,9 @@ class FinanceWriteController extends Controller
     public function destroyActivityExpense(Request $request, Activity $activity, ActivityExpense $activityExpense)
     {
         $this->authorizePermission($request, 'activities.expenses.manage');
+        $this->authorizeActivityScope($request, $activity);
         abort_unless($activityExpense->activity_id === $activity->id, 404);
+        $this->authorizeActivityExpenseScope($request, $activityExpense);
 
         app(FinanceService::class)->reverseSourceTransactions(ActivityExpense::class, $activityExpense->id, $request->user(), 'Deleted from the integration API.');
         $activityExpense->delete();
@@ -249,8 +265,11 @@ class FinanceWriteController extends Controller
     {
         $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'invoices.update');
+        $this->authorizeInvoiceScope($request, $invoice);
+        $validated = $this->validatedInvoiceItemData($request, $invoice);
+        $this->authorizeRelatedInvoiceItemScope($request, $validated);
 
-        $item = InvoiceItem::query()->create($this->validatedInvoiceItemData($request, $invoice));
+        $item = InvoiceItem::query()->create($validated);
 
         app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
 
@@ -264,9 +283,13 @@ class FinanceWriteController extends Controller
     {
         $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'invoices.update');
+        $this->authorizeInvoiceScope($request, $invoice);
         abort_unless($invoiceItem->invoice_id === $invoice->id, 404);
+        $this->authorizeInvoiceItemScope($request, $invoiceItem);
+        $validated = $this->validatedInvoiceItemData($request, $invoice);
+        $this->authorizeRelatedInvoiceItemScope($request, $validated);
 
-        $invoiceItem->update($this->validatedInvoiceItemData($request, $invoice));
+        $invoiceItem->update($validated);
 
         app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
 
@@ -280,7 +303,9 @@ class FinanceWriteController extends Controller
     {
         $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'invoices.update');
+        $this->authorizeInvoiceScope($request, $invoice);
         abort_unless($invoiceItem->invoice_id === $invoice->id, 404);
+        $this->authorizeInvoiceItemScope($request, $invoiceItem);
 
         $invoiceItem->delete();
         app(FinanceService::class)->syncInvoiceTotals($invoice->fresh());
@@ -295,6 +320,7 @@ class FinanceWriteController extends Controller
     {
         $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'payments.create');
+        $this->authorizeInvoiceScope($request, $invoice);
 
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
@@ -327,7 +353,9 @@ class FinanceWriteController extends Controller
     {
         $this->ensureStudentBillingInvoice($request, $invoice);
         $this->authorizePermission($request, 'payments.void');
+        $this->authorizeInvoiceScope($request, $invoice);
         abort_unless($payment->invoice_id === $invoice->id, 404);
+        $this->authorizeInvoicePaymentScope($request, $payment);
 
         if (! $payment->voided_at) {
             DB::transaction(function () use ($invoice, $payment, $request): void {
@@ -392,6 +420,71 @@ class FinanceWriteController extends Controller
     protected function authorizePermission(Request $request, string $permission): void
     {
         abort_unless($request->user()?->can($permission), 403);
+    }
+
+    protected function authorizeActivityScope(Request $request, Activity $activity): void
+    {
+        abort_unless(app(AccessScopeService::class)->scopeActivities(Activity::query()->whereKey($activity->id), $request->user())->exists(), 403);
+    }
+
+    protected function authorizeActivityRegistrationScope(Request $request, ActivityRegistration $registration): void
+    {
+        abort_unless(app(AccessScopeService::class)->scopeActivityRegistrations(ActivityRegistration::query()->whereKey($registration->id), $request->user())->exists(), 403);
+    }
+
+    protected function authorizeActivityPaymentScope(Request $request, ActivityPayment $payment): void
+    {
+        abort_unless(app(AccessScopeService::class)->scopeActivityPayments(ActivityPayment::query()->whereKey($payment->id), $request->user())->exists(), 403);
+    }
+
+    protected function authorizeActivityExpenseScope(Request $request, ActivityExpense $expense): void
+    {
+        abort_unless(app(AccessScopeService::class)->scopeActivityExpenses(ActivityExpense::query()->whereKey($expense->id), $request->user())->exists(), 403);
+    }
+
+    protected function authorizeInvoiceScope(Request $request, Invoice $invoice): void
+    {
+        abort_unless(app(AccessScopeService::class)->canAccessInvoice($request->user(), $invoice), 403);
+    }
+
+    protected function authorizeInvoiceItemScope(Request $request, InvoiceItem $item): void
+    {
+        abort_unless(app(AccessScopeService::class)->scopeInvoiceItems(InvoiceItem::query()->whereKey($item->id), $request->user())->exists(), 403);
+    }
+
+    protected function authorizeInvoicePaymentScope(Request $request, Payment $payment): void
+    {
+        abort_unless(app(AccessScopeService::class)->scopePayments(Payment::query()->whereKey($payment->id), $request->user())->exists(), 403);
+    }
+
+    protected function authorizeRelatedRegistrationScope(Request $request, array $validated): void
+    {
+        $scopes = app(AccessScopeService::class);
+        if ($scopes->isUnrestricted($request->user())) {
+            return;
+        }
+
+        abort_unless($scopes->canAccessStudent($request->user(), Student::query()->findOrFail($validated['student_id'])), 403);
+        if ($validated['enrollment_id'] ?? null) {
+            abort_unless($scopes->canAccessEnrollment($request->user(), Enrollment::query()->findOrFail($validated['enrollment_id'])), 403);
+        }
+    }
+
+    protected function authorizeRelatedInvoiceItemScope(Request $request, array $validated): void
+    {
+        $scopes = app(AccessScopeService::class);
+        if ($scopes->isUnrestricted($request->user())) {
+            return;
+        }
+
+        $authorized = false;
+        if ($validated['student_id'] ?? null) {
+            $authorized = $scopes->canAccessStudent($request->user(), Student::query()->findOrFail($validated['student_id']));
+        }
+        if ($validated['enrollment_id'] ?? null) {
+            $authorized = $authorized && $scopes->canAccessEnrollment($request->user(), Enrollment::query()->findOrFail($validated['enrollment_id']));
+        }
+        abort_unless($authorized, 403);
     }
 
     protected function invoiceItemPayload(InvoiceItem $item): array

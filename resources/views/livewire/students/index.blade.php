@@ -13,7 +13,9 @@ use App\Models\FatherJob;
 use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\ParentProfile;
+use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
+use App\Models\QuranTest;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentGender;
@@ -348,6 +350,12 @@ new class extends Component
             ->where('juz_number', (int) $validated['external_memorized_juz_input'])
             ->value('id');
 
+        if ($juzId && in_array((int) $juzId, $this->finishedJuzIdsForEditingStudent(), true)) {
+            $this->addError('external_memorized_juz_input', __('crud.students.errors.finished_juz_cannot_be_previous'));
+
+            return;
+        }
+
         if ($juzId && ! in_array((int) $juzId, array_map('intval', $this->external_memorized_juz_ids), true)) {
             $this->external_memorized_juz_ids[] = (int) $juzId;
         }
@@ -648,6 +656,14 @@ new class extends Component
         $this->student_phone = PhoneNumberFormatter::normalize($this->student_phone) ?? '';
         $existingAccount = $this->selectedExistingAccount('student');
         $validated = $this->validate($this->rules($duplicate?->user_id), $this->juzNumberValidationMessages());
+        $submittedExternalMemorizedJuzIds = array_values(array_unique(array_map('intval', $validated['external_memorized_juz_ids'] ?? [])));
+
+        if (array_intersect($submittedExternalMemorizedJuzIds, $this->finishedJuzIdsForEditingStudent()) !== []) {
+            $this->addError('external_memorized_juz_ids', __('crud.students.errors.finished_juz_cannot_be_previous'));
+
+            return;
+        }
+
         if (filled($validated['parent_id'] ?? null)) {
             $this->authorizeScopedParentAccess(ParentProfile::query()->findOrFail($validated['parent_id']));
         }
@@ -724,7 +740,7 @@ new class extends Component
         }
 
         unset($validated['enrollment_group_id'], $validated['activeEnrollmentGroupChanges']);
-        $externalMemorizedJuzIds = array_map('intval', $validated['external_memorized_juz_ids'] ?? []);
+        $externalMemorizedJuzIds = $submittedExternalMemorizedJuzIds;
         unset($validated['external_memorized_juz_ids']);
         unset($validated['quran_current_juz_number']);
         $validated['birth_date'] = $this->normalizeBirthYearValue((string) $validated['birth_date']);
@@ -1323,6 +1339,35 @@ new class extends Component
             || $studentPhone !== ($student->user?->phone ?: null)
             || $savedJuzIds !== $submittedJuzIds
             || $selectedGroup !== null;
+    }
+
+    /** @return array<int, int> */
+    protected function finishedJuzIdsForEditingStudent(): array
+    {
+        if (! $this->editingId) {
+            return [];
+        }
+
+        $finishedJuzIds = QuranFinalTest::query()
+            ->where('student_id', $this->editingId)
+            ->where(function (Builder $query): void {
+                $query->where('status', 'passed')
+                    ->orWhereHas('attempts', fn (Builder $attempts): Builder => $attempts->where('status', 'passed'));
+            })
+            ->pluck('juz_id');
+
+        $legacyFinishedJuzIds = QuranTest::query()
+            ->where('student_id', $this->editingId)
+            ->where('status', 'passed')
+            ->whereHas('type', fn (Builder $query): Builder => $query->where('code', 'final'))
+            ->pluck('juz_id');
+
+        return $finishedJuzIds
+            ->merge($legacyFinishedJuzIds)
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function syncDefaultEnrollmentGroup(): void
@@ -2579,6 +2624,9 @@ new class extends Component
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                     @error('external_memorized_juz_ids.*')
+                        <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
+                    @enderror
+                    @error('external_memorized_juz_ids')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
                     @enderror
                 </div>

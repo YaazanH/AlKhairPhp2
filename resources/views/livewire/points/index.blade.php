@@ -18,6 +18,10 @@ new class extends Component
     use AuthorizesTeacherAssignments;
     use WithPagination;
 
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
     public ?int $editingTransactionId = null;
 
     public string $editingStudentName = '';
@@ -55,9 +59,14 @@ new class extends Component
         'student',
     ];
 
-    public function mount(): void
+    public function mount(?int $archiveCourseId = null, bool $archiveReadOnly = false): void
     {
         $this->authorizePermission('points.view');
+        $this->archiveCourseId = $archiveCourseId;
+        $this->archiveReadOnly = $archiveReadOnly;
+        if ($archiveCourseId) {
+            $this->stateFilter = 'all';
+        }
         $this->resetManualForm();
     }
 
@@ -83,8 +92,9 @@ new class extends Component
                         ->orWhere('notes', 'like', $search);
                 });
             })
-            ->when($this->stateFilter === 'active', fn (Builder $query) => $query->effectiveActive())
-            ->when($this->stateFilter === 'voided', fn (Builder $query) => $query->whereNotNull('voided_at'));
+            ->when($this->archiveCourseId, fn (Builder $query) => $query->whereNull('voided_at'))
+            ->when(! $this->archiveCourseId && $this->stateFilter === 'active', fn (Builder $query) => $query->effectiveActive())
+            ->when(! $this->archiveCourseId && $this->stateFilter === 'voided', fn (Builder $query) => $query->whereNotNull('voided_at'));
         $this->applyPointSort($transactionsQuery);
 
         $studentOptions = $this->scopeStudentsQuery(
@@ -152,6 +162,7 @@ new class extends Component
 
     public function openCreateModal(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('points.create-manual');
 
         $this->resetManualForm();
@@ -166,6 +177,7 @@ new class extends Component
 
     public function editManual(int $transactionId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('points.create-manual');
 
         $transaction = $this->visiblePointTransactionsQuery(PointTransaction::query()->with('student'))
@@ -190,6 +202,7 @@ new class extends Component
 
     public function saveManual(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('points.create-manual');
 
         $validated = $this->validate([
@@ -277,6 +290,7 @@ new class extends Component
 
     public function saveManualAndNew(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $preservedPointTypeId = $this->manual_point_type_id;
         $errorCount = $this->getErrorBag()->count();
 
@@ -299,6 +313,7 @@ new class extends Component
 
     public function openVoidModal(int $transactionId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('points.void');
 
         $this->visiblePointTransactionsQuery(PointTransaction::query())
@@ -321,6 +336,7 @@ new class extends Component
 
     public function voidSelected(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('points.void');
 
         $validated = $this->validate([
@@ -398,7 +414,13 @@ new class extends Component
 
     protected function visiblePointTransactionsQuery(Builder $query): Builder
     {
-        return $this->scopePointTransactionsQuery($query)
+        $query = $this->scopePointTransactionsQuery($query);
+
+        if ($this->archiveCourseId) {
+            return $query->whereHas('enrollment.group', fn (Builder $groupQuery) => $groupQuery->where('course_id', $this->archiveCourseId));
+        }
+
+        return $query
             ->where(function (Builder $transactionQuery): void {
                 $transactionQuery
                     ->whereNull('enrollment_id')
@@ -474,6 +496,7 @@ new class extends Component
                     <input id="points-search" wire:model.live.debounce.500ms="search" type="text" placeholder="{{ __('crud.common.filters.search_placeholder') }}">
                 </div>
 
+                @unless ($archiveReadOnly)
                 <div class="admin-filter-field">
                     <label class="sr-only" for="points-state-filter">{{ __('workflow.points.workbench.filters.state') }}</label>
                     <select id="points-state-filter" wire:model.live="stateFilter">
@@ -482,11 +505,12 @@ new class extends Component
                         <option value="voided">{{ __('workflow.common.ledger_state.voided') }}</option>
                     </select>
                 </div>
+                @endunless
 
                 <div class="admin-toolbar__actions">
-                    @can('points.create-manual')
+                    @if (! $archiveReadOnly && auth()->user()->can('points.create-manual'))
                         <x-add-action-button wire:click="openCreateModal" :label="__('workflow.points.workbench.create')" />
-                    @endcan
+                    @endif
                 </div>
             </div>
         </div>
@@ -495,7 +519,7 @@ new class extends Component
             <div class="admin-empty-state">{{ __('workflow.points.workbench.table.empty') }}</div>
         @else
             <div class="points-ledger-desktop overflow-x-auto">
-                <table class="points-ledger-table table-content text-sm" data-has-void-reason="{{ $stateFilter !== 'active' ? 'true' : 'false' }}" data-shows-state="{{ $stateFilter === 'all' ? 'true' : 'false' }}">
+                <table class="points-ledger-table table-content text-sm" data-has-void-reason="{{ ! $archiveReadOnly && $stateFilter !== 'active' ? 'true' : 'false' }}" data-shows-state="{{ ! $archiveReadOnly && $stateFilter === 'all' ? 'true' : 'false' }}">
                     <thead>
                         <tr>
                             <th class="points-ledger-col--student px-3 py-4 text-left">
@@ -520,14 +544,14 @@ new class extends Component
                                 </button>
                             </th>
                             <th class="points-ledger-col--course px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.course') }}</th>
-                            @if ($stateFilter === 'all')
+                            @if (! $archiveReadOnly && $stateFilter === 'all')
                                 <th class="points-ledger-col--state px-3 py-4 text-left">
                                     <button type="button" wire:click="sortBy('state')" class="inline-flex items-center gap-2 font-medium text-inherit">
                                         {{ __('workflow.points.workbench.table.headers.state') }} <span>{{ $this->sortIndicator('state') }}</span>
                                     </button>
                                 </th>
                             @endif
-                            @if ($stateFilter !== 'active')
+                            @if (! $archiveReadOnly && $stateFilter !== 'active')
                                 <th class="points-ledger-col--void-reason px-3 py-4 text-left">{{ __('workflow.points.workbench.table.headers.void_reason') }}</th>
                             @endif
                             <th class="admin-actions-column points-ledger-col--actions px-3 py-4 text-center">{{ __('workflow.points.workbench.table.headers.actions') }}</th>
@@ -540,7 +564,7 @@ new class extends Component
                                 $sourceLabel = trans()->has($sourceTranslationKey)
                                     ? __($sourceTranslationKey)
                                     : str($transaction->source_type)->headline();
-                                $state = $transaction->effectiveState();
+                                $state = $archiveReadOnly ? 'active' : $transaction->effectiveState();
                             @endphp
                             <tr
                                 @class([
@@ -554,28 +578,36 @@ new class extends Component
                                         <div class="student-inline">
                                             <x-student-avatar :student="$transaction->student" size="sm" />
                                             <div class="student-inline__body">
-                                                <div class="record-person-name student-inline__name whitespace-nowrap">{{ $transaction->student->full_name }}</div>
+                                                <div class="record-person-name student-inline__name whitespace-nowrap" data-points-ledger-strike>{{ $transaction->student->full_name }}</div>
                                             </div>
                                         </div>
                                     @else
-                                        <span class="text-white">{{ __('crud.common.not_available') }}</span>
+                                        <span class="text-white" data-points-ledger-strike>{{ __('crud.common.not_available') }}</span>
                                     @endif
                                 </td>
-                                <td class="points-ledger-col--type whitespace-nowrap px-3 py-4 text-white">{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
+                                <td class="points-ledger-col--type whitespace-nowrap px-3 py-4 text-white" data-points-ledger-strike>{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</td>
                                 <td class="points-ledger-col--points px-3 py-4">
-                                    <span class="status-text {{ $transaction->points >= 0 ? 'status-text--emerald' : 'status-text--rose' }}" data-points-ledger-value>{{ $transaction->points }}</span>
+                                    <span
+                                        @class([
+                                            'status-text',
+                                            'status-text--emerald' => $state !== 'voided' && $transaction->points >= 0,
+                                            'status-text--rose' => $state !== 'voided' && $transaction->points < 0,
+                                        ])
+                                        data-points-ledger-value
+                                        data-points-ledger-strike
+                                    >{{ $transaction->points }}</span>
                                 </td>
-                                <td class="points-ledger-col--source px-3 py-4 text-neutral-300">{{ $sourceLabel }}</td>
+                                <td class="points-ledger-col--source px-3 py-4 text-neutral-300" data-points-ledger-strike>{{ $sourceLabel }}</td>
                                 <td class="points-ledger-col--entered px-3 py-4 text-neutral-300">
                                     <span class="points-ledger-entered-at" dir="ltr">
-                                        <span>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y')) }}</span>
-                                        <span>{{ $transaction->entered_at?->format('H:i') }}</span>
+                                        <span data-points-ledger-strike>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y')) }}</span>
+                                        <span data-points-ledger-strike>{{ $transaction->entered_at?->format('H:i') }}</span>
                                     </span>
                                 </td>
                                 <td class="points-ledger-col--course px-3 py-4 text-neutral-300">
-                                    <div class="points-ledger-course-name font-medium text-white" title="{{ $transaction->enrollment?->group?->course?->name }}"><span class="record-course-name">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
+                                    <div class="points-ledger-course-name font-medium text-white" title="{{ $transaction->enrollment?->group?->course?->name }}" data-points-ledger-strike><span class="record-course-name">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                @if ($stateFilter === 'all')
+                                @if (! $archiveReadOnly && $stateFilter === 'all')
                                     <td class="points-ledger-col--state px-3 py-4">
                                         <span
                                             @class([
@@ -585,10 +617,11 @@ new class extends Component
                                                 'status-text--rose' => $state === 'voided',
                                             ])
                                             data-points-ledger-state="{{ $state }}"
+                                            data-points-ledger-strike
                                         >{{ __('workflow.common.ledger_state.'.$state) }}</span>
                                     </td>
                                 @endif
-                                @if ($stateFilter !== 'active')
+                                @if (! $archiveReadOnly && $stateFilter !== 'active')
                                     <td class="points-ledger-col--void-reason max-w-xs px-3 py-4 text-neutral-300">
                                         @if ($transaction->voided_at)
                                             <div class="line-clamp-2">{{ $transaction->void_reason ?: __('crud.common.not_available') }}</div>
@@ -599,9 +632,9 @@ new class extends Component
                                 @endif
                                 <td class="points-ledger-col--actions px-3 py-4">
                                     <div class="flex flex-wrap justify-center gap-2">
-                                        @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at)
+                                        @if (! $archiveReadOnly && auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at)
                                             <button type="button" wire:click="editManual({{ $transaction->id }})" class="admin-icon-button points-ledger-action" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>
-                                        @elseif (auth()->user()->can('points.void') && ! $transaction->voided_at)
+                                        @elseif (! $archiveReadOnly && auth()->user()->can('points.void') && ! $transaction->voided_at)
                                             <button type="button" wire:click="openVoidModal({{ $transaction->id }})" class="admin-icon-button admin-icon-button--danger points-ledger-action points-ledger-delete-action" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-points-ledger-delete-action><x-admin-action-icon name="delete" /></button>
                                         @endif
                                     </div>
@@ -619,7 +652,7 @@ new class extends Component
                         $sourceLabel = trans()->has($sourceTranslationKey)
                             ? __($sourceTranslationKey)
                             : str($transaction->source_type)->headline();
-                        $state = $transaction->effectiveState();
+                        $state = $archiveReadOnly ? 'active' : $transaction->effectiveState();
                     @endphp
                     <article
                         @class([
@@ -634,20 +667,28 @@ new class extends Component
                                 <div class="student-inline min-w-0">
                                     <x-student-avatar :student="$transaction->student" size="sm" />
                                     <div class="student-inline__body min-w-0">
-                                        <div class="record-person-name points-ledger-mobile__student-name">{{ $transaction->student->full_name }}</div>
+                                        <div class="record-person-name points-ledger-mobile__student-name" data-points-ledger-strike>{{ $transaction->student->full_name }}</div>
                                     </div>
                                 </div>
                             @else
-                                <span class="text-white">{{ __('crud.common.not_available') }}</span>
+                                <span class="text-white" data-points-ledger-strike>{{ __('crud.common.not_available') }}</span>
                             @endif
 
-                            <span class="status-text {{ $transaction->points >= 0 ? 'status-text--emerald' : 'status-text--rose' }}" data-points-ledger-value>
+                            <span
+                                @class([
+                                    'status-text',
+                                    'status-text--emerald' => $state !== 'voided' && $transaction->points >= 0,
+                                    'status-text--rose' => $state !== 'voided' && $transaction->points < 0,
+                                ])
+                                data-points-ledger-value
+                                data-points-ledger-strike
+                            >
                                 <bdi>{{ $transaction->points }}</bdi>
                             </span>
                         </div>
 
                         <div class="points-ledger-mobile__course">
-                            <span class="record-course-name">{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span>
+                            <span class="record-course-name" data-points-ledger-strike>{{ $transaction->enrollment?->group?->course?->name ?: __('workflow.common.no_course') }}</span>
                         </div>
 
                         <dl class="points-ledger-mobile__metrics">
@@ -655,20 +696,20 @@ new class extends Component
                                 <dt>{{ __('workflow.points.workbench.table.headers.entered_at') }}</dt>
                                 <dd>
                                     <span class="points-ledger-entered-at" dir="ltr">
-                                        <span>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y')) }}</span>
-                                        <span>{{ $transaction->entered_at?->format('H:i') }}</span>
+                                        <span data-points-ledger-strike>{{ \App\Support\DateDisplay::html($transaction->entered_at?->format('d-m-Y')) }}</span>
+                                        <span data-points-ledger-strike>{{ $transaction->entered_at?->format('H:i') }}</span>
                                     </span>
                                 </dd>
                             </div>
                             <div>
                                 <dt>{{ __('workflow.points.workbench.table.headers.type') }}</dt>
-                                <dd>{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</dd>
+                                <dd data-points-ledger-strike>{{ $transaction->pointType?->name ?: __('workflow.common.not_available') }}</dd>
                             </div>
                             <div>
                                 <dt>{{ __('workflow.points.workbench.table.headers.source') }}</dt>
-                                <dd>{{ $sourceLabel }}</dd>
+                                <dd data-points-ledger-strike>{{ $sourceLabel }}</dd>
                             </div>
-                            @if ($stateFilter === 'all')
+                            @if (! $archiveReadOnly && $stateFilter === 'all')
                                 <div>
                                     <dt>{{ __('workflow.points.workbench.table.headers.state') }}</dt>
                                     <dd>
@@ -680,11 +721,12 @@ new class extends Component
                                                 'status-text--rose' => $state === 'voided',
                                             ])
                                             data-points-ledger-state="{{ $state }}"
+                                            data-points-ledger-strike
                                         >{{ __('workflow.common.ledger_state.'.$state) }}</span>
                                     </dd>
                                 </div>
                             @endif
-                            @if ($stateFilter !== 'active')
+                            @if (! $archiveReadOnly && $stateFilter !== 'active')
                                 <div class="points-ledger-mobile__void-reason">
                                     <dt>{{ __('workflow.points.workbench.table.headers.void_reason') }}</dt>
                                     <dd>{{ $transaction->voided_at ? ($transaction->void_reason ?: __('crud.common.not_available')) : __('crud.common.not_available') }}</dd>
@@ -692,7 +734,7 @@ new class extends Component
                             @endif
                         </dl>
 
-                        @if ((auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at) || (auth()->user()->can('points.void') && ! $transaction->voided_at))
+                        @if (! $archiveReadOnly && ((auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual' && ! $transaction->voided_at) || (auth()->user()->can('points.void') && ! $transaction->voided_at)))
                             <div class="points-ledger-mobile__actions">
                                 @if (auth()->user()->can('points.create-manual') && $transaction->source_type === 'manual')
                                     <button type="button" wire:click="editManual({{ $transaction->id }})" class="admin-icon-button points-ledger-action" title="{{ __('workflow.common.actions.edit') }}" aria-label="{{ __('workflow.common.actions.edit') }}"><x-admin-action-icon name="edit" /></button>

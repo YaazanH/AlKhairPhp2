@@ -15,13 +15,17 @@ use App\Http\Controllers\FinanceInvoicePrintController;
 use App\Http\Controllers\FinanceRequestPrintController;
 use App\Http\Controllers\IdCards\IdCardBarcodePreviewController;
 use App\Http\Controllers\IdCards\IdCardTemplateController;
+use App\Http\Controllers\OfflineAttendanceSyncController;
 use App\Http\Controllers\Platform\PlanManagementController;
 use App\Http\Controllers\Platform\PlatformAccessController;
 use App\Http\Controllers\Platform\PlatformAuthenticatedSessionController;
+use App\Http\Controllers\Platform\PlatformBillingController;
 use App\Http\Controllers\Platform\PlatformDashboardController;
+use App\Http\Controllers\Platform\PlatformEnquiryController;
 use App\Http\Controllers\Platform\PlatformLandingPageController;
 use App\Http\Controllers\Platform\PlatformMetricsController;
 use App\Http\Controllers\Platform\PlatformRequiredPasswordChangeController;
+use App\Http\Controllers\Platform\PlatformSettingsController;
 use App\Http\Controllers\Platform\PlatformSubscriptionSettingController;
 use App\Http\Controllers\Platform\PlatformSupportAttachmentController;
 use App\Http\Controllers\Platform\PlatformSupportCaseController;
@@ -31,6 +35,7 @@ use App\Http\Controllers\Platform\StorageUsageController;
 use App\Http\Controllers\Platform\SubscriptionReceiptController;
 use App\Http\Controllers\Platform\SubscriptionVoucherController;
 use App\Http\Controllers\Platform\TenantBackupController as PlatformTenantBackupController;
+use App\Http\Controllers\Platform\TenantDirectoryController;
 use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
@@ -80,8 +85,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware(['platform.auth', 'platform.password-change'])->group(function (): void {
-        Route::get('settings', \App\Http\Controllers\Platform\PlatformSettingsController::class)->name('settings.index');
-        Route::get('tenants', \App\Http\Controllers\Platform\TenantDirectoryController::class)->middleware('platform.permission:view.tenants,manage.tenants')->name('tenants.index');
+        Route::get('settings', PlatformSettingsController::class)->name('settings.index');
+        Route::get('tenants', TenantDirectoryController::class)->middleware('platform.permission:view.tenants,manage.tenants')->name('tenants.index');
         Route::get('access', [PlatformAccessController::class, 'index'])->middleware('platform.permission:manage.platform-users')->name('access.index');
         Route::get('access/users/{administrator}/edit', [PlatformAccessController::class, 'editAdministrator'])->middleware('platform.permission:manage.platform-users')->name('access.users.edit');
         Route::get('access/roles', [PlatformAccessController::class, 'roles'])->middleware('platform.owner')->name('access.roles.index');
@@ -112,8 +117,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('support', [PlatformSupportCaseController::class, 'index'])->name('support.index');
         Route::get('support/feature-groups', [PlatformSupportCaseController::class, 'groups'])->name('support.groups');
         Route::get('support/cases/{case}', [PlatformSupportCaseController::class, 'show'])->name('support.show');
-        Route::get('enquiries', [\App\Http\Controllers\Platform\PlatformEnquiryController::class, 'index'])->middleware('platform.permission:manage.landing-page')->name('enquiries.index');
-        Route::get('enquiries/{enquiry}', [\App\Http\Controllers\Platform\PlatformEnquiryController::class, 'show'])->middleware('platform.permission:manage.landing-page')->name('enquiries.show');
+        Route::get('enquiries', [PlatformEnquiryController::class, 'index'])->middleware('platform.permission:manage.landing-page')->name('enquiries.index');
+        Route::get('enquiries/{enquiry}', [PlatformEnquiryController::class, 'show'])->middleware('platform.permission:manage.landing-page')->name('enquiries.show');
         Route::get('support/settings', [PlatformSupportSettingController::class, 'edit'])->middleware('platform.permission:manage.support.problems')->name('support.settings.edit');
         Route::put('support/settings', [PlatformSupportSettingController::class, 'update'])->middleware('platform.permission:manage.support.problems')->name('support.settings.update');
         Route::put('support/{case}', [PlatformSupportCaseController::class, 'update'])->name('support.update');
@@ -127,8 +132,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('backups/{tenantBackup}/download', [PlatformTenantBackupController::class, 'download'])->middleware('platform.permission:view.backups')->name('backups.download');
         Route::post('backups/{tenantBackup}/restore', [PlatformTenantBackupController::class, 'restore'])->middleware('platform.permission:restore.backups')->name('backups.restore');
         Route::get('vouchers', [SubscriptionVoucherController::class, 'index'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('vouchers.index');
-        Route::get('billing', [\App\Http\Controllers\Platform\PlatformBillingController::class, 'subscriptions'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('billing.index');
-        Route::get('billing/payments', [\App\Http\Controllers\Platform\PlatformBillingController::class, 'payments'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('billing.payments');
+        Route::get('billing', [PlatformBillingController::class, 'subscriptions'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('billing.index');
+        Route::get('billing/payments', [PlatformBillingController::class, 'payments'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('billing.payments');
         Route::post('vouchers', [SubscriptionVoucherController::class, 'store'])->middleware('platform.permission:manage.subscriptions')->name('vouchers.store');
         Route::patch('vouchers/{voucher}/status', [SubscriptionVoucherController::class, 'status'])->middleware('platform.permission:manage.subscriptions')->name('vouchers.status');
         Route::get('subscription-settings', [PlatformSubscriptionSettingController::class, 'edit'])->middleware('platform.permission:view.subscriptions,manage.subscriptions')->name('subscription-settings.edit');
@@ -224,6 +229,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('support/manage', [TenantSupportRequestController::class, 'manage'])->middleware('permission:support.manage')->name('support.manage');
     Route::put('support/manage/{supportRequest}', [TenantSupportRequestController::class, 'update'])->middleware('permission:support.manage')->name('support.update');
 
+    Route::post('attendance/offline-sync', OfflineAttendanceSyncController::class)->name('attendance.offline-sync');
     Route::get('address-suggestions', AddressSuggestionController::class)
         ->middleware(['permission:parents.create|parents.update|students.create|students.update', 'throttle:30,1'])
         ->name('address-suggestions');
@@ -319,6 +325,8 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('students/progress/{student?}', 'students.progress')->middleware('permission:students.view')->name('students.progress');
     Volt::route('students/{student}/files', 'students.files')->middleware('permission:students.view')->name('students.files');
     Volt::route('courses', 'courses.index')->middleware('permission:courses.view')->name('courses.index');
+    Volt::route('courses/{course}/archive-overview', 'courses.archive-overview')->middleware('permission:courses.view')->name('courses.archive-overview');
+    Volt::route('courses/{course}/archive-overview/groups/{group}', 'groups.show')->middleware(['permission:courses.view', 'permission:groups.view'])->name('courses.archive-overview.groups.show');
     Route::get('courses/{course}/calendar.pdf', CourseCalendarPdfController::class)->middleware('permission:courses.view')->name('courses.calendar.pdf');
     Volt::route('courses/{course}/end', 'courses.end')->middleware('permission:courses.view')->name('courses.end');
     Volt::route('courses/{course}/end/point-market', 'courses.point-market')->middleware(['tenant.feature:finance', 'permission:courses.view', 'permission:finance.expense-requests.view'])->name('courses.end.point-market');
@@ -329,18 +337,18 @@ Route::middleware(['auth'])->group(function () {
     Route::post('courses/{course}/end/report-cards/preview', [PrintTemplatePrintController::class, 'previewCourseReportCards'])->middleware(['permission:courses.view', 'permission:print-templates.print'])->name('courses.end.report-cards.preview');
     Route::patch('courses/{course}/end/report-cards/notes/{enrollment}', [PrintTemplatePrintController::class, 'updateCourseReportNote'])->middleware(['permission:courses.view', 'permission:print-templates.print'])->name('courses.end.report-cards.notes.update');
     Route::get('courses/export', [AdminExportController::class, 'courses'])->middleware('permission:courses.view')->name('courses.export');
-    Volt::route('groups/{group}/attendance', 'groups.attendance')->middleware('permission:attendance.student.view')->name('groups.attendance');
+    Volt::route('groups/{group}/attendance', 'groups.attendance')->middleware(['permission:attendance.student.view', 'active-group'])->name('groups.attendance');
     Volt::route('student-attendance', 'student-attendance.index')->middleware('permission:attendance.student.view')->name('student-attendance.index');
     Volt::route('student-attendance/center/days/{studentAttendanceDay}', 'student-attendance.center-show')->middleware('permission:attendance.student.view')->name('student-attendance.center.show');
     Volt::route('student-attendance/groups/{groupAttendanceDay}', 'student-attendance.mark')->middleware('permission:attendance.student.view')->name('student-attendance.mark');
     Volt::route('student-attendance/days/{studentAttendanceDay}', 'student-attendance.show')->middleware('permission:attendance.student.view')->name('student-attendance.show');
     Volt::route('student-attendance/days/{studentAttendanceDay}/quick', 'student-attendance.quick')->middleware('permission:attendance.student.view')->name('student-attendance.quick');
     Volt::route('groups', 'groups.index')->middleware('permission:groups.view')->name('groups.index');
-    Volt::route('groups/{group}/schedules', 'groups.schedules')->middleware('permission:groups.view')->name('groups.schedules');
+    Volt::route('groups/{group}/schedules', 'groups.schedules')->middleware(['permission:groups.view', 'active-group'])->name('groups.schedules');
     Route::get('groups/export', [AdminExportController::class, 'groups'])->middleware('permission:groups.view')->name('groups.export');
-    Route::get('groups/{group}/roster/export', [AdminExportController::class, 'groupRoster'])->middleware('permission:groups.view')->name('groups.roster.export');
+    Route::get('groups/{group}/roster/export', [AdminExportController::class, 'groupRoster'])->middleware(['permission:groups.view', 'active-group'])->name('groups.roster.export');
     Route::get('groups/{group}/roster/pdf', [AdminExportController::class, 'groupRosterPdf'])->middleware('permission:groups.view')->name('groups.roster.pdf');
-    Volt::route('groups/{group}', 'groups.show')->middleware('permission:groups.view')->name('groups.show');
+    Volt::route('groups/{group}', 'groups.show')->middleware(['permission:groups.view', 'active-group'])->name('groups.show');
     Volt::route('curricula', 'curricula.index')->name('curricula.index');
     Volt::route('curricula/{curriculum}', 'curricula.show')->name('curricula.show');
     Route::get('curriculum-resources/{resource}/download', CurriculumResourceDownloadController::class)->name('curriculum-resources.download');

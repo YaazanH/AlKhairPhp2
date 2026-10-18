@@ -13,6 +13,7 @@ use App\Models\CurriculumSubject;
 use App\Models\CurriculumSubjectDefinition;
 use App\Models\Enrollment;
 use App\Models\Group;
+use App\Models\Landlord\Plan;
 use App\Models\Landlord\Tenant;
 use App\Models\LearningProgressionLevel;
 use App\Models\ParentProfile;
@@ -26,7 +27,11 @@ use App\Services\MemorizationService;
 use App\Services\QuranFinalTestService;
 use App\Services\QuranPartialTestService;
 use App\Services\SidebarNavigationService;
+use Database\Seeders\LandlordCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use LogicException;
@@ -334,14 +339,20 @@ class LearningProgressionTest extends TestCase
 
     private function useLearningPath(string $learningPath): void
     {
-        app(TenantContext::class)->set(new Tenant([
-            'uuid' => 'learning-path-test-tenant',
+        config()->set('database.connections.landlord', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true]);
+        DB::purge('landlord');
+        Artisan::call('migrate', ['--database' => 'landlord', '--path' => database_path('migrations/landlord'), '--realpath' => true, '--force' => true]);
+        $this->seed(LandlordCatalogSeeder::class);
+        $tenant = Tenant::create([
+            'uuid' => (string) Str::uuid(),
             'name' => 'Learning Path Test Tenant',
             'slug' => 'learning-path-test',
             'database_name' => 'learning_path_test',
             'status' => Tenant::STATUS_ACTIVE,
             'learning_path_type' => $learningPath,
-        ]));
+        ]);
+        $tenant->subscription()->create(['plan_id' => Plan::where('code', 'core')->sole()->id, 'status' => 'active']);
+        app(TenantContext::class)->set($tenant);
     }
 
     private function studentEnrollment(): array

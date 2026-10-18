@@ -3,6 +3,7 @@
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Livewire\Concerns\AuthorizesTeacherAssignments;
 use App\Models\AttendanceStatus;
+use App\Models\Course;
 use App\Models\Group;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
@@ -20,6 +21,10 @@ new class extends Component
 
     public bool $unified = false;
 
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
     public TeacherAttendanceDay $currentDay;
 
     public string $day_status = 'open';
@@ -32,15 +37,19 @@ new class extends Component
 
     public array $selected_statuses = [];
 
-    public function mount(TeacherAttendanceDay $teacherAttendanceDay, bool $unified = false): void
+    public function mount(TeacherAttendanceDay $teacherAttendanceDay, bool $unified = false, ?int $archiveCourseId = null, bool $archiveReadOnly = false): void
     {
         $this->unified = $unified;
+        $this->archiveCourseId = $archiveCourseId;
+        $this->archiveReadOnly = $archiveReadOnly;
         $this->authorizePermission('attendance.teacher.view');
 
-        $this->currentDay = $this->scopeTeacherAttendanceDaysQuery(
-            TeacherAttendanceDay::query()
-        )
-            ->where(function ($dayQuery): void {
+        $dayQuery = $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query());
+        if ($this->archiveCourseId) {
+            $dayQuery->where(fn ($query) => $query->where('course_id', $this->archiveCourseId)
+                ->orWhereHas('records', fn ($records) => $records->where('archived_course_id', $this->archiveCourseId)));
+        } else {
+            $dayQuery->where(function ($dayQuery): void {
                 $dayQuery
                     ->whereHas('course', fn ($courseQuery) => $courseQuery->whereNull('finished_at'))
                     ->orWhere(function ($legacyDayQuery): void {
@@ -52,8 +61,9 @@ new class extends Component
                                     ->orWhereHas('records', fn ($query) => $query->whereNull('course_finished_at'));
                             });
                     });
-            })
-            ->findOrFail($teacherAttendanceDay->id);
+            });
+        }
+        $this->currentDay = $dayQuery->findOrFail($teacherAttendanceDay->id);
 
         $this->authorizeScopedTeacherAttendanceDayAccess($this->currentDay);
         $this->loadDay();
@@ -63,7 +73,10 @@ new class extends Component
     {
         $day = $this->currentDay->fresh([
             'records' => fn ($query) => $this->scopeTeacherAttendanceRecordsQuery(
-                $query->with(['teacher.accessRole', 'status'])->whereNull('course_finished_at')
+                $query->with(['teacher.accessRole', 'status'])
+                    ->when($this->archiveCourseId,
+                        fn ($records) => $records->where(fn ($scoped) => $scoped->where('archived_course_id', $this->archiveCourseId)->orWhereNotNull('course_finished_at')),
+                        fn ($records) => $records->whereNull('course_finished_at'))
             ),
         ]);
 
@@ -85,7 +98,9 @@ new class extends Component
                 TeacherAttendanceRecord::query()
                     ->with('status:id,is_present')
                     ->whereIn('teacher_id', $existingTeacherIds)
-                    ->whereNull('course_finished_at')
+                    ->when($this->archiveCourseId,
+                        fn ($records) => $records->where(fn ($scoped) => $scoped->where('archived_course_id', $this->archiveCourseId)->orWhereNotNull('course_finished_at')),
+                        fn ($records) => $records->whereNull('course_finished_at'))
                     ->whereHas('attendanceDay', function ($query) use ($day): void {
                         $query->whereDate('attendance_date', '<=', $day->attendance_date);
 
@@ -115,6 +130,9 @@ new class extends Component
 
         return [
             'dayRecord' => $day,
+            'archiveCourseName' => $this->archiveCourseId
+                ? Course::query()->whereKey($this->archiveCourseId)->value('name')
+                : null,
             'teacherRecords' => $teacherRecords,
             'teacherAttendancePercentages' => $teacherAttendancePercentages,
             'availableExtraTeachers' => $this->availableTeachersScopeQuery()->where('status', 'active')
@@ -140,6 +158,7 @@ new class extends Component
 
     public function saveAttendance(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
         abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
@@ -199,6 +218,7 @@ new class extends Component
 
     public function saveDaySummary(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
 
         $validated = $this->validate([
@@ -216,6 +236,7 @@ new class extends Component
 
     public function toggleDayStatus(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
 
         $this->closeManualTeacherModal();
@@ -235,6 +256,7 @@ new class extends Component
 
     public function saveTeacherStatus(int $teacherId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
         abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
         abort_if(
@@ -293,6 +315,7 @@ new class extends Component
 
     public function addManualTeacher(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
         abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
@@ -322,6 +345,7 @@ new class extends Component
 
     public function removeTeacher(int $teacherId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
         abort_if($this->currentDay->fresh()->status === 'closed', 409, __('workflow.teacher_attendance.errors.day_closed'));
 
@@ -354,6 +378,7 @@ new class extends Component
 
     public function deleteDay(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('attendance.teacher.take');
         abort_if(
             $this->currentDay->records()->whereNotNull('course_finished_at')->exists(),
@@ -371,14 +396,19 @@ new class extends Component
 
     protected function loadDay(): void
     {
-        app(TeacherAttendanceDayService::class)->fillMissingStatuses(
-            $this->currentDay,
-            $this->defaultTeacherAttendanceStatusId(),
-        );
+        if (! $this->archiveReadOnly) {
+            app(TeacherAttendanceDayService::class)->fillMissingStatuses(
+                $this->currentDay,
+                $this->defaultTeacherAttendanceStatusId(),
+            );
+        }
 
         $this->currentDay = $this->scopeTeacherAttendanceDaysQuery(
             TeacherAttendanceDay::query()->with([
-                'records' => fn ($query) => $query->whereNull('course_finished_at'),
+                'records' => fn ($query) => $query
+                    ->when($this->archiveCourseId,
+                        fn ($records) => $records->where(fn ($scoped) => $scoped->where('archived_course_id', $this->archiveCourseId)->orWhereNotNull('course_finished_at')),
+                        fn ($records) => $records->whereNull('course_finished_at')),
             ])
         )->findOrFail($this->currentDay->id);
 
@@ -447,18 +477,47 @@ new class extends Component
     }
 }; ?>
 
-<div class="page-stack">
+<div
+    class="page-stack"
+    data-offline-attendance-root
+    data-sync-url="{{ route('attendance.offline-sync') }}"
+    data-sync-synced-label="{{ __('workflow.offline_attendance.synced') }}"
+    data-sync-pending-label="{{ __('workflow.offline_attendance.pending') }}"
+    data-sync-poor-label="{{ __('workflow.offline_attendance.poor_connection') }}"
+    data-sync-offline-label="{{ __('workflow.offline_attendance.offline_pending') }}"
+    data-sync-offline-ready-label="{{ __('workflow.offline_attendance.offline_ready') }}"
+    data-sync-conflict-label="{{ __('workflow.offline_attendance.conflict') }}"
+>
     <div class="attendance-day-header">
         <section class="page-hero attendance-day-hero p-6 lg:p-8">
             <div class="attendance-day-hero-layout flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <x-back-link :href="route('attendance.index')" navigate />
+                    <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', $archiveCourseId) : route('attendance.index')" navigate />
                     <div class="eyebrow mt-4">{{ __('ui.nav.tracking') }}</div>
                     <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.student_attendance.day_details.title') }}</h1>
+                    @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourseName]) }}</p>@endif
                 </div>
                 <div class="attendance-day-metrics"><div class="shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-teacher-attendance-day-date-metric>
-                    <div class="text-xs text-neutral-300">{{ __('workflow.teacher_attendance.form.attendance_date') }}</div>
-                    <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ \App\Support\DateDisplay::html($dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</bdi>
+                    <div class="attendance-day-date-content">
+                        <div class="attendance-day-date-title-row">
+                            <div class="text-xs text-neutral-300">
+                                <span class="attendance-day-date-label attendance-day-date-label--full">{{ __('workflow.teacher_attendance.form.attendance_date') }}</span>
+                                <span class="attendance-day-date-label attendance-day-date-label--compact">{{ __('workflow.student_attendance.days.table.headers.date') }}</span>
+                            </div>
+                            @if (! $archiveReadOnly && $dayRecord->status !== 'closed' && auth()->user()->can('attendance.teacher.take'))
+                                <span
+                                    class="offline-attendance-dot"
+                                    data-attendance-sync-state
+                                    data-state="synced"
+                                    role="status"
+                                    aria-live="polite"
+                                    aria-label="{{ __('workflow.offline_attendance.synced') }}"
+                                    title="{{ __('workflow.offline_attendance.synced') }}"
+                                ></span>
+                            @endif
+                        </div>
+                        <bdi dir="ltr" class="mt-1 block text-lg font-semibold text-emerald-100">{{ \App\Support\DateDisplay::html($dayRecord->attendance_date?->format('d-m-Y') ?: __('workflow.common.not_available')) }}</bdi>
+                    </div>
                 </div>
                 <div class="attendance-day-present-metric shrink-0 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center shadow-inner" data-attendance-present-count>
                     <div class="text-xs text-neutral-300">{{ __('attendance.present_teachers') }}</div>
@@ -472,7 +531,7 @@ new class extends Component
                 <x-attendance-type-switch selected="teachers" action="$parent.switchTab" />
             @endif
             <div class="attendance-day-navigation-actions">
-                    @can('attendance.teacher.take')
+                    @if (! $archiveReadOnly && auth()->user()->can('attendance.teacher.take'))
                         @php
                             $dayStatusActionLabel = $dayRecord->status === 'closed'
                                 ? __('workflow.student_attendance.day_details.controls.reopen_day')
@@ -493,7 +552,7 @@ new class extends Component
                                 <x-admin-action-icon name="delete" />
                             </button>
                         @endif
-                    @endcan
+                    @endif
             </div>
         </div>
     </div>
@@ -502,7 +561,7 @@ new class extends Component
         <div class="flash-success px-4 py-3 text-sm">{{ session('status') }}</div>
     @endif
 
-    @can('attendance.teacher.take')
+    @if (! $archiveReadOnly && auth()->user()->can('attendance.teacher.take'))
         <x-admin.modal
             :show="$showManualTeacherModal"
             :title="__('workflow.teacher_attendance.day_details.manual_add.title')"
@@ -526,12 +585,13 @@ new class extends Component
                 </div>
 
                 <div class="admin-action-cluster admin-action-cluster--end">
-                    <button type="button" wire:click="closeManualTeacherModal" class="pill-link pill-link--compact">{{ __('crud.common.actions.cancel') }}</button>
-                    <button type="submit" class="pill-link pill-link--accent pill-link--compact" @disabled($availableExtraTeachers->isEmpty())>{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}</button>
+                    <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}" aria-label="{{ __('workflow.teacher_attendance.day_details.manual_add.action') }}" @disabled($availableExtraTeachers->isEmpty()) data-teacher-attendance-manual-save>
+                        <x-admin-action-icon name="save" class="admin-modal-action__icon" />
+                    </button>
                 </div>
             </form>
         </x-admin.modal>
-    @endcan
+    @endif
 
     @can('attendance.teacher.take')
         @error('selected_statuses')
@@ -543,7 +603,10 @@ new class extends Component
         <div class="admin-grid-meta admin-grid-meta--controls attendance-day-toolbar teacher-attendance-toolbar">
             <div>
                 <div class="admin-grid-meta__title">{{ __('workflow.teacher_attendance.table.title') }}</div>
-                <div class="admin-grid-meta__summary">{{ trans_choice('workflow.teacher_attendance.table.summary', $stats['marked'], ['count' => number_format($stats['marked'])]) }}</div>
+                <div class="admin-grid-meta__summary">
+                    <span class="teacher-attendance-summary__present">{{ trans_choice('workflow.teacher_attendance.table.summary', $stats['marked'], ['count' => number_format($stats['marked'])]) }}</span>
+                    <span class="teacher-attendance-summary__listed">{{ trans_choice('workflow.teacher_attendance.stats.available_teachers', $stats['teachers'], ['count' => number_format($stats['teachers'])]) }}</span>
+                </div>
             </div>
             @can('attendance.teacher.take')
                 <div class="admin-toolbar__actions">
@@ -559,14 +622,32 @@ new class extends Component
         @if ($teacherRecords->isEmpty())
             <div class="admin-empty-state">{{ __('workflow.teacher_attendance.table.empty') }}</div>
         @else
-            <div class="overflow-x-auto overflow-y-visible">
+            <div class="teacher-attendance-table-scroll overflow-x-auto overflow-y-visible">
                 <table class="attendance-records-table teacher-attendance-records-table text-sm {{ $dayRecord->status === 'closed' ? 'teacher-attendance-records-table--closed' : '' }}" data-attendance-records>
+                    <colgroup>
+                        <col class="attendance-row-number">
+                        <col class="attendance-person-column">
+                        <col class="teacher-attendance-role-column">
+                        <col class="teacher-attendance-percentage-column">
+                        <col class="teacher-attendance-status-column">
+                        @can('attendance.teacher.take')
+                            @if ($dayRecord->status !== 'closed')
+                                <col class="teacher-attendance-actions-column">
+                            @endif
+                        @endcan
+                    </colgroup>
                     <thead>
                         <tr>
                             <th data-table-number-column scope="col" class="attendance-row-number px-3 py-4 text-center">#</th>
                             <th class="attendance-person-column px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.teacher') }}</th>
-                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('crud.teachers.table.headers.access_role') }}</th>
-                            <th class="attendance-desktop-only px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.percentage') }}</th>
+                            <th class="attendance-desktop-only teacher-attendance-role-column px-5 py-4 lg:px-6">
+                                <span class="teacher-attendance-heading-full">{{ __('crud.teachers.table.headers.access_role') }}</span>
+                                <span class="teacher-attendance-heading-tablet">{{ __('workflow.teacher_attendance.table.headers.role_short') }}</span>
+                            </th>
+                            <th class="attendance-desktop-only teacher-attendance-percentage-column px-5 py-4 text-left lg:px-6">
+                                <span class="teacher-attendance-heading-full">{{ __('workflow.teacher_attendance.table.headers.percentage') }}</span>
+                                <span class="teacher-attendance-heading-tablet">{{ __('workflow.teacher_attendance.table.headers.percentage_short') }}</span>
+                            </th>
                             <th class="teacher-attendance-status-column px-5 py-4 text-left lg:px-6">{{ __('workflow.teacher_attendance.table.headers.attendance') }}</th>
                             @can('attendance.teacher.take')
                                 @if ($dayRecord->status !== 'closed')
@@ -588,7 +669,13 @@ new class extends Component
                                         : __('ui.roles.'.$accessRoleName))
                                     : __('workflow.common.not_available'));
                             @endphp
-                            <tr wire:key="teacher-attendance-row-{{ $record->id }}-{{ $record->teacher_id }}">
+                            <tr
+                                wire:key="teacher-attendance-row-{{ $record->id }}-{{ $record->teacher_id }}"
+                                data-offline-attendance-row
+                                data-attendance-type="teacher"
+                                data-attendance-day-id="{{ $dayRecord->id }}"
+                                data-attendance-entity-id="{{ $record->teacher_id }}"
+                            >
                                 <td class="attendance-row-number px-3 py-4 text-center text-neutral-300">{{ $loop->iteration }}</td>
                                 <td class="attendance-person-column px-5 py-4 lg:px-6">
                                     <div class="student-inline student-inline--teacher-attendance">
@@ -599,8 +686,8 @@ new class extends Component
                                         </div>
                                     </div>
                                 </td>
-                                <td class="attendance-desktop-only px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
-                                <td class="attendance-desktop-only px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="{{ $teacherAttendancePercentages->get($record->teacher_id, 0) }}">
+                                <td class="attendance-desktop-only teacher-attendance-role-column px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
+                                <td class="attendance-desktop-only teacher-attendance-percentage-column px-5 py-4 text-neutral-200 lg:px-6" data-teacher-attendance-percentage="{{ $teacherAttendancePercentages->get($record->teacher_id, 0) }}">
                                     <bdi dir="ltr">{{ number_format($teacherAttendancePercentages->get($record->teacher_id, 0)) }}%</bdi>
                                 </td>
                                 <td class="teacher-attendance-status-column px-5 py-4 lg:px-6">
@@ -613,6 +700,8 @@ new class extends Component
                                                     wire:key="teacher-attendance-choice-{{ $record->id }}-{{ $attendanceStatus->id }}"
                                                     wire:click="chooseTeacherStatus({{ $record->teacher_id }}, {{ $attendanceStatus->id }})"
                                                     wire:loading.attr="disabled" wire:target="chooseTeacherStatus({{ $record->teacher_id }}, {{ $attendanceStatus->id }})"
+                                                    data-offline-attendance-choice
+                                                    data-attendance-status-id="{{ $attendanceStatus->id }}"
                                                     @disabled(! auth()->user()->can('attendance.teacher.take'))
                                                     aria-pressed="{{ (int) ($selected_statuses[$record->teacher_id] ?? 0) === $attendanceStatus->id ? 'true' : 'false' }}"
                                                     @class(['attendance-type-switch__option', 'attendance-type-switch__option--present' => $attendanceStatus->is_present, 'attendance-type-switch__option--absent' => ! $attendanceStatus->is_present])

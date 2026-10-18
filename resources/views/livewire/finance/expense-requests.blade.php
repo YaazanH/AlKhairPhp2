@@ -72,8 +72,11 @@ new class extends Component {
     public function with(): array
     {
         $canReview = auth()->user()?->can('finance.expense-requests.review') ?? false;
-        $cashBoxes = app(FinanceService::class)->accessibleCashBoxes(auth()->user())->get();
-        $currencies = app(FinanceService::class)->currenciesForCashBox()->get();
+        $financeService = app(FinanceService::class);
+        $cashBoxes = $financeService->accessibleCashBoxes(auth()->user())->get();
+        $currencies = $financeService->currenciesForCashBox($canReview ? $this->cash_box_id : null)
+            ->when($canReview && ! $this->cash_box_id, fn ($query) => $query->whereRaw('1 = 0'))
+            ->get();
         $finalisingRequest = $this->finalisingRequestId
             ? FinanceRequest::query()->with(['invoice.items', 'pullRequestKind', 'category', 'acceptedCurrency', 'requestedCurrency', 'postedTransaction.currency'])->find($this->finalisingRequestId)
             : null;
@@ -141,6 +144,18 @@ new class extends Component {
             'requested_reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $cashBox = null;
+
+        if ($canReview) {
+            $cashBox = app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user());
+
+            if (! app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($validated['currency_id'])->exists()) {
+                $this->addError('currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+                return;
+            }
+        }
+
         $request = FinanceRequest::query()->create([
             'request_no' => app(FinanceService::class)->nextRequestNumber(FinanceRequest::TYPE_EXPENSE),
             'type' => FinanceRequest::TYPE_EXPENSE,
@@ -154,9 +169,6 @@ new class extends Component {
         ]);
 
         if ($canReview) {
-            $cashBox = app(FinanceService::class)->cashBoxForUser((int) $validated['cash_box_id'], auth()->user());
-            $currencyWasAttached = $this->attachExpenseCurrency($cashBox, (int) $validated['currency_id']);
-
             try {
                 app(FinanceService::class)->acceptRequest(
                     $request,
@@ -168,9 +180,6 @@ new class extends Component {
                     auth()->user()?->can('finance.entries.update') ? $validated['request_date'] : null,
                 );
             } catch (ValidationException $exception) {
-                if ($currencyWasAttached) {
-                    $cashBox->currencies()->detach((int) $validated['currency_id']);
-                }
                 $request->delete();
                 $this->addError('amount', $this->firstValidationMessage($exception));
 
@@ -195,6 +204,28 @@ new class extends Component {
     {
         $this->resetCreateForm();
         $this->showCreateModal = false;
+    }
+
+    public function updatedCashBoxId(): void
+    {
+        if (! $this->cash_box_id) {
+            $this->currency_id = null;
+
+            return;
+        }
+
+        $currencies = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id);
+
+        if (! $this->currency_id || ! (clone $currencies)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = (clone $currencies)->value('id');
+        }
+    }
+
+    public function updatedCurrencyId(): void
+    {
+        if ($this->cash_box_id && $this->currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->whereKey($this->currency_id)->exists()) {
+            $this->currency_id = app(FinanceService::class)->currenciesForCashBox($this->cash_box_id)->value('id');
+        }
     }
 
     public function accept(int $requestId): void
@@ -713,13 +744,17 @@ new class extends Component {
         close-method="closeCreateModal"
         max-width="3xl"
     >
-        <form wire:submit="submitRequest" class="grid gap-4 lg:grid-cols-6" data-finance-entry-create-form>
-            <div class="lg:col-span-2"><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_pull_request_kind_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_expense_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div class="lg:col-span-4" data-finance-entry-amount><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="amount" currency-model="currency_id" :currencies="$currencies" :currency-live="false" />@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror @error('currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            @can('finance.entries.update')<div class="lg:col-span-3" data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-            @can('finance.expense-requests.review')<div class="lg:col-span-3" data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model="cash_box_id" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
-            <div class="lg:col-span-6" data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
-            <div class="lg:col-span-6 flex flex-wrap justify-end gap-3">
+        <form wire:submit="submitRequest" class="space-y-4" data-finance-entry-create-form>
+            <div class="finance-entry-form__row grid gap-4 lg:grid-cols-2" data-finance-entry-primary-row>
+                <div data-finance-entry-type><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.category') }}</label><select wire:model="finance_pull_request_kind_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_expense_kind') }}</option>@foreach ($pullKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select>@error('finance_pull_request_kind_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+                @can('finance.entries.update')<div data-finance-entry-date><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.entry_date') }}</label><input wire:model="request_date" type="date" class="w-full rounded-xl px-4 py-3 text-sm">@error('request_date') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
+            </div>
+            <div class="finance-entry-form__row grid gap-4 lg:grid-cols-2" data-finance-entry-value-row>
+                @can('finance.expense-requests.review')<div data-finance-entry-fund><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="cash_box_id" required aria-required="true" data-clearable="false" data-search-selection-required="true" data-hide-placeholder-option="true" class="w-full rounded-xl px-4 py-3 text-sm"><option value="">{{ __('finance.actions.choose_box') }}</option>@foreach ($cashBoxes as $box)<option value="{{ $box->id }}">{{ $box->name }}</option>@endforeach</select>@error('cash_box_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>@endcan
+                <div data-finance-entry-amount><label class="mb-1 block text-sm font-medium">{{ __('finance.fields.amount') }}</label><x-finance.amount-input amount-model="amount" currency-model="currency_id" :currencies="$currencies" :currency-live="false" />@error('amount') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror @error('currency_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            </div>
+            <div data-finance-entry-description><label class="mb-1 block text-sm font-medium">{{ __('finance.common.description') }}</label><textarea wire:model="requested_reason" rows="2" placeholder="{{ __('finance.common.description') }}" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>@error('requested_reason') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror</div>
+            <div class="flex flex-wrap justify-end gap-3">
                 <button type="button" wire:click="closeCreateModal" class="pill-link">{{ __('crud.common.actions.close') }}</button>
                 <button
                     type="submit"
@@ -748,9 +783,9 @@ new class extends Component {
                     <td class="px-4 py-3"><bdi dir="ltr" class="font-semibold text-white">{{ app(FinanceService::class)->formatCurrencyAmount($transaction->amount, $transaction->currency) }}</bdi></td>
                     <td class="px-4 py-3"><span class="status-chip {{ in_array($rowStatus, ['active', 'settled'], true) ? 'status-chip--emerald' : 'status-chip--amber' }}">{{ $request ? ($rowStatus === 'accepted' ? __('finance.expense_statuses.accepted') : __('finance.statuses.'.$rowStatus)) : ($rowStatus === 'active' ? __('finance.common.active') : $rowStatus) }}</span></td>
                     <td class="px-4 py-3"><div class="admin-action-cluster admin-action-cluster--end">
-                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.finalise') }}" aria-label="{{ __('finance.actions.finalise') }}" data-expense-finalise-action><x-admin-action-icon name="finalise" /></button>@endif
+                        @if ($request?->status === 'accepted')<button wire:click="openFinaliseModal({{ $request->id }})" class="admin-icon-button admin-icon-button--accent" title="{{ __('finance.actions.finalise') }}" aria-label="{{ __('finance.actions.finalise') }}" data-expense-finalise-action data-keep-visible-table-action><x-admin-action-icon name="finalise" /></button>@endif
                         @if ($request?->invoice)
-                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="admin-icon-button" title="{{ __('finance.actions.view_invoice') }}" aria-label="{{ __('finance.actions.view_invoice') }}" data-expense-receipt-action><x-admin-action-icon name="expense-invoice-view" /></button>
+                            <button wire:click="$set('viewingInvoiceId', {{ $request->invoice->id }})" class="admin-icon-button" title="{{ __('finance.actions.view_invoice') }}" aria-label="{{ __('finance.actions.view_invoice') }}" data-expense-receipt-action data-keep-visible-table-action><x-admin-action-icon name="expense-invoice-view" /></button>
                         @endif
                     </div></td>
                 </tr>
@@ -769,8 +804,8 @@ new class extends Component {
                     <div class="mt-1 text-sm text-neutral-300"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($finalisingRequest->accepted_amount, $finalisingRequest->acceptedCurrency) }}</bdi></div>
                 </div>
                 <form wire:submit="finaliseCountExpense" class="grid gap-4 md:grid-cols-2" data-count-finalisation-form>
-                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.final_count') }}</label><input wire:model="final_count" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('final_count')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
-                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.remaining_amount') }}</label><input wire:model="remaining_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('remaining_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.final_count') }}</label><input wire:model="final_count" data-thousand-separator placeholder="{{ __('finance.fields.final_count') }}" class="w-full rounded-xl px-4 py-3">@error('final_count')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                    <div><label class="mb-1 block text-sm">{{ __('finance.fields.remaining_amount') }}</label><input wire:model="remaining_amount" data-thousand-separator placeholder="{{ __('finance.fields.remaining_amount') }}" class="w-full rounded-xl px-4 py-3">@error('remaining_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     <div class="flex justify-end md:col-span-2"><button class="pill-link pill-link--accent">{{ __('finance.actions.finalise') }}</button></div>
                 </form>
             @else
@@ -786,8 +821,8 @@ new class extends Component {
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-3">
-                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" dir="ltr" class="w-full rounded-xl px-4 py-3" data-original-invoice-no-input></div>
-                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" class="w-full rounded-xl px-4 py-3"></div>
+                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.original_invoice_no') }}</label><input wire:model="original_invoice_no" dir="ltr" placeholder="{{ __('finance.fields.original_invoice_no') }}" class="w-full rounded-xl px-4 py-3" data-original-invoice-no-input></div>
+                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.invoice_issuer') }}</label><input wire:model="invoice_issuer" placeholder="{{ __('finance.fields.invoice_issuer') }}" class="w-full rounded-xl px-4 py-3"></div>
                         <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="invoice_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
                     </div>
 
@@ -802,7 +837,7 @@ new class extends Component {
                             @if ($invoice_image)
                                 <p class="mt-1 break-all text-sm" data-invoice-attachment-name>{{ $invoice_image->getClientOriginalName() }}</p>
                             @endif</div>
-                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.deduction') }}</label><input wire:model.live.debounce.300ms="invoice_deduction" data-thousand-separator class="w-full rounded-xl px-4 py-3">@error('invoice_deduction')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
+                        <div><label class="mb-1 block text-sm">{{ __('finance.fields.deduction') }}</label><input wire:model.live.debounce.300ms="invoice_deduction" data-thousand-separator placeholder="{{ __('finance.fields.deduction') }}" class="w-full rounded-xl px-4 py-3">@error('invoice_deduction')<div class="mt-1 text-sm text-red-400">{{ $message }}</div>@enderror</div>
                     </div>
 
                     <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/10" data-invoice-items-table>
@@ -816,9 +851,9 @@ new class extends Component {
                                             @php($editingLineAmount = round((float) str_replace(',', '', $invoice_item_quantity ?: '0') * (float) str_replace(',', '', $invoice_item_unit_price ?: '0'), 2))
                                             <tr wire:key="invoice-expense-item-edit-{{ $index }}" class="bg-emerald-400/[0.035]" data-invoice-item-edit-row>
                                                 <td class="px-3 py-3"><bdi dir="ltr">{{ $index + 1 }}</bdi></td>
-                                                <td class="px-3 py-3"><input wire:model="invoice_item_name" x-ref="invoiceItemName" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2" data-invoice-item-name-input>@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                                                <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                                                <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><input wire:model="invoice_item_name" x-ref="invoiceItemName" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" placeholder="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2" data-invoice-item-name-input>@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" placeholder="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                                <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" placeholder="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                                 <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($editingLineAmount, $finalisingRequest->acceptedCurrency) }}</bdi></td>
                                                 <td class="px-3 py-3"><div class="flex items-center justify-center gap-2">
                                                     <button type="button" wire:click="saveInvoiceItem" class="admin-icon-button admin-icon-button--accent" title="{{ __('crud.common.actions.save') }}" aria-label="{{ __('crud.common.actions.save') }}" data-invoice-item-save data-modal-action-icon-ignore><x-admin-action-icon name="save" /></button>
@@ -844,9 +879,9 @@ new class extends Component {
                                         @php($draftLineAmount = round((float) str_replace(',', '', $invoice_item_quantity ?: '0') * (float) str_replace(',', '', $invoice_item_unit_price ?: '0'), 2))
                                         <tr wire:key="invoice-expense-item-draft" class="bg-white/[0.025]" data-invoice-item-draft-row>
                                             <td class="px-3 py-3"><bdi dir="ltr">{{ count($invoice_items) + 1 }}</bdi></td>
-                                            <td class="px-3 py-3"><input wire:model="invoice_item_name" x-ref="invoiceItemName" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2" data-invoice-item-name-input>@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                                            <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
-                                            <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                            <td class="px-3 py-3"><input wire:model="invoice_item_name" x-ref="invoiceItemName" x-on:keydown.enter.prevent.stop="void 0" aria-label="{{ __('finance.fields.item_name') }}" placeholder="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2" data-invoice-item-name-input>@error('invoice_item_name')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                            <td class="px-3 py-3"><input wire:model="invoice_item_quantity" x-on:keydown.enter.prevent.stop="void 0" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.quantity') }}" placeholder="{{ __('finance.fields.quantity') }}" class="w-full min-w-24 rounded-lg px-3 py-2">@error('invoice_item_quantity')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
+                                            <td class="px-3 py-3"><input wire:model="invoice_item_unit_price" wire:keydown.enter.prevent.stop="saveInvoiceItem" wire:keydown.tab.prevent.stop="saveInvoiceItem" data-thousand-separator inputmode="decimal" aria-label="{{ __('finance.fields.unit_price') }}" placeholder="{{ __('finance.fields.unit_price') }}" class="w-full min-w-32 rounded-lg px-3 py-2">@error('invoice_item_unit_price')<div class="mt-1 text-xs text-red-400">{{ $message }}</div>@enderror</td>
                                             <td class="whitespace-nowrap px-3 py-3 font-semibold text-white"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($draftLineAmount, $finalisingRequest->acceptedCurrency) }}</bdi></td>
                                             <td class="px-3 py-3"></td>
                                         </tr>

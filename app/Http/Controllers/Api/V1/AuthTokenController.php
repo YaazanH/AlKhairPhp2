@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
+use App\Support\MobileUserData;
 use App\Support\PhoneNumberFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -53,14 +54,7 @@ class AuthTokenController extends Controller
             'abilities' => $abilities,
             'token' => $token->plainTextToken,
             'token_type' => 'Bearer',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'permissions' => $abilities,
-                'roles' => $user->getRoleNames()->values()->all(),
-                'username' => $user->username,
-                'teacher_id' => $user->teacherProfile?->id,
-            ],
+            'user' => MobileUserData::from($user, $abilities),
         ], 201);
     }
 
@@ -74,6 +68,16 @@ class AuthTokenController extends Controller
         abort_unless($token, 400, 'No current access token could be resolved.');
 
         $token->delete();
+
+        return response()->noContent();
+    }
+
+    /**
+     * Revoke every API token owned by the authenticated user.
+     */
+    public function destroyAll(Request $request)
+    {
+        $request->user()->tokens()->delete();
 
         return response()->noContent();
     }

@@ -219,6 +219,10 @@ class StudentAttendanceDayService
     {
         $this->assertAttendanceDayOpen($day->fresh());
 
+        if (! $enrollment->isEligibleForAttendanceOn($day->attendance_date)) {
+            throw new InvalidArgumentException(__('workflow.student_attendance.messages.enrollment_not_in_day'));
+        }
+
         $groupDay = GroupAttendanceDay::query()
             ->where('student_attendance_day_id', $day->id)
             ->where('group_id', $enrollment->group_id)
@@ -411,6 +415,7 @@ class StudentAttendanceDayService
             ->with('student')
             ->whereIn('group_id', $groupIds->all())
             ->where('status', 'active')
+            ->eligibleForAttendanceOn($attendanceDate)
             ->get();
 
         $ledger = app(PointLedgerService::class);

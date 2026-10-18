@@ -271,8 +271,23 @@ class CourseCalendarPdfTest extends TestCase
         $this->assertStringContainsString('data-course-calendar-pdf-action', $source);
         $this->assertStringContainsString('data-course-calendar-color-options', $source);
         $this->assertStringContainsString('data-course-calendar-entry-table', $source);
+        $this->assertStringContainsString('data-calendar-entry-kind="{{ $editingCalendarRow === $index ? \'form\' : \'record\' }}"', $source);
+        $this->assertStringContainsString('data-calendar-entry-kind="form"', $source);
+        $this->assertStringContainsString('calendar-entry-mobile-heading', $source);
         $this->assertStringContainsString('x-on:click="beginCalendarPdf()"', $source);
-        $this->assertStringContainsString('input:disabled + span::after', file_get_contents(resource_path('css/app.css')));
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('input:disabled + span::after', $styles);
+        $this->assertStringContainsString('tr[data-calendar-entry-kind="record"]', $styles);
+        $this->assertStringContainsString('grid-template-rows: 1fr;', $styles);
+        $this->assertMatchesRegularExpression('/\[data-course-calendar-entry-table\] tr\[data-calendar-entry-kind="record"\] \[data-calendar-entry-cell="name"\]\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;[^}]*align-self:\s*center;[^}]*transform:\s*translateY\(-\.65rem\);/s', $styles);
+        $this->assertMatchesRegularExpression('/\[data-course-calendar-entry-table\] tr\[data-calendar-entry-kind="record"\] \[data-calendar-entry-cell="date"\]\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;[^}]*transform:\s*translateY\(\.65rem\);/s', $styles);
+        $this->assertStringContainsString("[data-course-calendar-entry-table] tbody td {\n        display: block;", $styles);
+        $this->assertStringContainsString('background: transparent !important;', $styles);
+        $this->assertStringContainsString('data-course-calendar-mobile-form', $source);
+        $this->assertStringContainsString('course-calendar-mobile-form {', $styles);
+        $this->assertStringContainsString('display: none !important;', $styles);
+        $scripts = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString("table.closest('[data-course-calendar-entry-table]') && window.matchMedia('(max-width: 640px)').matches", $scripts);
 
         $calendarTemplate = file_get_contents(resource_path('views/reports/course-calendar.blade.php'));
         $this->assertStringContainsString("\$courseTitle = __('course_calendar.title', ['course' => \$courseName]);", $calendarTemplate);

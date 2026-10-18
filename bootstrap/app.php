@@ -5,9 +5,12 @@ use App\Http\Middleware\AuthenticatePlatform;
 use App\Http\Middleware\DiscardInvalidRememberCookie;
 use App\Http\Middleware\EnforcePlatformSupportAccess;
 use App\Http\Middleware\EnforceTenantStorageQuota;
+use App\Http\Middleware\EnsureApiUserIsActive;
+use App\Http\Middleware\EnsureGroupIsAccessible;
 use App\Http\Middleware\EnsureNoTenantContext;
 use App\Http\Middleware\EnsureTenantFeature;
 use App\Http\Middleware\EnsureTenantModules;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\MeasurePerformance;
 use App\Http\Middleware\PreventPageCaching;
 use App\Http\Middleware\RedirectToCanonicalHost;
@@ -17,6 +20,7 @@ use App\Http\Middleware\RequirePlatformPasswordChange;
 use App\Http\Middleware\RequirePlatformPermission;
 use App\Http\Middleware\RequireTenantPasswordChange;
 use App\Http\Middleware\ResolveTenantFromHost;
+use App\Http\Middleware\SetApiLocale;
 use App\Http\Middleware\SetLocale;
 use App\Support\PlatformWorkspaceNavigation;
 use Illuminate\Foundation\Application;
@@ -69,13 +73,18 @@ return Application::configure(basePath: dirname(__DIR__))
             MeasurePerformance::class,
         ]);
 
-        $middleware->api(append: [EnforcePlatformSupportAccess::class, EnsureTenantModules::class]);
+        $middleware->api(append: [RequireTenantPasswordChange::class, EnforcePlatformSupportAccess::class, EnsureTenantModules::class, EnforceTenantStorageQuota::class]);
+        $middleware->api(prepend: [
+            ForceJsonResponse::class,
+            SetApiLocale::class,
+        ]);
 
         // Resolve the selected language before CSRF checks, authentication,
         // and route bindings can reject a request.
         $middleware->appendToPriorityList(StartSession::class, SetLocale::class);
 
         $middleware->alias([
+            'api.active' => EnsureApiUserIsActive::class,
             'no-store' => PreventPageCaching::class,
             'platform.auth' => AuthenticatePlatform::class,
             'platform.permission' => RequirePlatformPermission::class,
@@ -83,6 +92,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'platform.owner' => RequirePlatformOwner::class,
             'tenant.feature' => EnsureTenantFeature::class,
             'no-tenant' => EnsureNoTenantContext::class,
+            'active-group' => EnsureGroupIsAccessible::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

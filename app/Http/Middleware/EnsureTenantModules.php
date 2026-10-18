@@ -31,7 +31,8 @@ class EnsureTenantModules
 
         $response = $next($request);
 
-        if ($response instanceof JsonResponse && $request->is('api/v1/parent/*', 'api/v1/students', 'api/v1/students/*')) {
+        if ($response instanceof JsonResponse && $response->isSuccessful() && $request->is('api/v1/*')
+            && ($request->isMethod('GET') || $request->is('api/v1/parent/*', 'api/v1/students', 'api/v1/students/*'))) {
             $response->setData($access->filterPayload(
                 $response->getData(true),
                 $request->is('api/v1/parent/activities', 'api/v1/parent/activities/*'),
@@ -67,6 +68,36 @@ class EnsureTenantModules
         $route = $request->route()?->getName() ?? '';
         $path = $request->path();
         $modules = [];
+
+        $apiModules = [
+            'parents' => 'parents',
+            'teachers' => 'teachers',
+            'courses' => 'classes',
+            'memorization' => 'memorization',
+            'quran-tests' => 'quran_tests',
+            'quran-partial-tests' => 'quran_tests',
+            'quran-final-tests' => 'quran_tests',
+            'student-notes' => 'students',
+            'curricula' => 'curriculum',
+            'curriculum-resources' => 'curriculum',
+            'payments' => 'student_billing',
+            'finance' => 'finance',
+            'assessments' => 'assessments',
+        ];
+        foreach ($apiModules as $prefix => $module) {
+            if ($path === 'api/v1/'.$prefix || str_starts_with($path, 'api/v1/'.$prefix.'/')) {
+                $modules[] = $module;
+            }
+        }
+        if (preg_match('#^api/v1/enrollments/[^/]+/(quran-partial-tests|quran-final-tests)(?:/|$)#', $path)) {
+            $modules[] = 'quran_tests';
+        }
+        if (preg_match('#^api/v1/enrollments/[^/]+/points(?:/|$)#', $path)) {
+            $modules[] = 'points_rewards';
+        }
+        if (preg_match('#^api/v1/groups/[^/]+/curriculum$#', $path)) {
+            $modules[] = 'curriculum';
+        }
 
         $routeModules = [
             'parents.' => 'parents',

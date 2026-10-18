@@ -8,7 +8,7 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
-    $monthLabel = \App\Support\ArabicMonthFormatter::monthYearWithHijri(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::hijriMonthYearLabel(now());
     $brandName = app(\App\Support\BrandIdentity::class)->currentName();
 @endphp
 
@@ -17,7 +17,13 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body tenant-app-body" data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}">
+    <body
+        class="app-body tenant-app-body"
+        data-current-user-id="{{ auth()->id() }}"
+        data-attendance-sync-url="{{ route('attendance.offline-sync') }}"
+        data-attendance-sync-conflict-label="{{ __('workflow.offline_attendance.conflict') }}"
+        data-pdf-uploading-label="{{ __('curricula.fields.pdf_uploading') }}"
+    >
         @php
             $primaryRole = auth()->user()->primaryRoleName();
             $roleLabel = $primaryRole ? __('ui.roles.'.$primaryRole) : null;

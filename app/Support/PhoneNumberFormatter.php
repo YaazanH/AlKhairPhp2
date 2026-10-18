@@ -20,6 +20,21 @@ class PhoneNumberFormatter
             : null;
     }
 
+    public static function callable(mixed $value, string $defaultRegion = self::DEFAULT_REGION): ?string
+    {
+        $number = self::parse($value, $defaultRegion);
+
+        if (! $number) {
+            return null;
+        }
+
+        $phoneUtil = PhoneNumberUtil::getInstance();
+
+        return $phoneUtil->isValidNumber($number)
+            ? $phoneUtil->format($number, PhoneNumberFormat::E164)
+            : null;
+    }
+
     public static function normalizeOrOriginal(mixed $value, string $defaultRegion = self::DEFAULT_REGION): ?string
     {
         if (! filled($value)) {

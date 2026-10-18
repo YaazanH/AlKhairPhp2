@@ -9,6 +9,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+    /* Keep 7.9–8.3 inch portrait tablets, including the 744px iPad mini,
+       on the tablet/desktop content layout instead of the phone layout. */
+    --breakpoint-md: 43.75rem;
     --font-sans: 'DubaiApp2026', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'DubaiApp2026', ui-sans-serif, system-ui, sans-serif;
     --font-arabic: 'DubaiApp2026', 'Tahoma', sans-serif;
@@ -1306,6 +1309,7 @@ html:not(.dark) .app-backdrop__orb--plum {
 }
 
 .app-logo-period-lockup {
+    position: relative;
     justify-items: start;
     min-width: 0;
 }
@@ -1324,6 +1328,13 @@ html:not(.dark) .app-backdrop__orb--plum {
 .app-logo-period-title {
     width: max-content;
     max-width: 100%;
+}
+
+.app-logo-period-target {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: nowrap;
 }
 
 .app-logo-period-subtitle {
@@ -1956,8 +1967,9 @@ html:not(.dark) .page-hero::after {
 
 .group-show-detail :is(dt, dd) {
     min-width: 0;
+    max-width: 100%;
     white-space: nowrap;
-    overflow: clip;
+    overflow: hidden;
     text-overflow: ellipsis;
 }
 
@@ -2141,11 +2153,52 @@ html[dir='rtl'] .group-show-details {
     color: #6ee7b7;
     font-size: 1.1rem;
     font-weight: 700;
-    cursor: help;
+    cursor: default;
 }
 
 .group-curriculum-status--missing {
     color: #fca5a5;
+}
+
+.curriculum-progress-details-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.curriculum-progress-details-table__lesson {
+    width: 45%;
+}
+
+.curriculum-progress-details-table__chapter {
+    width: 10%;
+}
+
+.curriculum-progress-details-table__status {
+    width: 11%;
+}
+
+.curriculum-progress-details-table__date {
+    width: 19%;
+}
+
+.curriculum-progress-details-table__teacher {
+    width: 25%;
+}
+
+.curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__lesson {
+    width: 35%;
+}
+
+.curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__status {
+    width: 11%;
+}
+
+.curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__date {
+    width: 19%;
+}
+
+.curriculum-progress-details-table--with-chapter .curriculum-progress-details-table__teacher {
+    width: 25%;
 }
 
 .teacher-curriculum-book {
@@ -2337,7 +2390,7 @@ html:not(.dark) .teacher-curriculum-book__header {
     background: rgba(18, 109, 59, 0.055);
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .teacher-curriculum-table :is(th, td) {
         padding: 0.65rem 0.4rem;
     }
@@ -2404,6 +2457,202 @@ html:not(.dark) .teacher-curriculum-book__header {
     min-width: 0;
 }
 
+.student-progress-profile__photo-picker {
+    position: relative;
+    z-index: 4;
+    place-self: start;
+    width: 7rem;
+    height: 7rem;
+}
+
+.student-progress-profile__photo-picker > .student-progress-profile__photo {
+    width: 100%;
+    height: 100%;
+}
+
+.student-progress-photo-source-menu {
+    position: absolute;
+    z-index: 20;
+    inset-inline-start: 0;
+    top: calc(100% + .5rem);
+    width: max-content;
+    min-width: 10.5rem;
+    overflow: hidden;
+    border: 1px solid rgba(151, 219, 174, .22);
+    border-radius: .9rem;
+    background: rgba(5, 31, 17, .98);
+    padding: .3rem;
+    color: #f5f5f4;
+    box-shadow: 0 .9rem 2rem rgba(0, 0, 0, .34);
+    backdrop-filter: blur(18px);
+}
+
+.student-progress-photo-source-menu__option {
+    display: flex;
+    width: 100%;
+    cursor: pointer;
+    align-items: center;
+    gap: .65rem;
+    border-radius: .65rem;
+    padding: .65rem .75rem;
+    font-size: .9rem;
+    font-weight: 700;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+.student-progress-photo-source-menu__option:is(:hover, :focus-within) {
+    background: rgba(151, 219, 174, .12);
+    color: #d9f3e2;
+}
+
+.student-progress-photo-source-menu__option + .student-progress-photo-source-menu__option {
+    border-top: 1px solid rgba(151, 219, 174, .1);
+}
+
+.student-progress-photo-source-menu__option > svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: 0 0 1.15rem;
+}
+
+html:not(.dark) .student-progress-photo-source-menu {
+    border-color: rgba(18, 109, 59, .22);
+    background: rgba(247, 250, 244, .98);
+    color: #173f28;
+    box-shadow: 0 .9rem 2rem rgba(43, 62, 47, .22);
+}
+
+html:not(.dark) .student-progress-photo-source-menu__option:is(:hover, :focus-within) {
+    background: rgba(18, 109, 59, .09);
+    color: #126d3b;
+}
+
+.student-progress-parent-details-card-action {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    color: var(--app-muted);
+}
+
+.student-progress-parent-details-card-action:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.student-progress-parent-details-card-action__eye {
+    position: absolute;
+    inset-inline-end: .75rem;
+    top: .75rem;
+    width: .95rem;
+    height: .95rem;
+    opacity: 0;
+    transition: opacity 160ms ease, color 160ms ease;
+}
+
+.student-progress-parent-details-card-action:is(:hover, :focus-visible) .student-progress-parent-details-card-action__eye {
+    opacity: 1;
+}
+
+@media (max-width: 699px) {
+    .student-progress-parent-details-card-action {
+        inset: .5rem .5rem auto auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.05);
+        color: #d8ccb9;
+    }
+
+    html[dir='rtl'] .student-progress-parent-details-card-action {
+        inset: .5rem auto auto .5rem;
+    }
+
+    .student-progress-parent-details-card-action:is(:hover, :focus-visible) {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .student-progress-parent-details-card-action__eye {
+        position: static;
+        width: .875rem;
+        height: .875rem;
+        opacity: 1;
+    }
+
+    html:not(.dark) .student-progress-parent-details-card-action {
+        border-color: rgba(32, 91, 55, 0.12);
+        background: rgba(32, 91, 55, 0.05);
+        color: #526b57;
+    }
+
+    html:not(.dark) .student-progress-parent-details-card-action:is(:hover, :focus-visible) {
+        background: rgba(32, 91, 55, 0.1);
+        color: #14532d;
+    }
+}
+
+[data-student-progress-no-active-enrollment] .student-progress-current-group__warning-label {
+    color: rgb(254 202 202 / .72);
+}
+
+.student-progress-quick-enrollment-card-action {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    color: #fca5a5;
+}
+
+.student-progress-quick-enrollment-card-action:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.student-progress-quick-enrollment-card-action__plus {
+    position: absolute;
+    inset-inline-end: .75rem;
+    top: .75rem;
+    width: .95rem;
+    height: .95rem;
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+
+.student-progress-quick-enrollment-card-action:is(:hover, :focus-visible) .student-progress-quick-enrollment-card-action__plus {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .student-progress-quick-enrollment-card-action__plus {
+        opacity: 1;
+    }
+}
+
+html:not(.dark) [data-student-progress-no-active-enrollment] .student-progress-current-group__warning-label {
+    color: rgb(127 29 29 / .68);
+}
+
+html:not(.dark) .student-progress-quick-enrollment-card-action {
+    color: #991b1b;
+}
+
 html[dir='rtl'] :is(.student-progress-profile__birth-year, .student-progress-profile__last-recitation) {
     padding-inline-start: 1.25rem;
 }
@@ -2439,6 +2688,11 @@ html[dir='rtl'] :is(.student-progress-profile__birth-year, .student-progress-pro
         aspect-ratio: 1;
         align-self: start;
         justify-self: start;
+    }
+
+    .student-progress-profile__photo-picker {
+        width: 9.5rem;
+        height: 9.5rem;
     }
 
     html[dir='rtl'] .student-progress-hero__summary {
@@ -2544,7 +2798,7 @@ table.table-content--balanced > thead > tr:first-child > :is(th, td) {
     white-space: nowrap;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .app-main table:has(> thead > tr:first-child > [data-table-number-column]:first-child) > :is(thead, tbody, tfoot) > tr > :first-child {
         width: 3.75rem !important;
         min-width: 3.75rem;
@@ -2575,7 +2829,7 @@ table.table-content--balanced > thead > tr:first-child > :is(th, td) {
     pointer-events: none !important;
 }
 
-.balanced-table-measure-host table.table-content--measuring {
+.surface-table.balanced-table-measure-host table.table-content--measuring {
     width: max-content !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -2659,20 +2913,20 @@ html:not(.dark) .surface-table thead {
     overflow: visible;
 }
 
-/* Round the scroll viewport itself: the outer card must remain overflow-visible
-   for toolbar menus, especially on mobile. Inherit the responsive card radius. */
+/* Keep the lower edge of every table viewport square. This lets a highlighted
+   final record reach both horizontal edges when a short table sits inside a
+   taller card. The outer surface still supplies the real bottom corners when
+   the table reaches the card edge. */
 .surface-table > :is(.overflow-x-auto, .table-scroll-region) {
-    border-radius: inherit;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .surface-table > :is(.overflow-x-auto, .table-scroll-region):not(:first-child) {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
-}
-
-.surface-table > :is(.overflow-x-auto, .table-scroll-region):not(:last-child) {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
 }
 
 .surface-table > :is(.admin-grid-meta, .admin-toolbar):first-child {
@@ -2781,6 +3035,10 @@ html[dir='rtl'] .surface-table thead th > button[wire\:click^='sortBy'] {
     transition: background-color 160ms ease;
 }
 
+.app-main table > tbody > tr > td {
+    transition: background-color 160ms ease;
+}
+
 .app-main table > tbody > tr[data-single-row-action] {
     cursor: pointer;
 }
@@ -2810,7 +3068,7 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
     width: var(--single-row-action-column-width) !important;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .app-main table > tbody > tr[data-single-row-action] {
         cursor: default;
     }
@@ -2826,45 +3084,24 @@ table.table--single-row-actions > colgroup > col.single-row-action__visible-colu
 
 @media (hover: hover) and (pointer: fine) {
     .app-main table > tbody > tr:not(:has(> td:only-child[colspan])):hover {
+        background: transparent;
+    }
+
+    /* Painting every cell carries the highlight all the way to both horizontal
+       table edges in Safari. The real viewport/card supplies corner clipping
+       only when the row physically reaches an outer rounded corner. */
+    .app-main table > tbody > tr:not(:has(> td:only-child[colspan])):hover > td {
         background-color: rgba(151, 219, 174, 0.09);
     }
 
-    html:not(.dark) .app-main table > tbody > tr:not(:has(> td:only-child[colspan])):hover {
+    html:not(.dark) .app-main table > tbody > tr:not(:has(> td:only-child[colspan])):hover > td {
         background-color: rgba(22, 104, 57, 0.09);
     }
 
     /* A lone spanning cell is an empty-state message rather than a record. */
-    .app-main table > tbody > tr:only-child:has(> td:only-child[colspan]):hover {
+    .app-main table > tbody > tr:only-child:has(> td:only-child[colspan]):hover,
+    .app-main table > tbody > tr:only-child:has(> td:only-child[colspan]):hover > td {
         background-color: transparent;
-    }
-
-    /* Keep the final record highlight rectangular instead of letting the
-       rounded table viewport shape its lower corners. */
-    .app-main table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
-        background-color: transparent;
-        background-image: linear-gradient(rgba(151, 219, 174, 0.09), rgba(151, 219, 174, 0.09));
-        background-position: center;
-        background-repeat: no-repeat;
-        background-size: 100% 100%;
-        border-radius: 0;
-    }
-
-    html:not(.dark) .app-main table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
-        background-image: linear-gradient(rgba(22, 104, 57, 0.09), rgba(22, 104, 57, 0.09));
-    }
-
-    /* Paint the final progress-row highlight on its cells so it reaches both
-       table edges while the two outer corners follow the card border. */
-    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover {
-        background-image: none;
-    }
-
-    .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {
-        background-color: rgba(151, 219, 174, 0.09);
-    }
-
-    html:not(.dark) .app-main .student-progress-data-table table > tbody > tr:last-child:not(:has(> td:only-child[colspan])):hover > td {
-        background-color: rgba(22, 104, 57, 0.09);
     }
 
 }
@@ -2999,11 +3236,14 @@ body .attendance-text-menu + .searchable-select .searchable-select__button:is(:h
 .attendance-scanner__status .attendance-text-menu + .searchable-select .searchable-select__panel { inset-inline-start: auto; inset-inline-end: 0; width: max-content; min-width: 10rem; }
 html:not(.dark) body .attendance-text-menu + .searchable-select .searchable-select__button { background: transparent !important; color: #176b3d; box-shadow: none !important; }
 .attendance-scanner__camera { container-type: inline-size; position: relative; width: 100%; min-width: 0; margin-inline: auto; overflow: hidden; aspect-ratio: 4 / 3; border: 1px solid rgba(215, 241, 223, 0.22); border-radius: 1.5rem; background: radial-gradient(circle at 50% 45%, rgba(25, 82, 49, 0.5), transparent 48%), linear-gradient(160deg, #071c10 0%, #020906 100%); box-shadow: inset 0 0 0 0.3rem rgba(255, 255, 255, 0.025), 0 1.25rem 3rem rgba(0, 0, 0, 0.28); isolation: isolate; }
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .attendance-scanner__camera { aspect-ratio: 1; }
 }
 .attendance-scanner__camera video { position: absolute; z-index: 1; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; background: #020906; filter: saturate(0.9) contrast(1.04); transition: opacity 160ms ease; }
 .attendance-scanner__camera:is([data-camera-state='starting'], [data-camera-state='running']) video { opacity: 1; }
+.attendance-scanner__camera [data-quick-attendance-preview] { position: absolute; z-index: 1; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; background: #020906; transition: opacity 160ms ease; }
+.attendance-scanner__camera[data-camera-preview='canvas'] video { opacity: 0 !important; }
+.attendance-scanner__camera[data-camera-preview='canvas']:is([data-camera-state='starting'], [data-camera-state='running']) [data-quick-attendance-preview] { opacity: 1; }
 .attendance-scanner__frame { position: absolute; z-index: 2; top: 50%; left: 50%; width: 64%; max-width: 26rem; aspect-ratio: 1; filter: drop-shadow(0 0 0.75rem rgba(115, 220, 151, 0.16)); transform: translate(-50%, -50%); pointer-events: none; }
 .attendance-scanner__corner { position: absolute; width: 2.75rem; height: 2.75rem; border-color: #d9f3e2; border-style: solid; border-width: 0; }
 .attendance-scanner__corner--top-left { top: 0; left: 0; border-top-width: 0.22rem; border-left-width: 0.22rem; border-top-left-radius: 0.8rem; }
@@ -3813,8 +4053,10 @@ html:not([dir='rtl']) .exchange-entry-form__direction svg {
 }
 
 .exchange-to-amount-edit > svg {
+    display: block;
     width: 0.9rem;
     height: 0.9rem;
+    transform: translate(-0.04rem, 0.04rem);
 }
 
 .exchange-to-amount-value {
@@ -3832,7 +4074,7 @@ html:not([dir='rtl']) .exchange-to-amount-value {
     padding-left: 1rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .exchange-entry-form .finance-amount-input {
         grid-template-columns: 4.75rem minmax(0, 1fr);
         gap: 0.55rem;
@@ -3847,7 +4089,11 @@ html:not([dir='rtl']) .exchange-to-amount-value {
     }
 }
 
-@media (max-width: 767px) {
+.financial-transactions-header-search {
+    display: none;
+}
+
+@media (max-width: 699px) {
     .exchange-entry-form__flow,
     .exchange-entry-form__meta {
         grid-template-columns: minmax(0, 1fr);
@@ -4067,7 +4313,7 @@ html:not(.dark) .admin-toolbar__title {
     display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .reports-mobile-filter-trigger {
         display: inline-flex;
         flex: 0 0 auto;
@@ -4359,8 +4605,92 @@ html[dir='rtl'] :is(.admin-filter-field, .community-contacts-toolbar) :is(
     min-width: 12rem;
 }
 
+.attendance-days-toolbar__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.attendance-days-toolbar__filters > .admin-filter-field {
+    width: 12rem;
+    max-width: 100%;
+    flex: 0 0 12rem;
+}
+
+/* Keep every attendance heading on the same vertical axis as its row values. */
+.surface-table .attendance-days-table :is(th, td):is(.attendance-days-date, .attendance-days-course) {
+    text-align: start !important;
+}
+
+.surface-table .attendance-days-table .attendance-days-date > div,
+.surface-table .attendance-days-table .attendance-days-course > div {
+    width: 100%;
+    align-items: flex-start;
+}
+
+.surface-table .attendance-days-table :is(th, td):is(.attendance-days-metric, .attendance-days-status),
+html[dir='rtl'] .surface-table .attendance-days-table :is(th, td):is(.attendance-days-metric, .attendance-days-status) {
+    text-align: right !important;
+}
+
+.attendance-days-table .attendance-days-status__content {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.surface-table .attendance-days-table .attendance-days-actions > div {
+    justify-content: center !important;
+}
+
 .admin-modal-portal {
     display: contents;
+}
+
+html.application-modal-open,
+body.application-modal-open {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+
+html.application-modal-open .app-sidebar-scroll-region {
+    overflow-y: auto !important;
+}
+
+html.application-modal-open .app-sidebar-shell {
+    display: flex !important;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    align-self: flex-start;
+    z-index: 90;
+    pointer-events: auto;
+}
+
+@media (min-width: 1024px) {
+    html.application-modal-open .app-sidebar-shell {
+        position: fixed !important;
+        inset-block: 0;
+        inset-inline-start: 0;
+    }
+}
+
+html.application-modal-open .app-main {
+    z-index: auto;
+    overflow: visible;
+}
+
+@media (max-width: 699px) {
+    body.application-modal-open {
+        position: fixed;
+        top: calc(-1 * var(--application-modal-scroll-y, 0px));
+        right: 0;
+        left: 0;
+        width: 100%;
+    }
 }
 
 html[dir='rtl'] .admin-grid-meta {
@@ -4549,19 +4879,14 @@ html[dir='rtl'] .admin-grid-meta--controls .admin-toolbar__controls.admin-toolba
     white-space: nowrap;
 }
 
-.points-ledger-row--voided > td:not(.points-ledger-col--void-reason) {
-    position: relative;
-}
-
-.points-ledger-row--voided > td:not(.points-ledger-col--void-reason)::after {
-    content: '';
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    inset-inline: 0;
-    height: 1px;
-    background: rgba(215, 241, 223, 0.72);
-    pointer-events: none;
+.points-ledger-row--voided [data-points-ledger-strike],
+.points-ledger-mobile__item--voided [data-points-ledger-strike],
+.points-ledger-row--voided [data-points-ledger-strike] > :is(span, bdi),
+.points-ledger-mobile__item--voided [data-points-ledger-strike] > :is(span, bdi) {
+    text-decoration-line: line-through;
+    text-decoration-color: rgba(251, 113, 133, 0.72);
+    text-decoration-thickness: 0.075em;
+    text-decoration-skip-ink: none;
 }
 
 .assessment-results-dual {
@@ -4696,6 +5021,55 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     line-height: 1.5rem;
 }
 
+.student-progress-data-table--empty {
+    display: flex;
+    flex-direction: column;
+}
+
+.student-progress-data-table__empty {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+}
+
+.student-progress-latest-points-note-cell {
+    min-width: 0;
+}
+
+.student-progress-points-type-cell {
+    min-width: 0;
+    max-width: 10rem;
+}
+
+.student-progress-points-type {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.student-progress-latest-points-note {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+[data-student-progress-awqaf-details] dd {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .student-progress-data-table__expand {
     display: inline-flex;
     width: 1.5rem;
@@ -4730,14 +5104,6 @@ html[dir='rtl'] :is(.surface-table, .surface-panel:has(table)) :is(.admin-toolba
     width: 100%;
     height: 100%;
     flex: 0 0 100%;
-}
-
-/* Keep the table viewport square at its lower edge. The outer card clips the
-   highlight only when the record actually reaches the card's rounded bottom;
-   a shorter table inside an equal-height grid card therefore stays square. */
-.student-progress-data-table > [data-table-scroll-region] {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
 }
 
 .admin-grid-meta__summary {
@@ -5267,6 +5633,13 @@ html:not(.dark) .app-pagination__page--dots {
     align-items: start;
 }
 
+@media (min-width: 700px) {
+    .dashboard-curriculum-hotbars {
+        grid-auto-flow: column;
+        grid-template-rows: repeat(var(--dashboard-curriculum-row-count), minmax(0, auto));
+    }
+}
+
 .dashboard-curriculum-hotbar {
     display: grid;
     min-width: 0;
@@ -5363,6 +5736,13 @@ html:not(.dark) .app-pagination__page--dots {
     transition: box-shadow 140ms ease;
 }
 
+button.dashboard-curriculum-hotbar__marker {
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+}
+
 .dashboard-curriculum-hotbar__marker:hover,
 .dashboard-curriculum-hotbar__marker:focus-visible {
     top: calc(50% - 0.5rem);
@@ -5388,6 +5768,18 @@ html:not(.dark) .app-pagination__page--dots {
     font-weight: 500;
 }
 
+.dashboard-curriculum-hotbar[data-curriculum-pace='ahead'] .dashboard-curriculum-hotbar__tooltip span {
+    color: #a7f3d0;
+}
+
+.dashboard-curriculum-hotbar[data-curriculum-pace='behind'][data-progress-tone='warning'] .dashboard-curriculum-hotbar__tooltip span {
+    color: #fde68a;
+}
+
+.dashboard-curriculum-hotbar[data-curriculum-pace='behind'][data-progress-tone='danger'] .dashboard-curriculum-hotbar__tooltip span {
+    color: #fecdd3;
+}
+
 html:not(.dark) .dashboard-curriculum-hotbar__track {
     background: rgba(20, 70, 42, 0.1);
     box-shadow: inset 0 0 0 1px rgba(20, 70, 42, 0.08);
@@ -5398,7 +5790,7 @@ html:not(.dark) .dashboard-curriculum-hotbar__group:focus-visible {
     color: #0b8f43;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .dashboard-curriculum-hotbars::before {
         content: '';
         position: absolute;
@@ -5420,7 +5812,7 @@ html:not(.dark) .dashboard-curriculum-hotbar__group:focus-visible {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .dashboard-curriculum-hotbar {
         grid-template-columns: var(--dashboard-curriculum-identity-width, max-content) max-content minmax(7rem, 1fr);
     }
@@ -5728,6 +6120,7 @@ html[dir='rtl'] .dashboard-leaderboard__details {
 
 .dashboard-performance-map__plot {
     position: relative;
+    container-type: inline-size;
     width: min(96%, 42rem);
     min-height: 15rem;
     aspect-ratio: 16 / 7.5;
@@ -5757,6 +6150,8 @@ html[dir='rtl'] .dashboard-leaderboard__details {
 .dashboard-performance-map__zone--high-points {
     top: 0.75rem;
     left: 0.9rem;
+    writing-mode: vertical-rl;
+    text-orientation: sideways;
 }
 
 .dashboard-performance-map__zone--high-pages {
@@ -5774,13 +6169,13 @@ html[dir='rtl'] .dashboard-leaderboard__details {
 .dashboard-performance-map__average-line--vertical {
     top: 0;
     bottom: 0;
-    left: var(--average-position);
+    left: 7cqi;
     border-left: 1px dashed rgba(255, 255, 255, 0.2);
 }
 
 .dashboard-performance-map__average-line--horizontal {
     right: 0;
-    bottom: var(--average-position);
+    bottom: 7cqi;
     left: 0;
     border-top: 1px dashed rgba(255, 255, 255, 0.2);
 }
@@ -5847,17 +6242,6 @@ html[dir='rtl'] .dashboard-leaderboard__details {
     pointer-events: none;
 }
 
-.dashboard-performance-map__dimmed-layer .dashboard-performance-map__point--below-average:not(.dashboard-performance-map__point--rank-1):not(.dashboard-performance-map__point--rank-2):not(.dashboard-performance-map__point--rank-3) .dashboard-performance-map__dot {
-    width: 6px;
-    height: 6px;
-    min-width: 6px;
-    min-height: 6px;
-    border-color: #d5ddd8;
-    background: #2c3137;
-    box-shadow: none;
-    opacity: 0.08;
-}
-
 .dashboard-performance-map__point:hover,
 .dashboard-performance-map__point:focus-visible {
     outline: none;
@@ -5899,6 +6283,17 @@ html[dir='rtl'] .dashboard-leaderboard__details {
 
 .dashboard-performance-map__point--rank-3 {
     z-index: 4;
+}
+
+.dashboard-performance-map__dimmed-layer .dashboard-performance-map__point--below-average .dashboard-performance-map__dot {
+    width: 6px;
+    height: 6px;
+    min-width: 6px;
+    min-height: 6px;
+    border-color: #d5ddd8;
+    background: #2c3137;
+    box-shadow: none;
+    opacity: 0.08;
 }
 
 .dashboard-performance-map__point--rank-1:hover .dashboard-performance-map__dot,
@@ -5988,6 +6383,10 @@ html:not(.dark) .dashboard-performance-map__zone {
 .page-hero .eyebrow,
 .page-hero h1 + p {
     display: none;
+}
+
+.page-hero h1 + [data-archive-course-subtitle] {
+    display: block;
 }
 
 .page-hero .eyebrow + h1 {
@@ -6606,10 +7005,20 @@ html:not(.dark) .platform-body {
 }
 
 .admin-modal__backdrop {
-    position: absolute;
+    position: fixed;
     inset: 0;
     background: rgba(8, 11, 9, 0.72);
     backdrop-filter: blur(10px);
+}
+
+@media (min-width: 1024px) {
+    .admin-modal:not(.admin-modal--full-viewport) .admin-modal__backdrop {
+        inset-inline-start: var(--app-sidebar-width, 17rem);
+    }
+
+    .app-sidebar-is-collapsed .admin-modal__backdrop {
+        inset-inline-start: 0;
+    }
 }
 
 .admin-modal__viewport {
@@ -7041,6 +7450,7 @@ html:not(.dark) .admin-modal__title {
 .admin-modal__body {
     max-height: calc(100vh - 10rem);
     overflow: auto;
+    overscroll-behavior: contain;
     padding: 1.5rem;
 }
 
@@ -7102,7 +7512,7 @@ html:not(.dark) .admin-modal__title {
     padding: 1rem 1.25rem 1.25rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .admin-modal__dialog:has([data-withdrawal-history-table]),
     .admin-modal__dialog:has([data-financial-transactions-table]) {
         max-height: none;
@@ -7112,6 +7522,51 @@ html:not(.dark) .admin-modal__title {
     .admin-modal__dialog:has([data-financial-transactions-table]) .admin-modal__body {
         max-height: none;
         overflow: visible;
+    }
+}
+
+@media (max-width: 699px) {
+    .financial-transactions-header-search {
+        display: inline-flex;
+        border-radius: 9999px;
+    }
+
+    .financial-transactions-header-search > svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    #financial-transactions-filters > :is(
+        [data-mobile-table-filter-open],
+        [data-mobile-table-filter-submit]
+    ) {
+        display: none !important;
+    }
+
+    .admin-modal__dialog:has([data-financial-transactions-table]) .admin-modal__body {
+        padding-inline: 1rem;
+    }
+
+    [data-financial-transactions-table] .financial-transactions-desktop-table {
+        display: block !important;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    [data-financial-transactions-table] .financial-transactions-table {
+        width: 70rem !important;
+        min-width: 70rem !important;
+        max-width: none !important;
+        table-layout: fixed !important;
+        font-size: 0.72rem;
+    }
+
+    .financial-transactions-table :is(th, td) {
+        padding: 0.65rem 0.55rem !important;
     }
 }
 
@@ -7184,7 +7639,7 @@ html:not(.dark) .admin-modal__title {
     max-height: min(14rem, calc(100vh - 12rem));
 }
 
-@media (min-width: 768px) and (max-height: 760px) {
+@media (min-width: 700px) and (max-height: 760px) {
     .admin-modal .searchable-select--open {
         z-index: 260;
     }
@@ -7254,17 +7709,20 @@ html:not(.dark) .admin-modal__close:hover {
 
 .admin-toast-region {
     position: fixed;
-    top: 1rem;
-    inset-inline-end: 1rem;
+    top: auto;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    inset-inline: 1rem;
     z-index: 320;
-    display: grid;
-    width: min(24rem, calc(100vw - 2rem));
-    gap: 0.75rem;
+    width: auto;
     pointer-events: none;
 }
 
 .admin-toast {
-    transform: translateY(-0.45rem);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    transform: translateY(0.45rem);
     border: 1px solid rgba(52, 211, 153, 0.42);
     border-radius: 1rem;
     background: rgba(4, 47, 46, 0.96);
@@ -7279,9 +7737,174 @@ html:not(.dark) .admin-modal__close:hover {
     transition: opacity 180ms ease, transform 180ms ease;
 }
 
+.admin-toast--error {
+    border-color: rgba(251, 113, 133, 0.48);
+    background: rgba(69, 10, 10, 0.97);
+    color: #ffe4e6;
+}
+
+.admin-toast--warning {
+    border-color: rgba(251, 191, 36, 0.46);
+    background: rgba(66, 32, 6, 0.97);
+    color: #fef3c7;
+}
+
+.admin-toast--info {
+    border-color: rgba(125, 211, 252, 0.42);
+    background: rgba(8, 47, 73, 0.97);
+    color: #e0f2fe;
+}
+
+.admin-toast__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 0.65rem;
+    background: rgba(52, 211, 153, 0.14);
+    color: #6ee7b7;
+}
+
+.admin-toast__icon--backup,
+.admin-toast__icon--upload {
+    background: rgba(45, 212, 191, 0.16);
+    color: #99f6e4;
+}
+
+.admin-toast__icon--edit {
+    background: rgba(250, 204, 21, 0.14);
+    color: #fde68a;
+}
+
+.admin-toast__icon--transfer,
+.admin-toast__icon--info {
+    background: rgba(56, 189, 248, 0.14);
+    color: #bae6fd;
+}
+
+.admin-toast__icon--delete,
+.admin-toast__icon--error {
+    background: rgba(251, 113, 133, 0.16);
+    color: #fecdd3;
+}
+
+.admin-toast__icon--warning {
+    background: rgba(251, 191, 36, 0.16);
+    color: #fde68a;
+}
+
+.admin-toast__icon svg,
+.admin-toast__close svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.admin-toast__message {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 699px) {
+    .admin-toast__message {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow-wrap: normal;
+    }
+}
+
+.admin-toast__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    color: currentColor;
+    opacity: 0.72;
+    cursor: pointer;
+}
+
+.admin-toast__close:hover,
+.admin-toast__close:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+.flash-notification-source {
+    display: none !important;
+}
+
 .admin-toast.is-visible {
     transform: translateY(0);
     opacity: 1;
+}
+
+@media (min-width: 700px) {
+    .admin-toast-region {
+        inset-inline-start: auto;
+        inset-inline-end: 1rem;
+        width: min(20vw, 24rem);
+    }
+}
+
+@media (min-width: 700px) and (max-width: 899px) {
+    .admin-toast {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            'close icon'
+            'message message';
+        gap: 0.45rem;
+        padding: 0.7rem;
+        font-size: 0.78rem;
+        line-height: 1.45;
+    }
+
+    .admin-toast__icon {
+        grid-area: icon;
+        width: 1.55rem;
+        height: 1.55rem;
+    }
+
+    .admin-toast__message {
+        grid-area: message;
+    }
+
+    .admin-toast__close {
+        grid-area: close;
+        justify-self: start;
+        width: 1.55rem;
+        height: 1.55rem;
+    }
+}
+
+html:not(.dark) .admin-toast {
+    border-color: rgba(18, 109, 59, 0.24);
+    background: rgba(239, 249, 242, 0.98);
+    color: #14532d;
+    box-shadow: 0 18px 42px rgba(43, 62, 47, 0.18);
+}
+
+html:not(.dark) .admin-toast--error {
+    border-color: rgba(185, 28, 28, 0.26);
+    background: rgba(254, 242, 242, 0.98);
+    color: #991b1b;
+}
+
+html:not(.dark) .admin-toast--warning {
+    border-color: rgba(180, 83, 9, 0.26);
+    background: rgba(255, 251, 235, 0.98);
+    color: #92400e;
+}
+
+html:not(.dark) .admin-toast--info {
+    border-color: rgba(3, 105, 161, 0.24);
+    background: rgba(240, 249, 255, 0.98);
+    color: #075985;
 }
 
 html:not(.dark) .admin-modal .text-red-400,
@@ -7608,7 +8231,7 @@ html[dir='rtl'] .finance-amount-input__currency + .searchable-select .searchable
     padding: 0;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .points-multiplier-save-button {
         margin-block-end: 0;
     }
@@ -8092,7 +8715,7 @@ html[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {
     opacity: 0.52;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .quick-saber-form__row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -8104,7 +8727,7 @@ html[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .quick-saber-header {
         gap: 1rem;
     }
@@ -8143,7 +8766,7 @@ html[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .quick-entry-save-action {
         width: var(--admin-action-button-size) !important;
         min-width: var(--admin-action-button-size) !important;
@@ -8218,6 +8841,23 @@ html[dir='rtl'] .generated-report-lookup[dir='rtl']::placeholder {
 .dashboard-manager-highlights .stat-card {
     border-radius: 1.15rem;
     padding: 0.85rem 1rem;
+}
+
+.dashboard-group-highlights {
+    grid-auto-rows: minmax(0, 1fr);
+}
+
+.dashboard-group-highlights > .stat-card {
+    height: 100%;
+}
+
+.dashboard-group-highlights [data-dashboard-stat-action] {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin-top: 0.42rem;
+    padding: 0.5rem 0.75rem;
+    line-height: 1.1;
 }
 
 .dashboard-manager-highlights .metric-value {
@@ -8894,6 +9534,7 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     aspect-ratio: 1;
     box-sizing: border-box;
     border-radius: 50%;
+    clip-path: circle(50%);
     background: currentColor;
     opacity: 0.9;
     transform: translateY(-50%);
@@ -8913,6 +9554,19 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
     vertical-align: middle;
 }
 
+.student-juz-progress-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.student-juz-progress-table [data-juz-progress-spacer] {
+    width: 0.81rem;
+    min-width: 0.81rem;
+    max-width: 0.81rem;
+    padding: 0 !important;
+}
+
 [data-student-progress-row-number] > .mobile-scroll-table-value {
     display: inline !important;
     inline-size: auto;
@@ -8927,6 +9581,104 @@ html:not(.dark) .barcode-import-page [class*='bg-black/'] {
 .student-juz-status-action:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 3px;
+}
+
+.student-juz-status-action__hover-icon {
+    position: absolute;
+    inset-inline-start: .525rem;
+    top: 50%;
+    width: 1rem;
+    height: 1rem;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity 140ms ease;
+}
+
+.student-juz-status-action--hover-icon:is(:hover, :focus-visible)::before {
+    opacity: 0;
+}
+
+.student-juz-status-action--hover-icon:is(:hover, :focus-visible) .student-juz-status-action__hover-icon {
+    opacity: 1;
+}
+
+.student-juz-awqaf-status {
+    overflow: visible;
+    cursor: default;
+    outline: none;
+}
+
+.student-juz-awqaf-status:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.student-juz-awqaf-tooltip {
+    position: absolute;
+    z-index: 12;
+    left: 50%;
+    bottom: calc(100% + 0.55rem);
+    display: block;
+    width: max-content;
+    transform: translateX(-50%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0.55rem;
+    padding: 0.35rem 0.55rem;
+    background: rgba(10, 10, 10, 0.96);
+    color: #fff;
+    direction: rtl;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 0.7rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+.student-juz-awqaf-status:is(:hover, :focus-visible) .student-juz-awqaf-tooltip {
+    opacity: 1;
+}
+
+.old-memorization-actions {
+    display: grid;
+    gap: 1rem;
+    color: var(--app-text);
+}
+
+.admin-modal:has([data-old-memorization-actions]) .admin-modal__header {
+    justify-content: center;
+    text-align: center;
+}
+
+[dir='rtl'] .admin-modal:has([data-old-memorization-actions]) .admin-modal__header {
+    text-align: center;
+}
+
+.admin-modal:has([data-old-memorization-actions]) .admin-modal__header > :first-child {
+    width: 100%;
+}
+
+.admin-modal:has([data-old-memorization-actions]) .admin-modal__header-actions:empty {
+    display: none;
+}
+
+.old-memorization-actions__choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.old-memorization-actions__choices .pill-link {
+    min-height: 3.25rem;
+    justify-content: center;
+}
+
+@media (max-width: 639px) {
+    .old-memorization-actions__choices {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .student-juz-status-action__plus {
@@ -9071,7 +9823,7 @@ html[dir='rtl'] .student-juz-progress-table [data-juz-progress-status] {
         width: 16%;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .app-main [data-student-progress-enrollments] table.table-content {
         table-layout: fixed;
         width: 100%;
@@ -9271,6 +10023,19 @@ html:not(.dark) .awqaf-unavailable-warning p {
     background: rgba(95, 194, 160, 0.1);
 }
 
+.status-chip--awqaf {
+    color: #dff8e7;
+    border-color: rgba(151, 219, 174, 0.28);
+    background: rgba(11, 143, 67, 0.28);
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+button.status-chip--awqaf:is(:hover, :focus-visible) {
+    color: #f5fff7;
+    border-color: rgba(151, 219, 174, 0.44);
+    background: rgba(11, 143, 67, 0.42);
+}
+
 .status-chip--rose {
     color: #f0b3ba;
     border-color: rgba(220, 122, 137, 0.18);
@@ -9336,6 +10101,18 @@ html:not(.dark) .status-chip--emerald {
     color: #14532d;
 }
 
+html:not(.dark) .status-chip--awqaf {
+    border-color: rgba(18, 109, 59, 0.5);
+    background: #126d3b;
+    color: #f5fff7;
+}
+
+html:not(.dark) button.status-chip--awqaf:is(:hover, :focus-visible) {
+    border-color: rgba(11, 143, 67, 0.58);
+    background: #0b8f43;
+    color: #fff;
+}
+
 html:not(.dark) .status-chip--rose {
     border-color: rgba(185, 28, 28, 0.2);
     background: rgba(254, 226, 226, 0.72);
@@ -9381,7 +10158,7 @@ html:not(.dark) .status-text--slate {
     gap: 0.65rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .admin-kpi-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -9876,7 +10653,7 @@ html:not(.dark) .settings-tab.is-active {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .public-site:has(.maintenance-page) .public-shell {
         padding: 0;
     }
@@ -10207,7 +10984,7 @@ html:not(.dark) .public-gallery-slider {
     padding-bottom: 1rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .public-hero,
     .public-page-hero {
         grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
@@ -10251,7 +11028,7 @@ html:not(.dark) .public-gallery-slider {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .public-shell {
         padding: 0.75rem;
     }
@@ -10603,7 +11380,7 @@ html:not(.dark) .public-gallery-slider {
     flex-direction: row-reverse;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .public-home-stage,
     .public-feature-grid,
     .public-program-layout {
@@ -11051,7 +11828,7 @@ html:not(.dark) .print-template-color-input {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .print-template-title-row {
         flex-wrap: wrap;
     }
@@ -11289,7 +12066,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     flex-basis: 1.35rem;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .print-template-source-toolbar .admin-toolbar__controls {
         display: grid;
         grid-template-columns: 1fr;
@@ -11360,7 +12137,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     justify-self: stretch;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .id-card-print-template-row,
     .id-card-filter-row > .admin-toolbar__controls {
         display: grid;
@@ -11405,7 +12182,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     word-break: break-word;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 700px) {
     .id-card-student-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -11417,7 +12194,7 @@ html[dir='rtl'] .id-card-layer-card__meta {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     html,
     body {
         overflow-x: hidden;
@@ -12588,6 +13365,10 @@ html[dir='rtl'] .id-card-layer-card__meta {
         grid-auto-columns: minmax(0, 1fr) !important;
     }
 
+    .admin-modal__body [data-attendance-scheduled-counts] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
     .admin-modal__body form [class*='col-span-'],
     .admin-modal__body > [class*='grid-cols-'] > [class*='col-span-'] {
         grid-column: 1 / -1 !important;
@@ -12865,6 +13646,29 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
     }
 }
 
+/* Keep the five progress summaries together on compact portrait tablets.
+   Their intrinsic content width may wrap the set once, but never forces the
+   phone-sized two-column layout used below 700px. */
+@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait) {
+    .student-progress-highlights {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 0.65rem !important;
+    }
+
+    .student-progress-highlights > .stat-card {
+        min-width: max-content;
+        max-width: 100%;
+        flex: 1 1 7rem;
+        padding: 1rem 0.8rem;
+    }
+
+    .student-progress-highlights .metric-value {
+        white-space: nowrap;
+        font-size: clamp(1.65rem, 4.5vw, 2.5rem);
+    }
+}
+
 /* Mobile table command bars: title and symbol actions share the header row. */
 @media (max-width: 1023px) {
     [data-mobile-title-action-row] {
@@ -13116,7 +13920,7 @@ input[type='file'][data-pdf-upload-lock-state='complete'] {
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     /* Tall invoice viewers must start below the fixed mobile app header. Their
        body remains the only scrolling region, so the title and actions stay visible. */
     .admin-modal:has([data-invoice-view-items-box]) {
@@ -13376,23 +14180,37 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
     box-shadow: none;
 }
 
+.teacher-attendance-heading-tablet {
+    display: none;
+}
+
 .attendance-group-picker {
     display: grid;
-    gap: 0.65rem;
-    max-height: 22rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    max-height: 18rem;
     overflow-y: auto;
-    padding: 0.2rem;
+    padding: 0.15rem;
 }
 
 .attendance-group-picker__option {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    padding: 0.85rem 1rem;
+    min-height: 3.7rem;
+    gap: 0.7rem;
+    padding: 0.55rem 0.75rem;
     border: 1px solid var(--app-border);
     border-radius: 0.85rem;
     cursor: pointer;
     overflow-wrap: anywhere;
+}
+
+.attendance-group-picker__option .record-person-name {
+    margin-top: 0.15rem;
+}
+
+.attendance-group-picker__actions {
+    margin-top: -0.25rem;
 }
 
 .attendance-group-picker__option:has(input:checked) {
@@ -13412,12 +14230,24 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
     accent-color: #15803d;
 }
 
+@media (max-width: 699px) {
+    .attendance-group-picker {
+        grid-template-columns: minmax(0, 1fr);
+        max-height: min(17rem, 48dvh);
+    }
+
+    .attendance-group-picker__option {
+        min-height: 3.35rem;
+        padding-block: 0.45rem;
+    }
+}
+
 /* Fit all group columns on tablets, including student and present totals. */
-@media (min-width: 768px) and (max-width: 1279px) {
+@media (min-width: 700px) and (max-width: 1279px) {
     .surface-table table.attendance-day-groups-table {
         width: 100% !important;
         min-width: 0 !important;
-        table-layout: fixed;
+        table-layout: auto;
     }
 
     .attendance-day-groups-table :is(th, td) {
@@ -13427,17 +14257,16 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
         overflow-wrap: anywhere;
     }
 
-    .attendance-day-groups-table :is(th, td):nth-child(4),
-    .attendance-day-groups-table :is(th, td):nth-child(5) {
-        width: 4.5rem !important;
-    }
+}
 
-    .attendance-day-groups-table :is(th, td):last-child {
-        width: 5rem !important;
+/* Keep the useful attendance columns visible on compact portrait tablets. */
+@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait) {
+    .surface-table .attendance-days-table .attendance-days-enrolled {
+        display: none !important;
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .surface-table > .attendance-day-toolbar {
         flex-flow: column nowrap !important;
         align-items: stretch !important;
@@ -13558,7 +14387,7 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
     }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .surface-table > .attendance-days-table-wrapper {
         overflow-x: hidden !important;
     }
@@ -13654,7 +14483,23 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
     text-overflow: ellipsis;
 }
 
-@media (max-width: 767px) {
+.teacher-attendance-summary__listed {
+    display: none;
+}
+
+@media (max-width: 699px) {
+    .student-attendance-toolbar .attendance-day-toolbar__student-count {
+        display: none;
+    }
+
+    .teacher-attendance-summary__present {
+        display: none;
+    }
+
+    .teacher-attendance-summary__listed {
+        display: inline;
+    }
+
     .surface-table > .teacher-attendance-toolbar {
         padding-inline: 1rem;
     }
@@ -13699,6 +14544,12 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
 
 .memorization-page-picker__nav svg { width: 1.25rem; height: 1.25rem; }
 [dir='ltr'] .memorization-page-picker__nav svg { transform: rotate(180deg); }
+.memorization-page-picker__nav--wrap {
+    border: 0;
+    color: #e6bf73;
+    background: transparent;
+    box-shadow: none;
+}
 .memorization-page-picker__nav:disabled { opacity: 0.25; cursor: default; }
 .memorization-page-picker__grid {
     --memorization-page-gap: clamp(0.25rem, 1vw, 0.5rem);
@@ -13747,6 +14598,7 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
 @media (hover: hover) {
     .memorization-page-picker__page:not([aria-pressed='true']):hover,
     .memorization-page-picker__nav:not(:disabled):hover { background: rgba(105, 169, 125, 0.15); border-color: #579a70; }
+    .memorization-page-picker__nav--wrap:not(:disabled):hover { border: 0; background: rgba(180, 139, 63, 0.24); box-shadow: none; color: #e6bf73; }
 }
 .memorization-page-picker__complete { padding: 1.5rem 0.5rem; text-align: center; color: var(--app-text); }
 
@@ -13757,10 +14609,10 @@ html:not(.dark) .teacher-attendance-records-table .attendance-type-switch__optio
 }
 
 .admin-icon-button > svg[data-icon-name='documents-backup'] {
-    width: 1.4rem;
-    height: 1.4rem;
-    flex-basis: 1.4rem;
-    stroke-width: 1.8;
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-basis: 1.15rem;
+    overflow: visible;
 }
 
 .calendar-color-trigger {
@@ -13810,17 +14662,85 @@ html:not(.dark) .calendar-color-popover {
 .calendar-date-range input { min-width: 0; width: 100%; height: 2.5rem; border-radius: .7rem; padding: .35rem .5rem; font-size: 1rem; }
 .calendar-entry-dates { display: flex; flex-wrap: nowrap; align-items: center; gap: .5rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .calendar-entry-dates > span { font-size: .7rem; opacity: .65; }
+.calendar-entry-mobile-label,
+.calendar-entry-mobile-heading { display: none; }
+.course-calendar-mobile-form { display: none; }
 @media (max-width: 640px) {
-    .admin-modal [data-course-calendar-entry-table] table { min-width: 0; width: 100%; }
+    .admin-modal [data-course-calendar-entry-table] table { display: block; min-width: 0; width: 100%; height: auto !important; }
+    .admin-modal [data-course-calendar-entry-table] { overflow: visible; border: 0; background: transparent; box-shadow: none; }
     [data-course-calendar-entry-table] thead { display: none; }
-    [data-course-calendar-entry-table] tbody { display: grid; gap: .5rem; }
-    [data-course-calendar-entry-table] tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: .6rem; }
-    [data-course-calendar-entry-table] tbody td { min-width: 0; padding: .45rem; border: 0 !important; }
-    [data-course-calendar-entry-table] tbody td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
-    [data-course-calendar-entry-table] tbody td:nth-child(1) { grid-column: 1 / -1; grid-row: 2; }
-    [data-course-calendar-entry-table] tbody td:nth-child(3),
-    [data-course-calendar-entry-table] tbody td:nth-child(4) { grid-row: 3; align-self: center; }
-    [data-course-calendar-entry-table] .calendar-entry-dates { gap: .4rem; font-size: .8rem; }
+    [data-course-calendar-entry-table] tbody { display: grid; width: 100%; height: auto !important; align-content: start; grid-auto-rows: max-content; gap: .7rem; }
+    [data-course-calendar-entry-table] tbody tr {
+        position: relative;
+        display: grid;
+        height: auto !important;
+        align-self: start;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--app-border);
+        border-radius: 1rem;
+        background: rgba(127, 127, 127, .045);
+    }
+    [data-course-calendar-entry-table] tbody td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] {
+        grid-template-columns: minmax(0, 1fr) 2.75rem;
+        grid-template-rows: 1fr;
+        height: 5.25rem !important;
+        min-height: 5.25rem;
+        max-height: 5.25rem;
+        column-gap: .8rem;
+        border-inline-start: .4rem solid var(--calendar-entry-color);
+        padding-block: .7rem;
+        padding-inline-start: .9rem;
+        padding-inline-end: .65rem;
+    }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] [data-calendar-entry-cell="name"] {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: center;
+        transform: translateY(-.65rem);
+        overflow: hidden;
+        color: var(--app-text);
+        font-size: .95rem;
+        line-height: 1.45;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] [data-calendar-entry-cell="date"] { grid-column: 1; grid-row: 1; align-self: center; transform: translateY(.65rem); color: var(--app-text-muted); }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] [data-calendar-entry-cell="color"] { display: none; }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] [data-calendar-entry-cell="actions"] { grid-column: 2; grid-row: 1; align-self: center; }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] [data-calendar-entry-cell="actions"] > div { gap: 0; }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="record"] .admin-icon-button { width: 2.5rem; height: 2.5rem; border-color: transparent; background: transparent; }
+    [data-course-calendar-entry-table] .calendar-entry-dates { gap: .35rem; font-size: .77rem; line-height: 1.4; }
+    [data-course-calendar-entry-table] .calendar-entry-dates > span { font-size: .8rem; opacity: .72; }
+
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="form"] {
+        display: none !important;
+    }
+    .course-calendar-mobile-form {
+        display: grid;
+        gap: .85rem;
+        margin-top: .7rem;
+        border: 1px solid var(--app-border);
+        border-radius: 1rem;
+        padding: 1rem;
+        background: rgba(127, 127, 127, .06);
+    }
+    .course-calendar-mobile-form :is(input, .calendar-date-trigger) { width: 100%; }
+    .course-calendar-mobile-form__footer { display: flex; align-items: flex-end; justify-content: space-between; gap: .65rem; }
+    .course-calendar-mobile-form__footer > div:first-child { min-width: 0; }
+    .calendar-entry-mobile-heading { display: block; margin-bottom: .75rem; color: var(--app-text); font-size: 1rem; font-weight: 700; }
+    .calendar-entry-mobile-label { display: block; margin-bottom: .3rem; color: var(--app-text-muted); font-size: .72rem; font-weight: 500; }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="empty"] { padding: 1.25rem; }
+    [data-course-calendar-entry-table] tr[data-calendar-entry-kind="empty"] td { display: block; }
 }
 
 .admin-icon-button > svg[data-icon-name='restore-defaults'] {
@@ -13974,7 +14894,7 @@ html:not(.dark) .memorization-juz-switcher__panel { background: #fffef9; color: 
     padding-inline-end: 0.625rem !important;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     .surface-table :is(.attendance-records-table, .attendance-day-groups-table) .attendance-row-number {
         width: 3.75rem !important;
         min-width: 3.75rem;
@@ -14009,6 +14929,29 @@ html:not(.dark) .memorization-juz-switcher__panel { background: #fffef9; color: 
 .record-phone {
     direction: ltr;
     unicode-bidi: isolate;
+}
+
+@media (min-width: 1024px) {
+    .finance-entry-form__row > :only-child {
+        grid-column: 1 / -1;
+    }
+}
+
+.student-parent-details__phone-call {
+    display: none;
+    width: fit-content;
+    color: inherit;
+    text-decoration: none;
+}
+
+@media (max-width: 699px) {
+    .student-parent-details__phone-call {
+        display: inline-block;
+    }
+
+    .student-parent-details__phone-static {
+        display: none;
+    }
 }
 
 .record-course-name,
@@ -14338,7 +15281,7 @@ select:is([data-record-label='course'], [data-record-label='year']) + .searchabl
    row rhythm. Plain values stay on one line; long leaf text may use at most
    two lines before it is clipped with an ellipsis. Structured cells and
    controls keep their own component layout. */
-@media (max-width: 767px) {
+@media (max-width: 699px) {
     :is(.overflow-x-auto, .table-scroll-region, .responsive-records-desktop) > table > :is(thead, tbody, tfoot) > tr > :is(th, td) {
         white-space: nowrap;
         overflow-wrap: normal;
@@ -14543,9 +15486,319 @@ select:is([data-record-label='course'], [data-record-label='year']) + .searchabl
     }
 }
 
+/* The sidebar leaves iPad landscape too narrow for the desktop header overlay.
+   Keep the hero intact and place its controls in their own horizontal row. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+    .attendance-day-header {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.25rem;
+    }
+
+    .attendance-day-header > .attendance-day-hero {
+        grid-area: auto;
+    }
+
+    .attendance-day-header .attendance-day-metrics > :first-child {
+        height: auto;
+    }
+
+    .attendance-day-header > .attendance-day-navigation-row {
+        grid-area: auto;
+        z-index: auto;
+        width: 100%;
+        margin-inline-end: 0;
+        gap: .625rem;
+    }
+
+    .attendance-day-header .attendance-navigation.quick-saber-type-switch {
+        height: auto;
+        grid-auto-flow: column;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto;
+    }
+
+    .attendance-day-header .quick-saber-type-switch__option + .quick-saber-type-switch__option {
+        border-block-start: 0;
+        border-inline-start: 1px solid rgba(232, 244, 235, 0.28);
+    }
+
+    .attendance-day-header .attendance-day-navigation-actions {
+        flex-direction: row;
+    }
+}
+
+/* Intermediate tablet layout: retain complete records without squeezing the
+   desktop composition into portrait iPads. */
+@media (min-width: 700px) and (max-width: 1279px) {
+    .page-stack {
+        gap: 1.25rem;
+        padding: 1.25rem;
+    }
+
+    .page-hero {
+        border-radius: 1.5rem;
+        padding: 1.5rem !important;
+    }
+
+    .page-hero h1 {
+        font-size: 2.5rem !important;
+        line-height: 1.05 !important;
+    }
+
+    .attendance-days-toolbar {
+        position: static;
+        display: block !important;
+        padding: 1rem;
+    }
+
+    .attendance-days-toolbar > .admin-grid-meta__title {
+        display: none;
+    }
+
+    .attendance-days-toolbar__controls,
+    html[dir='rtl'] .attendance-days-toolbar__controls {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        width: 100% !important;
+        max-width: none;
+        margin: 0 !important;
+        box-sizing: border-box;
+    }
+
+    .attendance-days-toolbar__filters {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        width: 100%;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .attendance-days-toolbar .admin-filter-field,
+    .admin-grid-meta--controls .attendance-days-toolbar .admin-filter-field {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none;
+        flex-basis: auto !important;
+    }
+
+    .attendance-days-toolbar .admin-filter-field > :is(input, select, .searchable-select) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+
+    .attendance-days-toolbar .admin-toolbar__actions {
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        justify-self: end !important;
+        width: auto;
+        white-space: nowrap;
+    }
+
+    .surface-table > .attendance-days-table-wrapper {
+        overflow-x: hidden;
+    }
+
+    .surface-table table.attendance-days-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+    }
+
+    .surface-table .attendance-days-table :is(th, td) {
+        min-width: 0;
+        padding: 0.75rem 0.45rem !important;
+        font-size: 0.78rem;
+        overflow: hidden;
+    }
+
+    .surface-table .attendance-days-table :is(th, td):first-child {
+        width: 2.5rem !important;
+        padding-inline: 0.35rem !important;
+    }
+
+    .surface-table .attendance-days-table .attendance-days-date {
+        width: 7.5rem;
+    }
+
+    .surface-table .attendance-days-table .attendance-days-course {
+        width: 9.5rem;
+    }
+
+    .surface-table .attendance-days-table :is(th, td):nth-child(4),
+    .surface-table .attendance-days-table :is(th, td):nth-child(5),
+    .surface-table .attendance-days-table :is(th, td):nth-child(6) {
+        width: 4.25rem;
+        text-align: center;
+    }
+
+    .surface-table .attendance-days-table :is(th, td):nth-child(7) {
+        width: 5.5rem;
+    }
+
+    .surface-table .attendance-days-table :is(th, td):last-child {
+        width: 3.75rem;
+        padding-inline: 0.45rem !important;
+    }
+
+    .attendance-days-table .record-course-name {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .attendance-days-table .status-chip {
+        min-inline-size: 4.5rem;
+        max-width: 100%;
+        padding-inline-start: 1.57rem;
+        padding-inline-end: 0.77rem;
+        white-space: nowrap;
+    }
+
+    .attendance-day-hero-layout {
+        gap: 1rem !important;
+    }
+
+    .attendance-day-hero-layout > div {
+        min-width: 0;
+    }
+
+    .attendance-day-metrics {
+        gap: 0.5rem;
+    }
+
+    .attendance-day-metrics > div {
+        padding: 0.7rem 1rem;
+    }
+
+    .attendance-mark-hero .group-show-hero-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(20rem, 1.2fr);
+        align-items: start;
+        gap: 1rem;
+    }
+
+    .attendance-mark-hero .group-show-hero-widgets,
+    .attendance-mark-hero .group-show-details {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+
+    .attendance-day-navigation-row {
+        gap: 0.625rem;
+    }
+
+    .attendance-day-navigation .quick-saber-type-switch__option {
+        min-height: 2.625rem;
+        padding-inline: 0.75rem;
+        font-size: 0.82rem;
+    }
+
+    .surface-table > :is(.teacher-attendance-toolbar, .student-attendance-toolbar) {
+        padding: 0.9rem 1rem;
+    }
+
+    .surface-table .attendance-day-groups-table :is(th, td),
+    .surface-table .attendance-records-table :is(th, td) {
+        min-width: 0;
+        padding: 0.75rem 0.5rem !important;
+        font-size: 0.8rem;
+    }
+
+    .surface-table .attendance-day-groups-table .attendance-row-number,
+    .surface-table .attendance-records-table .attendance-row-number {
+        width: 3rem !important;
+        min-width: 3rem;
+        max-width: 3rem;
+        padding-inline: 0.5rem !important;
+        text-align: center !important;
+    }
+
+    .surface-table table.attendance-day-groups-table {
+        table-layout: fixed !important;
+    }
+
+    .surface-table .attendance-day-groups-table :is(.attendance-person-column, .attendance-teacher-column) {
+        width: calc((100% - 14.5rem) / 2) !important;
+    }
+
+    html[dir='rtl'] .surface-table .attendance-day-groups-table :is(th, td).attendance-teacher-column {
+        text-align: right !important;
+    }
+
+    html[dir='rtl'] .surface-table .attendance-day-groups-table :is(th, td).attendance-group-count {
+        width: 5.75rem !important;
+        padding-inline: 0.5rem !important;
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .surface-table table.attendance-records-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+    }
+
+    .surface-table .attendance-records-table .attendance-person-column {
+        width: 30%;
+    }
+
+    .surface-table .teacher-attendance-records-table .attendance-person-column {
+        width: auto !important;
+    }
+
+    .surface-table .teacher-attendance-records-table .teacher-attendance-role-column,
+    html[dir='rtl'] .surface-table .teacher-attendance-records-table :is(th, td).teacher-attendance-role-column {
+        width: 8.5rem;
+        white-space: nowrap;
+        line-height: 1.3;
+        text-align: right !important;
+    }
+
+    .surface-table .teacher-attendance-records-table .teacher-attendance-percentage-column {
+        width: 5rem;
+        white-space: nowrap;
+        text-align: center !important;
+        line-height: 1.3;
+        display: none !important;
+    }
+
+    .surface-table .teacher-attendance-records-table th.teacher-attendance-status-column {
+        text-align: center !important;
+    }
+
+    .teacher-attendance-heading-full {
+        display: none;
+    }
+
+    .teacher-attendance-heading-tablet {
+        display: inline;
+    }
+
+    .surface-table .attendance-records-table .student-attendance-status-column,
+    .surface-table .attendance-records-table .teacher-attendance-status-column {
+        width: 11.5rem;
+    }
+
+    .surface-table .teacher-attendance-records-table .teacher-attendance-actions-column {
+        width: 4.25rem;
+        padding-inline: 0.4rem !important;
+    }
+
+    .attendance-records-table .student-inline {
+        gap: 0.5rem;
+    }
+}
+
 /* Group and teacher labels must fit their cell beside attendance counts. */
 @media (max-width: 1279px) {
-    .app-main .surface-table .attendance-day-groups-table .attendance-person-column > div {
+    .app-main .surface-table .attendance-day-groups-table .attendance-person-column > div:not(.md\:hidden) {
         display: block !important;
         inline-size: 100% !important;
         max-inline-size: 100% !important;
@@ -14642,25 +15895,74 @@ select[data-group-option-columns] + .searchable-select .searchable-select__optio
     border: 0;
 }
 
-@media (max-width: 767px) {
-    .admin-modal .admin-modal__dialog:has([data-group-select].searchable-select--open) {
+select[data-equal-option-spacing] + .searchable-select .searchable-select__option--group {
+    grid-template-columns: var(--group-option-grid-template, repeat(var(--group-option-columns), minmax(0, 1fr)));
+    justify-content: space-evenly;
+    gap: 0;
+    padding-block: .39rem;
+    padding-inline: 0;
+}
+
+select[data-group-option-columns] + .searchable-select .searchable-select__selected-columns {
+    position: absolute;
+    inset-block: 0;
+    inset-inline: calc(.35rem + 1px);
+    z-index: 1;
+    display: grid;
+    grid-template-columns: var(--group-option-grid-template, repeat(2, minmax(0, 1fr)));
+    align-items: center;
+    justify-content: space-evenly;
+    gap: 0;
+    padding-block: .75rem;
+    padding-inline: 0;
+    color: var(--app-text);
+    font-size: .875rem;
+    line-height: 1.25rem;
+    pointer-events: none;
+}
+
+select[data-group-option-columns] + .searchable-select .searchable-select__selected-columns[hidden] {
+    display: none;
+}
+
+select[data-group-option-columns] + .searchable-select .searchable-select__selected-column {
+    min-width: 0;
+    overflow: hidden;
+}
+
+select[data-group-option-columns] + .searchable-select.searchable-select--column-selection .searchable-select__search--trigger {
+    color: transparent;
+    caret-color: transparent;
+}
+
+select[data-group-option-columns] + .searchable-select.searchable-select--column-selection .searchable-select__search--trigger::selection {
+    color: transparent;
+    background: transparent;
+}
+
+@media (max-width: 699px) {
+    select[data-group-option-columns] + .searchable-select .searchable-select__selected-columns {
+        display: none;
+    }
+
+    .admin-modal .admin-modal__dialog:has([data-phone-modal-select].searchable-select--open) {
         overflow: hidden !important;
     }
 
-    .admin-modal .admin-modal__body:has([data-group-select].searchable-select--open) {
+    .admin-modal .admin-modal__body:has([data-phone-modal-select].searchable-select--open) {
         overflow-x: hidden !important;
         overflow-y: auto !important;
     }
 
-    [data-group-select] .searchable-select__panel,
-    [data-group-select] .searchable-select__list {
+    [data-phone-modal-select] .searchable-select__panel,
+    [data-phone-modal-select] .searchable-select__list {
         box-sizing: border-box;
         min-width: 0;
         min-height: 0;
         overflow-x: hidden;
     }
 
-    [data-group-select] .searchable-select__list {
+    [data-phone-modal-select] .searchable-select__list {
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
     }
@@ -14705,6 +16007,374 @@ select[data-group-option-columns] + .searchable-select .searchable-select__optio
 .address-completion__line { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .address-completion__typed { color: transparent; }
 .address-completion__credit { display: block; margin-top: .25rem; font-size: .65rem; color: var(--app-text-muted); }
+
+/* Keep both attendance filters readable beside the fixed-size actions on
+   tablets; shared max-content toolbar sizing otherwise overflows in Safari. */
+@media (min-width: 700px) and (max-width: 1279px) {
+    body .surface-table > .attendance-days-toolbar .attendance-days-toolbar__controls,
+    html[dir='rtl'] body .surface-table > .attendance-days-toolbar .attendance-days-toolbar__controls {
+        display: flex !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        flex-flow: row nowrap !important;
+        align-items: center !important;
+        gap: .5rem !important;
+    }
+
+    body .attendance-days-toolbar .attendance-days-toolbar__filters {
+        display: grid !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .5rem !important;
+    }
+
+    body .attendance-days-toolbar .admin-toolbar__actions {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        justify-content: flex-end !important;
+        align-self: center !important;
+    }
+}
+
+/* Compact portrait tablets use the same focused search interaction as phones.
+   This applies to every table toolbar enhanced by initializeMobileTableFilters,
+   while landscape tablets and desktop keep their inline criteria. */
+@media (min-width: 700px) and (max-width: 899px) and (orientation: portrait) {
+    html.mobile-table-filters-active,
+    body.mobile-table-filters-active {
+        overflow: hidden !important;
+        overscroll-behavior: none;
+    }
+
+    body.mobile-table-filters-active {
+        position: fixed;
+        top: calc(-1 * var(--mobile-table-filter-scroll-y, 0px));
+        right: 0;
+        left: 0;
+        width: 100%;
+    }
+
+    body.mobile-table-filters-active > .mobile-table-filter-backdrop {
+        display: block;
+        position: fixed;
+        z-index: 290;
+        inset: 0;
+        background: rgba(0, 8, 4, 0.72);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
+
+    body.mobile-table-filters-active .mobile-table-filter-surface--open {
+        z-index: 300;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    body .mobile-table-filters:not(.mobile-table-filters--open) > .mobile-table-filter-criterion {
+        display: none !important;
+    }
+
+    body .mobile-table-filters:not(.mobile-table-filters--open) > .mobile-table-filter-trigger {
+        display: inline-flex !important;
+        border: 1px solid rgba(151, 219, 174, 0.28) !important;
+        background: rgba(11, 143, 67, 0.16) !important;
+        color: var(--app-text) !important;
+        box-shadow: 0 0.55rem 1.4rem rgba(0, 0, 0, 0.14) !important;
+    }
+
+    body .surface-table > .attendance-days-toolbar {
+        display: flex !important;
+        flex-flow: row nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.75rem !important;
+    }
+
+    body .surface-table > .attendance-days-toolbar > .admin-grid-meta__title {
+        display: block !important;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    body .surface-table > .attendance-days-toolbar > .attendance-days-toolbar__controls.mobile-table-filters:not(.mobile-table-filters--open),
+    html[dir='rtl'] body .surface-table > .attendance-days-toolbar > .attendance-days-toolbar__controls.mobile-table-filters:not(.mobile-table-filters--open) {
+        width: auto !important;
+        max-width: none !important;
+        flex: 0 0 auto !important;
+        justify-content: flex-end !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open,
+    html[dir='rtl'] body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open {
+        position: fixed !important;
+        z-index: 300 !important;
+        top: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: 50% !important;
+        display: grid !important;
+        width: calc(100vw - 2rem) !important;
+        height: auto !important;
+        max-width: 26rem !important;
+        max-height: calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        margin: 0 !important;
+        transform: translate(-50%, -50%) !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        align-content: start !important;
+        align-items: stretch !important;
+        gap: 0.65rem !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        overscroll-behavior: contain;
+        border: 1px solid var(--app-border);
+        border-radius: 1.1rem;
+        background: linear-gradient(180deg, #231c16, #110f0c);
+        padding: 0.85rem !important;
+        box-sizing: border-box;
+        box-shadow: 0 1.75rem 5rem rgba(0, 0, 0, 0.52);
+        -webkit-overflow-scrolling: touch;
+        isolation: isolate;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > * {
+        display: none !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > .mobile-table-filter-criterion,
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > .mobile-table-filter-submit {
+        display: flex !important;
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > .mobile-table-filter-trigger {
+        display: none !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > .mobile-table-filter-criterion {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.4rem !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > [data-mobile-table-filter-group] {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0.65rem !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open .admin-filter-field,
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open .admin-filter-field > :is(input, select, .searchable-select),
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > :is(input, select, .searchable-select, .formatted-date-input) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > .mobile-table-filter-submit {
+        min-height: var(--admin-action-button-size);
+        grid-row: auto !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border: 1px solid rgba(74, 222, 128, 0.4);
+        border-radius: 0.8rem;
+        background: rgba(22, 163, 74, 0.18);
+        color: #d1fae5;
+        line-height: 1;
+    }
+
+    body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open > .mobile-table-filter-submit > .mobile-table-action__icon {
+        display: block !important;
+        width: 1.15rem !important;
+        height: 1.15rem !important;
+    }
+
+    html:not(.dark) body .mobile-table-header-controls.mobile-table-filters.mobile-table-filters--open {
+        background:
+            radial-gradient(circle at 12% 0%, rgba(18, 109, 59, 0.07), transparent 18rem),
+            linear-gradient(180deg, #fffffc, #f6f9f2);
+    }
+
+    html:not(.dark) body.mobile-table-filters-active > .mobile-table-filter-backdrop {
+        background: rgba(22, 42, 29, 0.46);
+    }
+}
+/* Offline-first attendance state, intentionally shown only in the day date card. */
+.attendance-day-date-title-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.attendance-day-date-content {
+    width: 100%;
+}
+
+.attendance-day-date-label--compact {
+    display: none;
+}
+
+.offline-attendance-dot {
+    width: 0.52rem;
+    height: 0.52rem;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: rgb(52 211 153);
+    box-shadow: 0 0 0 0.2rem rgba(52, 211, 153, 0.12);
+}
+
+.offline-attendance-dot[data-state='pending'],
+.offline-attendance-dot[data-state='syncing'],
+.offline-attendance-dot[data-state='poor'] {
+    background: rgb(251 191 36);
+    box-shadow: 0 0 0 0.2rem rgba(251, 191, 36, 0.12);
+}
+
+.offline-attendance-dot[data-state='offline'] {
+    background: rgb(148 163 184);
+    box-shadow: 0 0 0 0.2rem rgba(148, 163, 184, 0.12);
+}
+
+.offline-attendance-dot[data-state='conflict'] {
+    background: rgb(248 113 113);
+    box-shadow: 0 0 0 0.2rem rgba(248, 113, 113, 0.12);
+}
+
+@media (min-width: 1280px) {
+    :is(
+        [data-student-attendance-day-date-metric],
+        [data-teacher-attendance-day-date-metric]
+    ) .attendance-day-date-content > bdi {
+        margin-block-start: 0.875rem;
+    }
+}
+
+@media (max-width: 699px) {
+    :is(
+        [data-student-attendance-day-date-metric],
+        [data-teacher-attendance-day-date-metric]
+    ) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    :is(
+        [data-student-attendance-day-date-metric],
+        [data-teacher-attendance-day-date-metric]
+    ) .attendance-day-date-content > bdi {
+        margin-block-start: 0.25rem;
+    }
+}
+
+@media (max-width: 639px) {
+    :is(
+        [data-student-attendance-day-date-metric],
+        [data-teacher-attendance-day-date-metric]
+    ) .attendance-day-date-content {
+        display: grid;
+        width: max-content;
+        max-width: 100%;
+        margin-inline: auto;
+    }
+
+    :is(
+        [data-student-attendance-day-date-metric],
+        [data-teacher-attendance-day-date-metric]
+    ) .attendance-day-date-title-row {
+        gap: 0.45rem;
+    }
+
+    :is(
+        [data-student-attendance-day-date-metric],
+        [data-teacher-attendance-day-date-metric]
+    ) .attendance-day-date-content > bdi {
+        width: 100%;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+    }
+}
+
+@media (max-width: 359px) {
+    .attendance-day-date-label--full {
+        display: none;
+    }
+
+    .attendance-day-date-label--compact {
+        display: inline;
+    }
+}
+
+/* Teacher attendance is a true three-column table on phones. Hiding only the
+   header and cells left the desktop colgroup participating in fixed layout,
+   which squeezed teacher names and made the table appear clipped. */
+@media (max-width: 699px) {
+    .surface-table > .teacher-attendance-table-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .surface-table .teacher-attendance-records-table col.teacher-attendance-role-column,
+    .surface-table .teacher-attendance-records-table col.teacher-attendance-percentage-column {
+        display: none;
+    }
+
+    .surface-table table.teacher-attendance-records-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed;
+    }
+
+    .surface-table .teacher-attendance-records-table .attendance-row-number {
+        width: 2.5rem !important;
+        min-width: 2.5rem;
+        max-width: 2.5rem;
+        padding-inline: 0.35rem !important;
+    }
+
+    .surface-table .teacher-attendance-records-table .attendance-person-column {
+        width: auto !important;
+        padding-inline: 0.5rem !important;
+    }
+
+    .surface-table .teacher-attendance-records-table .teacher-attendance-status-column {
+        width: 8.75rem !important;
+        padding-inline: 0.3rem !important;
+    }
+
+    .teacher-attendance-records-table .student-inline__body,
+    .teacher-attendance-records-table .student-inline__name {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .teacher-attendance-records-table .attendance-type-switch {
+        width: 100%;
+        gap: 0.15rem;
+        padding: 0.2rem;
+    }
+
+    .teacher-attendance-records-table .attendance-type-switch__option {
+        min-width: 0;
+        min-height: 2.5rem;
+        padding-inline: 0.35rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 639px) {
+    .surface-table .teacher-attendance-records-table col.teacher-attendance-actions-column {
+        display: none;
+    }
+
+}
 
 /* Tenant palette contract. Keep this block last: older screens still contain
    presentation-specific colour utilities, and these semantic rules ensure the

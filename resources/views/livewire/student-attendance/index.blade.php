@@ -73,12 +73,16 @@ new class extends Component
                 'centerRecords.status',
                 'groupAttendanceDays' => fn ($query) => $this->scopeGroupAttendanceDaysQuery(
                     $query->withCount([
-                        'records',
+                        'records' => fn ($recordQuery) => $recordQuery
+                            ->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery
+                                ->whereDate('enrollments.enrolled_at', '<=', DB::raw('group_attendance_days.attendance_date'))),
                         'records as present_records_count' => fn ($recordQuery) => $recordQuery
+                            ->whereHas('enrollment', fn ($enrollmentQuery) => $enrollmentQuery
+                                ->whereDate('enrollments.enrolled_at', '<=', DB::raw('group_attendance_days.attendance_date')))
                             ->whereHas('status', fn ($statusQuery) => $statusQuery->where('is_present', true)),
                     ])->with([
-                        'group' => fn ($groupQuery) => $groupQuery->withCount([
-                            'enrollments as active_enrollments_count' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
+                        'group' => fn ($groupQuery) => $groupQuery->with([
+                            'enrollments' => fn ($enrollmentQuery) => $enrollmentQuery->where('status', 'active'),
                         ]),
                     ])
                 ),
@@ -332,19 +336,21 @@ new class extends Component
     <section class="surface-table">
         <div class="admin-grid-meta admin-grid-meta--controls attendance-days-toolbar">
             <div class="admin-grid-meta__title">{{ __('workflow.student_attendance.days.table.title') }}</div>
-            <div class="admin-toolbar__controls">
-                <div class="admin-filter-field">
-                    <label class="sr-only" for="student-attendance-search">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
-                    <input id="student-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.student_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.student_attendance.days.form.attendance_date') }}">
-                </div>
+            <div class="admin-toolbar__controls attendance-days-toolbar__controls">
+                <div class="attendance-days-toolbar__filters" data-mobile-table-filter-group>
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-attendance-search">{{ __('workflow.student_attendance.days.form.attendance_date') }}</label>
+                        <input id="student-attendance-search" wire:model.live="search" type="date" aria-label="{{ __('workflow.student_attendance.days.form.attendance_date') }}" data-date-placeholder="{{ __('workflow.student_attendance.days.form.attendance_date') }}">
+                    </div>
 
-                <div class="admin-filter-field">
-                    <label class="sr-only" for="student-attendance-status">{{ __('workflow.student_attendance.days.form.status') }}</label>
-                    <select id="student-attendance-status" wire:model.live="statusFilter">
-                        <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
-                        <option value="open">{{ __('workflow.common.day_status.open') }}</option>
-                        <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
-                    </select>
+                    <div class="admin-filter-field">
+                        <label class="sr-only" for="student-attendance-status">{{ __('workflow.student_attendance.days.form.status') }}</label>
+                        <select id="student-attendance-status" wire:model.live="statusFilter">
+                            <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
+                            <option value="open">{{ __('workflow.common.day_status.open') }}</option>
+                            <option value="closed">{{ __('workflow.common.day_status.closed') }}</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="admin-toolbar__actions">
@@ -388,10 +394,10 @@ new class extends Component
                             <th data-table-number-column scope="col" class="attendance-days-number px-5 py-4 text-center lg:px-6">#</th>
                             <th class="attendance-days-date px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.date') }}</th>
                             @if($classesEnabled)<th class="attendance-days-course px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.course') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>@endif
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
-                            <th class="attendance-days-mobile-hidden px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
+                            <th class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 lg:px-6">{{ __('workflow.student_attendance.days.table.headers.groups') }}</th>@endif
+                            <th class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 lg:px-6">{{ __('workflow.student_attendance.days.table.headers.students') }}</th>
+                            <th class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 lg:px-6">{{ __('workflow.student_attendance.days.table.headers.attended') }}</th>
+                            <th class="attendance-days-mobile-hidden attendance-days-status px-5 py-4 text-left lg:px-6">{{ __('workflow.student_attendance.days.table.headers.status') }}</th>
                             <th class="attendance-days-actions admin-actions-column px-5 py-4 text-center lg:px-6">{{ __('workflow.student_attendance.days.table.headers.actions') }}</th>
                         </tr>
                     </thead>
@@ -400,7 +406,7 @@ new class extends Component
                             @php
                                 $groupCount = $day->groupAttendanceDays->count();
                                 $studentCount = $classesEnabled
-                                    ? $day->groupAttendanceDays->sum(fn ($groupDay) => (int) ($groupDay->group?->active_enrollments_count ?? 0))
+                                    ? $day->groupAttendanceDays->sum(fn ($groupDay) => $groupDay->group?->enrollments?->filter(fn ($enrollment) => $enrollment->isEligibleForAttendanceOn($day->attendance_date))->count() ?? 0)
                                     : $day->centerRecords->count();
                                 $attendedCount = $classesEnabled
                                     ? $day->groupAttendanceDays->sum('present_records_count')
@@ -417,13 +423,15 @@ new class extends Component
                                 @if($classesEnabled)<td class="attendance-days-course px-5 py-4 text-neutral-300 lg:px-6">
                                     <div><span class="record-course-name">{{ $day->course?->name ?: __('workflow.common.no_course') }}</span></div>
                                 </td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($groupCount) }}</td>@endif
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($studentCount) }}</td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 text-neutral-300 lg:px-6">{{ number_format($attendedCount) }}</td>
-                                <td class="attendance-days-mobile-hidden px-5 py-4 lg:px-6">
-                                    <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
-                                        {{ __('workflow.common.day_status.'.$day->status) }}
-                                    </span>
+                                <td class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 text-neutral-300 tabular-nums lg:px-6">{{ number_format($groupCount) }}</td>@endif
+                                <td class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 text-neutral-300 tabular-nums lg:px-6">{{ number_format($studentCount) }}</td>
+                                <td class="attendance-days-mobile-hidden attendance-days-metric px-5 py-4 text-neutral-300 tabular-nums lg:px-6">{{ number_format($attendedCount) }}</td>
+                                <td class="attendance-days-mobile-hidden attendance-days-status px-5 py-4 lg:px-6">
+                                    <div class="attendance-days-status__content">
+                                        <span class="{{ $day->status === 'closed' ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">
+                                            {{ __('workflow.common.day_status.'.$day->status) }}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td class="attendance-days-actions px-5 py-4 lg:px-6">
                                     <div class="flex flex-wrap justify-end gap-2">

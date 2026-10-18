@@ -35,7 +35,7 @@
                             <th class="px-5 py-3 text-start">{{ __('backups.table.trigger') }}</th>
                             <th class="px-5 py-3 text-start">{{ __('backups.table.size') }}</th>
                             <th class="px-5 py-3 text-start">{{ __('backups.table.verification') }}</th>
-                            <th class="px-5 py-3 text-start">{{ __('backups.table.actions') }}</th>
+                            <th class="admin-actions-column px-5 py-3 text-center">{{ __('backups.table.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">

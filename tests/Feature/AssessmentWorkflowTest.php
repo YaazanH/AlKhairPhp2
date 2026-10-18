@@ -17,6 +17,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\View;
 use Livewire\Volt\Volt;
 use Mpdf\Mpdf;
 use setasign\Fpdi\PdfParser\StreamReader;
@@ -104,12 +105,17 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-results-single--full', false)
             ->assertSee('assessment-results-dual--inactive', false)
             ->assertSee('assessment-result-status-text status-text status-text--amber', false)
+            ->assertSee('data-assessment-status-label', false)
+            ->assertSee('data-assessment-status="absent"', false)
+            ->assertSee('<bdi dir="ltr">--</bdi>', false)
             ->assertSee('assessment-result-points-text status-text status-text--slate', false)
             ->assertDontSee('assessment-result-status-chip', false)
             ->assertDontSee('assessment-student-attempt')
             ->assertDontSee('assessment-student-notes')
             ->set('result_scores.'.$enrollment->id, '85')
             ->call('saveEnrollmentResult', $enrollment->id)
+            ->assertSee('<bdi dir="ltr">85 %</bdi>', false)
+            ->assertSee('data-assessment-status="passed"', false)
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('assessment_results', [
@@ -147,6 +153,95 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-results-dual', false)
             ->assertDontSee('assessment-results-single--full', false)
             ->assertDontSee('assessment-results-dual--inactive', false);
+    }
+
+    public function test_only_whole_assessment_pdf_sorts_students_by_mark_descending_then_name(): void
+    {
+        [$assessment, $existingEnrollment] = $this->assessmentContext();
+
+        $enrollments = collect([
+            ['first_name' => 'Beta', 'last_name' => 'Student', 'score' => 90],
+            ['first_name' => 'Alpha', 'last_name' => 'Student', 'score' => 90],
+            ['first_name' => 'Zero', 'last_name' => 'Student', 'score' => null],
+        ])->map(function (array $studentData) use ($assessment, $existingEnrollment) {
+            $student = Student::create([
+                'parent_id' => $existingEnrollment->student->parent_id,
+                'first_name' => $studentData['first_name'],
+                'last_name' => $studentData['last_name'],
+                'birth_date' => '2014-05-12',
+                'status' => 'active',
+            ]);
+
+            $enrollment = Enrollment::create([
+                'student_id' => $student->id,
+                'group_id' => $existingEnrollment->group_id,
+                'enrolled_at' => '2026-09-01',
+                'status' => 'active',
+            ]);
+
+            if ($studentData['score'] !== null) {
+                AssessmentResult::create([
+                    'assessment_id' => $assessment->id,
+                    'enrollment_id' => $enrollment->id,
+                    'student_id' => $student->id,
+                    'score' => $studentData['score'],
+                    'status' => 'passed',
+                    'attempt_no' => 1,
+                ]);
+            }
+
+            return $enrollment;
+        });
+
+        AssessmentResult::create([
+            'assessment_id' => $assessment->id,
+            'enrollment_id' => $existingEnrollment->id,
+            'student_id' => $existingEnrollment->student_id,
+            'score' => 70,
+            'status' => 'passed',
+            'attempt_no' => 1,
+        ]);
+
+        $pdfGroups = null;
+        $wholeAssessmentPdfIsSingleGroup = null;
+        View::composer('exports.assessment-results-pdf', function ($view) use (&$pdfGroups, &$wholeAssessmentPdfIsSingleGroup): void {
+            $pdfGroups = $view->getData()['groups'];
+            $wholeAssessmentPdfIsSingleGroup = $view->getData()['isSingleGroupPdf'];
+        });
+
+        $this->get(route('assessments.results.pdf', $assessment, absolute: false))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->assertFalse($wholeAssessmentPdfIsSingleGroup);
+        $this->assertSame([
+            $enrollments[1]->id,
+            $enrollments[0]->id,
+            $existingEnrollment->id,
+            $enrollments[2]->id,
+        ], $pdfGroups->first()->enrollments->pluck('id')->all());
+
+        $singleGroupPdfGroups = null;
+        $singleGroupPdfIsSingleGroup = null;
+        View::composer('exports.assessment-results-pdf', function ($view) use (&$singleGroupPdfGroups, &$singleGroupPdfIsSingleGroup): void {
+            $singleGroupPdfGroups = $view->getData()['groups'];
+            $singleGroupPdfIsSingleGroup = $view->getData()['isSingleGroupPdf'];
+        });
+
+        $this->get(route('assessments.results.pdf', [
+            'assessment' => $assessment,
+            'group_id' => $existingEnrollment->group_id,
+        ], absolute: false))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->assertTrue($singleGroupPdfIsSingleGroup);
+        $this->assertSame([
+            $enrollments[1]->id,
+            $existingEnrollment->id,
+            $enrollments[0]->id,
+            $enrollments[2]->id,
+        ], $singleGroupPdfGroups->first()->enrollments->pluck('id')->all());
     }
 
     public function test_score_bands_cannot_overlap_for_the_same_assessment_type(): void
@@ -374,6 +469,7 @@ class AssessmentWorkflowTest extends TestCase
             ->assertSee('assessment-results-title', false)
             ->assertSee('assessment-results-back', false)
             ->assertDontSee('admin-kpi-grid', false)
+            ->assertViewHas('groupSummary', trans_choice('counts.groups', 2, ['count' => number_format(2)]))
             ->assertSee('Assessment Group')
             ->assertSee('Second Assessment Group')
             ->assertSee(__('workflow.assessments.results.student_entry.title'))
@@ -445,6 +541,25 @@ class AssessmentWorkflowTest extends TestCase
             'group_id' => $secondGroup->id,
         ], absolute: false))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertSame(1, $pdfInspector->setSourceFile(StreamReader::createByString($groupPdfResponse->getContent())));
+
+        $firstEnrollment->update(['status' => 'completed']);
+        $secondEnrollment->update(['status' => 'completed']);
+
+        Volt::test('assessments.results', [
+            'assessment' => $assessment,
+            'archiveCourseId' => $course->id,
+        ])
+            ->assertViewHas('groupSummary', trans_choice('counts.groups', 2, ['count' => number_format(2)]))
+            ->assertViewHas('totalSavedResults', 2)
+            ->assertSee('archive_course_id='.$course->id, false)
+            ->assertDontSee('data-assessment-add-result-action', false)
+            ->assertDontSee('data-assessment-edit-action', false);
+
+        $archivePdfResponse = $this->get(route('assessments.results.pdf', [
+            'assessment' => $assessment,
+            'archive_course_id' => $course->id,
+        ], absolute: false))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertSame(2, $pdfInspector->setSourceFile(StreamReader::createByString($archivePdfResponse->getContent())));
     }
 
     public function test_assessment_course_and_group_selection_cannot_be_empty(): void

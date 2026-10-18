@@ -18,6 +18,7 @@ class QuranFinalTest extends Model
         'status',
         'passed_on',
         'created_by',
+        'from_external_memorization',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class QuranFinalTest extends Model
         return [
             'last_tested_on' => 'date',
             'passed_on' => 'date',
+            'from_external_memorization' => 'boolean',
         ];
     }
 

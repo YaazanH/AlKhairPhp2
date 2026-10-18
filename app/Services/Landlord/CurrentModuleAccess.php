@@ -82,12 +82,17 @@ class CurrentModuleAccess
     public function filterPayload(array $payload, bool $activityPayload = false): array
     {
         $fields = [
-            'parents' => ['parent', 'parent_id', 'parent_name', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone'],
-            'classes' => ['group', 'groups', 'target_groups', 'enrollment', 'enrollments', 'active_enrollments', 'enrollments_count'],
+            'parents' => ['parent', 'parents', 'parent_id', 'parent_name', 'father_name', 'mother_name', 'father_phone', 'mother_phone', 'home_phone'],
+            'classes' => ['group', 'groups', 'active_groups', 'target_groups', 'course', 'course_id', 'course_name', 'assigned_groups', 'assisted_groups', 'enrollment', 'enrollments', 'active_enrollments', 'enrollments_count'],
+            'students' => ['active_students', 'student_id', 'students_count'],
+            'teachers' => ['teacher', 'teachers', 'teacher_id', 'teacher_name', 'assistant_teacher', 'assistant_teacher_id'],
+            'assessments' => ['active_assessments', 'assessment_average'],
+            'student_attendance' => ['attendance_days'],
+            'quran_tests' => ['passed_final_tests', 'passed_partial_tests'],
             'memorization' => ['memorized_pages', 'memorized_pages_cached', 'quran_current_juz', 'quran_current_juz_id'],
             'points_rewards' => ['points', 'final_points_cached'],
-            'student_billing' => ['invoice_total', 'paid_total'],
-            'activities' => ['available_activity_responses'],
+            'student_billing' => ['invoice_total', 'paid_total', 'invoice_balance'],
+            'activities' => ['available_activity_responses', 'active_activities'],
             'finance' => ['fee_amount', 'paid', 'paid_amount', 'remaining_amount', 'collected_revenue', 'expected_revenue', 'expense_total'],
         ];
         $fields[$activityPayload ? 'finance' : 'student_billing'][] = 'balance';

@@ -53,6 +53,8 @@ new class extends Component
 
     public string $transfer_notes = '';
 
+    public string $transfer_default_notes = '';
+
     public string $filter_start_date = '';
 
     public string $filter_end_date = '';
@@ -101,6 +103,7 @@ new class extends Component
         $this->filter_cash_box_id = $defaultFund?->id;
         $this->request_currency_id = $localCurrency->id;
         $this->request_cash_box_id = $defaultFund?->id;
+        $this->syncDefaultTransferNotes();
     }
 
     public function updatedYear(): void
@@ -153,8 +156,11 @@ new class extends Component
             'availableFinancePeriods' => $this->dashboardPeriods(),
             'cashBoxes' => $cashBoxes,
             'currencies' => FinanceCurrency::query()->where('is_active', true)->where('show_in_dropdowns', true)->orderByDesc('is_local')->orderBy('code')->get(),
-            'transferCurrencies' => $service->currenciesForCashBox($this->transfer_from_cash_box_id)->get(),
+            'transferCurrencies' => $service->currenciesForCashBox($this->transfer_from_cash_box_id)
+                ->when(! $this->transfer_from_cash_box_id, fn (Builder $query) => $query->whereRaw('1 = 0'))
+                ->get(),
             'transferToCashBoxes' => $service->accessibleCashBoxesForCurrency(auth()->user(), $this->transfer_currency_id)
+                ->when(! $this->transfer_currency_id, fn (Builder $query) => $query->whereRaw('1 = 0'))
                 ->when($this->transfer_from_cash_box_id, fn (Builder $query) => $query->where('finance_cash_boxes.id', '!=', $this->transfer_from_cash_box_id))
                 ->get(),
             'pendingRequests' => FinanceRequest::query()->with(['category', 'pullRequestKind', 'requestedBy', 'requestedCurrency', 'teacher'])->where('type', FinanceRequest::TYPE_PULL)->where('status', FinanceRequest::STATUS_PENDING)->latest()->limit(10)->get(),
@@ -171,7 +177,10 @@ new class extends Component
             'teachers' => Teacher::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get(),
             'requestKinds' => FinancePullRequestKind::query()->where('is_active', true)->orderBy('mode')->orderBy('name')->get(),
             'selectedRequestKind' => FinancePullRequestKind::query()->find($this->request_kind_id),
-            'requestCashBoxes' => $service->accessibleCashBoxesForCurrency(auth()->user(), $this->request_currency_id)->get(),
+            'requestCashBoxes' => $cashBoxes,
+            'requestCurrencies' => $service->currenciesForCashBox($this->request_cash_box_id)
+                ->when(! $this->request_cash_box_id, fn (Builder $query) => $query->whereRaw('1 = 0'))
+                ->get(),
             'transactionTypes' => collect(['income', 'expense', 'return', 'exchange', 'transfer']),
             'transactions' => $transactions->paginate(8, pageName: 'transactionsPage'),
         ];
@@ -206,6 +215,7 @@ new class extends Component
     public function openTransferModal(): void
     {
         $this->authorizePermission('finance.cash-box.transfer');
+        $this->syncDefaultTransferNotes();
         $this->showTransferModal = true;
     }
 
@@ -214,19 +224,46 @@ new class extends Component
         $this->transfer_to_cash_box_id = null;
         $currencies = app(FinanceService::class)->currenciesForCashBox($this->transfer_from_cash_box_id)->get();
 
-        if (! $currencies->contains('id', $this->transfer_currency_id)) {
+        if (! $this->transfer_from_cash_box_id) {
+            $this->transfer_currency_id = null;
+        } elseif (! $currencies->contains('id', $this->transfer_currency_id)) {
             $this->transfer_currency_id = $currencies->first()?->id;
         }
+
+        $this->syncDefaultTransferNotes();
     }
 
     public function updatedTransferCurrencyId(): void
     {
         $this->transfer_to_cash_box_id = null;
+        $this->syncDefaultTransferNotes();
+    }
+
+    public function updatedTransferToCashBoxId(): void
+    {
+        $this->syncDefaultTransferNotes();
+    }
+
+    public function updatedRequestCashBoxId(): void
+    {
+        if (! $this->request_cash_box_id) {
+            $this->request_currency_id = null;
+
+            return;
+        }
+
+        $currencies = app(FinanceService::class)->currenciesForCashBox($this->request_cash_box_id);
+
+        if (! $this->request_currency_id || ! (clone $currencies)->whereKey($this->request_currency_id)->exists()) {
+            $this->request_currency_id = (clone $currencies)->value('id');
+        }
     }
 
     public function updatedRequestCurrencyId(): void
     {
-        $this->request_cash_box_id = app(FinanceService::class)->defaultCashBoxForUser(auth()->user(), $this->request_currency_id)?->id;
+        if ($this->request_cash_box_id && $this->request_currency_id && ! app(FinanceService::class)->currenciesForCashBox($this->request_cash_box_id)->whereKey($this->request_currency_id)->exists()) {
+            $this->request_currency_id = app(FinanceService::class)->currenciesForCashBox($this->request_cash_box_id)->value('id');
+        }
     }
 
     public function transfer(): void
@@ -242,10 +279,22 @@ new class extends Component
             'transfer_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        app(FinanceService::class)->recordCashBoxTransfer(
-            app(FinanceService::class)->cashBoxForUser((int) $validated['transfer_from_cash_box_id'], auth()->user()),
-            app(FinanceService::class)->cashBoxForUser((int) $validated['transfer_to_cash_box_id'], auth()->user()),
-            FinanceCurrency::query()->findOrFail((int) $validated['transfer_currency_id']),
+        $financeService = app(FinanceService::class);
+        $fromCashBox = $financeService->cashBoxForUser((int) $validated['transfer_from_cash_box_id'], auth()->user());
+        $toCashBox = $financeService->cashBoxForUser((int) $validated['transfer_to_cash_box_id'], auth()->user());
+        $currency = FinanceCurrency::query()->findOrFail((int) $validated['transfer_currency_id']);
+
+        if (! $financeService->currenciesForCashBox($fromCashBox->id)->whereKey($currency->id)->exists()
+            || ! $financeService->currenciesForCashBox($toCashBox->id)->whereKey($currency->id)->exists()) {
+            $this->addError('transfer_currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+            return;
+        }
+
+        $financeService->recordCashBoxTransfer(
+            $fromCashBox,
+            $toCashBox,
+            $currency,
             (float) $validated['transfer_amount'],
             $validated['transfer_date'],
             auth()->user(),
@@ -253,7 +302,34 @@ new class extends Component
         );
 
         $this->reset(['transfer_to_cash_box_id', 'transfer_amount', 'transfer_notes', 'showTransferModal']);
+        $this->syncDefaultTransferNotes();
         session()->flash('status', __('finance.messages.transfer_posted'));
+    }
+
+    protected function syncDefaultTransferNotes(): void
+    {
+        $previousDefault = $this->transfer_default_notes;
+        $fromCashBox = $this->transfer_from_cash_box_id ? app(FinanceService::class)->accessibleCashBoxes(auth()->user())->find($this->transfer_from_cash_box_id) : null;
+        $toCashBox = $this->transfer_to_cash_box_id ? app(FinanceService::class)->accessibleCashBoxes(auth()->user())->find($this->transfer_to_cash_box_id) : null;
+        $currency = $this->transfer_currency_id ? FinanceCurrency::query()->find($this->transfer_currency_id) : null;
+
+        if (! $fromCashBox || ! $toCashBox || ! $currency) {
+            if ($this->transfer_notes === $previousDefault) {
+                $this->transfer_notes = '';
+            }
+
+            $this->transfer_default_notes = '';
+
+            return;
+        }
+
+        $nextDefault = app(FinanceService::class)->defaultFundTransferDescription($fromCashBox, $toCashBox, $currency);
+
+        if (blank($this->transfer_notes) || $this->transfer_notes === $previousDefault) {
+            $this->transfer_notes = $nextDefault;
+        }
+
+        $this->transfer_default_notes = $nextDefault;
     }
 
     public function createRequest(): void
@@ -273,6 +349,13 @@ new class extends Component
         $teacher = Teacher::query()->with('user')->findOrFail((int) $validated['request_teacher_id']);
         $currency = FinanceCurrency::query()->findOrFail((int) $validated['request_currency_id']);
         $kind = FinancePullRequestKind::query()->findOrFail((int) $validated['request_kind_id']);
+        $cashBox = app(FinanceService::class)->cashBoxForUser((int) $validated['request_cash_box_id'], auth()->user());
+
+        if (! app(FinanceService::class)->currenciesForCashBox($cashBox->id)->whereKey($currency->id)->exists()) {
+            $this->addError('request_currency_id', __('finance.validation.cash_box_currency_mismatch'));
+
+            return;
+        }
 
         $request = FinanceRequest::query()->create([
             'request_no' => app(FinanceService::class)->nextRequestNumber(FinanceRequest::TYPE_PULL),
@@ -292,7 +375,7 @@ new class extends Component
             app(FinanceService::class)->acceptRequest(
                 $request,
                 (float) $validated['request_amount'],
-                app(FinanceService::class)->cashBoxForUser((int) $validated['request_cash_box_id'], auth()->user()),
+                $cashBox,
                 auth()->user(),
                 null,
                 $kind->mode === FinancePullRequestKind::MODE_COUNT ? (int) ($validated['request_count'] ?: 0) : null,
@@ -512,7 +595,43 @@ new class extends Component
             @endif
         </div>
 
-        <div class="surface-table"><div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header><div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div><div class="flex shrink-0 gap-2"><button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="past" /></button><button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button></div></div><div class="overflow-x-auto"><table class="table-content text-sm"><thead><tr><th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th><th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th><th></th></tr></thead><tbody>@forelse ($pendingRequests as $request)<tr><td class="px-4 py-3">{{ $request->request_no }}</td><td class="record-person-name px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td><td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td><td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td><td class="px-4 py-3 text-right"><button wire:click="openReviewModal({{ $request->id }})" class="pill-link pill-link--compact" data-keep-visible-table-action>{{ __('finance.actions.review') }}</button></td></tr>@empty<tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>@endforelse</tbody></table></div></div>
+        <div class="surface-table">
+            <div class="admin-grid-meta finance-dashboard-table-header" data-finance-dashboard-inline-header>
+                <div class="admin-grid-meta__title">{{ __('finance.dashboard.pending_withdrawals') }}</div>
+                <div class="flex shrink-0 gap-2">
+                    <button type="button" wire:click="$set('showRequestHistoryModal', true)" class="admin-icon-button finance-dashboard-header-action" title="{{ __('finance.dashboard.previous_requests') }}" aria-label="{{ __('finance.dashboard.previous_requests') }}" data-finance-dashboard-request-history><x-admin-action-icon name="past" /></button>
+                    <button type="button" wire:click="$set('showCreateRequestModal', true)" class="admin-icon-button admin-icon-button--accent finance-dashboard-header-action" title="{{ __('finance.pull_requests.new') }}" aria-label="{{ __('finance.pull_requests.new') }}" data-finance-dashboard-new-request><x-admin-action-icon name="add" /></button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table-content text-sm">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-3 text-left">{{ __('finance.common.request') }}</th>
+                            <th class="px-4 py-3 text-left">{{ __('finance.fields.requester') }}</th>
+                            <th class="px-4 py-3 text-left">{{ __('finance.fields.category') }}</th>
+                            <th class="px-4 py-3 text-left">{{ __('finance.fields.amount') }}</th>
+                            <th class="admin-actions-column px-4 py-3 text-center">{{ __('finance.actions.actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($pendingRequests as $request)
+                            <tr>
+                                <td class="px-4 py-3">{{ $request->request_no }}</td>
+                                <td class="record-person-name px-4 py-3">{{ $request->teacher ? trim($request->teacher->first_name.' '.$request->teacher->last_name) : ($request->requestedBy?->name ?: '-') }}</td>
+                                <td class="px-4 py-3">{{ $request->pullRequestKind?->name ?: '-' }}</td>
+                                <td class="px-4 py-3"><bdi dir="ltr">{{ app(FinanceService::class)->formatCurrencyAmount($request->requested_amount, $request->requestedCurrency) }}</bdi></td>
+                                <td class="px-4 py-3 text-center">
+                                    <button type="button" wire:click="openReviewModal({{ $request->id }})" class="admin-icon-button" title="{{ __('finance.actions.review') }}" aria-label="{{ __('finance.actions.review') }}" data-finance-dashboard-review-action data-keep-visible-table-action><x-admin-action-icon name="review" /></button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-5 py-10 text-center text-neutral-500">{{ __('finance.empty.no_pending_pull_requests') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </section>
 
     <section class="grid gap-6 xl:grid-cols-2">
@@ -550,14 +669,14 @@ new class extends Component
     <x-admin.modal :show="$showTransferModal" :title="__('finance.dashboard.move_money')" close-method="$set('showTransferModal', false)" max-width="3xl">
         <form wire:submit="transfer" class="grid gap-4 md:grid-cols-2">
             <div><label class="mb-1 block text-sm">{{ __('finance.fields.from') }}</label><select wire:model.live="transfer_from_cash_box_id" class="w-full rounded-xl px-4 py-3">@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
-            <div><label class="mb-1 block text-sm">{{ __('finance.fields.to') }}</label><select wire:model="transfer_to_cash_box_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($transferToCashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
+            <div><label class="mb-1 block text-sm">{{ __('finance.fields.to') }}</label><select wire:model.live="transfer_to_cash_box_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($transferToCashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
             <div class="md:col-span-2">
                 <label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label>
                 <x-finance.amount-input amount-model="transfer_amount" currency-model="transfer_currency_id" :currencies="$transferCurrencies" />
                 @error('transfer_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
             </div>
             <div><label class="mb-1 block text-sm">{{ __('finance.common.date') }}</label><input wire:model="transfer_date" type="date" class="w-full rounded-xl px-4 py-3"></div>
-            <div><label class="mb-1 block text-sm">{{ __('finance.common.notes') }}</label><input wire:model="transfer_notes" class="w-full rounded-xl px-4 py-3"></div>
+            <div><label class="mb-1 block text-sm">{{ __('finance.common.notes') }}</label><input wire:model="transfer_notes" placeholder="{{ __('finance.common.notes') }}" class="w-full rounded-xl px-4 py-3"></div>
             <div class="admin-action-cluster admin-action-cluster--end md:col-span-2">
                 <button type="submit" class="admin-icon-button admin-icon-button--accent admin-modal-action-button" title="{{ __('finance.actions.transfer') }}" aria-label="{{ __('finance.actions.transfer') }}" data-finance-dashboard-transfer-action>
                     <x-admin-action-icon name="transfer" class="admin-modal-action__icon" />
@@ -570,14 +689,15 @@ new class extends Component
         <form wire:submit="createRequest" class="grid gap-4 md:grid-cols-2">
             <div><label class="mb-1 block text-sm">{{ __('finance.fields.requester') }}</label><select wire:model="request_teacher_id" class="w-full rounded-xl px-4 py-3" data-record-label="person"><option value="">-</option>@foreach ($teachers as $teacher)<option value="{{ $teacher->id }}">{{ trim($teacher->first_name.' '.$teacher->last_name) }}</option>@endforeach</select></div>
             <div><label class="mb-1 block text-sm">{{ __('finance.fields.category') }}</label><select wire:model.live="request_kind_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($requestKinds as $kind)<option value="{{ $kind->id }}">{{ $kind->name }} - {{ __('finance.pull_modes.'.$kind->mode) }}</option>@endforeach</select></div>
-            <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model="request_cash_box_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($requestCashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select></div>
+            <div><label class="mb-1 block text-sm">{{ __('finance.fields.cash_box') }}</label><select wire:model.live="request_cash_box_id" class="w-full rounded-xl px-4 py-3"><option value="">-</option>@foreach ($requestCashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select>@error('request_cash_box_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror</div>
             <div>
                 <label class="mb-1 block text-sm">{{ __('finance.fields.amount') }}</label>
-                <x-finance.amount-input amount-model="request_amount" currency-model="request_currency_id" :currencies="$currencies" />
+                <x-finance.amount-input amount-model="request_amount" currency-model="request_currency_id" :currencies="$requestCurrencies" />
                 @error('request_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
+                @error('request_currency_id')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
             </div>
-            @if ($selectedRequestKind?->mode === 'count')<div><label class="mb-1 block text-sm">{{ __('finance.fields.people_count') }}</label><input wire:model="request_count" type="number" min="1" class="w-full rounded-xl px-4 py-3"></div>@endif
-            <div class="md:col-span-2"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="request_reason" class="w-full rounded-xl px-4 py-3"></textarea></div>
+            @if ($selectedRequestKind?->mode === 'count')<div><label class="mb-1 block text-sm">{{ __('finance.fields.people_count') }}</label><input wire:model="request_count" type="number" min="1" placeholder="{{ __('finance.fields.people_count') }}" class="w-full rounded-xl px-4 py-3"></div>@endif
+            <div class="md:col-span-2"><label class="mb-1 block text-sm">{{ __('finance.common.description') }}</label><textarea wire:model="request_reason" placeholder="{{ __('finance.common.description') }}" class="w-full rounded-xl px-4 py-3"></textarea></div>
             <div class="admin-action-cluster admin-action-cluster--end md:col-span-2">
                 <button
                     type="submit"
@@ -602,7 +722,7 @@ new class extends Component
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm">{{ __('finance.fields.accepted') }}</label>
-                        <input wire:model="review_amount" data-thousand-separator class="w-full rounded-xl px-4 py-3">
+                        <input wire:model="review_amount" data-thousand-separator placeholder="{{ __('finance.fields.accepted') }}" class="w-full rounded-xl px-4 py-3">
                         @error('review_amount')<div class="text-sm text-red-400">{{ $message }}</div>@enderror
                     </div>
                     <div>
@@ -625,7 +745,7 @@ new class extends Component
                 <p class="text-sm opacity-75"><bdi dir="ltr">{{ $reviewRequest->request_no }}</bdi></p>
                 <div>
                     <label for="withdrawal-expense-details" class="mb-2 block text-sm">{{ __('finance.fields.expense_details') }}</label>
-                    <textarea id="withdrawal-expense-details" wire:model="review_notes" rows="2" maxlength="2000" required aria-required="true" @error('review_notes') aria-invalid="true" aria-describedby="withdrawal-expense-details-error" @enderror class="w-full rounded-xl px-4 py-3 text-sm" data-withdrawal-expense-details></textarea>
+                    <textarea id="withdrawal-expense-details" wire:model="review_notes" rows="2" maxlength="2000" placeholder="{{ __('finance.fields.expense_details') }}" required aria-required="true" @error('review_notes') aria-invalid="true" aria-describedby="withdrawal-expense-details-error" @enderror class="w-full rounded-xl px-4 py-3 text-sm" data-withdrawal-expense-details></textarea>
                     @error('review_notes')<p id="withdrawal-expense-details-error" class="mt-1 text-sm text-red-400" role="alert">{{ $message }}</p>@enderror
                     @error('review_amount')<p class="mt-1 text-sm text-red-400" role="alert">{{ $message }}</p>@enderror
                     @error('review_cash_box_id')<p class="mt-1 text-sm text-red-400" role="alert">{{ $message }}</p>@enderror
@@ -672,7 +792,12 @@ new class extends Component
     </x-admin.modal>
 
     <x-admin.modal :show="$showTransactionsModal" :title="__('finance.dashboard.financial_transactions')" close-method="$set('showTransactionsModal', false)" max-width="8xl">
-        <div class="finance-transactions-filters date-control-peer-group mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6" data-mobile-table-filter-controls>
+        <x-slot:headerActions>
+            <button type="button" class="admin-modal__close financial-transactions-header-search" data-mobile-table-filter-open data-mobile-table-filter-target="financial-transactions-filters" aria-controls="financial-transactions-filters" aria-expanded="false" title="{{ __('crud.common.filters.search') }}" aria-label="{{ __('crud.common.filters.search') }}">
+                <x-admin-action-icon name="search" />
+            </button>
+        </x-slot:headerActions>
+        <div id="financial-transactions-filters" class="finance-transactions-filters date-control-peer-group mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6" data-mobile-table-filter-controls>
             <input wire:key="finance-transactions-filter-start-date" wire:model.live="filter_start_date" type="date" placeholder="{{ __('reports.filters.date_from') }}" aria-label="{{ __('reports.filters.date_from') }}" data-date-placeholder="{{ __('reports.filters.date_from') }}" class="date-control--match-select h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2">
             <input wire:key="finance-transactions-filter-end-date" wire:model.live="filter_end_date" type="date" placeholder="{{ __('reports.filters.date_to') }}" aria-label="{{ __('reports.filters.date_to') }}" data-date-placeholder="{{ __('reports.filters.date_to') }}" class="date-control--match-select h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2">
             <select wire:key="finance-transactions-filter-cash-box" wire:model.live="filter_cash_box_id" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="">{{ __('finance.options.all_cash_boxes') }}</option>@foreach ($cashBoxes as $fund)<option value="{{ $fund->id }}">{{ $fund->name }}</option>@endforeach</select>
@@ -681,7 +806,7 @@ new class extends Component
             <select wire:key="finance-transactions-filter-visibility" wire:model.live="filter_visibility" class="h-[3.125rem] min-h-[3.125rem] rounded-xl px-3 py-2"><option value="active">{{ __('finance.filters.active_only') }}</option><option value="deleted">{{ __('finance.filters.deleted_only') }}</option><option value="all">{{ __('finance.filters.all_records') }}</option></select>
         </div>
         <div class="surface-table settings-record-table" data-settings-record-table data-finance-generic-table data-financial-transactions-table>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto financial-transactions-desktop-table" data-financial-transactions-scroll-region>
                 <table class="financial-transactions-table w-full text-sm">
                     <colgroup>
                         <col style="width: 3%" data-finance-fixed-percent="3">

@@ -22,21 +22,13 @@ new class extends Component
 
     public string $phone = '';
 
-    public string $secondary_phone = '';
-
-    public string $email = '';
-
     public string $address = '';
 
     public string $notes = '';
 
-    public bool $is_active = true;
-
     public string $search = '';
 
     public string $categoryFilter = 'all';
-
-    public string $statusFilter = 'all';
 
     public int $perPage = 15;
 
@@ -49,7 +41,6 @@ new class extends Component
 
     public function with(): array
     {
-        $baseQuery = CommunityContact::query();
         $filteredQuery = CommunityContact::query()
             ->when(filled($this->search), function ($query) {
                 ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
@@ -60,24 +51,17 @@ new class extends Component
                         ->orWhere('category', 'like', $search)
                         ->orWhere('organization', 'like', $search)
                         ->orWhere('phone', 'like', $search)
-                        ->orWhere('secondary_phone', 'like', $search)
-                        ->when($normalizedPhone, fn ($query) => $query
-                            ->orWhere('phone', 'like', '%'.$normalizedPhone.'%')
-                            ->orWhere('secondary_phone', 'like', '%'.$normalizedPhone.'%'))
-                        ->orWhere('email', 'like', $search)
+                        ->when($normalizedPhone, fn ($query) => $query->orWhere('phone', 'like', '%'.$normalizedPhone.'%'))
                         ->orWhere('address', 'like', $search)
                         ->orWhere('notes', 'like', $search);
                 });
             })
             ->when($this->categoryFilter !== 'all', fn ($query) => $query->where('category', $this->categoryFilter))
-            ->when(in_array($this->statusFilter, ['active', 'inactive'], true), fn ($query) => $query->where('is_active', $this->statusFilter === 'active'))
-            ->orderByDesc('is_active')
             ->orderBy('category')
             ->orderBy('name');
 
         return [
             'contacts' => $filteredQuery->paginate($this->perPage),
-            'filteredCount' => (clone $filteredQuery)->count(),
             'categories' => CommunityContact::query()
                 ->whereNotNull('category')
                 ->where('category', '!=', '')
@@ -85,12 +69,6 @@ new class extends Component
                 ->orderBy('category')
                 ->pluck('category')
                 ->values(),
-            'totals' => [
-                'all' => (clone $baseQuery)->count(),
-                'active' => CommunityContact::query()->where('is_active', true)->count(),
-                'inactive' => CommunityContact::query()->where('is_active', false)->count(),
-                'categories' => CommunityContact::query()->whereNotNull('category')->where('category', '!=', '')->distinct()->count('category'),
-            ],
         ];
     }
 
@@ -101,11 +79,8 @@ new class extends Component
             'category' => ['nullable', 'string', 'max:255'],
             'organization' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'secondary_phone' => ['nullable', 'string', 'max:50'],
-            'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
-            'is_active' => ['boolean'],
         ];
     }
 
@@ -115,11 +90,6 @@ new class extends Component
     }
 
     public function updatedCategoryFilter(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedStatusFilter(): void
     {
         $this->resetPage();
     }
@@ -142,11 +112,8 @@ new class extends Component
         $this->category = $contact->category ?? '';
         $this->organization = $contact->organization ?? '';
         $this->phone = $contact->phone ?? '';
-        $this->secondary_phone = $contact->secondary_phone ?? '';
-        $this->email = $contact->email ?? '';
         $this->address = $contact->address ?? '';
         $this->notes = $contact->notes ?? '';
-        $this->is_active = $contact->is_active;
         $this->showFormModal = true;
 
         $this->resetValidation();
@@ -157,7 +124,6 @@ new class extends Component
         $this->authorizePermission($this->editingId ? 'community-contacts.update' : 'community-contacts.create');
 
         $this->phone = PhoneNumberFormatter::normalize($this->phone) ?? '';
-        $this->secondary_phone = PhoneNumberFormatter::normalize($this->secondary_phone) ?? '';
 
         $validated = $this->validate();
 
@@ -168,11 +134,8 @@ new class extends Component
                 'category' => filled($validated['category']) ? trim($validated['category']) : null,
                 'organization' => filled($validated['organization']) ? trim($validated['organization']) : null,
                 'phone' => filled($validated['phone']) ? trim($validated['phone']) : null,
-                'secondary_phone' => filled($validated['secondary_phone']) ? trim($validated['secondary_phone']) : null,
-                'email' => filled($validated['email']) ? trim($validated['email']) : null,
                 'address' => filled($validated['address']) ? trim($validated['address']) : null,
                 'notes' => filled($validated['notes']) ? trim($validated['notes']) : null,
-                'is_active' => (bool) $validated['is_active'],
             ],
         );
 
@@ -201,22 +164,11 @@ new class extends Component
         $this->category = '';
         $this->organization = '';
         $this->phone = '';
-        $this->secondary_phone = '';
-        $this->email = '';
         $this->address = '';
         $this->notes = '';
-        $this->is_active = true;
         $this->showFormModal = false;
 
         $this->resetValidation();
-    }
-
-    public function clearFilters(): void
-    {
-        $this->search = '';
-        $this->categoryFilter = 'all';
-        $this->statusFilter = 'all';
-        $this->resetPage();
     }
 }; ?>
 
@@ -244,13 +196,6 @@ new class extends Component
                 @endforeach
             </select>
 
-            <select wire:model.live="statusFilter" class="w-36 rounded-xl px-3 py-3 text-sm">
-                <option value="all">{{ __('community_contacts.filters.all_statuses') }}</option>
-                <option value="active">{{ __('community_contacts.statuses.active') }}</option>
-                <option value="inactive">{{ __('community_contacts.statuses.inactive') }}</option>
-            </select>
-
-            <x-clear-filter-button wire:click="clearFilters" :label="__('crud.common.actions.reset')" />
             @can('community-contacts.create')
                 <x-add-action-button wire:click="openCreateModal" :label="__('community_contacts.actions.create')" />
             @endcan
@@ -265,7 +210,7 @@ new class extends Component
                         <th class="table-cell-name px-5 py-4 text-left">{{ __('community_contacts.table.headers.name') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.category') }}</th>
                         <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.contact') }}</th>
-                        <th class="table-cell-compact px-5 py-4 text-left">{{ __('community_contacts.table.headers.status') }}</th>
+                        <th class="px-5 py-4 text-left">{{ __('community_contacts.table.headers.notes') }}</th>
                         <th class="table-cell-compact admin-actions-column px-5 py-4 text-center">{{ __('community_contacts.table.headers.actions') }}</th>
                     </tr>
                 </thead>
@@ -284,19 +229,8 @@ new class extends Component
                                 @if ($contact->phone)
                                     <div dir="ltr" class="record-phone inline-block text-left" style="unicode-bidi: isolate;">{{ $contact->phone }}</div>
                                 @endif
-                                @if ($contact->email)
-                                    <div class="mt-1 text-xs text-neutral-400">{{ $contact->email }}</div>
-                                @endif
                             </td>
-                            <td class="table-cell-compact px-5 py-4">
-                                <span @class([
-                                    'rounded-full border px-3 py-1 text-xs font-semibold',
-                                    'border-emerald-400/30 bg-emerald-500/10 text-emerald-100' => $contact->is_active,
-                                    'border-neutral-500/30 bg-neutral-500/10 text-neutral-300' => ! $contact->is_active,
-                                ])>
-                                    {{ $contact->is_active ? __('community_contacts.statuses.active') : __('community_contacts.statuses.inactive') }}
-                                </span>
-                            </td>
+                            <td class="px-5 py-4 text-neutral-300" data-community-contact-notes>{{ $contact->notes ?: '—' }}</td>
                             <td class="table-cell-compact px-5 py-4">
                                 <div class="community-contact-row-actions">
                                     @can('community-contacts.update')
@@ -348,22 +282,9 @@ new class extends Component
                     @error('organization') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('community_contacts.fields.email') }}</label>
-                    <input wire:model="email" type="email" dir="ltr" class="w-full rounded-xl px-4 py-3 text-sm">
-                    @error('email') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>
                     <label class="mb-1 block text-sm font-medium">{{ __('community_contacts.fields.phone') }}</label>
                     <x-phone-input model="phone" :value="$phone" />
                     @error('phone') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium">{{ __('community_contacts.fields.secondary_phone') }}</label>
-                    <x-phone-input model="secondary_phone" :value="$secondary_phone" />
-                    @error('secondary_phone') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                 </div>
             </div>
 
@@ -378,13 +299,6 @@ new class extends Component
                 <textarea wire:model="notes" rows="3" class="w-full rounded-xl px-4 py-3 text-sm"></textarea>
                 @error('notes') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
             </div>
-
-            @if ($editingId)
-                <label class="flex items-center gap-3 text-sm">
-                    <input wire:model="is_active" type="checkbox" class="rounded border-neutral-300 text-neutral-900">
-                    <span>{{ __('community_contacts.fields.is_active') }}</span>
-                </label>
-            @endif
 
             <div class="admin-action-cluster admin-action-cluster--end">
                 <button type="button" wire:click="cancel" class="pill-link">{{ __('crud.common.actions.cancel') }}</button>

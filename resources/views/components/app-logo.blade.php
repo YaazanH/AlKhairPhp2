@@ -2,6 +2,7 @@
     'title' => null,
     'subtitle' => __('ui.app.short_tagline'),
     'justifySubtitleToTitle' => false,
+    'subtitleJustificationTarget' => null,
 ])
 
 @php
@@ -25,10 +26,15 @@
 </div>
 <div @class(['grid flex-1 text-left leading-tight', 'app-logo-period-lockup' => $measureArabicSubtitleToTitle]) @if($measureArabicSubtitleToTitle) data-app-logo-period-lockup @endif>
     <span @class(['app-logo-title font-display truncate text-base', 'app-logo-period-title' => $measureArabicSubtitleToTitle]) @if($measureArabicSubtitleToTitle) data-app-logo-period-title @endif>{{ $title }}</span>
+    @if ($measureArabicSubtitleToTitle && $subtitleJustificationTarget)
+        <span class="app-logo-period-target font-display text-base" aria-hidden="true" data-app-logo-period-target>{{ $subtitleJustificationTarget }}</span>
+    @endif
     <span
         @class([
             'app-logo-subtitle mt-1 truncate font-semibold',
-            'app-logo-period-subtitle' => $measureArabicSubtitleToTitle,
+            'text-[0.72rem]' => $useJustifiedArabicSubtitle,
+            'app-logo-period-subtitle text-[0.7rem]' => $measureArabicSubtitleToTitle,
+            'text-[0.68rem]' => ! $useJustifiedArabicSubtitle && ! $measureArabicSubtitleToTitle,
         ])
         @if ($useJustifiedArabicSubtitle) aria-label="{{ $subtitle }}" data-app-logo-kashida-subtitle @endif
         @if ($measureArabicSubtitleToTitle) aria-label="{{ $subtitle }}" data-app-logo-period-subtitle @endif

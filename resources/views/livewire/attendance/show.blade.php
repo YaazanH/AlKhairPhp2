@@ -31,6 +31,9 @@ new class extends Component
     #[Url]
     public string $tab = '';
 
+    #[Url(as: 'archive_course_id')]
+    public ?int $archiveCourseId = null;
+
     public function mount(string $type, int $day): void
     {
         abort_unless(in_array($type, ['students', 'teachers'], true), 404);
@@ -39,7 +42,8 @@ new class extends Component
             ? $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query())->findOrFail($day)
             : $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query())->findOrFail($day);
         $this->date = $source->attendance_date->toDateString();
-        $this->courseId = $source->course_id;
+        $this->archiveCourseId = request()->integer('archive_course_id') ?: null;
+        $this->courseId = $this->archiveCourseId ?: $source->course_id;
         $this->switchTab($this->tab ?: $type);
     }
 
@@ -58,11 +62,21 @@ new class extends Component
             ? $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query())
             : $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query());
 
-        return $query->whereDate('attendance_date', $this->date)->where('course_id', $this->courseId)->first();
+        $query->whereDate('attendance_date', $this->date);
+
+        if ($this->archiveCourseId && $this->tab === 'teachers') {
+            $query->where(fn ($days) => $days->where('course_id', $this->archiveCourseId)
+                ->orWhereHas('records', fn ($records) => $records->where('archived_course_id', $this->archiveCourseId)));
+        } else {
+            $query->where('course_id', $this->courseId);
+        }
+
+        return $query->first();
     }
 
     public function startAttendance(): void
     {
+        abort_if($this->archiveCourseId, 403);
         $canCreateStudents = $this->canPermission('attendance.student.view') && $this->canPermission('attendance.student.take');
         $canCreateTeachers = $this->canPermission('attendance.teacher.view') && $this->canPermission('attendance.teacher.take');
         abort_unless($canCreateStudents || $canCreateTeachers, 403);
@@ -108,6 +122,7 @@ new class extends Component
 
     public function toggleDayStatus(): void
     {
+        abort_if($this->archiveCourseId, 403);
         $this->authorizePermission('attendance.student.toggle-day-status');
         $this->authorizePermission('attendance.teacher.take');
         [$studentDay, $teacherDay] = $this->pairedDays();
@@ -135,6 +150,7 @@ new class extends Component
 
     public function deleteDay(): void
     {
+        abort_if($this->archiveCourseId, 403);
         $this->authorizePermission('attendance.student.take');
         $this->authorizePermission('attendance.teacher.take');
         [$studentDay, $teacherDay] = $this->pairedDays();
@@ -185,10 +201,13 @@ new class extends Component
             ? $this->scopeStudentAttendanceDaysQuery(StudentAttendanceDay::query())
                 ->whereDate('attendance_date', $this->date)->where('course_id', $this->courseId)->first()
             : null;
-        $teacherDay = $this->canPermission('attendance.teacher.view')
-            ? $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query())
-                ->whereDate('attendance_date', $this->date)->where('course_id', $this->courseId)->first()
-            : null;
+        $teacherDay = null;
+        if ($this->canPermission('attendance.teacher.view')) {
+            $teacherQuery = $this->scopeTeacherAttendanceDaysQuery(TeacherAttendanceDay::query())->whereDate('attendance_date', $this->date);
+            $teacherDay = $this->archiveCourseId
+                ? $teacherQuery->where(fn ($days) => $days->where('course_id', $this->archiveCourseId)->orWhereHas('records', fn ($records) => $records->where('archived_course_id', $this->archiveCourseId)))->first()
+                : $teacherQuery->where('course_id', $this->courseId)->first();
+        }
 
         return [$studentDay, $teacherDay];
     }
@@ -206,22 +225,28 @@ new class extends Component
 
     public function with(): array
     {
-        return ['selectedDay' => $this->selectedDay()];
+        return [
+            'selectedDay' => $this->selectedDay(),
+            'archiveCourseName' => $this->archiveCourseId
+                ? Course::query()->whereKey($this->archiveCourseId)->value('name')
+                : null,
+        ];
     }
 }; ?>
 
 <div @class(['page-stack' => ! $selectedDay])>
     @if ($selectedDay)
         @if ($tab === 'students')
-            <livewire:student-attendance.show :student-attendance-day="$selectedDay" :unified="true" :key="'students-'.$selectedDay->id.'-'.$selectedDay->status" />
+            <livewire:student-attendance.show :student-attendance-day="$selectedDay" :unified="true" :archive-course-id="$archiveCourseId" :archive-read-only="(bool) $archiveCourseId" :key="'students-'.$selectedDay->id.'-'.$selectedDay->status" />
         @else
-            <livewire:teachers.attendance-show :teacher-attendance-day="$selectedDay" :unified="true" :key="'teachers-'.$selectedDay->id.'-'.$selectedDay->status" />
+            <livewire:teachers.attendance-show :teacher-attendance-day="$selectedDay" :unified="true" :archive-course-id="$archiveCourseId" :archive-read-only="(bool) $archiveCourseId" :key="'teachers-'.$selectedDay->id.'-'.$selectedDay->status" />
         @endif
     @else
         <div class="attendance-day-header">
             <section class="page-hero attendance-day-hero p-6 lg:p-8">
-                <x-back-link :href="route('attendance.index')" navigate />
+                <x-back-link :href="$archiveCourseId ? route('courses.archive-overview', $archiveCourseId) : route('attendance.index')" navigate />
                 <h1 class="font-display mt-4 text-4xl text-white">{{ __('attendance.day') }}</h1>
+                @if($archiveCourseName)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourseName]) }}</p>@endif
                 <div class="attendance-day-metrics mt-5">
                     <div class="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-center">
                         <div class="text-xs text-neutral-300">{{ __('workflow.student_attendance.form.attendance_date') }}</div>
@@ -237,7 +262,7 @@ new class extends Component
         </div>
         <section class="surface-table p-6">
             <p class="mb-4">{{ __('attendance.missing') }}</p>
-            @if ($courseId)
+            @if ($courseId && ! $archiveCourseId)
                 @can('attendance.'.($tab === 'students' ? 'student' : 'teacher').'.take')
                     <button type="button" wire:click="startAttendance" wire:loading.attr="disabled" class="pill-link pill-link--accent">{{ __('attendance.start') }}</button>
                 @endcan

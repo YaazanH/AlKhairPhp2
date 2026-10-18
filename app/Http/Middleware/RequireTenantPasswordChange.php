@@ -19,7 +19,10 @@ class RequireTenantPasswordChange
             || ! $user instanceof User
             || ! $user->must_change_password
             || $user->isPlatformAdministrator()
-            || $request->routeIs('password.change-required.*', 'logout')) {
+            || $request->routeIs('password.change-required.*', 'logout')
+            || $request->is('api/v1/capabilities')
+            || ($request->isMethod('PATCH') && $request->is('api/v1/me/password'))
+            || ($request->isMethod('DELETE') && $request->is('api/v1/auth/token', 'api/v1/auth/tokens'))) {
             return $next($request);
         }
 

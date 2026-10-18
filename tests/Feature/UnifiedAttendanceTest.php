@@ -38,6 +38,11 @@ class UnifiedAttendanceTest extends TestCase
         $present = AttendanceStatus::where('code', 'present')->firstOrFail();
         Volt::test('attendance.index')->call('openCreateModal')
             ->set('course_id', (string) $course->id)->set('attendance_date', '2026-10-06')
+            ->assertViewHas('scheduledGroupCount', 1)
+            ->assertViewHas('scheduledTeacherCount', 1)
+            ->assertSee('data-attendance-scheduled-counts', false)
+            ->assertSee('data-attendance-scheduled-groups-count', false)
+            ->assertSee('data-attendance-scheduled-teachers-count', false)
             ->set('default_attendance_status_id', (string) $present->id)->call('saveDay')->assertHasNoErrors();
         $studentDay = StudentAttendanceDay::where('course_id', $course->id)->firstOrFail();
         $teacherDay = TeacherAttendanceDay::where('course_id', $course->id)->firstOrFail();

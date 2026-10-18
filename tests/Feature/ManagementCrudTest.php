@@ -27,6 +27,7 @@ use App\Models\Student;
 use App\Models\StudentAttendanceDay;
 use App\Models\StudentAttendanceRecord;
 use App\Models\StudentFile;
+use App\Models\StudentNote;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceDay;
 use App\Models\TeacherAttendanceRecord;
@@ -58,19 +59,34 @@ class ManagementCrudTest extends TestCase
                 ['name' => 'PDF Student', 'juz' => 3, 'mark' => 95],
             ]),
             'logo' => null,
+            'archiveCourse' => null,
         ])->render();
 
-        $this->assertStringContainsString('@page{margin:0 14mm 18mm;margin-header:10mm', $html);
+        $this->assertStringContainsString('@page{margin:10mm 10mm 18mm;footer:pdf-footer}@page :first{margin-top:0;margin-header:10mm;header:pdf-first-header}', $html);
         $this->assertStringContainsString('.header-title{font-family:dubai,sans-serif;font-size:20px;font-weight:bold}', $html);
+        $this->assertStringContainsString('.header-subtitle{font-size:13px;font-weight:500', $html);
+        $this->assertStringContainsString('.header-meta{font-size:9px;vertical-align:middle}', $html);
+        $this->assertStringContainsString('.header-row-cell{border:0;height:18mm;padding:0;vertical-align:middle}', $html);
         $this->assertStringContainsString('.report-table thead th{font-family:dubai,sans-serif;font-weight:bold}', $html);
-        $this->assertStringContainsString('.meta-label{font-family:dubaimedium,sans-serif;font-weight:normal', $html);
-        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{text-align:left;padding-left:.8mm}', $html);
-        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value{text-align:right;padding-right:.8mm}', $html);
+        $this->assertStringContainsString('.meta-label{direction:rtl;font-family:dubaimedium,sans-serif;font-weight:normal;text-align:left;width:11.5mm}', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-label{padding-left:.8mm}', $html);
+        $this->assertStringContainsString('.header-meta[dir=rtl] .meta-value,.header-meta[dir=rtl] .meta-value--parts{padding-right:1.5mm !important;text-align:right;text-indent:0}', $html);
+        $this->assertStringContainsString('.meta-value{direction:ltr;text-align:left;unicode-bidi:embed;width:16.5mm}', $html);
+        $this->assertStringContainsString('.header-meta-table td{border:0;height:auto;padding:0 0 .8mm;vertical-align:middle;white-space:nowrap}', $html);
+        $this->assertStringContainsString('.header-meta-table{direction:ltr;margin:0 auto;table-layout:fixed;width:28mm !important}', $html);
+        $this->assertStringContainsString('class="header-meta-shell"', $html);
+        $this->assertStringNotContainsString('header-continuation', $html);
+        $this->assertSame(1, substr_count($html, '<htmlpageheader'));
         $this->assertStringNotContainsString('report-page-gap', $html);
         $this->assertStringContainsString('class="header-meta-table"', $html);
-        $this->assertStringContainsString('class="meta-label" style="text-align:', $html);
+        $this->assertStringContainsString('data-final-saber-meta-label="date"', $html);
         $this->assertStringContainsString(__('course_end.date_label'), $html);
         $this->assertStringContainsString(__('course_end.final_tests_total'), $html);
+        $this->assertStringContainsString('class="meta-value meta-value--parts"', $html);
+        $this->assertStringContainsString('class="meta-value" dir="ltr" align="right"', $html);
+        $this->assertStringContainsString('align="right">{{ $partsValue }}&nbsp;&nbsp;</td>', file_get_contents(resource_path('views/reports/course-final-tests.blade.php')));
+        $this->assertSame('التاريخ', __('course_end.date_label'));
+        $this->assertSame('عدد الأجزاء', __('course_end.final_tests_total'));
     }
 
     public function test_student_names_are_trimmed_when_saved(): void
@@ -348,6 +364,14 @@ class ManagementCrudTest extends TestCase
             'enrolled_at' => '2026-08-10',
             'status' => 'active',
         ]);
+        $studentNote = StudentNote::create([
+            'student_id' => $student->id,
+            'enrollment_id' => $activeEnrollment->id,
+            'source' => 'management',
+            'visibility' => 'shared_internal',
+            'body' => 'A note that must remain outside the course archive.',
+            'noted_at' => '2026-08-14 10:00:00',
+        ]);
         $historicalStudent = Student::create(['first_name' => 'Historical', 'last_name' => 'Student', 'birth_date' => '2013-01-01', 'status' => 'active']);
         $historicalEnrollment = Enrollment::create([
             'student_id' => $historicalStudent->id,
@@ -436,6 +460,8 @@ class ManagementCrudTest extends TestCase
             'entered_at' => '2026-08-15 12:00:00',
         ]);
 
+        AppSetting::storeValue('course_completion', 'retain_percentage', 37, 'integer');
+
         Volt::test('courses.index')
             ->call('deactivate', $course->id)
             ->assertHasNoErrors();
@@ -444,6 +470,9 @@ class ManagementCrudTest extends TestCase
         $this->assertFalse($course->fresh()->awards_points);
         $this->assertTrue($course->fresh()->course_finished_was_awarding_points);
         $this->assertNotNull($course->fresh()->finished_at);
+        $this->assertSame(37, $course->fresh()->completion_settings_snapshot['retain_percentage']);
+        AppSetting::storeValue('course_completion', 'retain_percentage', 91, 'integer');
+        $this->assertSame(37, $course->fresh()->completion_settings_snapshot['retain_percentage']);
         $this->assertFalse($activeGroup->fresh()->is_active);
         $this->assertNotNull($activeGroup->fresh()->course_finished_at);
         $this->assertTrue($activeGroup->fresh()->course_finished_was_active);
@@ -451,6 +480,13 @@ class ManagementCrudTest extends TestCase
         $this->assertNotNull($inactiveGroup->fresh()->course_finished_at);
         $this->assertFalse($inactiveGroup->fresh()->course_finished_was_active);
         $this->assertSame('completed', $activeEnrollment->fresh()->status);
+        $this->assertDatabaseHas('student_notes', [
+            'id' => $studentNote->id,
+            'student_id' => $student->id,
+            'enrollment_id' => $activeEnrollment->id,
+            'body' => 'A note that must remain outside the course archive.',
+            'deleted_at' => null,
+        ]);
         $this->assertNotNull($activeEnrollment->fresh()->course_finished_at);
         $this->assertSame('active', $activeEnrollment->fresh()->course_finished_previous_status);
         $this->assertNull($activeEnrollment->fresh()->course_finished_previous_left_at);
@@ -480,6 +516,8 @@ class ManagementCrudTest extends TestCase
         Volt::test('points.index')
             ->set('stateFilter', 'all')
             ->assertDontSee('Lifecycle Student');
+        Volt::test('student-notes.index')
+            ->assertSee('A note that must remain outside the course archive.');
 
         Volt::test('groups.show', ['group' => $activeGroup])
             ->assertDontSee('data-group-roster-pdf-action', false)
@@ -515,6 +553,7 @@ class ManagementCrudTest extends TestCase
         $this->assertTrue($course->fresh()->is_active);
         $this->assertTrue($course->fresh()->awards_points);
         $this->assertNull($course->fresh()->course_finished_was_awarding_points);
+        $this->assertNull($course->fresh()->completion_settings_snapshot);
         $this->assertNull($course->fresh()->finished_at);
         $this->assertTrue($activeGroup->fresh()->is_active);
         $this->assertNull($activeGroup->fresh()->course_finished_at);
@@ -523,6 +562,13 @@ class ManagementCrudTest extends TestCase
         $this->assertNull($inactiveGroup->fresh()->course_finished_at);
         $this->assertNull($inactiveGroup->fresh()->course_finished_was_active);
         $this->assertSame('active', $activeEnrollment->fresh()->status);
+        $this->assertDatabaseHas('student_notes', [
+            'id' => $studentNote->id,
+            'student_id' => $student->id,
+            'enrollment_id' => $activeEnrollment->id,
+            'body' => 'A note that must remain outside the course archive.',
+            'deleted_at' => null,
+        ]);
         $this->assertNull($activeEnrollment->fresh()->left_at);
         $this->assertNull($activeEnrollment->fresh()->course_finished_previous_status);
         $this->assertSame('completed', $historicalEnrollment->fresh()->status);
@@ -1311,6 +1357,84 @@ class ManagementCrudTest extends TestCase
         $this->assertDatabaseMissing('student_external_memorized_juz', [
             'student_id' => $student->id,
             'quran_juz_id' => $firstJuz->id,
+        ]);
+    }
+
+    public function test_student_edit_rejects_a_finished_juz_as_previously_memorized(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Finished juz year',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        $course = Course::create([
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Finished juz course',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-30',
+            'is_active' => true,
+        ]);
+        $teacher = Teacher::create([
+            'first_name' => 'Finished',
+            'last_name' => 'Juz Teacher',
+            'phone' => '0944000198',
+            'course_id' => $course->id,
+            'status' => 'active',
+        ]);
+        $group = Group::create([
+            'course_id' => $course->id,
+            'academic_year_id' => $academicYear->id,
+            'teacher_id' => $teacher->id,
+            'name' => 'Finished juz group',
+            'capacity' => 20,
+            'is_active' => true,
+        ]);
+        $student = Student::create([
+            'first_name' => 'Finished',
+            'last_name' => 'Juz Student',
+            'birth_date' => '2014-01-01',
+            'status' => 'active',
+        ]);
+        $enrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'group_id' => $group->id,
+            'enrolled_at' => '2026-09-01',
+            'status' => 'active',
+        ]);
+        $finishedJuz = QuranJuz::create([
+            'juz_number' => 5,
+            'from_page' => 82,
+            'to_page' => 101,
+        ]);
+        QuranFinalTest::create([
+            'enrollment_id' => $enrollment->id,
+            'student_id' => $student->id,
+            'juz_id' => $finishedJuz->id,
+            'status' => 'passed',
+            'passed_on' => '2026-10-01',
+        ]);
+
+        $component = Volt::test('students.index')
+            ->call('edit', $student->id)
+            ->set('external_memorized_juz_input', '5')
+            ->call('addExternalMemorizedJuz')
+            ->assertHasErrors(['external_memorized_juz_input'])
+            ->assertSet('external_memorized_juz_ids', [])
+            ->assertSee(__('crud.students.errors.finished_juz_cannot_be_previous'));
+
+        $component
+            ->set('external_memorized_juz_ids', [$finishedJuz->id])
+            ->call('save')
+            ->assertHasErrors(['external_memorized_juz_ids'])
+            ->assertSee(__('crud.students.errors.finished_juz_cannot_be_previous'));
+
+        $this->assertDatabaseMissing('student_external_memorized_juz', [
+            'student_id' => $student->id,
+            'quran_juz_id' => $finishedJuz->id,
         ]);
     }
 
@@ -2383,9 +2507,9 @@ class ManagementCrudTest extends TestCase
         $this->assertStringContainsString('.title-row td', $rosterPdfHtml);
         $this->assertStringContainsString('border: 0;', $rosterPdfHtml);
         $this->assertStringContainsString('@page { margin: 0 10mm 18mm; margin-header: 10mm;', $rosterPdfHtml);
-        $this->assertStringContainsString('padding: 1mm 3mm;', $rosterPdfHtml);
+        $this->assertStringContainsString('padding: 2mm 3mm;', $rosterPdfHtml);
         $this->assertStringContainsString('margin: 0.5mm;', $rosterPdfHtml);
-        $this->assertStringContainsString('padding: 3.5px 4px;', $rosterPdfHtml);
+        $this->assertStringContainsString('padding: 7px 4px;', $rosterPdfHtml);
         $this->assertStringContainsString('padding-right: 12px;', $rosterPdfHtml);
         $this->assertStringNotContainsString('roster-page-gap', $rosterPdfHtml);
         $this->assertStringContainsString('<th style="width: 18%;">اسم الطالب</th>', $rosterPdfHtml);
@@ -3211,6 +3335,51 @@ class ManagementCrudTest extends TestCase
             'day_of_week' => 4,
             'time_slot' => 'between_noon_afternoon',
         ]);
+    }
+
+    public function test_course_curriculum_days_default_to_distinct_schedule_days_and_share_the_date_row(): void
+    {
+        $this->signIn();
+
+        $academicYear = AcademicYear::create([
+            'name' => 'Curriculum pacing year',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2027-07-31',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $component = Volt::test('courses.index')
+            ->call('openCreateModal')
+            ->assertSet('curriculum_days_per_week', '1')
+            ->assertSee('data-course-dates-and-curriculum-days', false)
+            ->assertSee('md:grid-cols-3', false)
+            ->assertSee('data-course-curriculum-days-per-week', false)
+            ->set('academic_year_id', $academicYear->id)
+            ->set('name', 'Curriculum pacing course')
+            ->set('starts_on', '2026-09-01')
+            ->set('ends_on', '2026-12-31')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showScheduleModal', true)
+            ->assertSet('syncCurriculumDaysToSchedule', true)
+            ->set('scheduleDay', '1')
+            ->set('scheduleTimeSlot', 'morning')
+            ->set('scheduleDay', '3')
+            ->set('scheduleTimeSlot', 'morning')
+            ->call('saveCourseSchedule')
+            ->assertHasNoErrors();
+
+        $course = Course::query()->where('name', 'Curriculum pacing course')->firstOrFail();
+        $this->assertSame(2, $course->fresh()->curriculum_days_per_week);
+
+        Volt::test('courses.index')
+            ->call('edit', $course->id)
+            ->set('curriculum_days_per_week', '4')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame(4, $course->fresh()->curriculum_days_per_week);
     }
 
     public function test_course_calendar_modal_builds_and_persists_coloured_entries(): void

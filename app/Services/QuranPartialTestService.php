@@ -66,6 +66,7 @@ class QuranPartialTestService
             $test = QuranPartialTest::query()->create([
                 'created_by' => auth()->id(), 'enrollment_id' => $enrollment->id, 'juz_id' => $juz->id,
                 'status' => 'in_progress', 'student_id' => $enrollment->student_id,
+                'from_external_memorization' => true,
             ]);
             foreach (range(1, 4) as $partNumber) {
                 $test->parts()->create(['part_number' => $partNumber, 'status' => 'pending']);

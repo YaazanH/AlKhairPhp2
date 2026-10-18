@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\Landlord\TenantContext;
 use App\Support\OperationalFeatureSettings;
+use App\Support\RoleRegistry;
 
 class SidebarNavigationService
 {
@@ -285,7 +286,7 @@ class SidebarNavigationService
                     ? 'platform'
                     : ($settings['items'][$itemKey]['group_key'] ?? $itemDefinition['group_key']);
 
-                if ($configuredGroupKey !== $groupKey || ! $this->userCanSeeItem($user, $itemDefinition)) {
+                if ($configuredGroupKey !== $groupKey || ! $this->userCanSeeItem($user, $itemDefinition, $itemKey)) {
                     continue;
                 }
 
@@ -353,7 +354,7 @@ class SidebarNavigationService
         ];
     }
 
-    protected function userCanSeeItem(User $user, array $itemDefinition): bool
+    protected function userCanSeeItem(User $user, array $itemDefinition, ?string $itemKey = null): bool
     {
         if (($itemDefinition['route_name'] ?? null) === 'reports.index') {
             return app(ReportDashboardService::class)->landingRouteNameFor($user) !== null;
@@ -361,6 +362,15 @@ class SidebarNavigationService
 
         if (($itemDefinition['route_name'] ?? null) === 'curricula.index') {
             return app(CurriculumAccessService::class)->canView($user);
+        }
+
+        /* Teachers must retain their withdrawal-request entry even if an
+           additional assignment also grants them the reviewer permission that
+           normally distinguishes finance administrators. */
+        if ($itemKey === 'finance_pull_requests'
+            && $user->hasRole(RoleRegistry::TEACHER)
+            && $user->can('finance.pull-requests.view')) {
+            return true;
         }
 
         foreach ($itemDefinition['excluded_permissions'] ?? [] as $permission) {
@@ -432,6 +442,8 @@ class SidebarNavigationService
 
         return $teacherId ? Group::query()
             ->where('is_active', true)
+            ->whereNull('course_finished_at')
+            ->whereHas('course', fn ($query) => $query->where('is_active', true)->whereNull('finished_at'))
             ->where(fn ($query) => $query->where('teacher_id', $teacherId)->orWhere('assistant_teacher_id', $teacherId))
             ->orderByDesc('starts_on')->orderByDesc('id')->first() : null;
     }

@@ -72,6 +72,16 @@ class Group extends Model
                 ->orWhereHas('course', fn (Builder $courses) => $courses->where('is_active', false)));
     }
 
+    public function isAccessibleInActiveWorkspace(): bool
+    {
+        $this->loadMissing('course');
+
+        return $this->is_active
+            && $this->course_finished_at === null
+            && (bool) $this->course?->is_active
+            && $this->course?->finished_at === null;
+    }
+
     public function attendanceDays(): HasMany
     {
         return $this->hasMany(GroupAttendanceDay::class);

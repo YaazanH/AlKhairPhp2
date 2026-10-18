@@ -19,6 +19,10 @@ new class extends Component
     use AuthorizesTeacherAssignments;
     use WithPagination;
 
+    public ?int $archiveCourseId = null;
+
+    public bool $archiveReadOnly = false;
+
     public ?int $editingId = null;
 
     public ?int $group_id = null;
@@ -53,12 +57,15 @@ new class extends Component
 
     public bool $returnToResults = false;
 
-    public function mount(): void
+    public function mount(?int $archiveCourseId = null, bool $archiveReadOnly = false): void
     {
         $this->authorizePermission('assessments.view');
-        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        $this->archiveCourseId = $archiveCourseId;
+        $this->archiveReadOnly = $archiveReadOnly;
+        $defaultCourseId = $archiveCourseId ?: Course::query()->where('is_default', true)->where('is_active', true)->value('id');
         $this->courseFilter = (string) ($defaultCourseId ?? 'all');
-        $this->groupCourseFilter = (string) ($this->defaultGroupCourseId() ?? '');
+        $this->groupCourseFilter = (string) ($archiveCourseId ?: ($this->defaultGroupCourseId() ?? ''));
+        $this->statusFilter = $archiveCourseId ? 'all' : 'active';
         if (request()->filled('edit')) {
             $this->returnToResults = request('return_to') === 'results';
             $this->edit((int) request('edit'));
@@ -70,8 +77,10 @@ new class extends Component
         $groupQuery = $this->scopeGroupsQuery(
             Group::query()
                 ->with(['course', 'academicYear'])
-                ->where('is_active', true)
-                ->whereHas('course', fn ($query) => $query->where('is_active', true))
+                ->when($this->archiveCourseId,
+                    fn ($query) => $query->where('course_id', $this->archiveCourseId),
+                    fn ($query) => $query->where('is_active', true)->whereHas('course', fn ($course) => $course->where('is_active', true)),
+                )
                 ->orderBy('name')
         );
         $allAvailableGroups = (clone $groupQuery)->get();
@@ -84,8 +93,11 @@ new class extends Component
                 ->with(['group.course', 'groups.course', 'type'])
                 ->withCount('results')
                 ->withAvg('results', 'score')
+                ->when($this->archiveCourseId, fn ($query) => $query->where(fn ($assessment) => $assessment
+                    ->whereHas('group', fn ($group) => $group->where('course_id', $this->archiveCourseId))
+                    ->orWhereHas('groups', fn ($group) => $group->where('course_id', $this->archiveCourseId))))
                 ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true))
-                ->when($this->courseFilter !== 'all', function ($query) {
+                ->when(! $this->archiveCourseId && $this->courseFilter !== 'all', function ($query) {
                     $query->where(function ($builder) {
                         $builder
                             ->whereHas('group', fn ($groupQuery) => $groupQuery->where('course_id', (int) $this->courseFilter))
@@ -102,11 +114,12 @@ new class extends Component
         return [
             'groups' => $availableGroups,
             'courses' => Course::query()
-                ->where('is_active', true)
+                ->when($this->archiveCourseId, fn ($query) => $query->whereKey($this->archiveCourseId), fn ($query) => $query->where('is_active', true))
                 ->whereIn('id', $courseIds)
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'types' => AssessmentType::query()->where('is_active', true)->orderBy('name')->get(),
+            'archiveCourse' => $this->archiveCourseId ? Course::query()->find($this->archiveCourseId) : null,
             'assessments' => $assessmentQuery->paginate($this->perPage),
             'filteredCount' => $filteredCount,
             'editingHasResults' => $this->editingId
@@ -232,6 +245,7 @@ new class extends Component
 
     public function create(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('assessments.create');
 
         $this->cancel(closeForm: false);
@@ -244,6 +258,7 @@ new class extends Component
 
     public function save(): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission($this->editingId ? 'assessments.update' : 'assessments.create');
 
         $validated = $this->validate();
@@ -302,6 +317,7 @@ new class extends Component
 
     public function edit(int $assessmentId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('assessments.update');
 
         $assessment = $this->visibleAssessmentsQuery(
@@ -373,6 +389,7 @@ new class extends Component
 
     public function delete(int $assessmentId): void
     {
+        abort_if($this->archiveReadOnly, 403);
         $this->authorizePermission('assessments.delete');
 
         $assessment = $this->visibleAssessmentsQuery(
@@ -400,7 +417,13 @@ new class extends Component
 
     protected function visibleAssessmentsQuery(Builder $query): Builder
     {
-        return $this->scopeAssessmentsQuery($query)
+        $query = $this->scopeAssessmentsQuery($query);
+
+        if ($this->archiveCourseId) {
+            return $query;
+        }
+
+        return $query
             ->whereNull('course_finished_at')
             ->whereDoesntHave('group.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at'))
             ->whereDoesntHave('groups.course', fn (Builder $courseQuery) => $courseQuery->whereNotNull('finished_at'));
@@ -480,6 +503,7 @@ new class extends Component
             <div>
                 <div class="eyebrow">{{ __('ui.nav.assessments') }}</div>
                 <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('workflow.assessments.index.title') }}</h1>
+                @if($archiveCourse)<p class="mt-3 text-base text-neutral-300" style="display: block;" data-archive-course-subtitle>{{ __('course_archive_overview.archive_name', ['course' => $archiveCourse->name]) }}</p>@endif
                 <p class="mt-4 max-w-3xl text-base leading-7 text-neutral-200">{{ __('workflow.assessments.index.subtitle') }}</p>
             </div>
 
@@ -594,15 +618,18 @@ new class extends Component
                     <div class="admin-grid-meta__summary">{{ __('crud.common.badges.in_view', ['count' => number_format($filteredCount)]) }}</div>
                 </div>
                 <div class="admin-toolbar__controls">
-                    <div class="admin-filter-field admin-filter-field--course">
-                        <label class="sr-only" for="assessment-course-filter">{{ __('workflow.assessments.index.filters.course') }}</label>
-                        <select id="assessment-course-filter" wire:model.live="courseFilter" data-record-label="course">
-                            <option value="all">{{ __('workflow.assessments.index.filters.all_courses') }}</option>
-                            @foreach ($courses as $course)
-                                <option value="{{ $course->id }}">{{ $course->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @unless ($archiveReadOnly)
+                        <div class="admin-filter-field admin-filter-field--course">
+                            <label class="sr-only" for="assessment-course-filter">{{ __('workflow.assessments.index.filters.course') }}</label>
+                            <select id="assessment-course-filter" wire:model.live="courseFilter" data-record-label="course">
+                                <option value="all">{{ __('workflow.assessments.index.filters.all_courses') }}</option>
+                                @foreach ($courses as $course)
+                                    <option value="{{ $course->id }}">{{ $course->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endunless
+                    @unless ($archiveReadOnly)
                     <div class="admin-filter-field">
                         <label class="sr-only" for="assessment-status-filter">{{ __('workflow.assessments.index.table.headers.status') }}</label>
                         <select id="assessment-status-filter" wire:model.live="statusFilter">
@@ -610,9 +637,10 @@ new class extends Component
                             <option value="all">{{ __('crud.common.filters.all_statuses') }}</option>
                         </select>
                     </div>
-                    @can('assessments.create')
+                    @endunless
+                    @if (! $archiveReadOnly && auth()->user()->can('assessments.create'))
                         <x-add-action-button wire:click="create" :label="__('workflow.assessments.index.form.create_title')" />
-                    @endcan
+                    @endif
                 </div>
             </div>
 
@@ -662,7 +690,7 @@ new class extends Component
                                     <td class="px-5 py-3 text-end">
                                         <div class="admin-action-cluster admin-action-cluster--end">
                                             @can('assessment-results.view')
-                                                <x-open-action-button :href="route('assessments.results', $assessment)" wire:navigate :label="__('crud.common.actions.open')" />
+                                                <x-open-action-button :href="route('assessments.results', array_filter(['assessment' => $assessment, 'archive_course_id' => $archiveCourseId]))" wire:navigate :label="__('crud.common.actions.open')" />
                                             @endcan
                                         </div>
                                     </td>

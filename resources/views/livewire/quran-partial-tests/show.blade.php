@@ -284,10 +284,7 @@ new class extends Component
                         @endif
                     </div>
                     <p class="mt-2 text-sm leading-6 text-neutral-200">
-                        {{ $partialTestRecord->enrollment?->group?->name ?: __('workflow.common.no_group') }}
-                        @if ($partialTestRecord->enrollment?->group?->course?->name)
-                            · <span class="record-course-name">{{ $partialTestRecord->enrollment->group->course->name }}</span>
-                        @endif
+                        {{ __('workflow.common.labels.juz_number', ['number' => $partialTestRecord->juz?->juz_number ?: __('workflow.common.not_available')]) }}
                     </p>
                 </div>
                 @error('deleteTest') <div class="mt-2 text-sm text-red-300">{{ $message }}</div> @enderror

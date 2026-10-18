@@ -68,6 +68,7 @@ return [
             'active_enrollments' => 'التسجيلات الفعالة',
             'starts_on' => 'تاريخ البداية',
             'ends_on' => 'تاريخ النهاية',
+            'curriculum_days_per_week' => 'أيام تدريس المنهاج أسبوعياً',
             'monthly_fee' => 'الرسم الشهري',
         ],
         'record_fields' => [
@@ -83,7 +84,8 @@ return [
             'father_name' => 'اسم الأب', 'father_work' => 'عمل الأب', 'father_phone' => 'هاتف الأب',
             'mother_name' => 'اسم الأم', 'mother_phone' => 'هاتف الأم', 'home_phone' => 'هاتف المنزل',
             'address' => 'العنوان', 'is_active' => 'الحالة', 'name' => 'الاسم', 'capacity' => 'السعة',
-            'starts_on' => 'تاريخ البداية', 'ends_on' => 'تاريخ النهاية', 'monthly_fee' => 'الرسم الشهري',
+            'starts_on' => 'تاريخ البداية', 'ends_on' => 'تاريخ النهاية',
+            'curriculum_days_per_week' => 'أيام تدريس المنهاج أسبوعياً', 'monthly_fee' => 'الرسم الشهري',
             'enrolled_at' => 'تاريخ التسجيل', 'left_at' => 'تاريخ المغادرة',
             'course_finished_at' => 'تاريخ إنهاء الدورة', 'course_finished_previous_status' => 'الحالة السابقة لإنهاء الدورة',
             'course_finished_previous_left_at' => 'تاريخ المغادرة السابق', 'course_finished_was_active' => 'كان فعالاً قبل الإنهاء',

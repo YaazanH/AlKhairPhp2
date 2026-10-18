@@ -18,6 +18,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\Landlord\TenantContext;
+use App\Services\LearningProgressionService;
 use App\Services\PointLedgerService;
 use App\Services\QuranPartialTestService;
 use App\Services\SidebarNavigationService;
@@ -230,6 +231,13 @@ class OperationalModulesTest extends TestCase
     {
         $this->modules(['quran_tests']);
         $this->admin();
+        app(LearningProgressionService::class)->storeQuranSettings([
+            'partial_test_enabled' => true,
+            'partial_test_required_for_final' => true,
+            'final_test_enabled' => true,
+            'final_test_required_for_awqaf' => true,
+            'awqaf_test_enabled' => true,
+        ]);
         $year = AcademicYear::create(['name' => '2026', 'starts_on' => '2026-01-01', 'ends_on' => '2026-12-31', 'is_active' => true]);
         $course = Course::create(['name' => 'Quran tests', 'is_active' => true]);
         $teacher = Teacher::create(['first_name' => 'Test', 'last_name' => 'Teacher', 'phone' => '200', 'status' => 'active']);

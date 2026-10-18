@@ -145,4 +145,66 @@ class PeopleModulesTest extends TestCase
         Sanctum::actingAs($user);
         $this->getJson('/api/v1/parent/children/'.$student->id)->assertNotFound();
     }
+
+    public function test_merged_mobile_endpoints_reject_disabled_modules(): void
+    {
+        $this->admin();
+
+        foreach (['parents', 'teachers', 'courses', 'memorization', 'quran-tests', 'quran-partial-tests', 'quran-final-tests', 'points', 'assessments', 'curricula', 'payments', 'finance/summary'] as $endpoint) {
+            $this->getJson('/api/v1/'.$endpoint)->assertForbidden();
+        }
+        $this->getJson('/api/v1/reference/point-types')->assertForbidden();
+        $this->modules(['parents']);
+        $this->getJson('/api/v1/parents')->assertOk();
+    }
+
+    public function test_mobile_bootstrap_dashboard_and_progress_hide_disabled_module_data(): void
+    {
+        $this->admin();
+        $student = Student::create($this->studentData());
+
+        $bootstrap = $this->getJson('/api/v1/bootstrap')->assertOk();
+        $bootstrap->assertJsonPath('data.organization.name', 'Noor');
+        $this->assertNotContains('parents.view', $bootstrap->json('data.permissions'));
+        $this->assertNotContains('points', collect($bootstrap->json('data.navigation'))->pluck('key'));
+        $this->getJson('/api/v1/dashboard')->assertOk()
+            ->assertJsonMissingPath('data.metrics.active_groups')
+            ->assertJsonMissingPath('data.metrics.points')
+            ->assertJsonMissingPath('data.metrics.invoice_balance');
+        $this->getJson('/api/v1/students/'.$student->id.'/progress')->assertOk()
+            ->assertJsonMissingPath('data.enrollments')
+            ->assertJsonMissingPath('data.stats.memorized_pages')
+            ->assertJsonMissingPath('data.stats.passed_final_tests')
+            ->assertJsonMissingPath('data.stats.attendance_days');
+    }
+
+    public function test_offline_sync_rejects_disabled_attendance_before_writing(): void
+    {
+        $this->admin();
+        foreach (['student', 'teacher'] as $type) {
+            $this->postJson('/attendance/offline-sync', ['operations' => [[
+                'client_operation_id' => 'disabled-'.$type,
+                'type' => $type,
+                'day_id' => 1,
+                'entity_id' => 1,
+                'status_id' => 1,
+            ]]])->assertForbidden();
+        }
+    }
+
+    public function test_mobile_password_change_completes_required_tenant_password_change(): void
+    {
+        $this->admin();
+        $user = User::factory()->create(['is_active' => true, 'must_change_password' => true]);
+        $user->assignRole('manager');
+        Sanctum::actingAs($user, ['*'], 'web');
+        $this->getJson('/api/v1/me')->assertStatus(409);
+        $this->patchJson('/api/v1/me/password', [
+            'current_password' => 'password',
+            'password' => 'Changed-password-123!',
+            'password_confirmation' => 'Changed-password-123!',
+        ])->assertOk();
+        $this->assertFalse($user->fresh()->must_change_password);
+        $this->getJson('/api/v1/me')->assertOk();
+    }
 }

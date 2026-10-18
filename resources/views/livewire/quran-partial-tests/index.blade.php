@@ -73,11 +73,9 @@ new class extends Component
             QuranPartialTest::query()
                 ->addSelect([
                     'last_tested_on' => QuranPartialTestAttempt::query()
-                        ->select('tested_on')
+                        ->selectRaw('COALESCE(MAX(quran_partial_test_attempts.tested_on), DATE(quran_partial_tests.created_at))')
                         ->join('quran_partial_test_parts', 'quran_partial_test_parts.id', '=', 'quran_partial_test_attempts.quran_partial_test_part_id')
                         ->whereColumn('quran_partial_test_parts.quran_partial_test_id', 'quran_partial_tests.id')
-                        ->orderByDesc('quran_partial_test_attempts.tested_on')
-                        ->orderByDesc('quran_partial_test_attempts.id')
                         ->limit(1),
                 ])
                 ->with([

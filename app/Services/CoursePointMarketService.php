@@ -266,6 +266,17 @@ class CoursePointMarketService
         $department->update(['point_price' => round($pointPrice, 2)]);
     }
 
+    public function deleteDepartment(Course $course, CoursePointMarketDepartment $department): void
+    {
+        if ((int) $department->course_id !== (int) $course->id) {
+            throw ValidationException::withMessages([
+                'settingsDepartmentId' => __('course_end.point_market.validation.invalid_department'),
+            ]);
+        }
+
+        $department->delete();
+    }
+
     public function removeItem(Course $course, CoursePointMarketItem $item): void
     {
         if ((int) $item->course_id !== (int) $course->id) {

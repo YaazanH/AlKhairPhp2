@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "80f1eaf0-cc90-4afd-9650-alkhair-mobile-api",
-    "name": "AlKhair Mobile API - Complete",
-    "description": "Complete collection for every route in routes/api.php. Login stores the Sanctum bearer token automatically. Requests inherit Bearer {{token}} unless marked otherwise.",
+    "name": "AlKhair Mobile API V1",
+    "description": "Importable V1 mobile-development collection for every route in routes/api.php. Login stores the Sanctum bearer token automatically. Requests inherit Bearer {{token}} unless marked otherwise.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -21,7 +21,12 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });",
+          "const now = new Date();",
+          "const isoDate = now.toISOString().slice(0, 10);",
+          "if (!pm.environment.get('date')) pm.environment.set('date', isoDate);",
+          "if (!pm.environment.get('date_from')) pm.environment.set('date_from', `${isoDate.slice(0, 8)}01`);",
+          "if (!pm.environment.get('date_to')) pm.environment.set('date_to', isoDate);"
         ]
       }
     }
@@ -29,6 +34,18 @@
   "variable": [
     {
       "key": "token",
+      "value": ""
+    },
+    {
+      "key": "locale",
+      "value": "en"
+    },
+    {
+      "key": "new_username",
+      "value": ""
+    },
+    {
+      "key": "new_password",
       "value": ""
     },
     {
@@ -134,6 +151,74 @@
     {
       "key": "payment_id",
       "value": ""
+    },
+    {
+      "key": "teacher_job_title_id",
+      "value": ""
+    },
+    {
+      "key": "student_attendance_day_id",
+      "value": ""
+    },
+    {
+      "key": "teacher_attendance_day_id",
+      "value": ""
+    },
+    {
+      "key": "group_schedule_id",
+      "value": ""
+    },
+    {
+      "key": "student_note_id",
+      "value": ""
+    },
+    {
+      "key": "curriculum_id",
+      "value": ""
+    },
+    {
+      "key": "curriculum_resource_id",
+      "value": ""
+    },
+    {
+      "key": "partial_test_id",
+      "value": ""
+    },
+    {
+      "key": "partial_test_part_id",
+      "value": ""
+    },
+    {
+      "key": "final_test_id",
+      "value": ""
+    },
+    {
+      "key": "student_file_id",
+      "value": ""
+    },
+    {
+      "key": "cash_box_id",
+      "value": ""
+    },
+    {
+      "key": "to_cash_box_id",
+      "value": ""
+    },
+    {
+      "key": "currency_id",
+      "value": ""
+    },
+    {
+      "key": "to_currency_id",
+      "value": ""
+    },
+    {
+      "key": "finance_transaction_id",
+      "value": ""
+    },
+    {
+      "key": "finance_request_id",
+      "value": ""
     }
   ],
   "item": [
@@ -196,6 +281,226 @@
           ]
         },
         {
+          "name": "Tenant Capabilities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Locale",
+                "value": "{{locale}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/capabilities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "capabilities"
+              ]
+            },
+            "description": "SaaS tenant modules, available permissions, setup requirements, and password-change state. Use the configured tenant hostname as base_url."
+          }
+        },
+        {
+          "name": "Bootstrap Mobile App",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Locale",
+                "value": "{{locale}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/bootstrap",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bootstrap"
+              ]
+            },
+            "description": "Initial mobile payload: user, roles, permissions, mobile navigation, organization branding, localization, and feature flags."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bootstrap loaded', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Bootstrap contract is present', () => pm.expect(body.data).to.include.all.keys('api', 'user', 'permissions', 'navigation', 'organization', 'localization', 'features'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mobile Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard"
+              ]
+            },
+            "description": "Returns role-aware and access-scoped summary metrics for the authenticated user."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Dashboard loaded', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('Dashboard has metrics', () => pm.expect(pm.response.json().data.metrics).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My Mobile Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me"
+              ]
+            },
+            "description": "Returns the authenticated user's mobile-safe profile, role, permissions, profile IDs, and profile-photo URL."
+          }
+        },
+        {
+          "name": "Update My Username",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me"
+              ]
+            },
+            "description": "Updates an editable username. Parent and student usernames are immutable. The application derives the account email using the same rule as the website.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{new_username}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update My Profile Photo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/profile-photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me",
+                "profile-photo"
+              ]
+            },
+            "description": "Uploads a profile image using the same storage and linked student/teacher profile rules as the website.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "profile_photo",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change My Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me",
+                "password"
+              ]
+            },
+            "description": "Changes the password, keeps the current device token, and revokes tokens belonging to other devices.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"{{password}}\",\n  \"password\": \"{{new_password}}\",\n  \"password_confirmation\": \"{{new_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Password changed', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code === 200) pm.environment.set('password', pm.environment.get('new_password'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Current User",
           "request": {
             "method": "GET",
@@ -217,6 +522,38 @@
             },
             "description": "Returns the authenticated user."
           }
+        },
+        {
+          "name": "Logout - Revoke All Device Tokens",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/tokens",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "tokens"
+              ]
+            },
+            "description": "Revokes every Sanctum token owned by the authenticated user, including the current token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('All tokens revoked', () => pm.expect(pm.response.code).to.eql(204));",
+                  "if (pm.response.code === 204) pm.environment.unset('token');"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Logout - Revoke Current Token",
@@ -258,7 +595,1016 @@
       ]
     },
     {
-      "name": "02 Reports",
+      "name": "02 Reference Data",
+      "description": "Compact authenticated lookup catalogs used to populate mobile selectors. Inactive values are hidden unless include_inactive=1 is enabled.",
+      "item": [
+        {
+          "name": "Academic Years",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/academic-years",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "academic-years"
+              ]
+            },
+            "description": "Permissions: courses.view, groups.view, enrollments.view, assessments.view, or reports.view."
+          }
+        },
+        {
+          "name": "Grade Levels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/grade-levels?q=&include_inactive=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "grade-levels"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "include_inactive",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permissions: student or group read/write access."
+          }
+        },
+        {
+          "name": "Attendance Statuses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/attendance-statuses?scope=student",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "attendance-statuses"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "student",
+                  "description": "student, teacher, or both"
+                }
+              ]
+            },
+            "description": "Requires student- or teacher-attendance access."
+          }
+        },
+        {
+          "name": "Assessment Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/assessment-types",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "assessment-types"
+              ]
+            },
+            "description": "Requires assessment or assessment-result access."
+          }
+        },
+        {
+          "name": "Assessment Score Bands",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/assessment-score-bands?assessment_type_id={{assessment_type_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "assessment-score-bands"
+              ],
+              "query": [
+                {
+                  "key": "assessment_type_id",
+                  "value": "{{assessment_type_id}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Includes the related assessment type and point type."
+          }
+        },
+        {
+          "name": "Quran Juz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/quran-juz",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "quran-juz"
+              ]
+            },
+            "description": "Requires memorization or Quran-test access."
+          }
+        },
+        {
+          "name": "Quran Test Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/quran-test-types",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "quran-test-types"
+              ]
+            },
+            "description": "Requires Quran-test access."
+          }
+        },
+        {
+          "name": "Point Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/point-types?manual_only=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "point-types"
+              ],
+              "query": [
+                {
+                  "key": "manual_only",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Set manual_only=1 for manual point-entry selectors."
+          }
+        },
+        {
+          "name": "Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/payment-methods",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "payment-methods"
+              ]
+            },
+            "description": "Requires payment, activity-payment, or invoice access."
+          }
+        },
+        {
+          "name": "Expense Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/expense-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "expense-categories"
+              ]
+            },
+            "description": "Requires activity-expense or finance-category access."
+          }
+        },
+        {
+          "name": "Currencies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/currencies?include_hidden=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "currencies"
+              ],
+              "query": [
+                {
+                  "key": "include_hidden",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns active dropdown currencies by default while preserving decimal precision."
+          }
+        },
+        {
+          "name": "Teacher Job Titles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/teacher-job-titles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "teacher-job-titles"
+              ]
+            },
+            "description": "Requires teacher or group access."
+          }
+        },
+        {
+          "name": "Schools",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reference/schools",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reference",
+                "schools"
+              ]
+            },
+            "description": "Requires student read/write access."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Core People and Academics",
+      "description": "Phase 3 core people and academic records. Create requests store returned IDs in the selected environment.",
+      "item": [
+        {
+          "name": "List Parents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parents?search=Mobile&is_active=1&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parents"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Mobile",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: parents.view"
+          }
+        },
+        {
+          "name": "Parent Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parents/{{parent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parents",
+                "{{parent_id}}"
+              ]
+            },
+            "description": "Permission: parents.view"
+          }
+        },
+        {
+          "name": "Create Parent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parents"
+              ]
+            },
+            "description": "Permission: parents.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"father_name\": \"Mobile Parent\",\n    \"father_work\": \"Engineer\",\n    \"father_phone\": \"0999111222\",\n    \"mother_name\": \"Mobile Mother\",\n    \"mother_phone\": \"0999111333\",\n    \"home_phone\": null,\n    \"address\": \"Damascus\",\n    \"notes\": null,\n    \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('parent_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Parent",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parents/{{parent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parents",
+                "{{parent_id}}"
+              ]
+            },
+            "description": "Permission: parents.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"father_name\": \"Mobile Parent\",\n    \"father_work\": \"Engineer\",\n    \"father_phone\": \"0999111222\",\n    \"mother_name\": \"Mobile Mother\",\n    \"mother_phone\": \"0999111333\",\n    \"home_phone\": null,\n    \"address\": \"Damascus\",\n    \"notes\": null,\n    \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Parent",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/parents/{{parent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "parents",
+                "{{parent_id}}"
+              ]
+            },
+            "description": "Permission: parents.delete"
+          }
+        },
+        {
+          "name": "List Teachers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teachers?search=Mobile&status=active&course_id=%7B%7Bcourse_id%7D%7D&is_helping=0&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teachers"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Mobile",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "course_id",
+                  "value": "{{course_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "is_helping",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: teachers.view"
+          }
+        },
+        {
+          "name": "Teacher Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teachers/{{teacher_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teachers",
+                "{{teacher_id}}"
+              ]
+            },
+            "description": "Permission: teachers.view"
+          }
+        },
+        {
+          "name": "Create Teacher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teachers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teachers"
+              ]
+            },
+            "description": "Permission: teachers.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"Mobile\",\n    \"last_name\": \"Teacher\",\n    \"phone\": \"0988111222\",\n    \"teacher_job_title_id\": \"{{teacher_job_title_id}}\",\n    \"course_id\": \"{{course_id}}\",\n    \"hired_at\": \"{{date}}\",\n    \"is_helping\": false,\n    \"notes\": null,\n    \"account_username\": \"mobile-teacher\",\n    \"account_password\": \"ChangeMe123!\",\n    \"account_is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('teacher_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Teacher",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teachers/{{teacher_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teachers",
+                "{{teacher_id}}"
+              ]
+            },
+            "description": "Permission: teachers.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"Mobile\",\n    \"last_name\": \"Teacher\",\n    \"phone\": \"0988111222\",\n    \"teacher_job_title_id\": \"{{teacher_job_title_id}}\",\n    \"course_id\": \"{{course_id}}\",\n    \"hired_at\": \"{{date}}\",\n    \"is_helping\": false,\n    \"notes\": null,\n    \"account_username\": \"mobile-teacher\",\n    \"account_password\": \"ChangeMe123!\",\n    \"account_is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Teacher",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teachers/{{teacher_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teachers",
+                "{{teacher_id}}"
+              ]
+            },
+            "description": "Permission: teachers.delete"
+          }
+        },
+        {
+          "name": "List Courses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses?search=Mobile&academic_year_id=%7B%7Bacademic_year_id%7D%7D&is_active=1&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Mobile",
+                  "disabled": true
+                },
+                {
+                  "key": "academic_year_id",
+                  "value": "{{academic_year_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: courses.view"
+          }
+        },
+        {
+          "name": "Course Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses",
+                "{{course_id}}"
+              ]
+            },
+            "description": "Permission: courses.view"
+          }
+        },
+        {
+          "name": "Create Course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses"
+              ]
+            },
+            "description": "Permission: courses.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"academic_year_id\": \"{{academic_year_id}}\",\n    \"name\": \"Mobile Course\",\n    \"description\": \"Created from the mobile API collection\",\n    \"starts_on\": \"{{date_from}}\",\n    \"ends_on\": \"{{date_to}}\",\n    \"is_default\": false,\n    \"awards_points\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('course_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Course",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses",
+                "{{course_id}}"
+              ]
+            },
+            "description": "Permission: courses.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"academic_year_id\": \"{{academic_year_id}}\",\n    \"name\": \"Mobile Course\",\n    \"description\": \"Created from the mobile API collection\",\n    \"starts_on\": \"{{date_from}}\",\n    \"ends_on\": \"{{date_to}}\",\n    \"is_default\": false,\n    \"awards_points\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Finish Course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}/finish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses",
+                "{{course_id}}",
+                "finish"
+              ]
+            },
+            "description": "Permission: courses.update"
+          }
+        },
+        {
+          "name": "Reactivate Course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}/reactivate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses",
+                "{{course_id}}",
+                "reactivate"
+              ]
+            },
+            "description": "Permission: courses.update"
+          }
+        },
+        {
+          "name": "Delete Course",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "courses",
+                "{{course_id}}"
+              ]
+            },
+            "description": "Permission: courses.delete"
+          }
+        },
+        {
+          "name": "Student Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}"
+              ]
+            },
+            "description": "Permission: students.view"
+          }
+        },
+        {
+          "name": "Group Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}"
+              ]
+            },
+            "description": "Permission: groups.view"
+          }
+        },
+        {
+          "name": "Enrollment Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}"
+              ]
+            },
+            "description": "Permission: enrollments.view"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Reports",
       "item": [
         {
           "name": "Overview",
@@ -360,7 +1706,7 @@
       ]
     },
     {
-      "name": "03 Read Records",
+      "name": "05 Read Records",
       "item": [
         {
           "name": "List Students",
@@ -695,7 +2041,7 @@
       ]
     },
     {
-      "name": "04 Parent Mobile",
+      "name": "06 Parent Mobile",
       "item": [
         {
           "name": "Profile",
@@ -1273,7 +2619,7 @@
       ]
     },
     {
-      "name": "05 Students Groups Enrollments",
+      "name": "07 Students Groups Enrollments",
       "item": [
         {
           "name": "Create Student",
@@ -1578,8 +2924,611 @@
       ]
     },
     {
-      "name": "06 Attendance Learning Points",
+      "name": "08 Attendance Learning Points",
       "item": [
+        {
+          "name": "List Student Attendance Days",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-attendance/days?course_id=%7B%7Bcourse_id%7D%7D&group_id=%7B%7Bgroup_id%7D%7D&status=open&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-attendance",
+                "days"
+              ],
+              "query": [
+                {
+                  "key": "course_id",
+                  "value": "{{course_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "open",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: attendance.student.view"
+          }
+        },
+        {
+          "name": "Student Attendance Day Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-attendance/days/{{student_attendance_day_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-attendance",
+                "days",
+                "{{student_attendance_day_id}}"
+              ]
+            },
+            "description": "Permission: attendance.student.view"
+          }
+        },
+        {
+          "name": "Close Student Attendance Day",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-attendance/days/{{student_attendance_day_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-attendance",
+                "days",
+                "{{student_attendance_day_id}}",
+                "status"
+              ]
+            },
+            "description": "Permission: attendance.student.toggle-day-status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Teacher Attendance Days",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teacher-attendance/days?course_id=%7B%7Bcourse_id%7D%7D&teacher_id=%7B%7Bteacher_id%7D%7D&status=completed&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teacher-attendance",
+                "days"
+              ],
+              "query": [
+                {
+                  "key": "course_id",
+                  "value": "{{course_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "teacher_id",
+                  "value": "{{teacher_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: attendance.teacher.view"
+          }
+        },
+        {
+          "name": "Teacher Attendance Day Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teacher-attendance/days/{{teacher_attendance_day_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teacher-attendance",
+                "days",
+                "{{teacher_attendance_day_id}}"
+              ]
+            },
+            "description": "Permission: attendance.teacher.view"
+          }
+        },
+        {
+          "name": "List Memorization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/memorization?student_id=%7B%7Bstudent_id%7D%7D&group_id=%7B%7Bgroup_id%7D%7D&entry_type=new&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "memorization"
+              ],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "entry_type",
+                  "value": "new",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: memorization.view"
+          }
+        },
+        {
+          "name": "Enrollment Memorization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/memorization?entry_type=new&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "memorization"
+              ],
+              "query": [
+                {
+                  "key": "entry_type",
+                  "value": "new",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: memorization.view"
+          }
+        },
+        {
+          "name": "List Quran Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-tests?student_id=%7B%7Bstudent_id%7D%7D&group_id=%7B%7Bgroup_id%7D%7D&juz_id=%7B%7Bjuz_id%7D%7D&status=passed&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-tests"
+              ],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "juz_id",
+                  "value": "{{juz_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "passed",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: quran-tests.view or quran-awqaf-tests.view"
+          }
+        },
+        {
+          "name": "Enrollment Quran Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/quran-tests?juz_id=%7B%7Bjuz_id%7D%7D&status=passed&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "quran-tests"
+              ],
+              "query": [
+                {
+                  "key": "juz_id",
+                  "value": "{{juz_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "passed",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: quran-tests.view or quran-awqaf-tests.view"
+          }
+        },
+        {
+          "name": "List Point Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/points?student_id=%7B%7Bstudent_id%7D%7D&group_id=%7B%7Bgroup_id%7D%7D&point_type_id=%7B%7Bpoint_type_id%7D%7D&state=active&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "points"
+              ],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "point_type_id",
+                  "value": "{{point_type_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: points.view"
+          }
+        },
+        {
+          "name": "Enrollment Point Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/points?point_type_id=%7B%7Bpoint_type_id%7D%7D&state=active&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "points"
+              ],
+              "query": [
+                {
+                  "key": "point_type_id",
+                  "value": "{{point_type_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: points.view"
+          }
+        },
+        {
+          "name": "Assessment Details and Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assessments/{{assessment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assessments",
+                "{{assessment_id}}"
+              ]
+            },
+            "description": "Permission: assessments.view"
+          }
+        },
         {
           "name": "Record Group Attendance",
           "request": {
@@ -1611,6 +3560,136 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"attendance_date\": \"{{date}}\",\n  \"notes\": \"Recorded from mobile\",\n  \"records\": [\n    {\n      \"enrollment_id\": \"{{enrollment_id}}\",\n      \"attendance_status_id\": \"{{attendance_status_id}}\",\n      \"notes\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Open Student Attendance Day",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-attendance/days",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-attendance",
+                "days"
+              ]
+            },
+            "description": "Permission: attendance.student.take",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_date\": \"{{date}}\",\n    \"group_id\": \"{{group_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.id) pm.environment.set('student_attendance_day_id', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Quick Scan Student Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-attendance/quick-scan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-attendance",
+                "quick-scan"
+              ]
+            },
+            "description": "Permission: attendance.student.take",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_status_id\": \"{{attendance_status_id}}\",\n    \"scan_value\": \"{{student_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Scan Student Attendance Day",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-attendance/days/{{student_attendance_day_id}}/scan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-attendance",
+                "days",
+                "{{student_attendance_day_id}}",
+                "scan"
+              ]
+            },
+            "description": "Permission: attendance.student.take",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_status_id\": \"{{attendance_status_id}}\",\n    \"scan_value\": \"{{student_id}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1851,12 +3930,371 @@
               }
             }
           }
+        },
+        {
+          "name": "Add Manual Student Points Without Enrollment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/points/manual",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "points",
+                "manual"
+              ]
+            },
+            "description": "Permission: points.create-manual; requires students and points_rewards modules. Reuse the same idempotency key for retries of one award; change it for a new award.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"point_type_id\": \"{{point_type_id}}\",\n  \"points\": 10,\n  \"notes\": \"Mobile adjustment\",\n  \"idempotency_key\": \"mobile-student-point-example-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
-      ]
+      ],
+      "description": "Phase 4 scoped operational reads plus attendance, memorization, Quran-test, point, and assessment write workflows."
     },
     {
-      "name": "07 Finance and Activities",
+      "name": "09 Finance and Activities",
       "item": [
+        {
+          "name": "Activity Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}"
+              ]
+            },
+            "description": "Permission: activities.view"
+          }
+        },
+        {
+          "name": "Activity Registrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/registrations?status=registered&student_id=%7B%7Bstudent_id%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "registrations"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "registered",
+                  "disabled": true
+                },
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: activities.finance.view or activities.registrations.manage"
+          }
+        },
+        {
+          "name": "Activity Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/payments?state=active&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: activities.finance.view or activities.payments.manage"
+          }
+        },
+        {
+          "name": "Activity Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/{{activity_id}}/expenses?expense_category_id=%7B%7Bexpense_category_id%7D%7D&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "{{activity_id}}",
+                "expenses"
+              ],
+              "query": [
+                {
+                  "key": "expense_category_id",
+                  "value": "{{expense_category_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: activities.finance.view or activities.expenses.manage"
+          }
+        },
+        {
+          "name": "Invoice Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": "Permission: invoices.view"
+          }
+        },
+        {
+          "name": "Invoice Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invoices/{{invoice_id}}/payments?state=active&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: invoices.view"
+          }
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments?invoice_id=%7B%7Binvoice_id%7D%7D&payment_method_id=%7B%7Bpayment_method_id%7D%7D&state=active&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "invoice_id",
+                  "value": "{{invoice_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "payment_method_id",
+                  "value": "{{payment_method_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: payments.view"
+          }
+        },
         {
           "name": "Create Activity Registration",
           "request": {
@@ -2338,7 +4776,1575 @@
       ]
     },
     {
-      "name": "08 API Documentation",
+      "name": "10 Academic Support",
+      "item": [
+        {
+          "name": "List Group Schedules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}",
+                "schedules"
+              ]
+            },
+            "description": "Permission: groups.view"
+          }
+        },
+        {
+          "name": "Create Group Schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}",
+                "schedules"
+              ]
+            },
+            "description": "Permission: group-schedules.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"day_of_week\": 1,\n    \"time_slot\": \"morning\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('group_schedule_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Group Schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}/schedules/{{group_schedule_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}",
+                "schedules",
+                "{{group_schedule_id}}"
+              ]
+            },
+            "description": "Permission: group-schedules.manage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"day_of_week\": 2,\n    \"time_slot\": \"before_noon\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Group Schedule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}/schedules/{{group_schedule_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}",
+                "schedules",
+                "{{group_schedule_id}}"
+              ]
+            },
+            "description": "Permission: group-schedules.manage"
+          }
+        },
+        {
+          "name": "List Student Notes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-notes?student_id=%7B%7Bstudent_id%7D%7D&enrollment_id=%7B%7Benrollment_id%7D%7D&source=teacher&visibility=shared_internal&date_from=%7B%7Bdate_from%7D%7D&date_to=%7B%7Bdate_to%7D%7D&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-notes"
+              ],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "enrollment_id",
+                  "value": "{{enrollment_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "source",
+                  "value": "teacher",
+                  "disabled": true
+                },
+                {
+                  "key": "visibility",
+                  "value": "shared_internal",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: student-notes.view"
+          }
+        },
+        {
+          "name": "Student Note Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-notes/{{student_note_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-notes",
+                "{{student_note_id}}"
+              ]
+            },
+            "description": "Permission: student-notes.view"
+          }
+        },
+        {
+          "name": "Create Student Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-notes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-notes"
+              ]
+            },
+            "description": "Permission: student-notes.create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"student_id\": \"{{student_id}}\",\n    \"enrollment_id\": \"{{enrollment_id}}\",\n    \"source\": \"management\",\n    \"visibility\": \"shared_internal\",\n    \"noted_at\": \"{{date}}\",\n    \"body\": \"Mobile note\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('student_note_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Student Note",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-notes/{{student_note_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-notes",
+                "{{student_note_id}}"
+              ]
+            },
+            "description": "Permission: student-notes.update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"source\": \"management\",\n    \"visibility\": \"visible_to_parent\",\n    \"noted_at\": \"{{date}}\",\n    \"body\": \"Updated mobile note\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Student Note",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/student-notes/{{student_note_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student-notes",
+                "{{student_note_id}}"
+              ]
+            },
+            "description": "Permission: student-notes.delete"
+          }
+        },
+        {
+          "name": "List Curricula",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/curricula?search=Quran&grade_level_id=%7B%7Bgrade_level_id%7D%7D&is_active=1&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "curricula"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Quran",
+                  "disabled": true
+                },
+                {
+                  "key": "grade_level_id",
+                  "value": "{{grade_level_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: curricula.manage or eligible curricula.record access"
+          }
+        },
+        {
+          "name": "Curriculum Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/curricula/{{curriculum_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "curricula",
+                "{{curriculum_id}}"
+              ]
+            },
+            "description": "Permission: curricula.manage or eligible curricula.record access"
+          }
+        },
+        {
+          "name": "Group Curriculum Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/groups/{{group_id}}/curriculum",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{group_id}}",
+                "curriculum"
+              ]
+            },
+            "description": "Permission: curricula.manage or eligible curricula.record access"
+          }
+        },
+        {
+          "name": "Download Curriculum Resource",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/curriculum-resources/{{curriculum_resource_id}}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "curriculum-resources",
+                "{{curriculum_resource_id}}",
+                "download"
+              ]
+            },
+            "description": "Permission: curricula.manage or eligible curricula.record access"
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Advanced Quran Evaluations",
+      "item": [
+        {
+          "name": "List Partial Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-partial-tests?student_id=%7B%7Bstudent_id%7D%7D&group_id=%7B%7Bgroup_id%7D%7D&juz_id=%7B%7Bjuz_id%7D%7D&status=in_progress&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-partial-tests"
+              ],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "juz_id",
+                  "value": "{{juz_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "in_progress",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: quran-partial-tests.view"
+          }
+        },
+        {
+          "name": "Partial Test Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-partial-tests/{{partial_test_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-partial-tests",
+                "{{partial_test_id}}"
+              ]
+            },
+            "description": "Permission: quran-partial-tests.view"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('partial_test_id', body.data.id);",
+                  "  if (body.data && body.data.parts && body.data.parts[0]) pm.environment.set('partial_test_part_id', body.data.parts[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eligible Juz for Partial Test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/quran-partial-tests/eligible-juz",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "quran-partial-tests",
+                "eligible-juz"
+              ]
+            },
+            "description": "Permission: quran-partial-tests.record"
+          }
+        },
+        {
+          "name": "Create Partial Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/quran-partial-tests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "quran-partial-tests"
+              ]
+            },
+            "description": "Permission: quran-partial-tests.record",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"juz_id\": \"{{juz_id}}\",\n    \"allow_parallel_cycle\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('partial_test_id', body.data.id);",
+                  "  if (body.data && body.data.parts && body.data.parts[0]) pm.environment.set('partial_test_part_id', body.data.parts[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Record Partial Test Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-partial-tests/{{partial_test_id}}/parts/{{partial_test_part_id}}/attempts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-partial-tests",
+                "{{partial_test_id}}",
+                "parts",
+                "{{partial_test_part_id}}",
+                "attempts"
+              ]
+            },
+            "description": "Permission: quran-partial-tests.record",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"teacher_id\": \"{{teacher_id}}\",\n    \"tested_on\": \"{{date}}\",\n    \"mistake_count\": 0,\n    \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Final Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-final-tests?student_id=%7B%7Bstudent_id%7D%7D&group_id=%7B%7Bgroup_id%7D%7D&juz_id=%7B%7Bjuz_id%7D%7D&status=in_progress&page=1&per_page=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-final-tests"
+              ],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{student_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "group_id",
+                  "value": "{{group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "juz_id",
+                  "value": "{{juz_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "in_progress",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: quran-final-tests.view"
+          }
+        },
+        {
+          "name": "Final Test Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-final-tests/{{final_test_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-final-tests",
+                "{{final_test_id}}"
+              ]
+            },
+            "description": "Permission: quran-final-tests.view"
+          }
+        },
+        {
+          "name": "Eligible Juz for Final Test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/quran-final-tests/eligible-juz",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "quran-final-tests",
+                "eligible-juz"
+              ]
+            },
+            "description": "Permission: quran-final-tests.record"
+          }
+        },
+        {
+          "name": "Create Final Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/enrollments/{{enrollment_id}}/quran-final-tests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "enrollments",
+                "{{enrollment_id}}",
+                "quran-final-tests"
+              ]
+            },
+            "description": "Permission: quran-final-tests.record",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"juz_id\": \"{{juz_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('final_test_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Record Final Test Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quran-final-tests/{{final_test_id}}/attempts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quran-final-tests",
+                "{{final_test_id}}",
+                "attempts"
+              ]
+            },
+            "description": "Permission: quran-final-tests.record",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"teacher_id\": \"{{teacher_id}}\",\n    \"tested_on\": \"{{date}}\",\n    \"score\": 100,\n    \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Student Progress and Files",
+      "item": [
+        {
+          "name": "Student Progress Snapshot",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/progress",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "progress"
+              ]
+            },
+            "description": "Permission: students.view. Metrics without matching permissions are returned as null."
+          }
+        },
+        {
+          "name": "List Student Files",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/files",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "files"
+              ]
+            },
+            "description": "Permission: students.view"
+          }
+        },
+        {
+          "name": "Upload Student File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/files",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "files"
+              ]
+            },
+            "description": "Permission: students.files.manage. Maximum file size: 10 MB.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file_type",
+                  "value": "identity",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.id) pm.environment.set('student_file_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Student File",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/files/{{student_file_id}}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "files",
+                "{{student_file_id}}",
+                "download"
+              ]
+            },
+            "description": "Permission: students.view. Returns the original file as a binary download."
+          }
+        },
+        {
+          "name": "Delete Student File",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/files/{{student_file_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "files",
+                "{{student_file_id}}"
+              ]
+            },
+            "description": "Permission: students.files.manage"
+          }
+        },
+        {
+          "name": "View Student Photo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "photo"
+              ]
+            },
+            "description": "Permission: students.view. Returns the image as a binary response."
+          }
+        },
+        {
+          "name": "Update Student Photo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "photo"
+              ]
+            },
+            "description": "Permission: students.photo.update. Accepted formats: JPG, PNG, and WebP.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Student Photo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/students/{{student_id}}/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "students",
+                "{{student_id}}",
+                "photo"
+              ]
+            },
+            "description": "Permission: students.photo.update"
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Finance Operations",
+      "description": "Phase 9 cash-box balances, unified ledger, adjustments, transfers, exchanges, and request workflow reads. Money movements use the same FinanceService and finance_transactions ledger as the website.",
+      "item": [
+        {
+          "name": "Finance Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "summary"
+              ]
+            },
+            "description": "Permission: finance.reports.view or finance.cash-box.view. Returns cash-box balances, currency totals, and visible pending-request counts."
+          }
+        },
+        {
+          "name": "List Cash Boxes and Balances",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/cash-boxes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "cash-boxes"
+              ]
+            },
+            "description": "Permission: finance.cash-box.view. Balances are calculated from signed finance_transactions. The response script stores source/destination box and currency IDs when available."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const rows = pm.response.json().data || [];",
+                  "  if (rows[0]?.id) pm.environment.set('cash_box_id', rows[0].id);",
+                  "  if (rows[1]?.id) pm.environment.set('to_cash_box_id', rows[1].id);",
+                  "  const sourceCurrency = rows[0]?.currencies?.[0]?.currency;",
+                  "  if (sourceCurrency?.id) pm.environment.set('currency_id', sourceCurrency.id);",
+                  "  const currencies = rows.flatMap(row => (row.currencies || []).map(entry => entry.currency)).filter(Boolean);",
+                  "  const destinationCurrency = currencies.find(currency => String(currency.id) !== String(sourceCurrency?.id));",
+                  "  if (destinationCurrency?.id) pm.environment.set('to_currency_id', destinationCurrency.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Ledger Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/transactions?per_page=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                },
+                {
+                  "key": "cash_box_id",
+                  "value": "{{cash_box_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "currency_id",
+                  "value": "{{currency_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "income",
+                  "disabled": true
+                },
+                {
+                  "key": "direction",
+                  "value": "in",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-10-01",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-10-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: finance.cash-box.view. Unified source-of-truth ledger. The first returned transaction ID is stored automatically."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const first = pm.response.json().data?.[0];",
+                  "  if (first?.id) pm.environment.set('finance_transaction_id', first.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show Ledger Transaction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/transactions/{{finance_transaction_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "transactions",
+                "{{finance_transaction_id}}"
+              ]
+            },
+            "description": "Permission: finance.cash-box.view"
+          }
+        },
+        {
+          "name": "Create Manual Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/adjustments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "adjustments"
+              ]
+            },
+            "description": "Permission: finance.cash-box.adjust. Requires the cash-box manual-adjustment feature to be enabled.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cash_box_id\": {{cash_box_id}},\n  \"currency_id\": {{currency_id}},\n  \"direction\": \"in\",\n  \"amount\": 100,\n  \"transaction_date\": \"2026-10-12\",\n  \"description\": \"Mobile adjustment\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const row = pm.response.json().data;",
+                  "  if (row?.id) pm.environment.set('finance_transaction_id', row.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Cash Box Transfers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/transfers?per_page=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "transfers"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-10-01",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-10-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: finance.cash-box.view"
+          }
+        },
+        {
+          "name": "Create Cash Box Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/transfers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "transfers"
+              ]
+            },
+            "description": "Permission: finance.cash-box.transfer. Creates paired out/in ledger entries.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_cash_box_id\": {{cash_box_id}},\n  \"to_cash_box_id\": {{to_cash_box_id}},\n  \"currency_id\": {{currency_id}},\n  \"amount\": 50,\n  \"transfer_date\": \"2026-10-12\",\n  \"notes\": \"Mobile transfer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Currency Exchanges",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/exchanges?per_page=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "exchanges"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-10-01",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-10-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Permission: finance.exchange.view"
+          }
+        },
+        {
+          "name": "Create Currency Exchange",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/exchanges",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "exchanges"
+              ]
+            },
+            "description": "Permission: finance.exchange.create. Omit to_amount to calculate it from configured rates; provide it for a negotiated rate.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_cash_box_id\": {{cash_box_id}},\n  \"to_cash_box_id\": {{to_cash_box_id}},\n  \"from_currency_id\": {{currency_id}},\n  \"to_currency_id\": {{to_currency_id}},\n  \"from_amount\": 25,\n  \"exchange_date\": \"2026-10-12\",\n  \"notes\": \"Mobile exchange\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Finance Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/requests?per_page=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                },
+                {
+                  "key": "type",
+                  "value": "expense",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Requires the matching pull, expense, or revenue request view permission. Return requests use revenue permissions. The first returned request ID is stored automatically."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const first = pm.response.json().data?.[0];",
+                  "  if (first?.id) pm.environment.set('finance_request_id', first.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show Finance Request",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/finance/requests/{{finance_request_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "requests",
+                "{{finance_request_id}}"
+              ]
+            },
+            "description": "Requires the view permission matching the request type."
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 API Documentation",
       "description": "Generated API documentation routes registered by the application.",
       "item": [
         {

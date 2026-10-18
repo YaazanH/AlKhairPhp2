@@ -34,6 +34,8 @@ new class extends Component
 
     public string $editingStudentName = '';
 
+    public string $editingJuzLabel = '';
+
     public ?int $juz_id = null;
 
     public string $tested_on = '';
@@ -246,6 +248,7 @@ new class extends Component
 
         $this->editingTestId = $test->id;
         $this->editingStudentName = $test->student?->full_name ?: __('crud.common.not_available');
+        $this->editingJuzLabel = __('workflow.common.labels.juz_number', ['number' => $test->juz?->juz_number ?: __('workflow.common.not_available')]);
         $this->selectedStudentId = $test->student_id;
         $this->selectedEnrollmentId = $test->enrollment_id;
         $this->juz_id = $test->juz_id;
@@ -253,7 +256,7 @@ new class extends Component
         $this->score = $test->score === null
             ? ''
             : rtrim(rtrim(number_format((float) $test->score, 2, '.', ''), '0'), '.');
-        $this->status = $test->status;
+        $this->status = in_array($test->status, ['passed', 'failed'], true) ? $test->status : 'failed';
         $this->showFormModal = true;
         $this->resetValidation();
     }
@@ -278,19 +281,6 @@ new class extends Component
             OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
         }
 
-        $validated = $this->validate([
-            'selectedStudentId' => ['required', 'exists:students,id'],
-            'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
-            'juz_id' => ['required', 'exists:quran_juzs,id'],
-            'tested_on' => ['required', 'date'],
-            'score' => ['required_if:status,passed', 'nullable', 'numeric', 'between:0,100'],
-            'status' => ['required', 'in:passed,failed,cancelled'],
-        ], [], [
-            'selectedStudentId' => __('workflow.quran_tests.workbench.form.student'),
-            'selectedEnrollmentId' => __('workflow.quran_tests.workbench.form.group'),
-            'score' => __('workflow.quran_tests.form.score'),
-        ]);
-
         $editingTest = $this->editingTestId
             ? $this->quranTestsQuery(
                 QuranTest::query()->with(['student', 'enrollment.student', 'enrollment.group.teacher', 'type'])
@@ -301,6 +291,26 @@ new class extends Component
 
         if ($editingTest) {
             abort_unless($this->testCourseIsEditable($editingTest), 403);
+            $this->selectedStudentId = $editingTest->student_id;
+            $this->selectedEnrollmentId = $editingTest->enrollment_id;
+            $this->juz_id = $editingTest->juz_id;
+            $this->status = in_array($editingTest->status, ['passed', 'failed'], true) ? $editingTest->status : 'failed';
+        }
+
+        $validated = $this->validate([
+            'selectedStudentId' => ['required', 'exists:students,id'],
+            'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
+            'juz_id' => ['required', 'exists:quran_juzs,id'],
+            'tested_on' => ['required', 'date'],
+            'score' => ['exclude_unless:status,passed', 'required', 'numeric', 'min:80', 'max:100'],
+            'status' => ['required', 'in:passed,failed'],
+        ], [], [
+            'selectedStudentId' => __('workflow.quran_tests.workbench.form.student'),
+            'selectedEnrollmentId' => __('workflow.quran_tests.workbench.form.group'),
+            'score' => __('workflow.quran_tests.form.score'),
+        ]);
+
+        if ($editingTest) {
             abort_unless((int) $validated['selectedStudentId'] === (int) $editingTest->student_id, 403);
             $enrollment = $editingTest->enrollment;
             abort_unless($enrollment, 404);
@@ -351,10 +361,8 @@ new class extends Component
             if ($editingTest) {
                 $ledger->voidSourceTransactions('quran_test', $editingTest->id, __('workflow.quran_tests.messages.updated_void_reason'));
                 $editingTest->update([
-                    'juz_id' => (int) $validated['juz_id'],
                     'tested_on' => $validated['tested_on'],
-                    'score' => $validated['score'] !== '' ? $validated['score'] : null,
-                    'status' => $validated['status'],
+                    'score' => $editingTest->status === 'passed' ? $validated['score'] : null,
                 ]);
                 $test = $editingTest->fresh(['enrollment.student', 'student.gradeLevel', 'type']);
             } else {
@@ -365,7 +373,7 @@ new class extends Component
                     'juz_id' => (int) $validated['juz_id'],
                     'quran_test_type_id' => $testType->id,
                     'tested_on' => $validated['tested_on'],
-                    'score' => $validated['score'] !== '' ? $validated['score'] : null,
+                    'score' => $validated['status'] === 'passed' ? $validated['score'] : null,
                     'status' => $validated['status'],
                     'attempt_no' => app(QuranProgressionService::class)->nextAttemptNumber(
                         $enrollment,
@@ -428,6 +436,7 @@ new class extends Component
     {
         $this->editingTestId = null;
         $this->editingStudentName = '';
+        $this->editingJuzLabel = '';
         $this->selectedStudentId = null;
         $this->selectedEnrollmentId = null;
         $this->juz_id = null;
@@ -841,7 +850,7 @@ new class extends Component
     >
         <form wire:submit="save" class="space-y-4" data-searchable-refresh>
             <fieldset class="space-y-4" @disabled(! $this->canAnyPermission(['quran-awqaf-tests.record', 'quran-tests.record']))>
-                <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-4 md:grid-cols-3" data-awqaf-saber-identity-row>
                     <div>
                         <label for="quran-workbench-student" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.workbench.form.student') }}</label>
                         @if ($editingTestId)
@@ -870,40 +879,50 @@ new class extends Component
 
                     <div>
                         <label for="quran-workbench-juz" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.juz') }}</label>
-                        <select id="quran-workbench-juz" wire:model="juz_id" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
-                            <option value="">{{ __('workflow.quran_tests.form.select_juz') }}</option>
-                            @foreach ($eligibleJuzs as $juz)
-                                <option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
-                            @endforeach
-                        </select>
-                        @if ($selectedStudentId && $eligibleJuzs->isEmpty())
+                        @if ($editingTestId)
+                            <input id="quran-workbench-juz" type="text" value="{{ $editingJuzLabel }}" readonly aria-readonly="true" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm" data-awqaf-saber-juz-readonly>
+                        @else
+                            <select id="quran-workbench-juz" wire:model="juz_id" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
+                                <option value="">{{ __('workflow.quran_tests.form.select_juz') }}</option>
+                                @foreach ($eligibleJuzs as $juz)
+                                    <option value="{{ $juz->id }}">{{ __('workflow.common.labels.juz_number', ['number' => $juz->juz_number]) }}</option>
+                                @endforeach
+                            </select>
+                        @endif
+                        @if (! $editingTestId && $selectedStudentId && $eligibleJuzs->isEmpty())
                             <div class="mt-1 text-xs text-neutral-500">{{ __('workflow.quran_tests.form.no_eligible_juzs') }}</div>
                         @endif
                         @error('juz_id') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
+
+                    <div>
+                        <label for="quran-workbench-status" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label>
+                        @if ($editingTestId)
+                            <input id="quran-workbench-status" type="text" value="{{ __('workflow.common.result_status.'.$status) }}" readonly aria-readonly="true" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm" data-awqaf-saber-status-readonly>
+                        @else
+                            <select id="quran-workbench-status" wire:model.live="status" required data-clearable="false" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
+                                <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
+                                <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
+                            </select>
+                        @endif
+                        @error('status') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                    </div>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-3">
+                <div @class(['grid gap-4', 'md:grid-cols-2' => $status === 'passed'])>
                     <div>
                         <label for="quran-workbench-date" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.tested_on') }}</label>
                         <input id="quran-workbench-date" wire:model="tested_on" type="date" class="awqaf-saber-form__control w-full rounded-xl px-4 py-3 text-sm">
                         @error('tested_on') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
                     </div>
 
-                    <div>
-                        <label for="quran-workbench-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
-                        <input id="quran-workbench-score" wire:model="score" type="number" min="0" max="100" step="0.01" @required($status === 'passed') class="w-full rounded-xl px-4 py-3 text-sm">
-                        @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                    </div>
-                    <div>
-                        <label for="quran-workbench-status" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.result_status') }}</label>
-                        <select id="quran-workbench-status" wire:model.live="status" class="w-full rounded-xl px-4 py-3 text-sm">
-                            <option value="passed">{{ __('workflow.common.result_status.passed') }}</option>
-                            <option value="failed">{{ __('workflow.common.result_status.failed') }}</option>
-                            <option value="cancelled">{{ __('workflow.common.result_status.cancelled') }}</option>
-                        </select>
-                        @error('status') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
-                    </div>
+                    @if ($status === 'passed')
+                        <div>
+                            <label for="quran-workbench-score" class="mb-1 block text-sm font-medium">{{ __('workflow.quran_tests.form.score') }}</label>
+                            <input id="quran-workbench-score" wire:model="score" type="number" min="80.00" max="100" step="0.01" required class="w-full rounded-xl px-4 py-3 text-sm">
+                            @error('score') <div class="mt-1 text-sm text-red-400">{{ $message }}</div> @enderror
+                        </div>
+                    @endif
                 </div>
 
             </fieldset>

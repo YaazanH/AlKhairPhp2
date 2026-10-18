@@ -20,7 +20,7 @@
                             <td class="px-3 py-3 font-medium text-white">
                                 @if ($editingCaptureItem)
                                     <label class="sr-only" for="capture-item-{{ $index }}-name">{{ __('finance.fields.item_name') }}</label>
-                                    <input id="capture-item-{{ $index }}-name" wire:model="invoiceCaptureReviewItems.{{ $index }}.item_name" x-on:keydown.enter.prevent.stop="void 0" class="w-full min-w-56 rounded-lg px-3 py-2">
+                                    <input id="capture-item-{{ $index }}-name" wire:model="invoiceCaptureReviewItems.{{ $index }}.item_name" x-on:keydown.enter.prevent.stop="void 0" placeholder="{{ __('finance.fields.item_name') }}" class="w-full min-w-56 rounded-lg px-3 py-2">
                                 @else
                                     {{ filled($item['item_name'] ?? null) ? $item['item_name'] : '—' }}
                                 @endif
@@ -31,7 +31,7 @@
                                     @if ($editingCaptureItem)
                                         <label class="sr-only" for="capture-item-{{ $index }}-{{ $number }}">{{ $numberLabel }}</label>
                                         <div class="flex items-center gap-1.5" dir="ltr">
-                                            <input id="capture-item-{{ $index }}-{{ $number }}" wire:model.live.debounce.150ms="invoiceCaptureReviewItems.{{ $index }}.{{ $number }}" inputmode="decimal" dir="ltr" class="w-full {{ $number === 'quantity' ? 'min-w-24' : 'min-w-32' }} rounded-lg px-3 py-2" data-invoice-capture-number
+                                            <input id="capture-item-{{ $index }}-{{ $number }}" wire:model.live.debounce.150ms="invoiceCaptureReviewItems.{{ $index }}.{{ $number }}" inputmode="decimal" dir="ltr" placeholder="{{ $numberLabel }}" class="w-full {{ $number === 'quantity' ? 'min-w-24' : 'min-w-32' }} rounded-lg px-3 py-2" data-invoice-capture-number
                                                 @if ($number === 'unit_price') wire:keydown.enter.prevent.stop="saveInvoiceCaptureReviewItem" wire:keydown.tab.prevent.stop="saveInvoiceCaptureReviewItem" @else x-on:keydown.enter.prevent.stop="void 0" @endif>
                                             @if ($number === 'unit_price')
                                                 <bdi dir="ltr" class="shrink-0 whitespace-nowrap" data-invoice-capture-price-currency>{{ $captureCurrency?->symbol ?: $captureCurrency?->code }}</bdi>

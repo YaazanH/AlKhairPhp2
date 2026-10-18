@@ -23,12 +23,74 @@
     x-data="{
         open: false,
         search: '',
+        menuStyle: {},
+        optionsStyle: {},
         countries: @js($phoneCountries->values()->all()),
         region: @js($initial['region'] ?? 'SY'),
         nationalNumber: @js($initial['national_number'] ?? ''),
         init() {
             this.nationalNumber = this.formatNational(this.nationalNumber);
             this.syncPhone();
+        },
+        toggleCountryMenu() {
+            this.open = ! this.open;
+
+            if (! this.open) return;
+
+            this.$nextTick(() => {
+                this.positionCountryMenu();
+                this.$refs.countrySearch.focus();
+            });
+        },
+        positionCountryMenu() {
+            if (! this.open) return;
+
+            const trigger = this.$refs.countryTrigger;
+            const menu = this.$refs.countryMenu;
+            const options = this.$refs.countryOptions;
+            if (! trigger || ! menu || ! options) return;
+
+            const scrollHost = trigger.closest('.admin-modal__body');
+            const viewport = window.visualViewport;
+            const viewportTop = viewport?.offsetTop || 0;
+            const viewportLeft = viewport?.offsetLeft || 0;
+            const viewportBottom = viewportTop + (viewport?.height || window.innerHeight);
+            const viewportRight = viewportLeft + (viewport?.width || window.innerWidth);
+            const hostRect = scrollHost?.getBoundingClientRect();
+            const triggerRect = trigger.getBoundingClientRect();
+            const wrapperRect = trigger.parentElement.getBoundingClientRect();
+            const scale = wrapperRect.width / trigger.parentElement.offsetWidth || 1;
+            const inset = 12;
+            const gap = 8;
+            const bounds = {
+                top: Math.max(viewportTop, hostRect?.top ?? viewportTop) + inset,
+                bottom: Math.min(viewportBottom, hostRect?.bottom ?? viewportBottom) - inset,
+                left: Math.max(viewportLeft, hostRect?.left ?? viewportLeft) + inset,
+                right: Math.min(viewportRight, hostRect?.right ?? viewportRight) - inset,
+            };
+            const availableBelow = Math.max(0, bounds.bottom - triggerRect.bottom - gap);
+            const availableAbove = Math.max(0, triggerRect.top - bounds.top - gap);
+            const desiredHeight = Math.min(menu.scrollHeight, 352 * scale);
+            const openAbove = availableBelow < desiredHeight && availableAbove > availableBelow;
+            const height = Math.min(desiredHeight, openAbove ? availableAbove : availableBelow);
+            const desiredWidth = Math.max(triggerRect.width, menu.scrollWidth);
+            const width = Math.min(desiredWidth, Math.max(0, bounds.right - bounds.left));
+            const left = Math.max(bounds.left, Math.min(triggerRect.left, bounds.right - width));
+            const headerHeight = this.$refs.countrySearch.parentElement.offsetHeight * scale;
+
+            this.menuStyle = {
+                left: `${(left - wrapperRect.left) / scale}px`,
+                right: 'auto',
+                width: `${width / scale}px`,
+                maxWidth: `${width / scale}px`,
+                maxHeight: `${height / scale}px`,
+                top: openAbove ? 'auto' : `${(triggerRect.bottom - wrapperRect.top + gap) / scale}px`,
+                bottom: openAbove ? `${(wrapperRect.bottom - triggerRect.top + gap) / scale}px` : 'auto',
+                marginTop: '0',
+            };
+            this.optionsStyle = {
+                maxHeight: `${Math.max(0, height - headerHeight) / scale}px`,
+            };
         },
         get selectedCountry() {
             return this.countries.find(country => country.region === this.region)
@@ -89,13 +151,14 @@
         },
     }"
 >
-    <div class="relative" x-on:click.outside="open = false" x-on:keydown.escape.window="open = false">
+    <div class="relative" x-on:click.outside="open = false" x-on:keydown.escape.window="open = false" x-on:resize.window="if (open) $nextTick(() => positionCountryMenu())">
         <button
+            x-ref="countryTrigger"
             type="button"
             class="phone-country-trigger inline-flex w-auto items-center justify-between gap-2 rounded-xl px-3 py-3 text-sm"
             dir="{{ $isRtl ? 'rtl' : 'ltr' }}"
             style="unicode-bidi: isolate;"
-            x-on:click="open = ! open; if (open) $nextTick(() => $refs.countrySearch.focus())"
+            x-on:click="toggleCountryMenu()"
             x-bind:aria-expanded="open"
             aria-haspopup="listbox"
             aria-label="{{ __('phone.country_code') }}"
@@ -105,15 +168,18 @@
         </button>
 
         <div
+            x-ref="countryMenu"
             x-cloak
             x-show="open"
             x-transition
+            x-bind:style="menuStyle"
+            data-phone-country-menu
             class="phone-country-menu absolute left-0 z-50 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
             <div class="border-b border-neutral-700 p-2">
                 <input x-ref="countrySearch" x-model.debounce.500ms="search" type="search" class="w-full rounded-lg px-3 py-2 text-sm" placeholder="{{ __('phone.search_country') }}">
             </div>
-            <div class="phone-country-options max-h-72 touch-pan-y overflow-y-auto overscroll-contain py-1" role="listbox" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
+            <div x-ref="countryOptions" x-bind:style="optionsStyle" class="phone-country-options max-h-72 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain py-1" role="listbox" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
                 <template x-for="country in filteredCountries" :key="country.region">
                     <button
                         type="button"

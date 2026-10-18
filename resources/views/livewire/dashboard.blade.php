@@ -13,7 +13,6 @@ use App\Models\QuranFinalTest;
 use App\Models\Student;
 use App\Models\StudentAttendanceRecord;
 use App\Services\AccessScopeService;
-use App\Services\CourseEndService;
 use App\Services\CurriculumProgressService;
 use App\Services\GroupDailySummaryService;
 use App\Services\Landlord\CurrentModuleAccess;
@@ -32,6 +31,8 @@ new class extends Component
     use WithPagination;
 
     public ?int $selectedManagerStudentId = null;
+
+    public ?int $selectedManagerCurriculumGroupId = null;
 
     public bool $showTeacherLeaderboardModal = false;
 
@@ -226,33 +227,39 @@ new class extends Component
             ->whereIn('enrollment_id', $activeEnrollmentIds)
             ->where('status', 'passed')
             ->count();
-        $courseEndPointTotals = $defaultCourse
-            ? app(CourseEndService::class)
-                ->studentRows($defaultCourse)
-                ->whereIn('enrollment_id', $activeEnrollmentIds)
-                ->groupBy('student_id')
-                ->map(fn ($rows): array => [
-                    'points_before' => (int) $rows->sum('points_before'),
-                    'points_after' => (int) $rows->sum('points_after'),
-                ])
-            : collect();
         $students = Student::query()->whereIn('id', $studentTotals->pluck('student_id'))->get()->keyBy('id');
         $studentPerformance = $studentTotals->values()
-            ->map(function ($row) use ($courseEndPointTotals, $students): array {
-                $projectedPoints = $courseEndPointTotals->get($row->student_id);
+            ->map(function ($row) use ($students): array {
+                $points = (int) $row->points;
+                $pages = (int) $row->pages;
 
                 return [
                     'student' => $students->get($row->student_id),
-                    'points_before' => (int) ($projectedPoints['points_before'] ?? $row->points),
-                    'points' => (int) ($projectedPoints['points_after'] ?? $row->points),
-                    'pages' => (int) $row->pages,
+                    'points_before' => $points,
+                    'points' => $points,
+                    'pages' => $pages,
                 ];
             })
             ->filter(fn (array $row) => $row['student'])
             ->values();
+        $performanceRankingMaximumPoints = max(1, (int) $studentPerformance->max('points'));
+        $performanceRankingMaximumPages = max(1, (int) $studentPerformance->max('pages'));
+        $studentPerformance = $studentPerformance->map(function (array $row) use ($performanceRankingMaximumPoints, $performanceRankingMaximumPages): array {
+            $pointsRatio = max(0, $row['points']) / $performanceRankingMaximumPoints;
+            $pagesRatio = max(0, $row['pages']) / $performanceRankingMaximumPages;
+            $ratioSum = $pointsRatio + $pagesRatio;
+
+            return [
+                ...$row,
+                'points_ratio' => $pointsRatio,
+                'pages_ratio' => $pagesRatio,
+                'pages_points_balance' => $ratioSum > 0 ? (2 * $pointsRatio * $pagesRatio) / $ratioSum : 0.0,
+            ];
+        });
         $studentPerformanceRanks = $studentPerformance
-            ->sort(fn (array $left, array $right): int => ($right['points'] <=> $left['points'])
+            ->sort(fn (array $left, array $right): int => ($right['pages_points_balance'] <=> $left['pages_points_balance'])
                 ?: ($right['pages'] <=> $left['pages'])
+                ?: ($right['points'] <=> $left['points'])
                 ?: ($left['student']->id <=> $right['student']->id))
             ->take(3)
             ->values()
@@ -275,11 +282,11 @@ new class extends Component
                     ->where('student_id', $selectedStudentModel->id)
                     ->where('status', 'active')
                     ->whereHas('group', fn ($query) => $query->where('course_id', $courseId));
-                $selectedProjectedPoints = $courseEndPointTotals->get($selectedStudentModel->id);
+                $selectedPoints = (int) (clone $selectedEnrollments)->sum('final_points_cached');
                 $selectedStudent = [
                     'student' => $selectedStudentModel,
-                    'points' => (int) ($selectedProjectedPoints['points_after'] ?? (clone $selectedEnrollments)->sum('final_points_cached')),
-                    'points_before' => (int) ($selectedProjectedPoints['points_before'] ?? (clone $selectedEnrollments)->sum('final_points_cached')),
+                    'points' => $selectedPoints,
+                    'points_before' => $selectedPoints,
                     'pages' => (int) (clone $selectedEnrollments)->sum('memorized_pages_cached'),
                     'final_tests' => QuranFinalTest::query()
                         ->where('student_id', $selectedStudentModel->id)
@@ -296,6 +303,7 @@ new class extends Component
             ->whereNotNull('curriculum_id')
             ->when($courseId, fn ($query) => $query->where('course_id', $courseId), fn ($query) => $query->whereRaw('1 = 0'))
             ->with([
+                'course',
                 'gradeLevel',
                 'teacher',
                 'curriculum.subjects.definition',
@@ -309,25 +317,17 @@ new class extends Component
             ->orderBy(GradeLevel::query()->select('name')->whereColumn('grade_levels.id', 'groups.grade_level_id')->limit(1))
             ->orderBy('groups.name')
             ->get()
-            ->map(fn (Group $group) => ['group' => $group, ...app(CurriculumProgressService::class)->summary($group)]);
-        $curriculumProgress = $curriculumProgress->map(function (array $row) use ($curriculumProgress): array {
-            $peerPercentages = $curriculumProgress
-                ->reject(fn (array $peer) => $peer['group']->id === $row['group']->id)
-                ->pluck('percentage');
-            $peerAveragePercentage = $peerPercentages->isEmpty()
-                ? (float) $row['percentage']
-                : round((float) $peerPercentages->average(), 1);
-            $percentageGap = max(0.0, $peerAveragePercentage - (float) $row['percentage']);
-            $lessonsBehind = (int) ceil((($percentageGap / 100) * (int) $row['total']) - 0.00001);
-
-            return [
-                ...$row,
-                'peer_average_percentage' => $peerAveragePercentage,
-                'percentage_gap' => round($percentageGap, 1),
-                'lessons_behind' => max(0, $lessonsBehind),
-                'tone' => $percentageGap > 15 ? 'danger' : ($percentageGap > 5 ? 'warning' : 'success'),
-            ];
-        });
+            ->map(fn (Group $group) => ['group' => $group, ...app(CurriculumProgressService::class)->pacedSummary($group)]);
+        $selectedManagerCurriculumRow = $this->selectedManagerCurriculumGroupId
+            ? $curriculumProgress->first(fn (array $row): bool => $row['group']->id === $this->selectedManagerCurriculumGroupId)
+            : null;
+        $selectedManagerCurriculumGroup = $selectedManagerCurriculumRow['group'] ?? null;
+        if ($this->selectedManagerCurriculumGroupId && ! $selectedManagerCurriculumGroup) {
+            $this->selectedManagerCurriculumGroupId = null;
+        }
+        $selectedManagerCurriculumSubjects = $selectedManagerCurriculumGroup
+            ? app(CurriculumProgressService::class)->subjects($selectedManagerCurriculumGroup)
+            : collect();
 
         return [
             'dashboardRole' => 'manager',
@@ -379,6 +379,8 @@ new class extends Component
             'groupPageTotals' => $groupPageTotals,
             'selectedManagerStudent' => $selectedStudent,
             'curriculumProgress' => $curriculumProgress,
+            'selectedManagerCurriculumGroup' => $selectedManagerCurriculumGroup,
+            'selectedManagerCurriculumSubjects' => $selectedManagerCurriculumSubjects,
         ];
     }
 
@@ -394,6 +396,25 @@ new class extends Component
     public function closeManagerStudent(): void
     {
         $this->selectedManagerStudentId = null;
+    }
+
+    public function showManagerCurriculumGroup(int $groupId): void
+    {
+        abort_unless($this->canUseManagerDashboard(Auth::user()), 403);
+        $defaultCourseId = Course::query()->where('is_default', true)->where('is_active', true)->value('id');
+        abort_unless($defaultCourseId && Group::query()
+            ->whereKey($groupId)
+            ->where('course_id', $defaultCourseId)
+            ->where('is_active', true)
+            ->whereNotNull('curriculum_id')
+            ->exists(), 404);
+
+        $this->selectedManagerCurriculumGroupId = $groupId;
+    }
+
+    public function closeManagerCurriculumGroup(): void
+    {
+        $this->selectedManagerCurriculumGroupId = null;
     }
 
     public function copyTeacherLatestAttendanceSummary(int $groupId): void
@@ -424,7 +445,7 @@ new class extends Component
 
         $date = $latestAttendanceDay->attendance_date->toDateString();
 
-        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentCopyTextForUser($group, $date, $user));
+        $this->dispatch('admin-copy-text', text: app(GroupDailySummaryService::class)->currentDailyCopyTextForUser($group, $date, $user));
     }
 
     protected function teacherData($user): array
@@ -1045,6 +1066,7 @@ new class extends Component
         <div @class([
             'mobile-compact-highlights grid md:grid-cols-2 xl:grid-cols-4',
             'dashboard-manager-highlights gap-3' => $dashboardRole === 'manager',
+            'dashboard-group-highlights' => $teacherGroupDashboard,
             'gap-4' => $dashboardRole !== 'manager',
             'mobile-compact-highlights--two' => count($stats) === 2,
             'mobile-compact-highlights--four' => count($stats) === 4,
@@ -1054,7 +1076,7 @@ new class extends Component
                 <article class="stat-card">
                     <div class="kpi-label">{{ $stat['label'] }}</div>
                     @if (filled($stat['action'] ?? null))
-                        <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent mt-3 w-full justify-center">
+                        <button type="button" wire:click="{{ $stat['action'] }}" class="pill-link pill-link--accent w-full justify-center" data-dashboard-stat-action>
                             {{ $stat['value'] }}
                         </button>
                     @else
@@ -1112,10 +1134,34 @@ new class extends Component
                 $performancePointsSpan = max(1, $performanceMaximumPoints - $performanceMinimumPoints);
                 $performanceAveragePoints = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('points_before');
                 $performanceAveragePages = $studentPerformance->isEmpty() ? 0 : (float) $studentPerformance->avg('pages');
-                $performanceX = fn (int $pages) => 7 + ((max(0, $pages) / $performanceMaximumPages) * 86);
-                $performanceY = fn (int $points) => 7 + (((min($performanceMaximumPoints, max($performanceMinimumPoints, $points)) - $performanceMinimumPoints) / $performancePointsSpan) * 86);
-                $performanceAverageX = $performanceX((int) round($performanceAveragePages));
-                $performanceAverageY = $performanceY((int) round($performanceAveragePoints));
+                $performanceAverageAxisPosition = 7.0;
+                $performanceAverageX = $performanceAverageAxisPosition;
+                $performanceAverageY = $performanceAverageAxisPosition * (16 / 7.5);
+                $performanceChartMaximumPosition = 93.0;
+                $performanceScaleAroundAverage = function (float $value, float $minimum, float $average, float $maximum, float $averagePosition) use ($performanceChartMaximumPosition): float {
+                    $value = min($maximum, max($minimum, $value));
+
+                    if ($value <= $average) {
+                        $lowerSpan = $average - $minimum;
+
+                        return $lowerSpan > 0
+                            ? (($value - $minimum) / $lowerSpan) * $averagePosition
+                            : $averagePosition;
+                    }
+
+                    $upperSpan = $maximum - $average;
+
+                    return $upperSpan > 0
+                        ? $averagePosition + ((($value - $average) / $upperSpan) * ($performanceChartMaximumPosition - $averagePosition))
+                        : $averagePosition;
+                };
+                $performanceX = fn (int $pages) => $performanceScaleAroundAverage($pages, 0, $performanceAveragePages, $performanceMaximumPages, $performanceAverageX);
+                $performanceY = fn (int $points) => $performanceScaleAroundAverage($points, $performanceMinimumPoints, $performanceAveragePoints, $performanceMaximumPoints, $performanceAverageY);
+                $performanceBoundaryInset = 2.0;
+                $performancePointIsInsideBounds = fn (float $x, float $y): bool => $x > $performanceBoundaryInset
+                    && $x < (100 - $performanceBoundaryInset)
+                    && $y > $performanceBoundaryInset
+                    && $y < (100 - $performanceBoundaryInset);
                 $performanceRankPositions = collect();
                 $studentPerformance->filter(fn (array $entry): bool => (bool) $entry['rank'])
                     ->groupBy(fn (array $entry): string => sprintf('%.4f:%.4f', $performanceX($entry['pages']), $performanceY($entry['points'])))
@@ -1162,9 +1208,17 @@ new class extends Component
                         continue;
                     }
 
+                    $rawPointX = (float) $performanceX($entry['pages']);
+                    $rawPointY = (float) $performanceY($entry['points']);
+
+                    if (! $performancePointIsInsideBounds($rawPointX, $rawPointY)) {
+                        continue;
+                    }
+
                     $rankPosition = $performanceRankPositions->get($entry['student']->id);
-                    $pointX = (float) ($rankPosition['x'] ?? $performanceX($entry['pages']));
-                    $pointY = (float) ($rankPosition['y'] ?? $performanceY($entry['points']));
+                    $pointX = (float) ($rankPosition['x'] ?? $rawPointX);
+                    $pointY = (float) ($rankPosition['y'] ?? $rawPointY);
+
                     $nearestClusterIndex = null;
                     $nearestClusterDistance = INF;
 
@@ -1305,11 +1359,15 @@ new class extends Component
                                             && $entry['pages'] > $performanceAveragePages;
                                         $performanceRankClass = $entry['rank'] ? ' dashboard-performance-map__point--rank-'.$entry['rank'] : '';
                                         $performanceDotSize = $aboveAverageDotSizes->get($entry['student']->id, 12);
+                                        $performanceRawPointX = $performanceX($entry['pages']);
+                                        $performanceRawPointY = $performanceY($entry['points']);
                                         $performanceRankPosition = $performanceRankPositions->get($entry['student']->id);
-                                        $performancePointX = $performanceRankPosition['x'] ?? $performanceX($entry['pages']);
-                                        $performancePointY = $performanceRankPosition['y'] ?? $performanceY($entry['points']);
+                                        $performancePointX = $performanceRankPosition['x'] ?? $performanceRawPointX;
+                                        $performancePointY = $performanceRankPosition['y'] ?? $performanceRawPointY;
+                                        $performancePointIsVisible = $performancePointIsInsideBounds($performanceRawPointX, $performanceRawPointY)
+                                            && $performancePointIsInsideBounds($performancePointX, $performancePointY);
                                     @endphp
-                                    @if ($isAbovePerformanceAverage)
+                                    @if ($isAbovePerformanceAverage && $performancePointIsVisible)
                                         <button
                                             type="button"
                                             wire:click="showManagerStudent({{ $entry['student']->id }})"
@@ -1408,30 +1466,51 @@ new class extends Component
                 @if ($curriculumProgress->isEmpty())
                     <div class="admin-empty-state mt-5">{{ __('curricula.progress.empty') }}</div>
                 @else
-                    <div class="dashboard-curriculum-hotbars mt-6 grid gap-x-10 gap-y-[0.875rem] md:grid-cols-2" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-dashboard-curriculum-hotbars>
+                    <div class="dashboard-curriculum-hotbars mt-6 grid gap-x-10 gap-y-[0.875rem] md:grid-cols-2" style="--dashboard-curriculum-row-count: {{ (int) ceil($curriculumProgress->count() / 2) }}" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}" data-dashboard-curriculum-hotbars>
                         @foreach ($curriculumProgress as $row)
                             @php
                                 $teacherName = $row['group']->teacher
                                     ? trim($row['group']->teacher->first_name.' '.$row['group']->teacher->last_name)
                                     : __('dashboard.common.no_teacher');
+                                $paceCount = $row['pace'] === 'ahead' ? $row['lessons_ahead'] : $row['lessons_behind'];
+                                $paceCountLabel = fmod((float) $paceCount, 1.0) === 0.0
+                                    ? number_format($paceCount)
+                                    : number_format($paceCount, 1);
+                                $paceLabel = match ($row['pace']) {
+                                    'ahead' => trans_choice('dashboard.manager.analytics.curriculum_lessons_ahead', $paceCount, ['count' => $paceCountLabel]),
+                                    'behind' => trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $paceCount, ['count' => $paceCountLabel]),
+                                    default => __('dashboard.manager.analytics.curriculum_on_track'),
+                                };
                             @endphp
-                            <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}">
+                            <div class="dashboard-curriculum-hotbar" data-dashboard-curriculum-hotbar data-dashboard-curriculum-name-gap="حلقة" data-progress-tone="{{ $row['tone'] }}" data-curriculum-pace="{{ $row['pace'] }}" data-lessons-behind="{{ $row['lessons_behind'] }}" data-lessons-ahead="{{ $row['lessons_ahead'] }}" data-expected-lessons="{{ $row['expected_completed'] }}">
                                 <div class="dashboard-curriculum-hotbar__identity">
                                     <span class="dashboard-curriculum-hotbar__group">{{ $row['group']->name }}</span>
                                     <div class="record-person-name dashboard-curriculum-hotbar__teacher">{{ $teacherName }}</div>
                                 </div>
                                 <div class="dashboard-curriculum-hotbar__track">
                                     <span class="dashboard-curriculum-hotbar__fill dashboard-curriculum-hotbar__fill--{{ $row['tone'] }}" style="width: {{ $row['percentage'] }}%" aria-hidden="true"></span>
-                                    <span
-                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance"
+                                    <button
+                                        type="button"
+                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance hidden lg:block"
                                         style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
-                                        tabindex="0"
-                                        role="img"
-                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}"
+                                        wire:click="showManagerCurriculumGroup({{ $row['group']->id }})"
+                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ $paceLabel }}"
+                                        data-dashboard-curriculum-progress-open
                                     >
                                         <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
                                             <strong>{{ number_format($row['percentage'], 1) }}%</strong>
-                                            <span>{{ trans_choice('dashboard.manager.analytics.curriculum_lessons_behind', $row['lessons_behind'], ['count' => number_format($row['lessons_behind'])]) }}</span>
+                                            <span>{{ $paceLabel }}</span>
+                                        </span>
+                                    </button>
+                                    <span
+                                        class="dashboard-curriculum-hotbar__marker dashboard-curriculum-hotbar__marker--{{ $row['tone'] }} dashboard-lollipop-attendance lg:hidden"
+                                        style="inset-inline-start: min(calc(100% - 1rem), max(0px, calc({{ $row['percentage'] }}% - .5rem)))"
+                                        role="img"
+                                        aria-label="{{ number_format($row['percentage'], 1) }}% · {{ $paceLabel }}"
+                                    >
+                                        <span class="dashboard-lollipop-attendance__tooltip dashboard-curriculum-hotbar__tooltip">
+                                            <strong>{{ number_format($row['percentage'], 1) }}%</strong>
+                                            <span>{{ $paceLabel }}</span>
                                         </span>
                                     </span>
                                 </div>
@@ -1440,6 +1519,65 @@ new class extends Component
                     </div>
                 @endif
             </section>
+
+            <x-admin.modal
+                :show="$selectedManagerCurriculumGroupId !== null"
+                :title="__('curricula.progress.group_details', ['group' => $selectedManagerCurriculumGroup?->name])"
+                close-method="closeManagerCurriculumGroup"
+                max-width="6xl"
+            >
+                <div class="space-y-3" data-dashboard-curriculum-progress-modal data-curriculum-group-details-tables>
+                    @foreach ($selectedManagerCurriculumSubjects as $subject)
+                        @php
+                            $hasChapterNumbers = collect($subject['lessons'])
+                                ->contains(fn (array $lesson) => filled($lesson['chapter_number']));
+                        @endphp
+                        <details class="surface-table" data-curriculum-group-details-table>
+                            <summary class="admin-grid-meta cursor-pointer list-none select-none" data-curriculum-group-details-toggle>
+                                <div class="min-w-0" data-curriculum-group-details-heading>
+                                    <div class="admin-grid-meta__title">{{ $subject['name'] }}</div>
+                                    <div class="admin-grid-meta__summary" dir="ltr">{{ number_format($subject['percentage'], 0) }}%</div>
+                                </div>
+                                <span class="admin-icon-button shrink-0" aria-hidden="true" data-curriculum-group-details-collapse>
+                                    <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" data-curriculum-group-details-chevron><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 6 6 6-6" /></svg>
+                                </span>
+                            </summary>
+
+                            <div class="overflow-x-auto" data-table-scroll-region>
+                                <table class="curriculum-progress-details-table curriculum-progress-details-table--with-chapter table-content text-sm" data-curriculum-progress-details-table data-has-chapter-column="{{ $hasChapterNumbers ? 'true' : 'false' }}">
+                                    <colgroup>
+                                        <col class="curriculum-progress-details-table__chapter">
+                                        <col class="curriculum-progress-details-table__lesson">
+                                        <col class="curriculum-progress-details-table__status">
+                                        <col class="curriculum-progress-details-table__date">
+                                        <col class="curriculum-progress-details-table__teacher">
+                                    </colgroup>
+                                    <thead><tr>
+                                        <th class="px-5 py-3 text-center" data-curriculum-chapter-column>{{ $hasChapterNumbers ? __('curricula.fields.chapter_number') : '#' }}</th>
+                                        <th class="px-5 py-3 text-start" data-curriculum-lesson-column>{{ __('curricula.fields.lesson') }}</th>
+                                        <th class="px-5 py-3 text-center">{{ __('curricula.fields.status') }}</th>
+                                        <th class="px-5 py-3 text-center">{{ __('curricula.fields.date') }}</th>
+                                        <th class="px-5 py-3 text-start">{{ __('curricula.fields.teacher') }}</th>
+                                    </tr></thead>
+                                    <tbody class="divide-y divide-white/6">
+                                        @foreach ($subject['lessons'] as $lesson)
+                                            <tr>
+                                                <td class="px-5 py-3 text-center" data-curriculum-chapter-column><bdi>{{ $hasChapterNumbers ? (filled($lesson['chapter_number']) ? $lesson['chapter_number'] : '—') : $loop->iteration }}</bdi></td>
+                                                <td class="px-5 py-3 font-semibold text-white" data-curriculum-lesson-column>{{ $lesson['name'] }}</td>
+                                                <td class="px-5 py-3 text-center">
+                                                    <span class="group-curriculum-status {{ $lesson['status'] === 'taught' ? '' : 'group-curriculum-status--missing' }}" title="{{ __('curricula.status.'.$lesson['status']) }}" aria-label="{{ __('curricula.status.'.$lesson['status']) }}" data-curriculum-lesson-status-icon>{{ $lesson['status'] === 'taught' ? '✓' : '×' }}</span>
+                                                </td>
+                                                <td class="px-5 py-3 text-center" dir="ltr">{{ \App\Support\DateDisplay::html($lesson['taught_on']?->format('d-m-Y') ?: '—') }}</td>
+                                                <td class="record-person-name px-5 py-3">{{ $lesson['teacher'] ? trim($lesson['teacher']->first_name.' '.$lesson['teacher']->last_name) : '—' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    @endforeach
+                </div>
+            </x-admin.modal>
 
         @endif
 

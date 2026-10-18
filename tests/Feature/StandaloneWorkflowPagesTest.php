@@ -86,8 +86,14 @@ class StandaloneWorkflowPagesTest extends TestCase
 
         $partialTest = QuranPartialTest::query()->firstOrFail();
         $part = $partialTest->parts()->where('part_number', 1)->firstOrFail();
+        $partialTestDetailsSource = file_get_contents(resource_path('views/livewire/quran-partial-tests/show.blade.php'));
+
+        $this->assertStringNotContainsString('$partialTestRecord->enrollment?->group?->name', $partialTestDetailsSource);
+        $this->assertStringNotContainsString('$partialTestRecord->enrollment->group->course->name', $partialTestDetailsSource);
 
         Volt::test('quran-partial-tests.show', ['partialTest' => $partialTest])
+            ->assertSee(__('workflow.common.labels.juz_number', ['number' => $juz->juz_number]))
+            ->assertDontSee($enrollment->group->course->name)
             ->call('openAttemptModal', $part->id)
             ->set('tested_on', '2026-09-10')
             ->set('mistake_count', '2')
@@ -422,8 +428,12 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSet('selectedStudentId', $enrollment->student_id)
             ->assertSee('Workbench Teacher Group Student')
             ->assertSee('data-awqaf-saber-student-readonly', false)
-            ->assertSee('readonly', false)
-            ->set('score', '97.5')
+            ->assertSee('data-awqaf-saber-juz-readonly', false)
+            ->assertSee('data-awqaf-saber-status-readonly', false)
+            ->assertSee('data-awqaf-saber-identity-row', false)
+            ->set('juz_id', QuranJuz::query()->where('juz_number', 2)->value('id'))
+            ->set('status', 'failed')
+            ->set('score', '80')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -431,7 +441,9 @@ class StandaloneWorkflowPagesTest extends TestCase
             'id' => $awqafTest->id,
             'student_id' => $enrollment->student_id,
             'enrollment_id' => $enrollment->id,
-            'score' => 97.5,
+            'juz_id' => $juz->id,
+            'score' => 80,
+            'status' => 'passed',
         ]);
 
         Volt::test('quran-final-tests.show', ['finalTest' => $finalTest])
@@ -771,6 +783,18 @@ class StandaloneWorkflowPagesTest extends TestCase
             'status' => 'in_progress',
             'student_id' => $newerEnrollment->student_id,
         ]);
+        $newlyCreatedEnrollment = $this->makeEnrollment($teacher->id, 'Partial Profile Only');
+        $newlyCreatedTest = QuranPartialTest::query()->create([
+            'created_by' => $teacher->user_id,
+            'enrollment_id' => $newlyCreatedEnrollment->id,
+            'juz_id' => $juz->id,
+            'status' => 'in_progress',
+            'student_id' => $newlyCreatedEnrollment->student_id,
+        ]);
+        $newlyCreatedTest->forceFill([
+            'created_at' => '2026-09-30 12:00:00',
+            'updated_at' => '2026-09-30 12:00:00',
+        ])->saveQuietly();
 
         $olderPart = QuranPartialTestPart::query()->create([
             'part_number' => 1,
@@ -804,7 +828,8 @@ class StandaloneWorkflowPagesTest extends TestCase
             ->assertSet('sortDirection', 'desc')
             ->assertSee('12-09-2026')
             ->assertSee('22-09-2026')
-            ->assertSeeInOrder(['Partial Record Newer', 'Partial Record Older']);
+            ->assertSee('30-09-2026')
+            ->assertSeeInOrder(['Partial Profile Only', 'Partial Record Newer', 'Partial Record Older']);
     }
 
     public function test_manager_point_ledger_workbench_creates_and_updates_manual_entries(): void
@@ -818,7 +843,7 @@ class StandaloneWorkflowPagesTest extends TestCase
         $this->assertStringContainsString("orWhereHas('enrollment.group.course'", $pointsSource);
         $this->assertStringContainsString('.points-ledger-table .points-ledger-col--course', $pointsStyles);
         $this->assertStringNotContainsString('<colgroup>', $pointsSource);
-        $this->assertStringContainsString("@if (\$stateFilter === 'all')", $pointsSource);
+        $this->assertStringContainsString("@if (! \$archiveReadOnly && \$stateFilter === 'all')", $pointsSource);
         $this->assertStringContainsString('data-points-ledger-value', $pointsSource);
         $this->assertStringContainsString('data-points-ledger-state=', $pointsSource);
         $this->assertStringContainsString('data-points-ledger-delete-action', $pointsSource);
@@ -957,12 +982,15 @@ class StandaloneWorkflowPagesTest extends TestCase
         ]);
 
         Volt::test('quran-tests.index')
+            ->call('openCreateModal')
             ->set('selectedStudentId', $enrollment->student_id)
             ->set('selectedEnrollmentId', $enrollment->id)
             ->set('juz_id', $juz->id)
+            ->assertSee('id="quran-workbench-status" wire:model.live="status" required data-clearable="false"', false)
+            ->assertSee('id="quran-workbench-score" wire:model="score" type="number" min="80.00"', false)
             ->call('save')
-            ->assertHasErrors(['score' => 'required_if'])
-            ->set('score', '90')
+            ->assertHasErrors(['score' => 'required'])
+            ->set('score', '80')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -970,7 +998,7 @@ class StandaloneWorkflowPagesTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'juz_id' => $juz->id,
             'teacher_id' => $enrollment->group->teacher_id,
-            'score' => 90,
+            'score' => 80,
         ]);
 
         $this->assertFalse(

@@ -96,6 +96,8 @@ return [
             'average_points' => 'Average points',
             'average_pages' => 'Average pages',
             'curriculum_lessons_behind' => '{0} No lessons behind|{1} 1 lesson behind|[2,*] :count lessons behind',
+            'curriculum_lessons_ahead' => '{1} 1 lesson ahead|[2,*] :count lessons ahead',
+            'curriculum_on_track' => 'On schedule',
         ],
         'cards' => [
             'people' => [
@@ -119,8 +121,8 @@ return [
         'group_dashboard' => [
             'heading' => 'Group Teacher Dashboard',
             'subheading' => 'A focused view of your group’s attendance, memorisation, tests, and student ranking.',
-            'latest_attendance_summary' => 'Latest attendance-day summary',
-            'copy_latest_attendance_summary' => 'Copy latest attendance-day summary',
+            'latest_attendance_summary' => 'Copy daily summary',
+            'copy_latest_attendance_summary' => 'Copy',
             'no_attendance_summary' => 'No attendance day yet',
             'stats' => [
                 'group' => 'Group name',

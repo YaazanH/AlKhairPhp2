@@ -195,6 +195,7 @@ return [
         'left_at' => 'leaving date',
         'starts_on' => 'start date',
         'ends_on' => 'end date',
+        'curriculum_days_per_week' => 'curriculum teaching days per week',
         'scheduled_at' => 'scheduled date',
         'due_at' => 'due date',
         'tested_on' => 'test date',
