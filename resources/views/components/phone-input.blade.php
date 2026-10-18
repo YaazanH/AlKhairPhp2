@@ -15,8 +15,10 @@
     $isRtl = app()->isLocale('ar');
 @endphp
 
+{{-- Preserve the editor state while Livewire updates the model and duplicate warning. --}}
 <div
     wire:key="phone-input-{{ $inputId }}-{{ $live ? 'live' : md5((string) $value) }}"
+    wire:ignore.self
     class="grid grid-cols-[max-content_minmax(0,1fr)] gap-2"
     data-phone-input
     dir="ltr"
@@ -31,6 +33,13 @@
         init() {
             this.nationalNumber = this.formatNational(this.nationalNumber);
             this.syncPhone();
+            this.$watch('$wire.' + @js($model), value => {
+                if (value !== this.$wire.$get(@js($model))) return;
+                const full = String(value || '');
+                const national = String(this.nationalNumber || '').replace(/\D/g, '').replace(/^0+/, '');
+                if (full === (national ? this.selectedDial + national : '')) return;
+                this.syncPhone(full);
+            });
         },
         toggleCountryMenu() {
             this.open = ! this.open;
@@ -131,23 +140,55 @@
             if (digitIndex < digits.length) formatted += digits.slice(digitIndex);
             return formatted;
         },
-        syncPhone() {
-            const raw = String(this.nationalNumber || '').trim();
+        syncPhone(value = this.nationalNumber) {
+            const input = this.$refs.nationalPhone;
+            const focused = document.activeElement === input;
+            const raw = String(value || '').trim();
+            const selectionStart = input.selectionStart ?? raw.length;
+            const selectionEnd = input.selectionEnd ?? selectionStart;
+            const selectionDirection = input.selectionDirection;
+            const atEnd = selectionStart === raw.length && selectionEnd === raw.length;
+            let nationalValue = raw;
+            let removedDigits = 0;
             if (raw.startsWith('+')) {
                 const pastedCountry = [...this.countries]
                     .filter(country => raw.startsWith(country.dial_code))
                     .sort((a, b) => b.dial_code.length - a.dial_code.length)[0];
                 if (pastedCountry) {
                     this.region = pastedCountry.region;
-                    this.nationalNumber = raw.slice(pastedCountry.dial_code.length);
+                    nationalValue = raw.slice(pastedCountry.dial_code.length);
+                    removedDigits = pastedCountry.dial_code.replace(/\D/g, '').length;
                 }
             }
 
-            const national = String(this.nationalNumber || '').replace(/\D/g, '').replace(/^0+/, '');
+            const digits = nationalValue.replace(/\D/g, '');
+            const national = digits.replace(/^0+/, '');
+            removedDigits += digits.length - national.length;
             this.nationalNumber = this.formatNational(national);
             const full = national ? this.selectedDial + national : '';
-            this.$refs.fullPhone.value = full;
-            this.$refs.fullPhone.dispatchEvent(new Event('input', { bubbles: true }));
+            if (this.$refs.fullPhone.value !== full) {
+                this.$refs.fullPhone.value = full;
+                this.$refs.fullPhone.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (focused) {
+                const formatted = this.nationalNumber;
+                const position = offset => {
+                    const count = Math.max(0, raw.slice(0, offset).replace(/\D/g, '').length - removedDigits);
+                    if (count === 0) return 0;
+                    let seen = 0;
+                    for (let index = 0; index < formatted.length; index++) {
+                        if (/\d/.test(formatted[index]) && ++seen === count) return index + 1;
+                    }
+                    return formatted.length;
+                };
+                const start = atEnd ? formatted.length : position(selectionStart);
+                const end = atEnd ? formatted.length : position(selectionEnd);
+                this.$nextTick(() => {
+                    if (document.activeElement === input && input.value === formatted) {
+                        input.setSelectionRange(start, end, selectionDirection);
+                    }
+                });
+            }
         },
     }"
 >
@@ -204,7 +245,7 @@
             id="{{ $inputId }}"
             x-ref="nationalPhone"
             x-model="nationalNumber"
-            x-on:input.debounce.150ms="syncPhone"
+            x-on:input="syncPhone($event.target.value)"
             type="tel"
             inputmode="tel"
             autocomplete="tel-national"
