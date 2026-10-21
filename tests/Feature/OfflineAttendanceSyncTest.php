@@ -8,6 +8,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Student;
+use App\Models\StudentAttendanceRecord;
 use App\Models\Teacher;
 use App\Models\TeacherAttendanceRecord;
 use App\Models\User;
@@ -23,6 +24,36 @@ class OfflineAttendanceSyncTest extends TestCase
     public function test_queued_student_and_teacher_attendance_changes_can_sync_together(): void
     {
         $context = $this->attendanceContext();
+        $serverStudent = Student::query()->create([
+            'first_name' => 'Server',
+            'last_name' => 'Student',
+            'birth_date' => '2013-01-01',
+            'status' => 'active',
+        ]);
+        $serverEnrollment = Enrollment::query()->create([
+            'student_id' => $serverStudent->id,
+            'group_id' => $context['enrollment']->group_id,
+            'enrolled_at' => '2026-10-10',
+            'status' => 'active',
+        ]);
+        app(StudentAttendanceDayService::class)->recordEnrollmentStatus(
+            $context['studentDay'],
+            $serverEnrollment,
+            $context['absent'],
+            'Recorded on the connected device',
+        );
+        $serverTeacher = Teacher::query()->create([
+            'first_name' => 'Server',
+            'last_name' => 'Teacher',
+            'phone' => '0999000200',
+            'status' => 'active',
+        ]);
+        TeacherAttendanceRecord::query()->create([
+            'teacher_attendance_day_id' => $context['teacherDay']->id,
+            'teacher_id' => $serverTeacher->id,
+            'attendance_status_id' => $context['absent']->id,
+            'notes' => 'Recorded on the connected device',
+        ]);
 
         $this->actingAs($context['manager'])
             ->postJson(route('attendance.offline-sync'), [
@@ -57,6 +88,24 @@ class OfflineAttendanceSyncTest extends TestCase
             'teacher_id' => $context['teacher']->id,
             'attendance_status_id' => $context['absent']->id,
         ]);
+        $this->assertDatabaseHas('student_attendance_records', [
+            'group_attendance_day_id' => $context['groupDay']->id,
+            'enrollment_id' => $serverEnrollment->id,
+            'attendance_status_id' => $context['absent']->id,
+            'notes' => 'Recorded on the connected device',
+        ]);
+        $this->assertDatabaseHas('teacher_attendance_records', [
+            'teacher_attendance_day_id' => $context['teacherDay']->id,
+            'teacher_id' => $serverTeacher->id,
+            'attendance_status_id' => $context['absent']->id,
+            'notes' => 'Recorded on the connected device',
+        ]);
+        $this->assertSame(2, StudentAttendanceRecord::query()
+            ->where('group_attendance_day_id', $context['groupDay']->id)
+            ->count());
+        $this->assertSame(2, TeacherAttendanceRecord::query()
+            ->where('teacher_attendance_day_id', $context['teacherDay']->id)
+            ->count());
     }
 
     public function test_a_queued_change_becomes_a_conflict_when_the_day_was_closed(): void

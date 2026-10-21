@@ -630,8 +630,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('dir="ltr" style="padding-right:3mm;text-align:right"', $assessmentResults);
         $this->assertStringContainsString('<table class="heading-meta-table" dir="ltr">', $assessmentResults);
         $this->assertStringContainsString('data-assessment-meta-label="date"', $assessmentResults);
-        $this->assertStringContainsString("'passed' => 'ناج'.str_repeat('ـ', 16).'ح'", $assessmentResults);
-        $this->assertStringContainsString("'failed' => 'راس'.str_repeat('ـ', 11).'ب'", $assessmentResults);
+        $this->assertStringContainsString('$assessmentStatusLabels = $assessmentStatusLabels ?? [];', $assessmentResults);
         $this->assertStringContainsString('$decimals = abs($number - round($number)) < 0.00001 ? 0 : 2;', $assessmentResults);
         $this->assertStringContainsString("return number_format(\$number, \$decimals, '.', '').' %';", $assessmentResults);
         $this->assertStringContainsString("\$resultStatus = \$result?->status ?? 'absent';", $assessmentResults);
@@ -640,7 +639,7 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('.status-passed { color:#166534; }', $assessmentResults);
         $this->assertStringContainsString('.status-failed { color:#991b1b; }', $assessmentResults);
         $this->assertStringContainsString('.status-absent { color:#172033; }', $assessmentResults);
-        $this->assertStringContainsString("'ـ'", $assessmentResults);
+        $this->assertStringContainsString('$assessmentStatusLabels[$resultStatus] ?? __(', $assessmentResults);
         $this->assertStringNotContainsString('heading-meta-spacer', $assessmentResults);
         $this->assertStringContainsString("h1 {\n            font-size: 20px;", $groupRoster);
         $this->assertStringContainsString(".group-line {\n            font-size: 13px;", $groupRoster);
@@ -692,8 +691,8 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('.role { direction:rtl; text-align:center; unicode-bidi:isolate; white-space:nowrap; }', $teacherAttendance);
         $this->assertStringContainsString("{{ \$teacher['percentage'] }}&nbsp;%", $teacherAttendance);
         $this->assertStringContainsString("aria-label=\"{{ \$teacher['role_label'] }}\"", $teacherAttendance);
-        $this->assertStringContainsString('ArabicKashidaJustifier::toWidth(', $teacherExport);
-        $this->assertStringContainsString('$targetRoleWidth', $teacherExport);
+        $this->assertStringContainsString('ArabicKashidaJustifier::column(', $teacherExport);
+        $this->assertStringContainsString('$justifiedRoles', $teacherExport);
     }
 
     public function test_row_open_actions_use_the_shared_open_symbol_without_visible_text(): void

@@ -24,4 +24,26 @@ class ArabicKashidaJustifierTest extends TestCase
         $this->assertLessThanOrEqual($targetWidth, $mpdf->GetStringWidth($value));
         $this->assertLessThan(0.5, $targetWidth - $mpdf->GetStringWidth($value));
     }
+
+    public function test_it_justifies_each_current_column_instance_to_its_own_longest_label(): void
+    {
+        $measure = static fn (string $value): float => (float) mb_strlen($value);
+
+        $shortInstance = ArabicKashidaJustifier::column([
+            'passed' => 'ناجح',
+            'failed' => 'راسب',
+        ], $measure);
+        $longInstance = ArabicKashidaJustifier::column([
+            'passed' => 'ناجح',
+            'absent' => 'لم يتقدم',
+        ], $measure);
+
+        $this->assertSame(['passed', 'failed'], array_keys($shortInstance));
+        $this->assertSame(mb_strlen($shortInstance['failed']), mb_strlen($shortInstance['passed']));
+        $this->assertGreaterThan(
+            mb_strlen($shortInstance['passed']),
+            mb_strlen($longInstance['passed']),
+        );
+        $this->assertSame(mb_strlen($longInstance['absent']), mb_strlen($longInstance['passed']));
+    }
 }

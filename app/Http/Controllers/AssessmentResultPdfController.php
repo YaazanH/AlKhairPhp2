@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Group;
 use App\Services\AccessScopeService;
 use App\Services\PdfBrandingService;
+use App\Support\ArabicKashidaJustifier;
 use App\Support\ArchivePdfWatermark;
 use App\Support\ExportFilename;
 use App\Support\PdfOptions;
@@ -97,9 +98,41 @@ class AssessmentResultPdfController extends Controller
         $mpdf->autoScriptToLang = false;
         $mpdf->useSubstitutions = true;
         $mpdf->SetDirectionality(app()->isLocale('ar') ? 'rtl' : 'ltr');
+
+        $assessmentMetaLabels = [
+            'date' => __('workflow.assessments.results.pdf.due_date'),
+            'average' => __('workflow.assessments.results.pdf.average_mark'),
+        ];
+        $assessmentStatusLabels = [];
+
+        if (app()->isLocale('ar')) {
+            $mpdf->SetFont('dubaimedium', '', 9);
+            $assessmentMetaLabels = ArabicKashidaJustifier::column(
+                $assessmentMetaLabels,
+                fn (string $value): float => $mpdf->GetStringWidth($value),
+            );
+
+            $statusKeys = $groups
+                ->flatMap(fn (Group $group) => $group->enrollments->map(
+                    fn ($enrollment): string => $enrollment->assessmentResults->first()?->status ?? 'absent',
+                ))
+                ->unique()
+                ->values();
+            $statusLabels = $statusKeys->mapWithKeys(
+                fn (string $status): array => [$status => __('workflow.common.result_status.'.$status)],
+            )->all();
+            $mpdf->SetFont('dubai', '', 11);
+            $assessmentStatusLabels = ArabicKashidaJustifier::column(
+                $statusLabels,
+                fn (string $value): float => $mpdf->GetStringWidth($value),
+            );
+        }
+
         ArchivePdfWatermark::apply($mpdf, $archiveCourse);
         $mpdf->WriteHTML(view('exports.assessment-results-pdf', [
             'assessment' => $assessment,
+            'assessmentMetaLabels' => $assessmentMetaLabels,
+            'assessmentStatusLabels' => $assessmentStatusLabels,
             'archiveCourse' => $archiveCourse,
             'groups' => $groups,
             'isSingleGroupPdf' => $selectedGroupId !== 0,
