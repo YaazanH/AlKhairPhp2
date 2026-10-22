@@ -110,7 +110,7 @@ return [
         'warning' => 'Only the contents of this backup are restored: database, files, or both. A safety backup of the same contents is created first.',
         'password' => 'Your current password',
         'confirmation' => 'Type ":phrase" to continue',
-        'confirmation_phrase' => 'RESTORE',
+        'confirmation_phrase' => 'restore',
     ],
     'restore_file' => [
         'title' => 'Restore backup from file',
@@ -133,6 +133,7 @@ return [
         'restore_from_file' => "A safety backup will be created first. Only the database or files included in the selected backup will be restored.\n\nRestore the selected file now?",
     ],
     'errors' => [
+        'artifact_unavailable' => 'The backup file is missing or incomplete. This recovery point cannot be restored.',
         'database_conversion_failed' => 'This MySQL backup could not be converted to SQLite. Your current database has not been changed. Check the application log for the conversion error.',
         'database_mismatch' => 'The backup was decrypted, but it uses :backup and this installation uses :local. Restore it to a matching database engine or convert the backup first.',
         'operation_failed' => 'The backup operation could not be completed. Check the application log and server storage.',

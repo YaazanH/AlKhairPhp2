@@ -29,6 +29,33 @@ class SystemBackupTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_missing_or_truncated_backup_files_are_not_offered_as_recovery_points(): void
+    {
+        Storage::fake('local');
+        $this->seed(RoleSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
+        $backup = $this->usableBackup($admin);
+        $service = app(SystemBackupService::class);
+        $this->assertTrue($backup->isUsable());
+        $this->assertSame(1, $service->health()['backup_count']);
+
+        Storage::disk('local')->put($backup->file_path, 'truncated');
+        $this->assertFalse($backup->isUsable());
+        $this->assertSame(0, $service->health()['backup_count']);
+        $this->assertNull($service->health()['latest_verified']);
+        $this->get(route('settings.backups.download', $backup))->assertNotFound();
+
+        Storage::disk('local')->delete($backup->file_path);
+        $this->assertFalse($backup->isUsable());
+        Volt::test('settings.backups')
+            ->assertSee('data-backup-unavailable', false)
+            ->assertDontSee('data-backup-download-action', false)
+            ->assertDontSee('data-backup-restore-action', false);
+        $this->assertDatabaseHas('system_backups', ['uuid' => $backup->uuid]);
+    }
+
     public function test_backup_centre_is_limited_to_administrators(): void
     {
         $this->assertSame('النسخ الاحتياطي', trans('backups.navigation_title', locale: 'ar'));

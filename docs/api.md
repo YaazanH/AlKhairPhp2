@@ -817,12 +817,17 @@ Response:
 
 Permission: `attendance.teacher.take`
 
+`course_id` is required and must refer to an active, unfinished course in the user's scope.
+Days are matched by course and date. Closed or archived days cannot be overwritten; reopen them in the attendance screen first.
+`status` accepts `open` or `closed` and defaults to `open` for new days.
+
 Request body:
 
 ```json
 {
   "attendance_date": "2026-10-05",
-  "status": "completed",
+  "course_id": 4,
+  "status": "open",
   "notes": "Daily attendance",
   "records": [
     {
@@ -840,7 +845,8 @@ Response:
 {
   "id": 3,
   "attendance_date": "2026-10-05",
-  "status": "completed",
+  "course_id": 4,
+  "status": "open",
   "records": [
     {
       "teacher_id": 7,

@@ -134,6 +134,20 @@ class UnifiedAttendanceTest extends TestCase
         $this->assertDatabaseMissing('teacher_attendance_days', ['id' => $teacherDay->id]);
     }
 
+    public function test_course_less_teacher_days_can_be_deleted_through_unified_attendance_even_when_closed(): void
+    {
+        foreach (['open', 'closed'] as $status) {
+            $day = TeacherAttendanceDay::create([
+                'attendance_date' => $status === 'open' ? '2026-10-22' : '2026-10-23',
+                'status' => $status,
+            ]);
+            Volt::test('attendance.show', ['type' => 'teachers', 'day' => $day->id])
+                ->assertSee('data-teacher-attendance-day-delete-action', false)
+                ->call('deleteDay')->assertHasNoErrors();
+            $this->assertDatabaseMissing('teacher_attendance_days', ['id' => $day->id]);
+        }
+    }
+
     public function test_starting_a_missing_side_repairs_the_shared_attendance_day_in_one_action(): void
     {
         [$course, $teacher, $group] = $this->scheduledCourse('Repair pair');

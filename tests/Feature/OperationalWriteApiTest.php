@@ -11,12 +11,12 @@ use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\ExpenseCategory;
+use App\Models\GradeLevel;
 use App\Models\Group;
 use App\Models\Invoice;
 use App\Models\ParentProfile;
 use App\Models\PaymentMethod;
 use App\Models\PointPolicy;
-use App\Models\PointTransaction;
 use App\Models\PointType;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
@@ -25,14 +25,60 @@ use App\Models\QuranPartialTestPart;
 use App\Models\QuranTestType;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
 use App\Models\User;
 use App\Services\FinanceService;
+use App\Services\PointLedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class OperationalWriteApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_teacher_attendance_requires_a_course_and_keeps_same_date_courses_separate(): void
+    {
+        $context = $this->managerApiContext();
+        $status = AttendanceStatus::query()->where('code', 'present')->firstOrFail();
+        $input = [
+            'attendance_date' => '2026-10-22',
+            'status' => 'closed',
+            'records' => [[
+                'teacher_id' => $context['teacher']->id,
+                'attendance_status_id' => $status->id,
+            ]],
+        ];
+        $this->withToken($context['token'])->postJson('/api/v1/teacher-attendance', $input)
+            ->assertUnprocessable()->assertJsonValidationErrors('course_id');
+
+        $legacy = TeacherAttendanceDay::create([
+            'attendance_date' => $input['attendance_date'], 'status' => 'closed',
+        ]);
+        $first = $this->postJson('/api/v1/teacher-attendance', [
+            ...$input, 'course_id' => $context['course']->id,
+        ])->assertOk()->assertJsonPath('course_id', $context['course']->id)->json('id');
+
+        $otherCourse = Course::create(['name' => 'Another attendance course', 'is_active' => true]);
+        $otherGroup = $context['group']->replicate();
+        $otherGroup->fill(['name' => 'Another attendance group', 'course_id' => $otherCourse->id])->save();
+        $second = $this->postJson('/api/v1/teacher-attendance', [
+            ...$input, 'course_id' => $otherCourse->id,
+        ])->assertOk()->assertJsonPath('course_id', $otherCourse->id)->json('id');
+
+        $this->assertNotSame($first, $second);
+        $this->assertNull($legacy->fresh()->course_id);
+        $this->postJson('/api/v1/teacher-attendance', [
+            ...$input, 'course_id' => $context['course']->id, 'notes' => 'Must not overwrite closed day',
+        ])->assertConflict();
+        $this->assertDatabaseHas('teacher_attendance_days', [
+            'id' => $first, 'course_id' => $context['course']->id, 'notes' => null,
+        ]);
+
+        $otherCourse->update(['is_active' => false, 'finished_at' => now()]);
+        $this->postJson('/api/v1/teacher-attendance', [
+            ...$input, 'course_id' => $otherCourse->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors('course_id');
+    }
 
     public function test_manager_can_manage_operational_and_finance_transactions_via_api(): void
     {
@@ -129,12 +175,14 @@ class OperationalWriteApiTest extends TestCase
 
         $this->withToken($context['token'])->postJson('/api/v1/teacher-attendance', [
             'attendance_date' => '2026-10-05',
+            'course_id' => $context['course']->id,
             'records' => [[
                 'attendance_status_id' => $teacherAttendanceStatus->id,
                 'teacher_id' => $context['teacher']->id,
             ]],
         ])->assertOk()
-            ->assertJsonPath('records.0.teacher_id', $context['teacher']->id);
+            ->assertJsonPath('records.0.teacher_id', $context['teacher']->id)
+            ->assertJsonPath('course_id', $context['course']->id);
 
         $this->assertDatabaseHas('teacher_attendance_records', [
             'attendance_status_id' => $teacherAttendanceStatus->id,
@@ -228,7 +276,7 @@ class OperationalWriteApiTest extends TestCase
             'tested_on' => '2026-10-10',
         ]);
 
-        app(\App\Services\PointLedgerService::class)->recordQuranFinalTestPoints(
+        app(PointLedgerService::class)->recordQuranFinalTestPoints(
             $finalTest->fresh(['enrollment.student.gradeLevel', 'student']),
             95,
         );
@@ -612,7 +660,7 @@ class OperationalWriteApiTest extends TestCase
             'is_active' => true,
             'name' => 'Operational Course',
         ]);
-        $gradeLevel = \App\Models\GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->firstOrFail();
+        $gradeLevel = GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->firstOrFail();
 
         $group = Group::query()->create([
             'academic_year_id' => $academicYear->id,
@@ -698,7 +746,7 @@ class OperationalWriteApiTest extends TestCase
             'is_active' => true,
             'name' => 'Teacher Course',
         ]);
-        $gradeLevel = \App\Models\GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->firstOrFail();
+        $gradeLevel = GradeLevel::query()->where('is_active', true)->orderBy('sort_order')->firstOrFail();
 
         $group = Group::query()->create([
             'academic_year_id' => $academicYear->id,
