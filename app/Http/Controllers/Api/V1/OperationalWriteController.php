@@ -331,13 +331,19 @@ class OperationalWriteController extends Controller
 
         $validated = $request->validate([
             'attendance_date' => ['required', 'date'],
+            'course_id' => ['required', 'integer', Rule::exists('courses', 'id')->where('is_active', true)->whereNull('finished_at')],
             'notes' => ['nullable', 'string'],
             'records' => ['required', 'array', 'min:1'],
             'records.*.attendance_status_id' => ['required', 'integer', Rule::exists('attendance_statuses', 'id')->where(fn ($query) => $query->where('is_active', true)->whereIn('scope', ['teacher', 'both']))],
             'records.*.notes' => ['nullable', 'string'],
             'records.*.teacher_id' => ['required', 'integer', Rule::exists('teachers', 'id')->whereNull('deleted_at')],
-            'status' => ['nullable', 'string', 'max:50'],
+            'status' => ['nullable', Rule::in(['open', 'closed'])],
         ]);
+
+        abort_unless(app(AccessScopeService::class)->scopeGroups(
+            Group::query()->where('course_id', $validated['course_id'])->where('is_active', true),
+            $request->user(),
+        )->exists(), 403);
 
         foreach (collect($validated['records'])->pluck('teacher_id')->filter()->unique() as $teacherId) {
             $teacher = Teacher::query()->findOrFail($teacherId);
@@ -345,14 +351,26 @@ class OperationalWriteController extends Controller
         }
 
         $day = DB::transaction(function () use ($request, $validated) {
-            $day = TeacherAttendanceDay::query()->updateOrCreate(
-                ['attendance_date' => $validated['attendance_date']],
-                [
+            $day = TeacherAttendanceDay::query()
+                ->whereDate('attendance_date', $validated['attendance_date'])
+                ->where('course_id', $validated['course_id'])
+                ->lockForUpdate()->first();
+
+            if ($day) {
+                abort_unless(app(AccessScopeService::class)->canAccessTeacherAttendanceDay($request->user(), $day), 403);
+                abort_if($day->status === 'closed' || $day->records()->whereNotNull('course_finished_at')->exists(), 409);
+            } else {
+                $day = new TeacherAttendanceDay([
+                    'attendance_date' => $validated['attendance_date'],
+                    'course_id' => $validated['course_id'],
                     'created_by' => $request->user()->id,
-                    'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
-                    'status' => $validated['status'] ?? 'completed',
-                ],
-            );
+                ]);
+            }
+
+            $day->fill([
+                'notes' => blank($validated['notes'] ?? null) ? null : $validated['notes'],
+                'status' => $validated['status'] ?? $day->status ?? 'open',
+            ])->save();
 
             foreach ($validated['records'] as $recordInput) {
                 TeacherAttendanceRecord::query()->updateOrCreate(
@@ -372,6 +390,7 @@ class OperationalWriteController extends Controller
 
         return response()->json([
             'attendance_date' => $day->attendance_date?->format('Y-m-d'),
+            'course_id' => $day->course_id,
             'id' => $day->id,
             'records' => $day->records->map(fn (TeacherAttendanceRecord $record) => [
                 'attendance_status_code' => $record->status?->code,

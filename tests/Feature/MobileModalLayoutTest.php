@@ -90,6 +90,8 @@ class MobileModalLayoutTest extends TestCase
         $this->assertStringContainsString("html.application-modal-open .app-sidebar-scroll-region {\n    overflow-y: auto !important;", $styles);
         $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n    display: flex !important;\n    flex-direction: column;\n    height: 100dvh;\n    min-height: 100dvh;\n    max-height: 100dvh;\n    align-self: flex-start;\n    z-index: 90;\n    pointer-events: auto;", $styles);
         $this->assertStringContainsString("html.application-modal-open .app-sidebar-shell {\n        position: fixed !important;\n        inset-block: 0;\n        inset-inline-start: 0;", $styles);
+        $this->assertStringContainsString("html.application-modal-open .app-shell::before {\n        content: '';\n        display: block;\n        width: var(--app-sidebar-width, 17rem);\n        flex: 0 0 var(--app-sidebar-width, 17rem);", $styles);
+        $this->assertMatchesRegularExpression('/html\.application-modal-open \.app-sidebar-is-collapsed \.app-shell::before,[^{]+\{\s*display:\s*none;/s', $styles);
         $this->assertStringNotContainsString('visibility: hidden;', $this->modalOpenStyles($styles));
         $this->assertStringContainsString("html.application-modal-open .app-main {\n    z-index: auto;\n    overflow: visible;", $styles);
         $this->assertStringContainsString(".admin-modal__backdrop {\n    position: fixed;", $styles);

@@ -5,6 +5,33 @@ namespace App\Support;
 final class ArabicKashidaJustifier
 {
     /**
+     * Stretch every Arabic value to the measured width of the longest value in
+     * this column while preserving the input keys.
+     *
+     * @template TKey of array-key
+     *
+     * @param  array<TKey, string>  $values
+     * @param  callable(string): float  $measure
+     * @return array<TKey, string>
+     */
+    public static function column(array $values, callable $measure): array
+    {
+        if ($values === []) {
+            return [];
+        }
+
+        $targetWidth = max(array_map(
+            static fn (string $value): float => $measure($value),
+            $values,
+        ));
+
+        return array_map(
+            static fn (string $value): string => self::toWidth($value, $targetWidth, $measure),
+            $values,
+        );
+    }
+
+    /**
      * Stretch Arabic text to the widest value that does not exceed the target width.
      *
      * @param  callable(string): float  $measure

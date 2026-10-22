@@ -89,8 +89,8 @@ SQL;
 
             // Exercise the real import, conversion, safety backup, atomic swap, and history restoration.
             // Maintenance mode is mocked so the developer's running application is never taken offline.
-            Artisan::shouldReceive('call')->once()->with('down')->andReturn(0);
-            Artisan::shouldReceive('call')->once()->with('up')->andReturn(0);
+            Artisan::shouldReceive('call')->twice()->with('down')->andReturn(0);
+            Artisan::shouldReceive('call')->twice()->with('up')->andReturn(0);
             $service = app(SystemBackupService::class);
             $backup = $service->import($directory.'/source.alkhair-backup', 'source.alkhair-backup', applicationKey: $sourceKey);
             $this->assertSame($driver, $backup->manifest_summary['database_driver']);
@@ -103,6 +103,8 @@ SQL;
             $this->assertNotSame($backup->id, $restored->id);
             $this->assertNotNull($restored->restored_at);
             $this->assertSame(1, $restored->restore_count);
+            $this->assertDatabaseMissing('system_backups', ['uuid' => 'foreign-backup-history']);
+            $this->assertSame(2, SystemBackup::query()->count());
             $safety = SystemBackup::where('trigger', SystemBackup::TRIGGER_PRE_RESTORE)->firstOrFail();
             $this->assertTrue($safety->isUsable());
             $this->assertSame('sqlite', $safety->manifest_summary['database_driver']);
@@ -112,6 +114,14 @@ SQL;
             $zip->close();
             $safetyDatabase = new PDO('sqlite:'.$directory.'/safety.sqlite');
             $this->assertSame('local value before restore', $safetyDatabase->query('SELECT value FROM marker')->fetchColumn());
+            // The safety point is itself restorable, and its embedded in-progress
+            // history must not resurrect creating or unavailable recovery points.
+            $service->verify($safety);
+            $service->restore($safety);
+            $this->assertSame('local value before restore', DB::table('marker')->value('value'));
+            $this->assertSame(3, SystemBackup::query()->count());
+            $this->assertTrue(SystemBackup::query()->get()->every(fn (SystemBackup $item) => $item->isUsable()));
+            $this->assertDatabaseMissing('system_backups', ['uuid' => 'foreign-backup-history']);
             $this->assertSame('ok', DB::connection()->getPdo()->query('PRAGMA integrity_check')->fetchColumn());
             $this->assertSame([], glob($directory.'/local.sqlite.incoming*') ?: []);
             $this->assertSame([], glob($directory.'/local.sqlite.before-restore*') ?: []);

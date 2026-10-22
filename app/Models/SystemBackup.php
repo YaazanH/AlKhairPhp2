@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class SystemBackup extends Model
 {
@@ -71,6 +73,26 @@ class SystemBackup extends Model
     {
         return $this->status === self::STATUS_COMPLETED
             && $this->verified_at !== null
-            && filled($this->file_path);
+            && $this->artifactIsAvailable();
+    }
+
+    public function artifactIsAvailable(): bool
+    {
+        if (blank($this->file_path)) {
+            return false;
+        }
+
+        try {
+            $disk = Storage::disk($this->disk);
+            if (! $disk->exists($this->file_path)) {
+                return false;
+            }
+
+            $size = $disk->size($this->file_path);
+
+            return $size > 0 && ($this->size_bytes === null || $size === $this->size_bytes);
+        } catch (Throwable) {
+            return false;
+        }
     }
 }

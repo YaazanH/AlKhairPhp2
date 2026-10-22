@@ -1590,7 +1590,10 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('data-finance-report-kashida-label="closing-balance"', $rtlExportHtml);
         $this->assertStringContainsString('data-finance-report-kashida-label="total-income"', $rtlExportHtml);
         $this->assertStringContainsString('data-finance-report-kashida-label="export-date"', $rtlExportHtml);
-        $this->assertStringContainsString("\u{0640}", $rtlExportHtml);
+        $this->assertStringContainsString(
+            'ArabicKashidaJustifier::column(',
+            file_get_contents(app_path('Services/FinanceReportService.php')),
+        );
         $this->assertStringContainsString('.finance-report-kashida-label { direction: rtl; display: inline-block; line-height: inherit; unicode-bidi: isolate; vertical-align: baseline;', $rtlExportHtml);
         $this->assertStringContainsString('.summary-label .finance-report-kashida-label { display: block; height: 4mm; line-height: 4mm; vertical-align: middle; }', $rtlExportHtml);
         $this->assertStringContainsString('.summary-baseline-spacer { display: block; font-size: 1pt; height: 3.6mm; line-height: 3.6mm; }', $rtlExportHtml);
@@ -1703,7 +1706,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v31', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v32', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()
@@ -2927,6 +2930,8 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringContainsString('class="admin-modal__close financial-transactions-header-search"', $financeDashboardSource);
         $this->assertStringContainsString('data-mobile-table-filter-target="financial-transactions-filters"', $financeDashboardSource);
         $this->assertStringContainsString('id="financial-transactions-filters"', $financeDashboardSource);
+        $this->assertStringContainsString(".admin-modal__header-actions .financial-transactions-header-search {\n    display: none;", $financeTableCss);
+        $this->assertMatchesRegularExpression('/@media \(max-width:\s*699px\).*?\.admin-modal__header-actions \.financial-transactions-header-search\s*\{[^}]*display:\s*inline-flex;/s', $financeTableCss);
         $this->assertStringContainsString('[data-financial-transactions-table] .financial-transactions-desktop-table', $financeTableCss);
         $this->assertStringContainsString("#financial-transactions-filters > :is(\n        [data-mobile-table-filter-open],\n        [data-mobile-table-filter-submit]\n    ) {\n        display: none !important;", $financeTableCss);
         $this->assertStringContainsString(".financial-transactions-header-search > svg {\n        width: 1rem;\n        height: 1rem;", $financeTableCss);

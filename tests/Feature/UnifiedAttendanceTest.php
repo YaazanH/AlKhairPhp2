@@ -134,6 +134,35 @@ class UnifiedAttendanceTest extends TestCase
         $this->assertDatabaseMissing('teacher_attendance_days', ['id' => $teacherDay->id]);
     }
 
+    public function test_course_less_days_use_unified_deletion_and_closed_days_must_be_reopened_first(): void
+    {
+        [$course, $teacher] = $this->scheduledCourse('Legacy course-less deletion');
+        $unrelatedDay = TeacherAttendanceDay::create([
+            'attendance_date' => '2026-10-22', 'course_id' => $course->id, 'status' => 'closed',
+        ]);
+        foreach (['open', 'closed'] as $status) {
+            $day = TeacherAttendanceDay::create([
+                'attendance_date' => $status === 'open' ? '2026-10-22' : '2026-10-23',
+                'status' => $status,
+            ]);
+            $day->records()->create([
+                'teacher_id' => $teacher->id,
+                'attendance_status_id' => AttendanceStatus::where('code', 'present')->value('id'),
+            ]);
+            $component = Volt::test('attendance.show', ['type' => 'teachers', 'day' => $day->id]);
+            if ($status === 'closed') {
+                $component->assertDontSee('data-teacher-attendance-day-delete-action', false)
+                    ->call('toggleDayStatus')->assertHasNoErrors();
+            }
+            $component
+                ->assertSee('data-teacher-attendance-day-delete-action', false)
+                ->call('deleteDay')->assertHasNoErrors();
+            $this->assertDatabaseMissing('teacher_attendance_days', ['id' => $day->id]);
+            $this->assertDatabaseMissing('teacher_attendance_records', ['teacher_attendance_day_id' => $day->id]);
+        }
+        $this->assertDatabaseHas('teacher_attendance_days', ['id' => $unrelatedDay->id]);
+    }
+
     public function test_starting_a_missing_side_repairs_the_shared_attendance_day_in_one_action(): void
     {
         [$course, $teacher, $group] = $this->scheduledCourse('Repair pair');

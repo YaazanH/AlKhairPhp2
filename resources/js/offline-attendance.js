@@ -1,3 +1,5 @@
+import { shouldRefreshMergedAttendance } from './offline-attendance-merge';
+
 const DATABASE_NAME = 'alkhair-offline-attendance';
 const DATABASE_VERSION = 1;
 const OUTBOX_STORE = 'outbox';
@@ -199,6 +201,7 @@ async function syncOperations() {
     root?.querySelector('[data-attendance-sync-state]')?.setAttribute('data-state', 'syncing');
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), connectionIsPoor() ? 12000 : 8000);
+    const syncedOperations = [];
 
     try {
         const response = await fetch(configuration.url, {
@@ -225,6 +228,7 @@ async function syncOperations() {
             if (result.status === 'synced') {
                 await deleteIfCurrent(operation);
                 setRowState(operation, 'synced');
+                syncedOperations.push(operation);
             } else {
                 await markConflict(operation, result.message || configuration.conflictLabel);
             }
@@ -238,6 +242,24 @@ async function syncOperations() {
         window.clearTimeout(timeout);
         syncRunning = false;
         await updateSummary();
+
+        if (syncedOperations.length) {
+            const remainingOperations = (await allOperations())
+                .filter((operation) => operation.user_id === userId);
+
+            if (shouldRefreshMergedAttendance(syncedOperations, remainingOperations)) {
+                window.setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('attendance:offline-merged'));
+                    if (window.Livewire?.navigate) {
+                        window.Livewire.navigate(window.location.href);
+                    } else {
+                        window.location.reload();
+                    }
+                }, 0);
+            } else if (remainingOperations.some((operation) => operation.state !== 'conflict')) {
+                scheduleSync(0);
+            }
+        }
     }
 }
 
@@ -246,8 +268,10 @@ async function queueFromElement(element, statusId) {
     const root = attendanceRoot();
     if (!row || !root) return;
 
+    const key = operationKey(row.dataset.attendanceType, row.dataset.attendanceDayId, row.dataset.attendanceEntityId);
+    const existingOperation = (await allOperations()).find((operation) => operation.key === key);
     const operation = {
-        key: operationKey(row.dataset.attendanceType, row.dataset.attendanceDayId, row.dataset.attendanceEntityId),
+        key,
         client_operation_id: operationId(),
         user_id: currentUserId(),
         type: row.dataset.attendanceType,
@@ -255,6 +279,7 @@ async function queueFromElement(element, statusId) {
         entity_id: Number(row.dataset.attendanceEntityId),
         status_id: Number(statusId),
         changed_at: new Date().toISOString(),
+        queued_offline: existingOperation?.queued_offline || !navigator.onLine,
         state: 'pending',
     };
 
