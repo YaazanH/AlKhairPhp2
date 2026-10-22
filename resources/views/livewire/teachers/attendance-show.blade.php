@@ -547,9 +547,11 @@ new class extends Component
                                 <x-admin-action-icon name="lock" />
                             @endif
                         </button>
-                        <button wire:click="{{ $unified && auth()->user()->can('attendance.student.take') ? '$parent.deleteDay' : 'deleteDay' }}" wire:key="teacher-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-teacher-attendance-day-delete-action>
-                            <x-admin-action-icon name="delete" />
-                        </button>
+                        @if ($dayRecord->status !== 'closed')
+                            <button wire:click="{{ $unified && auth()->user()->can('attendance.student.take') ? '$parent.deleteDay' : 'deleteDay' }}" wire:key="teacher-attendance-day-delete-action-{{ $dayRecord->id }}" wire:confirm="{{ __('crud.common.confirm_delete.message') }}" type="button" class="admin-icon-button admin-icon-button--danger" title="{{ __('crud.common.actions.delete') }}" aria-label="{{ __('crud.common.actions.delete') }}" data-teacher-attendance-day-delete-action>
+                                <x-admin-action-icon name="delete" />
+                            </button>
+                        @endif
                     @endif
             </div>
         </div>
