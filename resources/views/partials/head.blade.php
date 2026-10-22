@@ -61,5 +61,17 @@
 @endif
 
 
+@php($appAssetVersion = app(\Illuminate\Foundation\Vite::class)->manifestHash())
+<script data-app-asset-version>
+    (() => {
+        const version = @js($appAssetVersion);
+        if (!version) return;
+        if (window.appAssetVersion && window.appAssetVersion !== version) {
+            window.location.reload();
+            return;
+        }
+        window.appAssetVersion = version;
+    })();
+</script>
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 @fluxAppearance
