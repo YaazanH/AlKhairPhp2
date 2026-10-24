@@ -76,14 +76,13 @@ class TeacherAttendanceExportController extends Controller
 
         if (app()->isLocale('ar') && $teachers->isNotEmpty()) {
             $mpdf->SetFont('dubai', '', 11);
-            $targetRoleWidth = (float) $teachers->max(fn (array $teacher): float => $mpdf->GetStringWidth($teacher['role']));
-            $teachers = $teachers->map(function (array $teacher) use ($mpdf, $targetRoleWidth): array {
+            $justifiedRoles = ArabicKashidaJustifier::column(
+                $teachers->pluck('role')->all(),
+                fn (string $value): float => $mpdf->GetStringWidth($value),
+            );
+            $teachers = $teachers->map(function (array $teacher, int $index) use ($justifiedRoles): array {
                 $teacher['role_label'] = $teacher['role'];
-                $teacher['role'] = ArabicKashidaJustifier::toWidth(
-                    $teacher['role'],
-                    $targetRoleWidth,
-                    fn (string $value): float => $mpdf->GetStringWidth($value),
-                );
+                $teacher['role'] = $justifiedRoles[$index];
 
                 return $teacher;
             });

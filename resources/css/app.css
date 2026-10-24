@@ -4089,7 +4089,7 @@ html:not([dir='rtl']) .exchange-to-amount-value {
     }
 }
 
-.financial-transactions-header-search {
+.admin-modal__header-actions .financial-transactions-header-search {
     display: none;
 }
 
@@ -4671,6 +4671,20 @@ html.application-modal-open .app-sidebar-shell {
 }
 
 @media (min-width: 1024px) {
+    /* The fixed sidebar leaves the flex row while a modal is open. Keep its
+       normal slot occupied so the dimmed page does not expand underneath it. */
+    html.application-modal-open .app-shell::before {
+        content: '';
+        display: block;
+        width: var(--app-sidebar-width, 17rem);
+        flex: 0 0 var(--app-sidebar-width, 17rem);
+    }
+
+    html.application-modal-open .app-sidebar-is-collapsed .app-shell::before,
+    html.application-modal-open .app-shell.app-sidebar-is-collapsed::before {
+        display: none;
+    }
+
     html.application-modal-open .app-sidebar-shell {
         position: fixed !important;
         inset-block: 0;
@@ -7526,7 +7540,7 @@ html:not(.dark) .admin-modal__title {
 }
 
 @media (max-width: 699px) {
-    .financial-transactions-header-search {
+    .admin-modal__header-actions .financial-transactions-header-search {
         display: inline-flex;
         border-radius: 9999px;
     }

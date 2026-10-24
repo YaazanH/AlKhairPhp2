@@ -344,12 +344,12 @@ class SystemBackupService
     {
         $settings = $this->settings();
         $latestAttempt = SystemBackup::query()->latest()->first();
-        $latestVerified = SystemBackup::query()
-            ->where('scope', '!=', SystemBackup::SCOPE_FILES)
+        $usableBackups = SystemBackup::query()
             ->where('status', SystemBackup::STATUS_COMPLETED)
             ->whereNotNull('verified_at')
             ->latest('verified_at')
-            ->first();
+            ->get()->filter(fn (SystemBackup $backup): bool => $backup->isUsable());
+        $latestVerified = $usableBackups->first(fn (SystemBackup $backup): bool => $backup->scope !== SystemBackup::SCOPE_FILES);
 
         $schedulerLastSeen = Cache::get('system-backup:scheduler-last-seen');
         $schedulerRunning = $schedulerLastSeen && CarbonImmutable::parse($schedulerLastSeen)->gte(now()->subMinutes(5));
@@ -389,7 +389,7 @@ class SystemBackupService
             'latest_attempt' => $latestAttempt,
             'latest_verified' => $latestVerified,
             'free_bytes' => $freeBytes,
-            'backup_count' => SystemBackup::query()->where('status', SystemBackup::STATUS_COMPLETED)->count(),
+            'backup_count' => $usableBackups->count(),
             'total_bytes' => (int) SystemBackup::query()->where('status', SystemBackup::STATUS_COMPLETED)->sum('size_bytes'),
         ];
     }
@@ -1227,6 +1227,13 @@ class SystemBackupService
         }
 
         $existingUserIds = User::query()->pluck('id')->flip();
+
+        // Backup files are deliberately excluded from archives. Source database
+        // history therefore cannot supply recovery points on this installation.
+        // Keep the live catalog, including the imported file and new safety copy.
+        DB::table('system_backups')
+            ->whereNotIn('uuid', array_column($backupHistory, 'uuid'))
+            ->delete();
 
         foreach ($backupHistory as $attributes) {
             unset($attributes['id']);

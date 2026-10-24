@@ -2,21 +2,11 @@
 @php
     $archiveCourse = $archiveCourse ?? null;
     $isSingleGroupPdf = $isSingleGroupPdf ?? false;
-    $assessmentDateLabel = __('workflow.assessments.results.pdf.due_date');
-    if (app()->isLocale('ar')) {
-        $assessmentDateLabel = preg_replace(
-            '/(?<=[بتثجحخسشصضطظعغفقكلمنهئي])(?=[\p{Arabic}])/u',
-            'ـ',
-            $assessmentDateLabel,
-        ) ?? $assessmentDateLabel;
-    }
-
-    $assessmentStatusLabels = app()->isLocale('ar')
-        ? [
-            'passed' => 'ناج'.str_repeat('ـ', 16).'ح',
-            'failed' => 'راس'.str_repeat('ـ', 11).'ب',
-        ]
-        : [];
+    $assessmentMetaLabels = $assessmentMetaLabels ?? [
+        'date' => __('workflow.assessments.results.pdf.due_date'),
+        'average' => __('workflow.assessments.results.pdf.average_mark'),
+    ];
+    $assessmentStatusLabels = $assessmentStatusLabels ?? [];
 
     $formatAssessmentPercentage = static function ($value): string {
         if ($value === null) {
@@ -83,8 +73,8 @@
         <td class="heading-row-cell heading-side heading-meta" dir="{{ app()->isLocale('ar') ? 'rtl' : 'ltr' }}">
             <table class="heading-meta-shell"><tr><td><table class="heading-meta-table" dir="ltr">
                 @if(app()->isLocale('ar'))
-                    <tr><td class="heading-meta-value" dir="ltr">{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?? '—') }}</td><td class="heading-meta-label" aria-label="{{ __('workflow.assessments.results.pdf.due_date') }}" data-assessment-meta-label="date">{{ $assessmentDateLabel }}</td></tr>
-                    <tr><td class="heading-meta-value" dir="ltr" style="padding-right:3mm;text-align:right">{{ $formatAssessmentPercentage($group->average_mark) }}</td><td class="heading-meta-label" data-assessment-meta-label="average">{{ __('workflow.assessments.results.pdf.average_mark') }}</td></tr>
+                    <tr><td class="heading-meta-value" dir="ltr">{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?? '—') }}</td><td class="heading-meta-label" aria-label="{{ __('workflow.assessments.results.pdf.due_date') }}" data-assessment-meta-label="date">{{ $assessmentMetaLabels['date'] }}</td></tr>
+                    <tr><td class="heading-meta-value" dir="ltr" style="padding-right:3mm;text-align:right">{{ $formatAssessmentPercentage($group->average_mark) }}</td><td class="heading-meta-label" aria-label="{{ __('workflow.assessments.results.pdf.average_mark') }}" data-assessment-meta-label="average">{{ $assessmentMetaLabels['average'] }}</td></tr>
                 @else
                     <tr><td class="heading-meta-label" data-assessment-meta-label="date">{{ __('workflow.assessments.results.pdf.due_date') }}</td><td class="heading-meta-value" dir="ltr">{{ \App\Support\DateDisplay::html($assessment->due_at?->format('d-m-Y') ?? '—') }}</td></tr>
                     <tr><td class="heading-meta-label" data-assessment-meta-label="average">{{ __('workflow.assessments.results.pdf.average_mark') }}</td><td class="heading-meta-value" dir="ltr">{{ $formatAssessmentPercentage($group->average_mark) }}</td></tr>

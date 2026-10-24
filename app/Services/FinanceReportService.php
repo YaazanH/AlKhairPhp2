@@ -11,6 +11,7 @@ use App\Models\FinanceReportTemplate;
 use App\Models\FinanceRequest;
 use App\Models\FinanceTransaction;
 use App\Models\User;
+use App\Support\ArabicKashidaJustifier;
 use App\Support\ExportFilename;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -622,10 +623,40 @@ class FinanceReportService
             if ($index > 0) {
                 $mpdf->AddPage();
             }
+
+            $mpdf->SetFont('dubai', 'B', 7.8);
+            $metaLabels = [
+                ...ArabicKashidaJustifier::column([
+                    'academic_year' => 'العام الأكاديمي',
+                    'start_date' => 'تاريخ البداية',
+                ], fn (string $value): float => $mpdf->GetStringWidth($value)),
+                ...ArabicKashidaJustifier::column([
+                    'fund' => 'الصندوق',
+                    'end_date' => 'تاريخ النهاية',
+                ], fn (string $value): float => $mpdf->GetStringWidth($value)),
+                ...ArabicKashidaJustifier::column([
+                    'currency' => 'العملة',
+                    'opening_balance' => 'الرصيد الافتتاحي',
+                ], fn (string $value): float => $mpdf->GetStringWidth($value)),
+            ];
+            $mpdf->SetFont('dubai', 'B', 8);
+            $summaryLabels = [
+                ...ArabicKashidaJustifier::column([
+                    'total_expense' => 'إجمالي المصاريف',
+                    'closing_balance' => 'الرصيد الختامي',
+                ], fn (string $value): float => $mpdf->GetStringWidth($value)),
+                ...ArabicKashidaJustifier::column([
+                    'total_income' => 'إجمالي الإيرادات',
+                    'export_date' => 'تاريخ التصدير',
+                ], fn (string $value): float => $mpdf->GetStringWidth($value)),
+            ];
+
             $mpdf->WriteHTML(view('reports.finance-ledger-pdf-export', [
                 'generatedReport' => $generatedReport,
+                'metaLabels' => $metaLabels,
                 'report' => $fundReport,
                 'service' => $this,
+                'summaryLabels' => $summaryLabels,
             ])->render());
         }
 
@@ -760,44 +791,6 @@ class FinanceReportService
             hexdec(substr($hex, 2, 2)),
             hexdec(substr($hex, 4, 2)),
         );
-    }
-
-    public function balanceArabicPdfKashidas(string $value, int $count): string
-    {
-        if ($count < 1 || preg_match('/\p{Arabic}/u', $value) !== 1) {
-            return $value;
-        }
-
-        $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $nonConnectingLetters = ['ء', 'ا', 'أ', 'إ', 'آ', 'ؤ', 'د', 'ذ', 'ر', 'ز', 'و', 'ة', 'ى'];
-        $joinPositions = [];
-
-        foreach ($characters as $index => $character) {
-            $next = $characters[$index + 1] ?? null;
-
-            if ($next !== null
-                && preg_match('/[\x{0621}-\x{063A}\x{0641}-\x{064A}\x{066E}-\x{06D3}]/u', $character) === 1
-                && preg_match('/[\x{0621}-\x{063A}\x{0641}-\x{064A}\x{066E}-\x{06D3}]/u', $next) === 1
-                && ! in_array($character, $nonConnectingLetters, true)) {
-                $joinPositions[] = $index;
-            }
-        }
-
-        if ($joinPositions === []) {
-            return $value;
-        }
-
-        $insertions = [];
-        for ($index = 0; $index < $count; $index++) {
-            $position = $joinPositions[$index % count($joinPositions)];
-            $insertions[$position] = ($insertions[$position] ?? 0) + 1;
-        }
-
-        return implode('', array_map(
-            fn (string $character, int $index): string => $character.str_repeat("\u{0640}", $insertions[$index] ?? 0),
-            $characters,
-            array_keys($characters),
-        ));
     }
 
     protected function buildLedgerReportArray(
@@ -1024,7 +1017,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v31';
+        return 'mpdf-fixed-ledger-v32';
     }
 
     public function reportStampPdfSource(): ?string

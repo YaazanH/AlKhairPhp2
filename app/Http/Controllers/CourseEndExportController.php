@@ -47,17 +47,10 @@ class CourseEndExportController extends Controller
 
         if (app()->isLocale('ar')) {
             $mpdf->SetFont('dubaimedium', '', 9);
-            // mPDF shapes inserted tatweels more narrowly than GetStringWidth reports.
-            // The visual compensation keeps التاريخ level with عدد الأجزاء in Dubai Medium.
-            $targetMetaLabelWidth = max(
-                $mpdf->GetStringWidth($dateLabel),
-                $mpdf->GetStringWidth($partsLabel) * 1.15,
-            );
-            $dateLabel = ArabicKashidaJustifier::toWidth(
-                $dateLabel,
-                $targetMetaLabelWidth,
+            [$dateLabel, $partsLabel] = array_values(ArabicKashidaJustifier::column(
+                [$dateLabel, $partsLabel],
                 fn (string $value): float => $mpdf->GetStringWidth($value),
-            );
+            ));
         }
 
         $logo = app(PdfBrandingService::class)->logoSource();

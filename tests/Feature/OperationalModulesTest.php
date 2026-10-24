@@ -15,6 +15,7 @@ use App\Models\PointType;
 use App\Models\QuranJuz;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Models\TeacherAttendanceDay;
 use App\Models\User;
 use App\Services\AccessScopeService;
 use App\Services\Landlord\TenantContext;
@@ -162,7 +163,21 @@ class OperationalModulesTest extends TestCase
         $this->postJson('/api/v1/teacher-attendance', [
             'attendance_date' => '2026-09-21',
             'records' => [['attendance_status_id' => $status->id, 'teacher_id' => $teacher->id]],
-        ])->assertOk();
+        ])->assertOk()->assertJsonPath('course_id', null)->assertJsonPath('status', 'open');
+        $day = TeacherAttendanceDay::sole();
+        $this->postJson('/api/v1/teacher-attendance', [
+            'attendance_date' => '2026-09-21',
+            'status' => 'closed',
+            'records' => [['attendance_status_id' => $status->id, 'teacher_id' => $teacher->id]],
+        ])->assertOk()->assertJsonPath('id', $day->id)->assertJsonPath('status', 'closed');
+        $this->postJson('/api/v1/teacher-attendance', [
+            'attendance_date' => '2026-09-21',
+            'records' => [['attendance_status_id' => $status->id, 'teacher_id' => $teacher->id]],
+        ])->assertConflict();
+        $this->postJson('/api/v1/teacher-attendance', [
+            'attendance_date' => '2026-09-22', 'course_id' => 1,
+            'records' => [['attendance_status_id' => $status->id, 'teacher_id' => $teacher->id]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('course_id');
         $this->getJson('/api/v1/reports/teachers/daily-summary?include_empty=1')
             ->assertOk()
             ->assertJsonPath('totals.absences_count', 0)

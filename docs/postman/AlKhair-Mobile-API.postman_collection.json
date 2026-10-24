@@ -3726,7 +3726,7 @@
             "description": "Permission: attendance.teacher.take",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"attendance_date\": \"{{date}}\",\n  \"status\": \"completed\",\n  \"notes\": \"Recorded from mobile\",\n  \"records\": [\n    {\n      \"teacher_id\": \"{{teacher_id}}\",\n      \"attendance_status_id\": \"{{teacher_attendance_status_id}}\",\n      \"notes\": null\n    }\n  ]\n}",
+              "raw": "{\n  \"attendance_date\": \"{{date}}\",\n  \"course_id\": \"{{course_id}}\",\n  \"status\": \"open\",\n  \"notes\": \"Recorded from mobile\",\n  \"records\": [\n    {\n      \"teacher_id\": \"{{teacher_id}}\",\n      \"attendance_status_id\": \"{{teacher_attendance_status_id}}\",\n      \"notes\": null\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

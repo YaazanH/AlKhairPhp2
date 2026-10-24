@@ -239,6 +239,21 @@ function parseLivewireAction(expression) {
     return payload;
 }
 
+function resolveLivewireConfirmAction(trigger) {
+    let expression = trigger.getAttribute('wire:click')?.trim() || '';
+    let componentRoot = trigger.closest('[wire\\:id]');
+
+    while (expression.startsWith('$parent.')) {
+        componentRoot = componentRoot?.parentElement?.closest('[wire\\:id]');
+        expression = expression.slice('$parent.'.length);
+    }
+
+    const action = parseLivewireAction(expression);
+    return action && componentRoot
+        ? { ...action, componentId: componentRoot.getAttribute('wire:id') }
+        : null;
+}
+
 function adminConfirmElements() {
     return {
         modal: document.getElementById('admin-confirm-modal'),
@@ -390,15 +405,14 @@ function handleLivewireConfirm(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    const action = parseLivewireAction(trigger.getAttribute('wire:click'));
-    const componentRoot = trigger.closest('[wire\\:id]');
+    const action = resolveLivewireConfirmAction(trigger);
 
-    if (!action || !componentRoot) {
+    if (!action) {
         return;
     }
 
     openAdminConfirm({
-        componentId: componentRoot.getAttribute('wire:id'),
+        componentId: action.componentId,
         method: action.method,
         params: action.params,
         title: trigger.dataset.confirmTitle,

@@ -5,6 +5,10 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('attendance:prune-courseless')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 Schedule::command('backup:run --scheduled')
     ->everyMinute()
     ->withoutOverlapping(120);

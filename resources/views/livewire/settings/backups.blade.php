@@ -5,6 +5,7 @@ use App\Exceptions\BackupDatabaseMismatchException;
 use App\Exceptions\BackupDecryptionException;
 use App\Livewire\Concerns\AuthorizesPermissions;
 use App\Models\SystemBackup;
+use App\Services\BackupRestoreSessionService;
 use App\Services\SystemBackupService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -272,7 +273,13 @@ new class extends Component
                 $this->needsRestoreAppKey ? trim($this->restoreAppKey) : null,
             );
             $this->restoreAppKey = '';
-            $service->restore($backup, auth()->user());
+            $actor = auth()->user();
+            $service->restore($backup, $actor);
+            if (! app(BackupRestoreSessionService::class)->resume($actor)) {
+                $this->redirect(route('login'));
+
+                return;
+            }
             $this->closeFileRestore();
             $this->resetPage();
             session()->flash('status', __('backups.messages.restored_from_file'));
@@ -317,7 +324,13 @@ new class extends Component
         $backup = SystemBackup::query()->findOrFail($this->restoreBackupId);
 
         try {
-            app(SystemBackupService::class)->restore($backup, auth()->user());
+            $actor = auth()->user();
+            app(SystemBackupService::class)->restore($backup, $actor);
+            if (! app(BackupRestoreSessionService::class)->resume($actor)) {
+                $this->redirect(route('login'));
+
+                return;
+            }
             $this->closeRestore();
             session()->flash('status', __('backups.messages.restored'));
         } catch (BackupConversionException $exception) {
@@ -482,7 +495,9 @@ new class extends Component
                             </td>
                             <td class="px-5 py-3"><bdi dir="ltr">{{ $this->formatBytes($backup->size_bytes) }}</bdi></td>
                             <td class="px-5 py-3">
-                                @if ($backup->verified_at)
+                                @if ($backup->verified_at && ! $backup->artifactIsAvailable())
+                                    <div class="max-w-xs text-xs text-red-300" data-backup-unavailable>{{ __('backups.errors.artifact_unavailable') }}</div>
+                                @elseif ($backup->verified_at)
                                     <div class="text-xs text-neutral-500" data-backup-verification-details><span>{{ __('backups.table.verified_at') }}</span> <bdi dir="ltr">{{ \App\Support\DateDisplay::html($backup->verified_at->timezone($backupTimezone)->format('d-m-Y H:i')) }}</bdi></div>
                                 @elseif ($backup->error_message)
                                     <div class="max-w-xs text-xs text-red-300" title="{{ $backup->error_message }}" data-backup-verification-details>{{ __('backups.table.not_verified') }}</div>
