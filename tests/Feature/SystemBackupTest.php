@@ -543,7 +543,19 @@ class SystemBackupTest extends TestCase
             $service = app(SystemBackupService::class);
             $this->assertFalse($service->settings()['include_files']);
 
-            $backup = $service->create(scope: SystemBackup::SCOPE_FULL);
+            $this->seed(RoleSeeder::class);
+            $admin = User::factory()->create();
+            $admin->assignRole('admin');
+            $this->actingAs($admin);
+            Volt::test('settings.backups')
+                ->assertSee('data-backup-full-create-action', false)
+                ->assertSee(__('backups.actions.create_full'))
+                ->call('createBackup', SystemBackup::SCOPE_FULL)
+                ->assertHasNoErrors();
+            $backup = SystemBackup::where('scope', SystemBackup::SCOPE_FULL)->sole();
+            $this->assertSame($admin->id, $backup->created_by);
+            $this->assertSame(SystemBackup::STATUS_COMPLETED, $backup->status);
+            $this->assertStringStartsWith('alkhair-full-', $backup->filename);
             $this->assertTrue($backup->includes_files);
             $this->assertTrue($backup->isUsable());
 
@@ -568,6 +580,7 @@ class SystemBackupTest extends TestCase
                 sort($databaseTables, SORT_STRING);
 
                 $this->assertSame(SystemBackupService::MANIFEST_VERSION, $manifest['version']);
+                $this->assertSame(SystemBackup::SCOPE_FULL, $manifest['scope']);
                 $this->assertSame(['storage'], $manifest['data_roots']);
                 $this->assertSame($databaseTables, $manifest['database']['tables']);
                 $this->assertSame(count($databaseTables), $manifest['database']['table_count']);

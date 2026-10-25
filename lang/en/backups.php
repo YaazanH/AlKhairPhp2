@@ -34,6 +34,8 @@ return [
         'full' => 'Database and files (full backup)',
     ],
     'actions' => [
+        'create_full' => 'Full backup',
+        'create_full_help' => 'Back up the database, images, and uploaded documents together',
         'create_files' => 'Back up documents and files manually',
         'create' => 'Back up database',
         'edit_settings' => 'Edit backup settings',

@@ -1,10 +1,21 @@
 # Database and document backups
 
-Automatic backups contain only the database. The backup page has separate manual
-actions for the database and for documents/uploads. Each type has its own retention
-limit. Existing full backups remain readable. Restoring a database backup leaves
+Automatic backups contain only the database. The backup page has manual actions
+for a **Full backup**, the database alone, and documents/uploads alone. A full
+backup includes the database, images, and public/private documents in one encrypted
+file. Each type uses the existing retention rules. Existing full backups remain readable. Restoring a database backup leaves
 files alone; restoring a files backup leaves the database alone. Restoration creates
 a safety copy of the same type first.
+
+To move a standalone V1 installation into a new Platform tenant, open **Settings →
+Backup and recovery**, click **Full backup / نسخة احتياطية كاملة** above the recovery
+points table, wait for verification, then download that row's encrypted file.
+Its filename starts with `alkhair-full-` and ends with `.alkhair-backup`. Upload
+that file through V2 **Platform → Tenants → Import tenant**, with the original V1
+application key when requested. Database-only and files-only exports remain
+available for ordinary recovery, but do not contain a complete tenant together.
+For final cutover, stop source writers before taking the full backup and keep V1
+read-only until the tenant is accepted.
 
 ## Importing a backup from another installation
 
