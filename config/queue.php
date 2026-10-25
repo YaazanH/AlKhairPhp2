@@ -30,6 +30,15 @@ return [
 
     'connections' => [
 
+        'tenant-imports' => [
+            'driver' => 'database',
+            'connection' => 'landlord',
+            'table' => 'tenant_import_jobs',
+            'queue' => 'tenant-imports',
+            'retry_after' => (int) env('TENANT_IMPORT_TIMEOUT', 1800) + 120,
+            'after_commit' => true,
+        ],
+
         'sync' => [
             'driver' => 'sync',
         ],

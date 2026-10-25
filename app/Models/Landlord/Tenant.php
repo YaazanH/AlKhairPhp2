@@ -51,6 +51,10 @@ class Tenant extends LandlordModel
         });
 
         static::updating(function (self $tenant): void {
+            if ($tenant->isDirty('status') && $tenant->isOperational()
+                && TenantImport::where('tenant_id', $tenant->id)->where('status', '!=', 'completed')->exists()) {
+                throw new DomainException('Complete the Platform import review before activating this tenant.');
+            }
             if ($tenant->isDirty('learning_path_type')) {
                 throw new DomainException('The tenant learning path type is immutable.');
             }
@@ -103,6 +107,11 @@ class Tenant extends LandlordModel
     public function isOperational(): bool
     {
         return in_array($this->status, [self::STATUS_TRIAL, self::STATUS_ACTIVE], true);
+    }
+
+    public function hasIncompleteImport(): bool
+    {
+        return TenantImport::where('tenant_id', $this->id)->whereNotIn('status', ['completed', 'cancelled'])->exists();
     }
 
     public static function learningPathTypes(): array

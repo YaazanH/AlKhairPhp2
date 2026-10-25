@@ -99,7 +99,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        $exceptions->dontFlash(['owner_password']);
+        $exceptions->dontFlash(['owner_password', 'transfer_code', 'source_application_key']);
         $exceptions->render(function (HttpException $exception, Request $request) {
             if ($exception->getStatusCode() === 419
                 && $exception->getPrevious() instanceof TokenMismatchException

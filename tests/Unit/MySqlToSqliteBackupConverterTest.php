@@ -107,6 +107,18 @@ SQL);
         $pdo->exec('INSERT INTO a VALUES (1,1)');
     }
 
+    public function test_rocksdb_session_setup_is_ignored_without_changing_application_rows(): void
+    {
+        $setup = file_get_contents(__DIR__.'/../Fixtures/Backups/rocksdb-session-setup.sql');
+        $reset = file_get_contents(__DIR__.'/../Fixtures/Backups/rocksdb-session-reset.sql');
+        $summary = $this->convert($setup.<<<'SQL'
+CREATE TABLE `records` (`id` bigint NOT NULL, `notes` text, PRIMARY KEY (`id`));
+INSERT INTO `records` VALUES (41,'PREPARE s; EXECUTE s; rocksdb_bulk_load');
+SQL.$reset, ['records']);
+        $this->assertSame(['tables' => 1, 'rows' => 1], $summary);
+        $this->assertSame('PREPARE s; EXECUTE s; rocksdb_bulk_load', $this->database()->query('SELECT notes FROM records WHERE id=41')->fetchColumn());
+    }
+
     #[DataProvider('unsupportedDumpProvider')]
     public function test_it_rejects_unsupported_or_invalid_dumps_and_removes_partial_output(string $sql): void
     {
@@ -120,7 +132,18 @@ SQL);
 
     public static function unsupportedDumpProvider(): array
     {
+        $setup = file_get_contents(__DIR__.'/../Fixtures/Backups/rocksdb-session-setup.sql');
+        $reset = file_get_contents(__DIR__.'/../Fixtures/Backups/rocksdb-session-reset.sql');
+        $table = "\nCREATE TABLE `records` (`id` int); INSERT INTO `records` VALUES (41);\n";
+
         return [
+            'changed RocksDB dynamic SQL' => [str_replace('SELECT 0', 'DROP DATABASE other', $setup).$table.$reset],
+            'changed RocksDB prepared statement name' => [str_replace('PREPARE s FROM @rocksdb_get_is_supported', 'PREPARE other FROM @rocksdb_get_is_supported', $setup).$table.$reset],
+            'missing RocksDB setup statement' => [preg_replace('/\/\*!50717 EXECUTE s \*\/;\s*/', '', $setup, 1).$table.$reset],
+            'missing RocksDB reset' => [$setup.$table],
+            'orphaned RocksDB reset' => [$table.$reset],
+            'arbitrary prepared statement' => ["SET @sql='DROP DATABASE other'; PREPARE s FROM @sql; EXECUTE s;".$table],
+            'unknown SQL after RocksDB reset' => [$setup.$table.$reset."SELECT LOAD_FILE('/etc/passwd');"],
             'truncated insert' => ['CREATE TABLE `x` (`id` int); INSERT INTO `x` VALUES (1'],
             'truncated string' => ["CREATE TABLE `x` (`v` text); INSERT INTO `x` VALUES ('unfinished);"],
             'unknown SQL' => ["CREATE TABLE `x` (`id` int); ATTACH DATABASE '/tmp/unsafe' AS other;"],

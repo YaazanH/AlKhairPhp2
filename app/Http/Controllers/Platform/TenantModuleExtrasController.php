@@ -36,6 +36,7 @@ class TenantModuleExtrasController extends Controller
 
     public function update(Request $request, Tenant $tenant, TenantModuleExtras $extras): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $data = $this->validated($request);
         $previewed = (string) $request->session()->get('platform.tenant_extra_preview.'.$tenant->id, '');
         if (! hash_equals($this->signature($data), $previewed) || ! $request->boolean('confirm_extras')) {

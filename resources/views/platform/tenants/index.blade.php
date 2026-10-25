@@ -10,7 +10,10 @@
             <p class="mt-1 text-zinc-500">{{ __('platform-overview.directory_help') }}</p>
         </div>
         @if(auth('platform')->user()->hasPlatformPermission('manage.tenants'))
-            <a href="{{ route('platform.tenants.index', ['create' => 1]) }}" class="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white">+ {{ __('platform.ui.dashboard.create') }}</a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('platform.tenants.imports.index') }}" class="rounded-xl border border-emerald-700 px-4 py-3 font-medium text-emerald-700">{{ __('tenant-import.import_tenant') }}</a>
+                <a href="{{ route('platform.tenants.index', ['create' => 1]) }}" class="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white">+ {{ __('platform.ui.dashboard.create') }}</a>
+            </div>
         @endif
     </header>
 

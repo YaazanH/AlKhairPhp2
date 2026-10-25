@@ -76,6 +76,7 @@ class TenantManagementController extends Controller
 
     public function updateStorage(Request $request, Tenant $tenant): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $data = $request->validate(['storage_limit_gb' => ['required', 'numeric', 'min:0.1', 'max:100000']]);
         $before = $tenant->storage_limit_bytes;
         $tenant->update(['storage_limit_bytes' => (int) round((float) $data['storage_limit_gb'] * 1024 * 1024 * 1024)]);
@@ -113,6 +114,7 @@ class TenantManagementController extends Controller
 
     public function update(Request $request, Tenant $tenant): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'timezone' => ['nullable', 'timezone'],
@@ -126,6 +128,7 @@ class TenantManagementController extends Controller
 
     public function setStatus(Request $request, Tenant $tenant): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $data = $request->validate(['status' => ['required', Rule::in([Tenant::STATUS_ACTIVE, Tenant::STATUS_SUSPENDED])], 'confirm_slug' => ['required', Rule::in([$tenant->slug])]]);
 
         if ($data['status'] === Tenant::STATUS_ACTIVE) {
@@ -147,6 +150,7 @@ class TenantManagementController extends Controller
 
     public function resetAdministratorPassword(Request $request, Tenant $tenant): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $data = $request->validate(['password' => ['required', 'string', 'min:8', 'confirmed']]);
         abort_unless(filled($tenant->database_name), 422, 'This tenant has not been provisioned yet.');
         $previousDatabase = config('database.connections.tenant.database');
@@ -184,6 +188,7 @@ class TenantManagementController extends Controller
 
     public function destroy(Request $request, Tenant $tenant, TenantResources $resources): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $request->validate(['confirm_slug' => ['required', Rule::in([$tenant->slug])]]);
         $uuid = $tenant->uuid;
         $slug = $tenant->slug;

@@ -20,6 +20,7 @@ class TenantSubscriptionController extends Controller
 
     public function update(Request $request, Tenant $tenant): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $data = $request->validate([
             'plan' => ['required', 'string'],
             'voucher_id' => ['nullable', 'integer', 'exists:landlord.subscription_vouchers,id'],
@@ -59,6 +60,7 @@ class TenantSubscriptionController extends Controller
 
     public function reactivate(Request $request, Tenant $tenant): RedirectResponse
     {
+        abort_if($tenant->hasIncompleteImport(), 422, __('tenant-import.errors.use_import_review'));
         $request->validate(['confirm_slug' => ['required', Rule::in([$tenant->slug])]]);
         abort_unless(
             filled($tenant->database_name) && $tenant->domains()->where('is_primary', true)->exists(),

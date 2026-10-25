@@ -32,6 +32,26 @@ class TenantSetupManager
         }
     }
 
+    public function initialiseImportedTenant(Tenant $tenant, array $usedModules): void
+    {
+        // Apply only the identity preferences explicitly reviewed in the import wizard.
+        $this->inferExistingFoundation($tenant);
+        AppSetting::storeValue('general', 'school_name', $tenant->name);
+        AppSetting::storeValue('general', 'school_timezone', $tenant->timezone);
+        AppSetting::storeValue('general', 'default_locale', $tenant->locale);
+        $states = [];
+        foreach ($usedModules as $code) {
+            if (isset($this->registry->definitions()[$code])) {
+                $states[$code] = $this->readyState($code, 'standalone_import');
+            }
+        }
+        if ($this->foundationIsReady()) {
+            $states['foundation'] = $this->readyState('foundation', 'standalone_import');
+        }
+        AppSetting::storeValue(self::GROUP, 'managed', true, 'boolean');
+        $this->storeStates($states);
+    }
+
     public function summary(Tenant $tenant): array
     {
         $enabled = $this->moduleAccess->snapshot($tenant)['enabled'];

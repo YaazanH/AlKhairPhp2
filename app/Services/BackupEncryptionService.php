@@ -18,11 +18,13 @@ class BackupEncryptionService
 
     private const OPENSSL_TAG_BYTES = 16;
 
-    public function encrypt(string $sourcePath, string $destinationPath): array
+    public function encrypt(string $sourcePath, string $destinationPath, #[SensitiveParameter] ?string $applicationKey = null, bool $portable = false): array
     {
-        return $this->supportsSodium()
-            ? $this->encryptWithSodium($sourcePath, $destinationPath)
-            : $this->encryptWithOpenSsl($sourcePath, $destinationPath);
+        $key = $this->key($applicationKey);
+
+        return ! $portable && $this->supportsSodium()
+            ? $this->encryptWithSodium($sourcePath, $destinationPath, $key)
+            : $this->encryptWithOpenSsl($sourcePath, $destinationPath, $key);
     }
 
     public function decrypt(string $sourcePath, string $destinationPath, #[SensitiveParameter] ?string $applicationKey = null): void
@@ -40,6 +42,9 @@ class BackupEncryptionService
         }
 
         if (hash_equals(self::SODIUM_MAGIC, $magic)) {
+            if (! $this->supportsSodium()) {
+                throw new RuntimeException('backup_sodium_unavailable');
+            }
             $this->decryptWithSodium($sourcePath, $destinationPath, $this->key($applicationKey));
 
             return;
@@ -54,8 +59,9 @@ class BackupEncryptionService
         throw new RuntimeException('This is not a supported Alkhair backup file.');
     }
 
-    private function encryptWithSodium(string $sourcePath, string $destinationPath): array
+    private function encryptWithSodium(string $sourcePath, string $destinationPath, #[SensitiveParameter] ?string $key = null): array
     {
+        $key ??= $this->key();
         $source = fopen($sourcePath, 'rb');
         $destination = fopen($destinationPath, 'xb');
 
@@ -71,7 +77,7 @@ class BackupEncryptionService
         }
 
         try {
-            [$state, $header] = sodium_crypto_secretstream_xchacha20poly1305_init_push($this->key());
+            [$state, $header] = sodium_crypto_secretstream_xchacha20poly1305_init_push($key);
             $this->writeAll($destination, self::SODIUM_MAGIC.$header);
 
             $chunkSize = max(64 * 1024, (int) config('backups.encryption_chunk_size', 1024 * 1024));
@@ -219,8 +225,9 @@ class BackupEncryptionService
         );
     }
 
-    private function encryptWithOpenSsl(string $sourcePath, string $destinationPath): array
+    private function encryptWithOpenSsl(string $sourcePath, string $destinationPath, #[SensitiveParameter] ?string $key = null): array
     {
+        $key ??= $this->key();
         $source = fopen($sourcePath, 'rb');
         $destination = fopen($destinationPath, 'xb');
 
@@ -253,13 +260,13 @@ class BackupEncryptionService
                     throw new RuntimeException('Unable to continue reading the backup archive.');
                 }
 
-                $this->writeOpenSslFrame($destination, $current, $noncePrefix, $counter, $next === '');
+                $this->writeOpenSslFrame($destination, $current, $noncePrefix, $counter, $next === '', $key);
                 $counter++;
                 $current = $next;
             }
 
             if ($counter === 0) {
-                $this->writeOpenSslFrame($destination, '', $noncePrefix, $counter, true);
+                $this->writeOpenSslFrame($destination, '', $noncePrefix, $counter, true, $key);
             }
         } finally {
             fclose($source);
@@ -358,13 +365,13 @@ class BackupEncryptionService
         }
     }
 
-    private function writeOpenSslFrame($destination, string $plaintext, string $noncePrefix, int $counter, bool $isFinalFrame): void
+    private function writeOpenSslFrame($destination, string $plaintext, string $noncePrefix, int $counter, bool $isFinalFrame, #[SensitiveParameter] string $key): void
     {
         $tag = '';
         $ciphertext = openssl_encrypt(
             $plaintext,
             'aes-256-gcm',
-            $this->key(),
+            $key,
             OPENSSL_RAW_DATA,
             $noncePrefix.pack('N', $counter),
             $tag,

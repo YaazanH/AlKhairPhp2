@@ -36,6 +36,7 @@ use App\Http\Controllers\Platform\SubscriptionReceiptController;
 use App\Http\Controllers\Platform\SubscriptionVoucherController;
 use App\Http\Controllers\Platform\TenantBackupController as PlatformTenantBackupController;
 use App\Http\Controllers\Platform\TenantDirectoryController;
+use App\Http\Controllers\Platform\TenantImportController;
 use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TenantModuleExtrasController;
 use App\Http\Controllers\Platform\TenantProvisioningController;
@@ -148,6 +149,20 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('packages/{plan}/duplicate', [PlanManagementController::class, 'duplicate'])->middleware('platform.permission:manage.plans')->name('plans.duplicate');
         Route::patch('packages/{plan}/status', [PlanManagementController::class, 'setStatus'])->middleware('platform.permission:manage.plans')->name('plans.status');
         Route::delete('packages/{plan}', [PlanManagementController::class, 'destroy'])->middleware('platform.permission:manage.plans')->name('plans.destroy');
+        Route::prefix('tenants/imports')->name('tenants.imports.')->middleware('platform.permission:manage.tenants')->group(function (): void {
+            Route::get('/', [TenantImportController::class, 'index'])->name('index');
+            Route::post('/', [TenantImportController::class, 'start'])->name('start');
+            Route::get('export-tool', [TenantImportController::class, 'exporter'])->name('exporter');
+            Route::get('{operation}', [TenantImportController::class, 'show'])->name('show');
+            Route::post('{operation}/allow-missing-files', [TenantImportController::class, 'allowMissingFiles'])->name('allow-missing-files');
+            Route::get('{operation}/status', [TenantImportController::class, 'status'])->name('status');
+            Route::put('{operation}/chunks/{index}', [TenantImportController::class, 'chunk'])->whereNumber('index')->name('chunk');
+            Route::post('{operation}/validate', [TenantImportController::class, 'validateUpload'])->name('validate');
+            Route::post('{operation}/preview', [TenantImportController::class, 'preview'])->name('preview');
+            Route::post('{operation}/prepare', [TenantImportController::class, 'prepare'])->name('prepare');
+            Route::post('{operation}/activate', [TenantImportController::class, 'activate'])->name('activate');
+            Route::delete('{operation}', [TenantImportController::class, 'cancel'])->name('cancel');
+        });
         Route::post('tenants', [TenantProvisioningController::class, 'store'])->middleware('platform.permission:manage.tenants')->name('tenants.store');
         Route::get('tenants/create', [TenantManagementController::class, 'create'])->middleware('platform.permission:manage.tenants')->name('tenants.create');
         Route::get('tenants/{tenant}/edit', [TenantManagementController::class, 'edit'])->middleware('platform.permission:view.tenants')->name('tenants.edit');

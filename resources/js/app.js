@@ -10,6 +10,7 @@ import { debounceSearch } from './search-debounce';
 import { closeOtherCurriculumDetailsTables } from './curriculum-details-accordion';
 import { groupOptionColumns, fitGroupOptionColumnWidths, widestGroupOptionColumnWidths, stableGroupOptionRowWidth, fitGroupOptionText, containedGroupMenu, visibleMenuTrigger } from './group-option-layout';
 import './offline-attendance';
+import './tenant-import';
 
 window.addressInput = addressInput;
 

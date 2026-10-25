@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('saas:recover-imports')->everyMinute()->withoutOverlapping();
+
 Schedule::command('attendance:prune-courseless')
     ->everyMinute()
     ->withoutOverlapping();
