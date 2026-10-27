@@ -14,6 +14,7 @@ return [
             'description' => 'Use a clear headshot or profile image for dashboards and reports.',
             'empty' => 'No photo uploaded',
             'upload' => 'Upload photo',
+            'uploading' => 'Uploading photo...',
             'save' => 'Save photo',
             'remove' => 'Remove photo',
             'readonly' => 'You can view the student photo, but you do not have permission to change it.',

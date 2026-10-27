@@ -95,7 +95,7 @@ new class extends Component
 
     public string $photo_path = '';
 
-    public $quick_photo_upload = null;
+    public array $quick_photo_uploads = [];
 
     public string $status = 'active';
 
@@ -1258,7 +1258,7 @@ new class extends Component
         $this->external_memorized_juz_ids = [];
         $this->external_memorized_juz_input = '';
         $this->photo_path = '';
-        $this->quick_photo_upload = null;
+        $this->quick_photo_uploads = [];
         $this->status = 'active';
         $this->joined_at = '';
         $this->notes = '';
@@ -1516,21 +1516,24 @@ new class extends Component
         $this->resetValidation('quick_parent_new_father_work');
     }
 
-    public function uploadStudentPhoto(int $studentId): void
+    public function updatedQuickPhotoUploads(mixed $upload, ?string $studentId): void
     {
         $this->authorizePermission('students.photo.update');
+        abort_unless(ctype_digit((string) $studentId) && (int) $studentId > 0, 404);
         $student = Student::query()->findOrFail($studentId);
         $this->authorizeScopedStudentAccess($student);
 
+        $field = 'quick_photo_uploads.'.$studentId;
         $validated = $this->validate([
-            'quick_photo_upload' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
-        ]);
-        $path = $validated['quick_photo_upload']->store('students/photos/'.$student->id, 'public');
+            $field => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.image_max_kb')],
+        ], [], [$field => __('media.student_files.photo.title')]);
+        $path = data_get($validated, $field)->store('students/photos/'.$student->id, 'public');
         if ($student->photo_path) {
             Storage::disk('public')->delete($student->photo_path);
         }
         $student->update(['photo_path' => $path]);
-        $this->reset('quick_photo_upload');
+        $this->quick_photo_uploads[$studentId] = null;
+        $this->resetValidation($field);
         session()->flash('status', __('media.student_files.messages.photo_updated'));
     }
 
@@ -2113,7 +2116,7 @@ new class extends Component
                                     default => 'status-chip status-chip--slate',
                                 };
                             @endphp
-                            <tr>
+                            <tr wire:key="student-row-{{ $student->id }}">
 
                                 <td class="table-cell-name px-5 py-4 lg:px-6">
                                     <div class="student-inline">
@@ -2145,10 +2148,16 @@ new class extends Component
                                                 @endif
                                             @endcan
                                             @can('students.photo.update')
-                                                <label class="admin-icon-button cursor-pointer" title="{{ __('media.student_files.photo.upload') }}" aria-label="{{ __('media.student_files.photo.upload') }}">
-                                                    <x-admin-action-icon name="camera" />
-                                                    <input wire:model="quick_photo_upload" wire:change="uploadStudentPhoto({{ $student->id }})" type="file" accept="image/*" capture="environment" class="sr-only">
-                                                </label>
+                                                <div class="flex flex-col items-center gap-1" data-student-photo-upload="{{ $student->id }}">
+                                                    <label class="admin-icon-button cursor-pointer" title="{{ __('media.student_files.photo.upload') }}" aria-label="{{ __('media.student_files.photo.upload') }}" wire:loading.class="opacity-50" wire:target="quick_photo_uploads.{{ $student->id }}">
+                                                        <x-admin-action-icon name="camera" />
+                                                        <input wire:key="student-photo-upload-{{ $student->id }}" wire:model="quick_photo_uploads.{{ $student->id }}" wire:loading.attr="disabled" wire:target="quick_photo_uploads.{{ $student->id }}" type="file" accept="image/*" capture="environment" class="sr-only">
+                                                    </label>
+                                                    <span wire:loading wire:target="quick_photo_uploads.{{ $student->id }}" role="status" class="text-xs text-neutral-300">{{ __('media.student_files.photo.uploading') }}</span>
+                                                    @error('quick_photo_uploads.'.$student->id)
+                                                        <p role="alert" class="max-w-40 whitespace-normal text-xs text-red-400">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
                                             @endcan
                                             @can('students.update')
                                                 <button type="button" wire:click="edit({{ $student->id }})" class="admin-icon-button" title="{{ __('crud.common.actions.edit') }}" aria-label="{{ __('crud.common.actions.edit') }}">
