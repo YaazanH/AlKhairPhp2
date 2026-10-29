@@ -114,7 +114,7 @@ new class extends Component
     {
         $baseQuery = $this->scopeTeachersQuery(Teacher::query());
         $filteredQuery = $this->scopeTeachersQuery(Teacher::query())
-            ->with(['accessRole', 'course', 'user'])
+            ->with(['accessRole', 'course', 'user.roles'])
             ->when(filled($this->search), function ($query) {
                 ArabicSearch::whereAllTokens($query, $this->search, function ($builder, string $token): void {
                     $search = '%'.$token.'%';
@@ -174,6 +174,19 @@ new class extends Component
                 ->groupBy(fn (Permission $permission): string => $this->permissionGroupLabel($permission->name)),
             'courses' => Course::query()->where('is_active', true)->orderBy('name')->get(),
         ];
+    }
+
+    protected function assignedRolesLabel(Teacher $teacher): string
+    {
+        return RoleRegistry::sortCollection($teacher->user?->roles ?? collect())
+            ->map(function (Role $role): string {
+                $translated = __('ui.roles.'.$role->name);
+
+                return $translated === 'ui.roles.'.$role->name
+                    ? Str::of($role->name)->replace('_', ' ')->headline()->toString()
+                    : $translated;
+            })
+            ->implode(' · ') ?: __('crud.common.not_available');
     }
 
     public function updatedSearch(): void
@@ -831,14 +844,6 @@ new class extends Component
         @else
             <div class="responsive-records-mobile">
                 @foreach ($teachers as $teacher)
-                    @php
-                        $accessRoleName = $teacher->accessRole?->name;
-                        $accessRoleLabel = $accessRoleName
-                            ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
-                                ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
-                                : __('ui.roles.'.$accessRoleName))
-                            : __('crud.common.not_available');
-                    @endphp
                     <article class="mobile-record-card">
                         <div class="mobile-record-card__header">
                             <div class="student-inline min-w-0">
@@ -860,7 +865,7 @@ new class extends Component
                             </div>
                             <div>
                                 <dt>{{ __('crud.teachers.table.headers.access_role') }}</dt>
-                                <dd>{{ $accessRoleLabel }}</dd>
+                                <dd data-teacher-roles="{{ $teacher->id }}">{{ $this->assignedRolesLabel($teacher) }}</dd>
                             </div>
                             <div class="mobile-record-card__detail--wide">
                                 <dt>{{ __('crud.teachers.table.headers.helping') }}</dt>
@@ -907,14 +912,6 @@ new class extends Component
                     </thead>
                     <tbody class="divide-y divide-white/6">
                         @foreach ($teachers as $teacher)
-                            @php
-                                $accessRoleName = $teacher->accessRole?->name;
-                                $accessRoleLabel = $accessRoleName
-                                    ? ((__('ui.roles.'.$accessRoleName) === 'ui.roles.'.$accessRoleName)
-                                        ? \Illuminate\Support\Str::of($accessRoleName)->replace('_', ' ')->headline()->toString()
-                                        : __('ui.roles.'.$accessRoleName))
-                                    : __('crud.common.not_available');
-                            @endphp
                             <tr>
 
                                 <td class="table-cell-name px-5 py-4 lg:px-6">
@@ -927,7 +924,7 @@ new class extends Component
                                     </div>
                                 </td>
                                 <td class="table-cell-compact px-5 py-4 text-neutral-300 lg:px-6"><bdi dir="ltr" class="record-phone inline-block">{{ $teacher->phone }}</bdi></td>
-                                <td class="px-5 py-4 text-neutral-300 lg:px-6">{{ $accessRoleLabel }}</td>
+                                <td class="px-5 py-4 text-neutral-300 lg:px-6" data-teacher-roles="{{ $teacher->id }}">{{ $this->assignedRolesLabel($teacher) }}</td>
                                 <td class="table-cell-compact px-5 py-4 lg:px-6">
                                     @can('teachers.update')
                                         <button type="button" wire:click="toggleHelping({{ $teacher->id }})" class="{{ $teacher->is_helping ? 'status-chip status-chip--emerald' : 'status-chip status-chip--slate' }}">

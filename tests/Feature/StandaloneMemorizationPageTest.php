@@ -112,7 +112,9 @@ class StandaloneMemorizationPageTest extends TestCase
         [, $teacher, $enrollment] = $this->teacherMemorizationContext();
 
         Volt::test('memorization.index')
+            ->assertSee('data-memorization-create-action', false)
             ->call('openCreateModal')
+            ->assertSet('showFormModal', true)
             ->assertDontSee('memorization-enrollment', false)
             ->assertDontSee('memorization-notes', false)
             ->set('selectedStudentId', $enrollment->student_id)
@@ -131,6 +133,19 @@ class StandaloneMemorizationPageTest extends TestCase
             'to_page' => 13,
             'pages_count' => 3,
         ]);
+    }
+
+    public function test_workbench_hides_add_button_and_forbids_creation_without_recording_permission(): void
+    {
+        [$user] = $this->teacherMemorizationContext();
+        $user->syncRoles([]);
+        $user->syncPermissions(['memorization.view']);
+
+        Volt::test('memorization.index')
+            ->assertDontSee('data-memorization-create-action', false)
+            ->assertSet('showFormModal', false)
+            ->call('openCreateModal')
+            ->assertForbidden();
     }
 
     public function test_teacher_workbench_automatically_uses_the_newest_active_enrollment(): void

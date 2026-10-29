@@ -580,7 +580,12 @@ new class extends Component
                     </select>
                 </div>
 
-                </div>
+                @can('memorization.record')
+                    <div class="admin-toolbar__actions">
+                        <x-add-action-button wire:click="openCreateModal" :label="__('workflow.memorization.workbench.create')" data-memorization-create-action />
+                    </div>
+                @endcan
+            </div>
         </div>
 
         @if ($sessions->isEmpty())
