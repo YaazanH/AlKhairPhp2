@@ -315,6 +315,7 @@ return [
         'attendance.teacher.view' => 'View teacher attendance',
         'attendance.teacher.take' => 'Record teacher attendance',
         'memorization.view' => 'View memorisation',
+        'memorization.create' => 'Add memorisation from the records page',
         'memorization.record' => 'Record memorisation',
         'memorization.override-duplicate-page' => 'Override duplicate memorised-page protection',
         'quran-partial-tests.view' => 'View Quran partial sabers',

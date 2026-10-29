@@ -193,7 +193,7 @@ new class extends Component
 
     public function openCreateModal(): void
     {
-        $this->authorizePermission('memorization.record');
+        $this->authorizePermission('memorization.create');
         OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
 
         $this->resetForm();
@@ -232,7 +232,7 @@ new class extends Component
 
     public function save(): void
     {
-        $this->authorizePermission('memorization.record');
+        $this->authorizePermission($this->editingSessionId ? 'memorization.record' : 'memorization.create');
 
         if (! $this->editingSessionId) {
             OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
@@ -355,7 +355,7 @@ new class extends Component
 
     public function confirmDuplicateSave(): void
     {
-        $this->authorizePermission('memorization.record');
+        $this->authorizePermission($this->pendingSessionId ? 'memorization.record' : 'memorization.create');
 
         if ($this->pendingMemorizationPayload === [] || ! $this->pendingEnrollmentId) {
             return;
@@ -580,7 +580,7 @@ new class extends Component
                     </select>
                 </div>
 
-                @can('memorization.record')
+                @can('memorization.create')
                     <div class="admin-toolbar__actions">
                         <x-add-action-button wire:click="openCreateModal" :label="__('workflow.memorization.workbench.create')" data-memorization-create-action />
                     </div>

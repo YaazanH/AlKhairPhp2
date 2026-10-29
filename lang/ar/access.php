@@ -315,6 +315,7 @@ return [
         'attendance.teacher.view' => 'عرض دوام الاساتذة',
         'attendance.teacher.take' => 'تسجيل دوام الاساتذة',
         'memorization.view' => 'عرض الحفظ',
+        'memorization.create' => 'إضافة حفظ من صفحة السجلات',
         'memorization.record' => 'تسجيل الحفظ',
         'memorization.override-duplicate-page' => 'تجاوز منع تكرار صفحة محفوظة',
         'quran-partial-tests.view' => 'عرض السبورة الجزئية للقرآن',

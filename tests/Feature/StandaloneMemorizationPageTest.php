@@ -135,17 +135,101 @@ class StandaloneMemorizationPageTest extends TestCase
         ]);
     }
 
-    public function test_workbench_hides_add_button_and_forbids_creation_without_recording_permission(): void
+    public function test_workbench_hides_add_button_and_forbids_creation_without_create_permission(): void
     {
         [$user] = $this->teacherMemorizationContext();
         $user->syncRoles([]);
-        $user->syncPermissions(['memorization.view']);
+        $user->syncPermissions(['memorization.view', 'memorization.record']);
 
         Volt::test('memorization.index')
             ->assertDontSee('data-memorization-create-action', false)
             ->assertSet('showFormModal', false)
             ->call('openCreateModal')
             ->assertForbidden();
+
+        Volt::test('memorization.index')->call('save')->assertForbidden();
+        Volt::test('memorization.index')->call('saveAndNew')->assertForbidden();
+        Volt::test('memorization.index')->call('confirmDuplicateSave')->assertForbidden();
+        $this->assertDatabaseCount('memorization_sessions', 0);
+    }
+
+    public function test_list_create_permission_allows_saving_without_quick_entry_access(): void
+    {
+        [$user, , $enrollment] = $this->teacherMemorizationContext();
+        $user->syncRoles([]);
+        $user->syncPermissions(['memorization.view', 'memorization.create']);
+
+        $this->get(route('memorization.quick-entry'))->assertForbidden();
+        Volt::test('memorization.quick-entry')->assertForbidden();
+
+        Volt::test('memorization.index')
+            ->assertSee('data-memorization-create-action', false)
+            ->call('openCreateModal')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '11')->set('to_page', '13')
+            ->call('saveAndNew')->assertHasNoErrors()
+            ->assertSet('showFormModal', true);
+
+        $session = $enrollment->memorizationSessions()->sole();
+        $this->assertSame(3, $session->pages_count);
+        Volt::test('memorization.index')->call('editSession', $session->id)->assertForbidden();
+        Volt::test('memorization.index')->call('deleteSession', $session->id)->assertForbidden();
+    }
+
+    public function test_quick_entry_and_existing_edits_work_without_list_create_permission(): void
+    {
+        [$user, , $enrollment] = $this->teacherMemorizationContext();
+        $user->revokePermissionTo('memorization.create');
+        $this->assertFalse($user->can('memorization.create'));
+
+        Volt::test('memorization.quick-entry')
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('selectedJuzNumber', 30)->set('selectedPages', [582])
+            ->call('save')->assertHasNoErrors();
+
+        $session = $enrollment->memorizationSessions()->sole();
+        Volt::test('memorization.index')
+            ->assertDontSee('data-memorization-create-action', false)
+            ->call('editSession', $session->id)
+            ->set('recorded_on', '2026-09-03')
+            ->call('save')->assertHasNoErrors();
+        $this->assertSame('2026-09-03', $session->fresh()->recorded_on->format('Y-m-d'));
+
+        $editor = Volt::test('memorization.quick-entry')->set('selectedStudentId', $enrollment->student_id);
+        $user->syncRoles([]);
+        $user->syncPermissions(['memorization.view', 'memorization.create']);
+        $editor->call('save')->assertForbidden();
+        Volt::test('memorization.quick-entry')->assertForbidden();
+        $this->assertDatabaseCount('memorization_sessions', 1);
+    }
+
+    public function test_list_duplicate_confirmation_rechecks_the_separate_create_permission(): void
+    {
+        [$user, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id, 'recorded_on' => now()->toDateString(),
+            'entry_type' => 'new', 'from_page' => 11, 'to_page' => 13,
+        ]);
+        $user->syncRoles([]);
+        $user->syncPermissions(['memorization.view', 'memorization.create']);
+
+        $editor = Volt::test('memorization.index')
+            ->call('openCreateModal')->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '12')->set('to_page', '14')
+            ->call('save')->assertHasNoErrors()->assertSet('showDuplicateModal', true);
+
+        $user->syncPermissions(['memorization.view', 'memorization.record']);
+        $editor->call('confirmDuplicateSave')->assertForbidden();
+        $this->assertDatabaseCount('memorization_sessions', 1);
+
+        $user->syncPermissions(['memorization.view', 'memorization.create']);
+        Volt::test('memorization.index')
+            ->call('openCreateModal')->set('selectedStudentId', $enrollment->student_id)
+            ->set('from_page', '12')->set('to_page', '14')
+            ->call('save')->assertHasNoErrors()->assertSet('showDuplicateModal', true)
+            ->call('confirmDuplicateSave')->assertHasNoErrors();
+        $this->assertDatabaseCount('memorization_sessions', 2);
+        $this->assertSame(14, $enrollment->memorizationSessions()->latest('id')->firstOrFail()->from_page);
     }
 
     public function test_teacher_workbench_automatically_uses_the_newest_active_enrollment(): void
@@ -842,6 +926,7 @@ class StandaloneMemorizationPageTest extends TestCase
             'phone' => '0998111000',
         ]);
         $teacherUser->assignRole('teacher');
+        $teacherUser->givePermissionTo('memorization.create');
 
         $teacher = Teacher::create([
             'user_id' => $teacherUser->id,
