@@ -117,6 +117,7 @@ class EnsureTenantModules
             'points.' => 'points_rewards',
             'settings.points' => 'points_rewards',
             'settings.tracking' => 'points_rewards',
+            'settings.assessment-types' => 'assessments',
             'curricula.' => 'curriculum',
             'curriculum-resources.' => 'curriculum',
             'settings.curriculum-subjects' => 'curriculum',
@@ -132,6 +133,11 @@ class EnsureTenantModules
             if ($route === $prefix || str_starts_with($route, $prefix)) {
                 $modules[] = $module;
             }
+        }
+
+        if ($route === 'settings.attendance-statuses') {
+            $access = app(CurrentModuleAccess::class);
+            abort_unless($access->enabled('student_attendance') || $access->enabled('teacher_attendance'), 403);
         }
 
         if ($route === 'groups.attendance') {

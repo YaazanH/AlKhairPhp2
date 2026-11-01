@@ -12,6 +12,9 @@
         && auth()->user()?->can('barcode-actions.view')
         && (bool) (\App\Models\AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
     $showPointsSettings = app(\App\Services\Landlord\CurrentModuleAccess::class)->enabled('points_rewards');
+    $moduleAccess = app(\App\Services\Landlord\CurrentModuleAccess::class);
+    $showAttendanceSettings = $moduleAccess->enabled('student_attendance') || $moduleAccess->enabled('teacher_attendance');
+    $showAssessmentSettings = $moduleAccess->enabled('assessments');
 @endphp
 
 <div class="surface-panel p-4">
@@ -30,6 +33,16 @@
                     </a>
                 @endif
                 @can('settings.manage')
+                    @if ($showAttendanceSettings)
+                        <a href="{{ route('settings.attendance-statuses') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.attendance-statuses' ? 'is-active' : '' }}">
+                            <span class="settings-tab__title">{{ __('settings.tracking.sections.attendance_status.table') }}</span>
+                        </a>
+                    @endif
+                    @if ($showAssessmentSettings)
+                        <a href="{{ route('settings.assessment-types') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.assessment-types' ? 'is-active' : '' }}">
+                            <span class="settings-tab__title">{{ __('settings.tracking.sections.assessment_type.table') }}</span>
+                        </a>
+                    @endif
                     @if ($showPointsSettings)
                         <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
                             <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>

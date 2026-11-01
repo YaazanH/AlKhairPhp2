@@ -7,6 +7,7 @@ use App\Models\GradeLevel;
 use App\Models\PointPolicy;
 use App\Models\PointTransaction;
 use App\Models\PointType;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\PointLedgerService;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranPartialTestRuleService;
@@ -87,6 +88,7 @@ new class extends Component
     public function mount(bool $embedded = false): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
         $this->embedded = $embedded;
         $settings = AppSetting::groupValues('points');
         $storedMultiplier = (string) ($settings->get('automatic_multiplier') ?? 2);
@@ -99,6 +101,7 @@ new class extends Component
     public function deletePointPolicy(int $pointPolicyId): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $pointPolicy = PointPolicy::query()->findOrFail($pointPolicyId);
 
@@ -117,9 +120,16 @@ new class extends Component
         session()->flash('status', __('settings.points.messages.point_policy_deleted'));
     }
 
+    public function hydrate(): void
+    {
+        $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
+    }
+
     public function deletePointType(int $pointTypeId): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $pointType = PointType::query()->withCount(['assessmentScoreBands', 'policies', 'transactions'])->findOrFail($pointTypeId);
 
@@ -141,6 +151,7 @@ new class extends Component
     public function editPointPolicy(int $pointPolicyId): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $pointPolicy = PointPolicy::query()->findOrFail($pointPolicyId);
 
@@ -167,6 +178,7 @@ new class extends Component
     public function editPointType(int $pointTypeId): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $pointType = PointType::query()->findOrFail($pointTypeId);
 
@@ -186,6 +198,7 @@ new class extends Component
     public function openPointTypeModal(): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
         $this->cancelPointType();
         $this->showPointTypeModal = true;
     }
@@ -198,6 +211,7 @@ new class extends Component
     public function openPointPolicyModal(): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
         $this->cancelPointPolicy();
         $this->showPointPolicyModal = true;
     }
@@ -252,6 +266,7 @@ new class extends Component
     public function savePointPolicy(): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $validated = $this->validate($this->pointPolicyRules());
         [$sourceType, $triggerKey] = $validated['point_policy_rule_key'] !== ''
@@ -300,6 +315,7 @@ new class extends Component
     public function savePointType(): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         if (! in_array($this->point_type_category, $this->pointTypeCategories, true)) {
             $this->point_type_category = $this->point_type_allow_manual_entry ? 'ManualEntry' : 'Automatic';
@@ -342,6 +358,7 @@ new class extends Component
     public function saveAutomaticMultiplier(): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $validated = $this->validate([
             'automatic_multiplier' => ['required', 'in:1.5,2,2.5,3'],
@@ -359,6 +376,7 @@ new class extends Component
     public function saveSaberRules(): void
     {
         $this->authorizePermission('settings.manage');
+        app(CurrentModuleAccess::class)->ensure('points_rewards');
 
         $validated = $this->validate([
             'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],

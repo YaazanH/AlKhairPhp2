@@ -8,15 +8,20 @@ use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
 use App\Models\QuranTest;
 use App\Models\QuranTestType;
+use App\Services\Landlord\CurrentModuleAccess;
 use App\Services\QuranFinalTestRuleService;
 use App\Services\QuranPartialTestRuleService;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
 
 new class extends Component
 {
     use AuthorizesPermissions;
     use SupportsCreateAndNew;
+
+    #[Locked]
+    public string $section = 'all';
 
     protected array $reservedQuranTestTypeCodes = ['partial'];
 
@@ -68,11 +73,54 @@ new class extends Component
 
     public string $final_test_passed_from = '60';
 
-    public function mount(): void
+    public function mount(string $section = 'all'): void
     {
         $this->authorizePermission('settings.manage');
-        $this->loadPartialTestRuleSettings();
-        $this->loadFinalTestRuleSettings();
+        abort_unless(in_array($section, ['all', 'attendance', 'assessments'], true), 404);
+        $this->section = $section;
+        if ($section === 'attendance') {
+            $this->authorizeAttendanceSettings();
+        } elseif ($section === 'assessments') {
+            $this->authorizeAssessmentSettings();
+        } else {
+            app(CurrentModuleAccess::class)->ensure('points_rewards');
+            $this->loadPartialTestRuleSettings();
+            $this->loadFinalTestRuleSettings();
+        }
+    }
+
+    public function hydrate(): void
+    {
+        if ($this->section === 'attendance') {
+            $this->authorizeAttendanceSettings();
+        } elseif ($this->section === 'assessments') {
+            $this->authorizeAssessmentSettings();
+        } else {
+            $this->authorizePermission('settings.manage');
+            app(CurrentModuleAccess::class)->ensure('points_rewards');
+        }
+    }
+
+    protected function authorizeAttendanceSettings(): void
+    {
+        $this->authorizePermission('settings.manage');
+        abort_unless(in_array($this->section, ['all', 'attendance'], true), 403);
+        $access = app(CurrentModuleAccess::class);
+        abort_unless($access->enabled('student_attendance') || $access->enabled('teacher_attendance'), 403);
+    }
+
+    protected function authorizeAssessmentSettings(): void
+    {
+        $this->authorizePermission('settings.manage');
+        abort_unless(in_array($this->section, ['all', 'assessments'], true), 403);
+        app(CurrentModuleAccess::class)->ensure('assessments');
+    }
+
+    protected function authorizeQuranSettings(): void
+    {
+        $this->authorizePermission('settings.manage');
+        abort_unless($this->section === 'all', 403);
+        app(CurrentModuleAccess::class)->ensure('quran_tests');
     }
 
     public function attendanceStatusRules(): array
@@ -85,7 +133,7 @@ new class extends Component
                 Rule::unique('attendance_statuses', 'code')->ignore($this->attendance_status_editing_id),
             ],
             'attendance_status_color' => ['nullable', 'string', 'max:32'],
-            'attendance_status_default_points' => ['required', 'integer'],
+            'attendance_status_default_points' => app(CurrentModuleAccess::class)->enabled('points_rewards') ? ['required', 'integer'] : ['exclude'],
             'attendance_status_is_active' => ['boolean'],
             'attendance_status_is_default' => ['boolean'],
             'attendance_status_is_present' => ['boolean'],
@@ -111,7 +159,7 @@ new class extends Component
 
     public function deleteAssessmentType(int $assessmentTypeId): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAssessmentSettings();
 
         $assessmentType = AssessmentType::query()->findOrFail($assessmentTypeId);
 
@@ -132,7 +180,7 @@ new class extends Component
 
     public function deleteAttendanceStatus(int $attendanceStatusId): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAttendanceSettings();
 
         $attendanceStatus = AttendanceStatus::query()->findOrFail($attendanceStatusId);
         $wasDefault = $attendanceStatus->is_default;
@@ -156,7 +204,7 @@ new class extends Component
 
     public function deleteQuranTestType(int $quranTestTypeId): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
 
         $quranTestType = QuranTestType::query()->findOrFail($quranTestTypeId);
 
@@ -177,7 +225,7 @@ new class extends Component
 
     public function editAssessmentType(int $assessmentTypeId): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAssessmentSettings();
 
         $assessmentType = AssessmentType::query()->findOrFail($assessmentTypeId);
 
@@ -193,7 +241,7 @@ new class extends Component
 
     public function editAttendanceStatus(int $attendanceStatusId): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAttendanceSettings();
 
         $attendanceStatus = AttendanceStatus::query()->findOrFail($attendanceStatusId);
 
@@ -201,7 +249,7 @@ new class extends Component
         $this->attendance_status_name = $attendanceStatus->name;
         $this->attendance_status_code = $attendanceStatus->code;
         $this->attendance_status_scope = $attendanceStatus->scope;
-        $this->attendance_status_default_points = (string) $attendanceStatus->default_points;
+        $this->attendance_status_default_points = app(CurrentModuleAccess::class)->enabled('points_rewards') ? (string) $attendanceStatus->default_points : '0';
         $this->attendance_status_color = $attendanceStatus->color ?? '';
         $this->attendance_status_is_present = $attendanceStatus->is_present;
         $this->attendance_status_is_default = $attendanceStatus->is_default;
@@ -213,7 +261,7 @@ new class extends Component
 
     public function editQuranTestType(int $quranTestTypeId): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
 
         $quranTestType = QuranTestType::query()->findOrFail($quranTestTypeId);
 
@@ -229,7 +277,7 @@ new class extends Component
 
     public function openAttendanceStatusModal(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAttendanceSettings();
         $this->cancelAttendanceStatus();
         $this->showAttendanceStatusModal = true;
     }
@@ -241,7 +289,7 @@ new class extends Component
 
     public function openAssessmentTypeModal(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAssessmentSettings();
         $this->cancelAssessmentType();
         $this->showAssessmentTypeModal = true;
     }
@@ -253,7 +301,7 @@ new class extends Component
 
     public function openQuranTestTypeModal(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
         $this->cancelQuranTestType();
         $this->showQuranTestTypeModal = true;
     }
@@ -281,7 +329,7 @@ new class extends Component
 
     public function saveAssessmentType(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAssessmentSettings();
 
         $validated = $this->validate($this->assessmentTypeRules());
 
@@ -306,7 +354,7 @@ new class extends Component
 
     public function saveAttendanceStatus(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeAttendanceSettings();
 
         $validated = $this->validate($this->attendanceStatusRules());
 
@@ -336,7 +384,8 @@ new class extends Component
             [
                 'code' => $validated['attendance_status_code'],
                 'color' => blank($validated['attendance_status_color']) ? null : $validated['attendance_status_color'],
-                'default_points' => (int) $validated['attendance_status_default_points'],
+                ...($this->attendance_status_editing_id ? [] : ['default_points' => 0]),
+                ...(app(CurrentModuleAccess::class)->enabled('points_rewards') ? ['default_points' => (int) $validated['attendance_status_default_points']] : []),
                 'is_active' => $validated['attendance_status_is_active'],
                 'is_default' => $validated['attendance_status_is_default'],
                 'is_present' => $validated['attendance_status_is_present'],
@@ -362,7 +411,7 @@ new class extends Component
 
     public function saveQuranTestType(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
 
         if (in_array(mb_strtolower(trim($this->quran_test_type_code)), $this->reservedQuranTestTypeCodes, true)) {
             $this->addError('quran_test_type_code', __('settings.tracking.errors.quran_test_type_reserved'));
@@ -393,7 +442,7 @@ new class extends Component
 
     public function savePartialTestRules(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
 
         $validated = $this->validate([
             'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],
@@ -408,7 +457,7 @@ new class extends Component
 
     public function saveFinalTestRules(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
 
         $validated = $this->validate([
             'final_test_passed_from' => ['required', 'numeric', 'min:0.01', 'max:100'],
@@ -424,7 +473,7 @@ new class extends Component
 
     public function saveSaberRules(): void
     {
-        $this->authorizePermission('settings.manage');
+        $this->authorizeQuranSettings();
 
         $validated = $this->validate([
             'partial_test_fail_threshold' => ['required', 'integer', 'min:1', 'max:999'],
@@ -442,12 +491,30 @@ new class extends Component
 
     public function with(): array
     {
+        $access = app(CurrentModuleAccess::class);
+        $showAttendanceSettings = in_array($this->section, ['all', 'attendance'], true)
+            && ($access->enabled('student_attendance') || $access->enabled('teacher_attendance'));
+        $showAssessmentSettings = in_array($this->section, ['all', 'assessments'], true) && $access->enabled('assessments');
+
         return [
-            'assessmentTypes' => AssessmentType::query()->withCount('assessments')->orderBy('name')->get(),
-            'attendanceStatuses' => AttendanceStatus::query()->orderBy('scope')->orderBy('name')->get(),
+            'showAttendanceSettings' => $showAttendanceSettings,
+            'showAssessmentSettings' => $showAssessmentSettings,
+            'showPoints' => $access->enabled('points_rewards'),
+            'pageTitle' => match ($this->section) {
+                'attendance' => __('settings.tracking.sections.attendance_status.table'),
+                'assessments' => __('settings.tracking.sections.assessment_type.table'),
+                default => __('ui.common.settings'),
+            },
+            'settingsRoute' => match ($this->section) {
+                'attendance' => 'settings.attendance-statuses',
+                'assessments' => 'settings.assessment-types',
+                default => 'settings.points',
+            },
+            'assessmentTypes' => $showAssessmentSettings ? AssessmentType::query()->withCount('assessments')->orderBy('name')->get() : collect(),
+            'attendanceStatuses' => $showAttendanceSettings ? AttendanceStatus::query()->orderBy('scope')->orderBy('name')->get() : collect(),
             'totals' => [
-                'assessment_types' => AssessmentType::count(),
-                'attendance_statuses' => AttendanceStatus::count(),
+                'assessment_types' => $showAssessmentSettings ? AssessmentType::count() : 0,
+                'attendance_statuses' => $showAttendanceSettings ? AttendanceStatus::count() : 0,
             ],
         ];
     }
@@ -513,18 +580,21 @@ new class extends Component
 
 <div class="page-stack settings-admin-page">
     <section class="page-hero p-6 lg:p-8">
-        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
+        <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle }}</h1>
     </section>
 
-    <x-settings.admin-nav section="dashboard" current="settings.points" />
+    <x-settings.admin-nav section="dashboard" :current="$settingsRoute" />
 
     @if (session('status'))
         <div class="flash-success rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
     @endif
 
+    @if ($section === 'all')
     <livewire:settings.points :embedded="true" />
+    @endif
 
     <div class="space-y-6">
+        @if ($section === 'all')
         <section class="hidden">
             <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
                 <div class="mb-4"><h2 class="text-lg font-semibold">{{ $attendance_status_editing_id ? __('settings.tracking.sections.attendance_status.edit') : __('settings.tracking.sections.attendance_status.create') }}</h2><p class="text-sm text-neutral-500">{{ __('settings.tracking.sections.attendance_status.copy') }}</p></div>
@@ -535,7 +605,9 @@ new class extends Component
                         <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.scope') }}</label><select wire:model="attendance_status_scope" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"><option value="both">{{ __('settings.tracking.scopes.both') }}</option><option value="student">{{ __('settings.tracking.scopes.student') }}</option><option value="teacher">{{ __('settings.tracking.scopes.teacher') }}</option></select>@error('attendance_status_scope') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
+                        @if ($showPoints)
                         <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.default_points') }}</label><input wire:model="attendance_status_default_points" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('attendance_status_default_points') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
+                        @endif
                         <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.color') }}</label><input wire:model="attendance_status_color" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('attendance_status_color') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
                     </div>
                     <label class="flex items-center gap-3 text-sm"><input wire:model="attendance_status_is_present" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.tracking.fields.counts_as_present') }}</span></label>
@@ -574,7 +646,9 @@ new class extends Component
             </div>
         </section>
 
+        @endif
         <section class="space-y-6">
+            @if ($showAttendanceSettings)
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
@@ -585,14 +659,14 @@ new class extends Component
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.scope') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.default_points') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
+                        <thead class="bg-neutral-50 dark:bg-neutral-900/60"><tr><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.name') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.code') }}</th><th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.scope') }}</th>@if ($showPoints)<th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.default_points') }}</th>@endif<th class="px-5 py-3 text-left font-medium">{{ __('settings.tracking.table.state') }}</th><th class="admin-actions-column px-5 py-3 text-center font-medium">{{ __('settings.tracking.table.actions') }}</th></tr></thead>
                         <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             @foreach ($attendanceStatuses as $attendanceStatus)
                                 <tr>
                                     <td class="px-5 py-3"><div class="font-medium">{{ $attendanceStatus->name }}</div><div class="text-xs text-neutral-500">{{ $attendanceStatus->is_present ? __('settings.tracking.labels.present_status') : __('settings.tracking.labels.non_present_status') }}</div>@if ($attendanceStatus->is_default)<div class="text-xs font-semibold text-emerald-600 dark:text-emerald-300">{{ __('settings.tracking.labels.default_attendance_status') }}</div>@endif</td>
                                     <td class="px-5 py-3">{{ $attendanceStatus->code }}</td>
                                     <td class="px-5 py-3">{{ __('settings.tracking.scopes.'.$attendanceStatus->scope) }}</td>
-                                    <td class="px-5 py-3">{{ $attendanceStatus->default_points }}</td>
+                                    @if ($showPoints)<td class="px-5 py-3">{{ $attendanceStatus->default_points }}</td>@endif
                                     <td class="px-5 py-3">{{ $attendanceStatus->is_active ? __('settings.common.states.active') : __('settings.common.states.inactive') }}</td>
                                     <td class="px-5 py-3"><div class="admin-action-cluster admin-action-cluster--end"><x-edit-action-button wire:click="editAttendanceStatus({{ $attendanceStatus->id }})" :label="__('crud.common.actions.edit')" data-settings-attendance-status-edit-action /></div></td>
                                 </tr>
@@ -602,6 +676,8 @@ new class extends Component
                 </div>
             </div>
 
+            @endif
+            @if ($showAssessmentSettings)
             <div class="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
                     <div>
@@ -628,9 +704,11 @@ new class extends Component
                 </div>
             </div>
 
+            @endif
         </section>
     </div>
 
+    @if ($showAttendanceSettings)
     <x-admin.modal :show="$showAttendanceStatusModal" :title="$attendance_status_editing_id ? __('settings.tracking.sections.attendance_status.edit') : __('settings.tracking.sections.attendance_status.create')" :description="__('settings.tracking.sections.attendance_status.copy')" close-method="closeAttendanceStatusModal" max-width="4xl">
         <form wire:submit="saveAttendanceStatus" class="space-y-4">
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.name') }}</label><input wire:model="attendance_status_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('attendance_status_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
@@ -639,7 +717,9 @@ new class extends Component
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.scope') }}</label><select wire:model="attendance_status_scope" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"><option value="both">{{ __('settings.tracking.scopes.both') }}</option><option value="student">{{ __('settings.tracking.scopes.student') }}</option><option value="teacher">{{ __('settings.tracking.scopes.teacher') }}</option></select>@error('attendance_status_scope') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
+                @if ($showPoints)
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.default_points') }}</label><input wire:model="attendance_status_default_points" type="number" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('attendance_status_default_points') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
+                @endif
                 <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.color') }}</label><input wire:model="attendance_status_color" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('attendance_status_color') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
             </div>
             <label class="flex items-center gap-3 text-sm"><input wire:model="attendance_status_is_present" type="checkbox" class="rounded border-neutral-300 text-neutral-900"><span>{{ __('settings.tracking.fields.counts_as_present') }}</span></label>
@@ -661,6 +741,8 @@ new class extends Component
         </form>
     </x-admin.modal>
 
+    @endif
+    @if ($showAssessmentSettings)
     <x-admin.modal :show="$showAssessmentTypeModal" :title="$assessment_type_editing_id ? __('settings.tracking.sections.assessment_type.edit') : __('settings.tracking.sections.assessment_type.create')" :description="__('settings.tracking.sections.assessment_type.copy')" close-method="closeAssessmentTypeModal" max-width="3xl">
         <form wire:submit="saveAssessmentType" class="space-y-4">
             <div><label class="mb-1 block text-sm font-medium">{{ __('settings.tracking.fields.name') }}</label><input wire:model="assessment_type_name" type="text" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900">@error('assessment_type_name') <div class="mt-1 text-sm text-red-600">{{ $message }}</div> @enderror</div>
@@ -681,5 +763,6 @@ new class extends Component
             </div>
         </form>
     </x-admin.modal>
+    @endif
 
 </div>

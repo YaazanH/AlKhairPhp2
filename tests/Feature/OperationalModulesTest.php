@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicYear;
+use App\Models\AssessmentType;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Volt\Volt;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class OperationalModulesTest extends TestCase
@@ -329,6 +331,140 @@ class OperationalModulesTest extends TestCase
         $this->assertSame($first?->id, $retryAfterRuleChange?->id);
         $this->assertDatabaseCount('point_transactions', 1);
         $this->assertSame(3, (int) PointTransaction::query()->sum('points'));
+    }
+
+    #[DataProvider('attendanceSettingsTenants')]
+    public function test_attendance_settings_work_without_points_and_preserve_existing_reward_values(string $module, string $locale): void
+    {
+        $this->modules([$module]);
+        $this->admin();
+        app()->setLocale($locale);
+        session(['locale' => $locale]);
+
+        $this->get(route('settings.organization'))->assertOk()
+            ->assertSee('href="'.route('settings.attendance-statuses').'"', false)
+            ->assertDontSee('href="'.route('settings.assessment-types').'"', false)
+            ->assertDontSee('href="'.route('settings.points').'"', false);
+        $this->get(route('settings.attendance-statuses'))->assertOk()
+            ->assertSee(__('settings.tracking.sections.attendance_status.table'))
+            ->assertDontSee(__('settings.tracking.table.default_points'))
+            ->assertDontSee('wire:model="attendance_status_default_points"', false)
+            ->assertDontSee('wire:submit="saveAssessmentType"', false);
+        $this->get(route('settings.assessment-types'))->assertForbidden();
+        $this->get(route('settings.points'))->assertForbidden();
+
+        $editor = Volt::test('settings.tracking', ['section' => 'attendance'])
+            ->call('openAttendanceStatusModal')->set('attendance_status_name', 'Remote attendance')
+            ->set('attendance_status_code', 'remote-attendance')->set('attendance_status_is_present', true)
+            ->set('attendance_status_default_points', 'invalid-forged-value')
+            ->call('saveAttendanceStatus')->assertHasNoErrors();
+        $status = AttendanceStatus::where('code', 'remote-attendance')->firstOrFail();
+        $this->assertSame(0, $status->default_points);
+
+        $status->update(['default_points' => 17]);
+        $editor->call('editAttendanceStatus', $status->id)
+            ->assertSet('attendance_status_default_points', '0')
+            ->assertDontSee('wire:model="attendance_status_default_points"', false)
+            ->set('attendance_status_name', 'Updated remote attendance')
+            ->set('attendance_status_default_points', '-999')
+            ->call('saveAttendanceStatus')->assertHasNoErrors();
+        $this->assertSame(17, $status->fresh()->default_points);
+        $this->assertSame('Updated remote attendance', $status->fresh()->name);
+        $this->assertDatabaseCount('point_transactions', 0);
+
+        Volt::test('settings.tracking', ['section' => 'attendance'])->call('openAssessmentTypeModal')->assertForbidden();
+    }
+
+    public static function attendanceSettingsTenants(): array
+    {
+        return [
+            'student-arabic' => ['student_attendance', 'ar'],
+            'student-english' => ['student_attendance', 'en'],
+            'teacher-arabic' => ['teacher_attendance', 'ar'],
+            'teacher-english' => ['teacher_attendance', 'en'],
+        ];
+    }
+
+    public function test_assessment_types_can_be_managed_without_points(): void
+    {
+        $this->modules(['assessments']);
+        $this->admin();
+        $this->get(route('settings.organization'))->assertOk()
+            ->assertSee('href="'.route('settings.assessment-types').'"', false)
+            ->assertDontSee('href="'.route('settings.attendance-statuses').'"', false)
+            ->assertDontSee('href="'.route('settings.points').'"', false);
+        $this->get(route('settings.assessment-types'))->assertOk()
+            ->assertSee(__('settings.tracking.sections.assessment_type.table'))
+            ->assertDontSee('wire:model="point_policy_points"', false)
+            ->assertDontSee('wire:submit="saveAttendanceStatus"', false);
+
+        $editor = Volt::test('settings.tracking', ['section' => 'assessments'])
+            ->call('openAssessmentTypeModal')->assertSee(__('settings.tracking.fields.is_scored'))
+            ->set('assessment_type_name', 'Weekly quiz')
+            ->set('assessment_type_code', 'weekly-quiz')->set('assessment_type_is_scored', true)
+            ->call('saveAssessmentType')->assertHasNoErrors();
+        $type = AssessmentType::where('code', 'weekly-quiz')->firstOrFail();
+        $this->assertTrue($type->is_scored);
+        $editor->call('editAssessmentType', $type->id)->set('assessment_type_name', 'Updated quiz')
+            ->call('saveAssessmentType')->assertHasNoErrors();
+        $this->assertSame('Updated quiz', $type->fresh()->name);
+        $this->assertDatabaseCount('point_transactions', 0);
+
+        Volt::test('settings.tracking', ['section' => 'assessments'])->call('openAttendanceStatusModal')->assertForbidden();
+        Volt::test('settings.tracking', ['section' => 'assessments'])->call('saveSaberRules')->assertForbidden();
+        Volt::test('settings.points')->assertForbidden();
+    }
+
+    public function test_operational_settings_require_their_own_modules_even_when_points_is_enabled(): void
+    {
+        $this->modules(['points_rewards']);
+        $this->admin();
+        $this->get(route('settings.points'))->assertOk()
+            ->assertDontSee('wire:submit="saveAttendanceStatus"', false)
+            ->assertDontSee('wire:submit="saveAssessmentType"', false);
+        $this->get(route('settings.attendance-statuses'))->assertForbidden();
+        $this->get(route('settings.assessment-types'))->assertForbidden();
+        Volt::test('settings.tracking', ['section' => 'attendance'])->assertForbidden();
+        Volt::test('settings.tracking', ['section' => 'assessments'])->assertForbidden();
+    }
+
+    public function test_attendance_points_remain_editable_when_points_is_enabled(): void
+    {
+        $this->modules(['student_attendance', 'points_rewards']);
+        $this->admin();
+        Volt::test('settings.tracking', ['section' => 'attendance'])->call('openAttendanceStatusModal')
+            ->assertSee('wire:model="attendance_status_default_points"', false)
+            ->set('attendance_status_name', 'Rewarded attendance')->set('attendance_status_code', 'rewarded')
+            ->set('attendance_status_default_points', '9')->call('saveAttendanceStatus')->assertHasNoErrors();
+        $status = AttendanceStatus::where('code', 'rewarded')->firstOrFail();
+        $this->assertSame(9, $status->default_points);
+        Volt::test('settings.tracking', ['section' => 'attendance'])->call('editAttendanceStatus', $status->id)
+            ->set('attendance_status_default_points', '12')->call('saveAttendanceStatus')->assertHasNoErrors();
+        $this->assertSame(12, $status->fresh()->default_points);
+    }
+
+    public function test_operational_settings_recheck_module_access_before_saving(): void
+    {
+        $this->modules(['student_attendance', 'assessments', 'points_rewards']);
+        $this->admin();
+        $attendance = Volt::test('settings.tracking', ['section' => 'attendance']);
+        $assessments = Volt::test('settings.tracking', ['section' => 'assessments']);
+        $points = Volt::test('settings.points');
+        $this->modules([]);
+
+        $attendance->call('saveAttendanceStatus')->assertForbidden();
+        $assessments->call('saveAssessmentType')->assertForbidden();
+        $points->call('savePointType')->assertForbidden();
+    }
+
+    public function test_operational_settings_require_settings_manage_permission(): void
+    {
+        $this->modules(['student_attendance', 'assessments']);
+        $this->actingAs(User::factory()->create(['is_active' => true]));
+        $this->get(route('settings.attendance-statuses'))->assertForbidden();
+        $this->get(route('settings.assessment-types'))->assertForbidden();
+        Volt::test('settings.tracking', ['section' => 'attendance'])->assertForbidden();
+        Volt::test('settings.tracking', ['section' => 'assessments'])->assertForbidden();
     }
 
     private function modules(array $codes): void

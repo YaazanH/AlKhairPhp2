@@ -434,7 +434,7 @@ return [
             'attendance_status' => [
                 'create' => 'New attendance status',
                 'edit' => 'Edit attendance status',
-                'copy' => 'These codes are used by attendance and automatic point policies.',
+                'copy' => 'Define the statuses used by student and teacher attendance.',
                 'table' => 'Attendance statuses',
             ],
             'assessment_type' => [

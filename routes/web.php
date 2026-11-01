@@ -301,7 +301,9 @@ Route::middleware(['auth'])->group(function () {
     Route::put('settings/theme', [TenantThemeController::class, 'update'])->name('settings.theme.update');
     Route::delete('settings/theme', [TenantThemeController::class, 'reset'])->name('settings.theme.reset');
     Route::redirect('settings/organization', '/settings/general')->middleware('permission:settings.manage')->name('legacy.settings.organization');
-    Volt::route('settings/points', 'settings.tracking')->middleware('permission:settings.manage')->name('settings.points');
+    Volt::route('settings/points', 'settings.points')->middleware('permission:settings.manage')->name('settings.points');
+    Volt::route('settings/attendance-statuses', 'settings.attendance-statuses')->middleware('permission:settings.manage')->name('settings.attendance-statuses');
+    Volt::route('settings/assessment-types', 'settings.assessment-types')->middleware('permission:settings.manage')->name('settings.assessment-types');
     Route::redirect('settings/tracking', '/settings/points')->middleware('permission:settings.manage')->name('settings.tracking');
     Volt::route('settings/learning-progression', 'settings.learning-progression')->middleware('permission:learning-progression.manage')->name('settings.learning-progression');
     Volt::route('settings/course-completion', 'settings.course-completion')->middleware('permission:course-completion-rules.manage')->name('settings.course-completion');
