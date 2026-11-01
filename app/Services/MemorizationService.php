@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\Group;
 use App\Models\MemorizationSession;
 use App\Models\MemorizationSessionPage;
 use App\Models\PointTransaction;
@@ -127,11 +129,33 @@ class MemorizationService
         }
 
         DB::transaction(function () use ($session): void {
-            $session->loadMissing(['pages', 'student']);
+            $course = Course::query()->whereKey($session->enrollment?->group?->course_id)->lockForUpdate()->first();
+            $group = Group::whereKey($session->enrollment?->group_id)->lockForUpdate()->first();
+            $enrollment = Enrollment::whereKey($session->enrollment_id)->lockForUpdate()->first();
+            if (! $course || ! $group || ! $enrollment || (int) $group->course_id !== (int) $course->id
+                || (int) $enrollment->group_id !== (int) $group->id || ! $course->is_active || $course->finished_at
+                || $course->ends_on?->lt(today()) || $group->course_finished_at || $enrollment->course_finished_at) {
+                throw new LogicException(__('workflow.common.finished_course_delete_locked'));
+            }
+            $session = MemorizationSession::whereKey($session->id)->lockForUpdate()->first();
+            if (! $session) {
+                return;
+            }
+            if ((int) $session->enrollment_id !== (int) $enrollment->id || (int) $session->student_id !== (int) $enrollment->student_id) {
+                throw new LogicException(__('workflow.memorization.errors.enrollment_changed'));
+            }
+            $session->load(['pages', 'student']);
             $student = $session->student;
             $pages = $session->pages->pluck('page_no')->map(fn ($page) => (int) $page)->all();
             $rewardKeys = [[$session->enrollment_id, $session->recorded_on?->toDateString()]];
 
+            // The daily award may belong to the entry being removed. Void it while its ID is still available.
+            PointTransaction::query()->where('source_type', 'memorization_session')->where('source_id', $session->id)
+                ->where('student_id', $session->student_id)->where('enrollment_id', $session->enrollment_id)
+                ->whereNull('voided_at')->update([
+                    'voided_at' => now(), 'voided_by' => auth()->id(),
+                    'void_reason' => __('workflow.memorization.messages.void_reason'),
+                ]);
             $session->pages()->delete();
             $session->delete();
 
@@ -194,7 +218,11 @@ class MemorizationService
                 }
             });
 
-        Enrollment::query()->with('student')->where('student_id', $student->id)->get()
+        Enrollment::query()->with('student')->where('student_id', $student->id)
+            ->whereNull('course_finished_at')
+            ->whereHas('group', fn ($query) => $query->whereNull('course_finished_at')
+                ->whereHas('course', fn ($query) => $query->where('is_active', true)->whereNull('finished_at')
+                    ->where(fn ($query) => $query->whereNull('ends_on')->orWhereDate('ends_on', '>=', today()))))->get()
             ->each(fn (Enrollment $enrollment) => $this->ledger->syncEnrollmentCaches($enrollment));
     }
 
@@ -271,6 +299,13 @@ class MemorizationService
 
     protected function recalculateDailyReward(Enrollment $enrollment, Student $student, string $recordedOn): void
     {
+        $enrollment->loadMissing('group');
+        $course = Course::query()->whereKey($enrollment->group?->course_id)->lockForUpdate()->first();
+        if (! $course || ! $course->is_active || $course->finished_at || $course->ends_on?->lt(today())
+            || $enrollment->group?->course_finished_at || $enrollment->course_finished_at) {
+            return;
+        }
+
         $sessions = MemorizationSession::query()
             ->with('enrollment')
             ->where('student_id', $student->id)

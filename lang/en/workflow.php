@@ -518,6 +518,7 @@ return [
         ],
         'errors' => [
             'duplicate_pages' => 'These pages were already memorised earlier: :pages',
+            'enrollment_changed' => 'The memorisation enrolment changed. Reload the page before deleting.',
             'all_duplicate_pages' => 'All selected pages were already memorised earlier.',
             'no_active_enrollment' => 'This student does not have an active enrolment in your current scope.',
             'select_group' => 'Select the active group you want to record this memorisation under.',
