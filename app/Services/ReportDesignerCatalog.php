@@ -534,6 +534,7 @@ class ReportDesignerCatalog
                 'new' => __('report_designer.entry_types.new'),
                 'review' => __('report_designer.entry_types.review'),
                 'correction' => __('report_designer.entry_types.correction'),
+                'old' => __('report_designer.entry_types.old'),
             ],
             self::QURAN_TESTS => [
                 'all' => __('report_designer.test_filters.all'),

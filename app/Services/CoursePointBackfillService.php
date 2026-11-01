@@ -103,7 +103,7 @@ class CoursePointBackfillService
         }
 
         $sessions = MemorizationSession::query()->where('enrollment_id', $enrollment->id)
-            ->where('entry_type', '!=', 'review')->orderBy('id')->get()
+            ->whereNotIn('entry_type', ['review', 'old'])->orderBy('id')->get()
             ->reject(fn ($session) => Str::contains((string) $session->notes, 'Legacy import from Entre records:'))
             ->groupBy(fn ($session) => $session->recorded_on->toDateString());
 
@@ -112,7 +112,8 @@ class CoursePointBackfillService
                 continue;
             }
             $count = StudentPageAchievement::query()->where('first_enrollment_id', $enrollment->id)
-                ->where('student_id', $enrollment->student_id)->whereDate('first_recorded_on', $date)->count();
+                ->where('student_id', $enrollment->student_id)->whereDate('first_recorded_on', $date)
+                ->whereHas('session', fn ($query) => $query->where('entry_type', '!=', 'old'))->count();
             if ($count === 0) {
                 continue;
             }

@@ -261,7 +261,7 @@ class MemorizationService
                 ])->all()
             );
 
-            if (! $this->isLegacyImportSession($session)) {
+            if ($session->entry_type !== 'old' && ! $this->isLegacyImportSession($session)) {
                 $this->recalculateDailyReward($enrollment, $student, $session->recorded_on->toDateString());
             }
         }
@@ -297,10 +297,17 @@ class MemorizationService
                 'void_reason' => __('workflow.memorization.messages.void_reason'),
             ]);
 
+        // Void awards before excluding old entries, including sessions changed from new to old.
+        $sessions = $sessions->where('entry_type', '!=', 'old');
+        if ($sessions->isEmpty()) {
+            return;
+        }
+
         $newPageCount = StudentPageAchievement::query()
             ->where('student_id', $student->id)
             ->where('first_enrollment_id', $enrollment->id)
             ->whereDate('first_recorded_on', $recordedOn)
+            ->whereHas('session', fn ($query) => $query->where('entry_type', '!=', 'old'))
             ->count();
 
         if ($newPageCount === 0) {
@@ -406,7 +413,7 @@ class MemorizationService
                     continue;
                 }
 
-                if ($this->isLegacyImportSession($session)) {
+                if ($session->entry_type === 'old' || $this->isLegacyImportSession($session)) {
                     continue;
                 }
 

@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\Group;
 use App\Models\Landlord\Tenant;
 use App\Models\ParentProfile;
+use App\Models\PointTransaction;
 use App\Models\QuranFinalTest;
 use App\Models\QuranJuz;
 use App\Models\QuranPartialTest;
@@ -915,6 +916,117 @@ class StandaloneMemorizationPageTest extends TestCase
         $user->syncPermissions([]);
         $editor->call('selectJuz', 2)->assertForbidden();
         $this->assertSame($current, $enrollment->student->fresh()->quran_current_juz_id);
+    }
+
+    #[DataProvider('quickEntryLocales')]
+    public function test_old_memorization_counts_progress_without_points_and_hides_pages_from_quick_entry(string $locale): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        app()->setLocale($locale);
+        session(['locale' => $locale]);
+
+        Volt::test('memorization.index')->call('openCreateModal')
+            ->assertSee(__('workflow.common.entry_type.old'))
+            ->set('selectedStudentId', $enrollment->student_id)
+            ->set('recorded_on', '2026-09-25')->set('entry_type', 'old')
+            ->set('from_page', '582')->set('to_page', '584')
+            ->call('save')->assertHasNoErrors()->assertSet('showFormModal', false)
+            ->set('entryTypeFilter', 'old')->assertSee('data-memorization-entry-type="old"', false);
+
+        $old = $enrollment->memorizationSessions()->sole();
+        $this->assertSame('old', $old->entry_type);
+        $this->assertSame(3, $enrollment->fresh()->memorized_pages_cached);
+        $this->assertSame(3, $old->pages()->count());
+        $this->assertDatabaseCount('student_page_achievements', 3);
+        $this->assertDatabaseCount('point_transactions', 0);
+
+        Volt::test('students.progress', ['student' => $enrollment->student])
+            ->assertViewHas('memorizationRows', fn ($rows) => $rows->pluck('page')->all() === [582, 583, 584]
+                && $rows->every(fn ($row) => $row->date->toDateString() === '2026-09-25'))
+            ->assertViewHas('quranJuzProgress', function ($rows) {
+                $juz = $rows->first(fn ($row) => $row->juz->juz_number === 30);
+
+                return $juz->memorized_pages === 3
+                    && ! $juz->missing_pages->contains(582)
+                    && ! $juz->missing_pages->contains(584)
+                    && $juz->missing_pages->contains(585);
+            });
+
+        app(MemorizationService::class)->saveSession($enrollment, [
+            'teacher_id' => $teacher->id, 'recorded_on' => '2026-09-25',
+            'entry_type' => 'review', 'from_page' => 585, 'to_page' => 585,
+        ]);
+        Volt::test('memorization.quick-entry')->set('selectedStudentId', $enrollment->student_id)
+            ->call('selectJuz', 30)
+            ->assertDontSee('data-memorization-page="582"', false)
+            ->assertDontSee('data-memorization-page="584"', false)
+            ->assertSee('data-memorization-page="585"', false);
+
+        $this->assertSame([582, 584], app(MemorizationService::class)->findDuplicatePages($enrollment, [582, 584, 585], 'new'));
+    }
+
+    public function test_old_memorization_is_not_rewarded_on_same_day_recalculation_rebuild_or_course_backfill(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        $service = app(MemorizationService::class);
+        $payload = ['teacher_id' => $teacher->id, 'recorded_on' => '2026-09-25'];
+        $service->saveSession($enrollment, [...$payload, 'entry_type' => 'old', 'from_page' => 582, 'to_page' => 584]);
+        $service->saveSession($enrollment, [...$payload, 'entry_type' => 'new', 'from_page' => 585, 'to_page' => 585]);
+        $old = $service->saveSession($enrollment, [...$payload, 'entry_type' => 'old', 'from_page' => 586, 'to_page' => 586]);
+        $this->assertSame(10, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+
+        $service->saveSession($enrollment, [...$payload, 'entry_type' => 'old', 'from_page' => 586, 'to_page' => 586, 'notes' => 'Updated history'], $old);
+        $this->assertSame(10, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+        $service->rebuildStudentAchievementsAndPoints($enrollment->student);
+        $this->assertSame(10, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+        $this->assertSame(5, $enrollment->fresh()->memorized_pages_cached);
+        $this->assertDatabaseCount('student_page_achievements', 5);
+
+        // Simulate historical records for which automatic points were never created.
+        PointTransaction::query()->delete();
+        $course = $enrollment->group->course;
+        $course->update(['awards_points' => false]);
+        $course->update(['awards_points' => true]);
+        $this->assertSame(10, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+        $this->assertSame(0, PointTransaction::where('source_type', 'memorization_session')
+            ->whereIn('source_id', $enrollment->memorizationSessions()->where('entry_type', 'old')->pluck('id'))->count());
+    }
+
+    public function test_old_memorization_conversion_removes_points_and_can_be_changed_back_to_new(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        $service = app(MemorizationService::class);
+        $payload = ['teacher_id' => $teacher->id, 'recorded_on' => '2026-09-25', 'from_page' => 582, 'to_page' => 582];
+        $session = $service->saveSession($enrollment, [...$payload, 'entry_type' => 'new']);
+        $this->assertSame(10, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+
+        Volt::test('memorization.index')->call('editSession', $session->id)
+            ->set('entry_type', 'old')->call('save')->assertHasNoErrors();
+        $this->assertSame(0, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+        $this->assertSame(1, $enrollment->fresh()->memorized_pages_cached);
+        $this->assertDatabaseCount('student_page_achievements', 1);
+        $this->assertNotNull(PointTransaction::where('source_id', $session->id)->firstOrFail()->voided_at);
+
+        $service->saveSession($enrollment, [...$payload, 'entry_type' => 'new'], $session->fresh());
+        $this->assertSame(10, (int) PointTransaction::whereNull('voided_at')->sum('points'));
+        $service->deleteSession($session->fresh());
+        Volt::test('memorization.quick-entry')->set('selectedStudentId', $enrollment->student_id)
+            ->call('selectJuz', 30)->assertSee('data-memorization-page="582"', false);
+    }
+
+    public function test_old_memorization_can_be_recorded_on_the_enrollment_form_and_never_backfilled_as_points(): void
+    {
+        [, $teacher, $enrollment] = $this->teacherMemorizationContext();
+        Volt::test('enrollments.memorization', ['enrollment' => $enrollment])
+            ->set('teacher_id', $teacher->id)->set('recorded_on', '2026-09-25')
+            ->set('entry_type', 'old')->set('from_page', '582')->set('to_page', '584')
+            ->call('saveMemorization')->assertHasNoErrors();
+        $course = $enrollment->group->course;
+        $course->update(['awards_points' => false]);
+        $course->update(['awards_points' => true]);
+        app(MemorizationService::class)->rebuildStudentAchievementsAndPoints($enrollment->student);
+        $this->assertDatabaseCount('point_transactions', 0);
+        $this->assertSame(3, $enrollment->fresh()->memorized_pages_cached);
     }
 
     private function teacherMemorizationContext(): array

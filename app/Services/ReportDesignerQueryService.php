@@ -448,7 +448,7 @@ class ReportDesignerQueryService
         );
 
         $entryType = (string) ($filters['status'] ?? 'all');
-        if (in_array($entryType, ['new', 'review', 'correction'], true)) {
+        if (in_array($entryType, ['new', 'review', 'correction', 'old'], true)) {
             $query->where('entry_type', $entryType);
         }
 

@@ -631,6 +631,24 @@ class OperationalWriteApiTest extends TestCase
         return $response->json('token');
     }
 
+    public function test_old_memorization_api_records_dated_pages_without_awarding_points(): void
+    {
+        $context = $this->managerApiContext();
+        $response = $this->withToken($context['token'])->postJson('/api/v1/enrollments/'.$context['enrollment']->id.'/memorization', [
+            'entry_type' => 'old', 'from_page' => 582, 'to_page' => 584,
+            'recorded_on' => '2026-09-25', 'teacher_id' => $context['teacher']->id,
+        ])->assertCreated()->assertJsonPath('entry_type', 'old')
+            ->assertJsonPath('recorded_on', '2026-09-25')->assertJsonPath('pages_count', 3);
+
+        $this->assertDatabaseHas('student_page_achievements', [
+            'student_id' => $context['enrollment']->student_id,
+            'first_session_id' => $response->json('id'), 'page_no' => 582,
+            'first_recorded_on' => '2026-09-25 00:00:00',
+        ]);
+        $this->assertDatabaseMissing('point_transactions', ['source_type' => 'memorization_session', 'source_id' => $response->json('id')]);
+        $this->assertSame(3, $context['enrollment']->fresh()->memorized_pages_cached);
+    }
+
     private function managerApiContext(): array
     {
         $this->seed();

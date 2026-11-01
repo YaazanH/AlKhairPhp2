@@ -481,7 +481,7 @@ class OperationalWriteController extends Controller
         app(TeachingAssignmentService::class)->ensureAssigned($enrollment->group);
 
         $validated = $request->validate([
-            'entry_type' => ['required', Rule::in(['new', 'review'])],
+            'entry_type' => ['required', Rule::in(['new', 'review', 'old'])],
             'from_page' => ['required', 'integer', 'min:1', 'max:604'],
             'notes' => ['nullable', 'string'],
             'recorded_on' => ['required', 'date'],

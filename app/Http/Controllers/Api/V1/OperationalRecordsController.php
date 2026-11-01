@@ -217,7 +217,7 @@ class OperationalRecordsController extends Controller
     protected function memorizationResponse(Request $request, ?Enrollment $enrollment = null)
     {
         $validated = $this->validatedListFilters($request, [
-            'entry_type' => ['nullable', Rule::in(['new', 'review', 'correction'])],
+            'entry_type' => ['nullable', Rule::in(['new', 'review', 'correction', 'old'])],
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'student_id' => ['nullable', 'integer', 'exists:students,id'],
         ]);

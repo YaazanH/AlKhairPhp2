@@ -73,7 +73,7 @@ new class extends Component {
         $validated = $this->validate([
             'teacher_id' => ['required', 'exists:teachers,id'],
             'recorded_on' => ['required', 'date'],
-            'entry_type' => ['required', 'in:new,review,correction'],
+            'entry_type' => ['required', 'in:new,review,correction,old'],
             'from_page' => ['required', 'integer', 'between:1,604'],
             'to_page' => ['required', 'integer', 'between:1,604', 'gte:from_page'],
             'notes' => ['nullable', 'string'],
@@ -286,6 +286,7 @@ new class extends Component {
                                 <option value="new">{{ __('workflow.common.entry_type.new') }}</option>
                                 <option value="review">{{ __('workflow.common.entry_type.review') }}</option>
                                 <option value="correction">{{ __('workflow.common.entry_type.correction') }}</option>
+                                <option value="old">{{ __('workflow.common.entry_type.old') }}</option>
                             </select>
                             @error('entry_type')
                                 <div class="mt-1 text-sm text-red-400">{{ $message }}</div>
@@ -367,6 +368,7 @@ new class extends Component {
                         <li>{{ __('workflow.memorization.context.guidance_new') }}</li>
                         <li>{{ __('workflow.memorization.context.guidance_review') }}</li>
                         <li>{{ __('workflow.memorization.context.guidance_correction') }}</li>
+                        <li>{{ __('workflow.memorization.context.guidance_old') }}</li>
                     </ul>
                 </div>
             </section>

@@ -168,7 +168,7 @@ class ParentMobileController extends Controller
         $parent = $this->parentProfile($request);
         $student = $this->ownedStudent($student, $parent);
         $filters = $this->dateFilters($request, [
-            'entry_type' => ['nullable', Rule::in(['new', 'review', 'correction'])],
+            'entry_type' => ['nullable', Rule::in(['new', 'review', 'correction', 'old'])],
         ]);
 
         $sessions = MemorizationSession::query()

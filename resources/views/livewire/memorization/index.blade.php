@@ -110,7 +110,7 @@ new class extends Component
                 });
             })
             ->when(
-                in_array($this->entryTypeFilter, ['new', 'review', 'correction'], true),
+                in_array($this->entryTypeFilter, ['new', 'review', 'correction', 'old'], true),
                 fn (Builder $query) => $query->where('entry_type', $this->entryTypeFilter)
             );
         $this->applySessionSort($sessionsQuery);
@@ -243,7 +243,7 @@ new class extends Component
             'selectedEnrollmentId' => ['nullable', 'exists:enrollments,id'],
             'teacher_id' => [$this->currentTeacher() ? 'nullable' : 'required', 'exists:teachers,id'],
             'recorded_on' => ['required', 'date'],
-            'entry_type' => ['required', 'in:new,review,correction'],
+            'entry_type' => ['required', 'in:new,review,correction,old'],
             'from_page' => ['required', 'integer', 'between:1,604'],
             'to_page' => ['required', 'integer', 'between:1,604', 'gte:from_page'],
         ], [], [
@@ -577,6 +577,7 @@ new class extends Component
                         <option value="new">{{ __('workflow.common.entry_type.new') }}</option>
                         <option value="review">{{ __('workflow.common.entry_type.review') }}</option>
                         <option value="correction">{{ __('workflow.common.entry_type.correction') }}</option>
+                        <option value="old">{{ __('workflow.common.entry_type.old') }}</option>
                     </select>
                 </div>
 
@@ -662,6 +663,7 @@ new class extends Component
                                             'status-text--emerald' => $session->entry_type === 'new',
                                             'status-text--amber' => $session->entry_type === 'review',
                                             'status-text--rose' => $session->entry_type === 'correction',
+                                            'status-text--slate' => $session->entry_type === 'old',
                                         ])
                                         data-memorization-entry-type="{{ $session->entry_type }}"
                                     >{{ __('workflow.common.entry_type.'.$session->entry_type) }}</span>
@@ -749,6 +751,7 @@ new class extends Component
                         <option value="new">{{ __('workflow.common.entry_type.new') }}</option>
                         <option value="review">{{ __('workflow.common.entry_type.review') }}</option>
                         <option value="correction">{{ __('workflow.common.entry_type.correction') }}</option>
+                        <option value="old">{{ __('workflow.common.entry_type.old') }}</option>
                     </select>
                     @error('entry_type')
                         <div class="mt-1 text-sm text-red-400">{{ $message }}</div>

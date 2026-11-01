@@ -41,6 +41,7 @@ return [
             'new' => 'New',
             'review' => 'Review',
             'correction' => 'Correction',
+            'old' => 'Old memorization',
         ],
         'ledger_state' => [
             'active' => 'Active',
@@ -531,7 +532,7 @@ return [
         'form' => [
             'title' => 'New memorisation session',
             'edit_title' => 'Edit memorisation session',
-            'help' => 'Use `review` for repeated pages and `new` or `correction` for lifetime page achievements.',
+            'help' => 'Use `review` for repeated pages, `new` or `correction` for pages eligible for points, and `old` for previously memorized pages without points.',
             'teacher' => 'Teacher',
             'recorded_on' => 'Recorded on',
             'entry_type' => 'Entry type',
@@ -551,6 +552,7 @@ return [
             'guidance_new' => 'Use `new` when the pages are being added to the student lifetime achievement record.',
             'guidance_review' => 'Use `review` when the pages were revised again and should not count as new lifetime pages.',
             'guidance_correction' => 'Use `correction` when an earlier record was wrong and you need the session to count as a corrected lifetime entry.',
+            'guidance_old' => 'Use `old` for pages memorized previously. They count as memorized and are hidden from new quick entry, without awarding points.',
         ],
         'read_only' => [
             'title' => 'Read-only access',
