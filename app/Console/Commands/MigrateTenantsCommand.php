@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Landlord\Tenant;
+use App\Services\Landlord\TenantPermissionCache;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,7 @@ class MigrateTenantsCommand extends Command
         }
 
         $previousConnection = DB::getDefaultConnection();
+        $previousPermissionKey = config('permission.cache.key');
         $previousDatabase = config('database.connections.tenant.database');
         $failed = [];
 
@@ -52,6 +54,7 @@ class MigrateTenantsCommand extends Command
                 config()->set('database.connections.tenant.database', $tenant->database_name);
                 DB::purge('tenant');
                 DB::setDefaultConnection('tenant');
+                app(TenantPermissionCache::class)->useTenant($tenant);
 
                 $exitCode = Artisan::call('migrate', [
                     '--database' => 'tenant',
@@ -79,6 +82,7 @@ class MigrateTenantsCommand extends Command
             DB::setDefaultConnection($previousConnection);
             config()->set('database.connections.tenant.database', $previousDatabase);
             DB::purge('tenant');
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
         }
 
         if ($failed !== []) {

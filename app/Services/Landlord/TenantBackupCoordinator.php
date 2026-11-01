@@ -184,6 +184,7 @@ class TenantBackupCoordinator
     private function withinTenant(Tenant $tenant, callable $callback): mixed
     {
         $previousDefault = DB::getDefaultConnection();
+        $previousPermissionKey = config('permission.cache.key');
         $previousDatabase = config('database.connections.tenant.database');
         $previousPublicRoot = config('filesystems.disks.public.root');
         $previousPrivateRoot = config('filesystems.disks.local.root');
@@ -205,6 +206,7 @@ class TenantBackupCoordinator
 
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
+            app(TenantPermissionCache::class)->useTenant($tenant);
             app('filesystem')->forgetDisk('public');
             app('filesystem')->forgetDisk('local');
 
@@ -218,6 +220,7 @@ class TenantBackupCoordinator
             config()->set('backups.directory', $previousDirectory);
             config()->set('backups.data_roots', $previousRoots);
             config()->set('backups.allow_scheduled_full', $previousAllowsScheduledFull);
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
             app('filesystem')->forgetDisk('public');
             app('filesystem')->forgetDisk('local');
         }

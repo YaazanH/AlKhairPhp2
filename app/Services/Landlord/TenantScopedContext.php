@@ -18,6 +18,7 @@ class TenantScopedContext
         }
 
         $previousDefault = DB::getDefaultConnection();
+        $previousPermissionKey = config('permission.cache.key');
         $previousDatabase = config('database.connections.tenant.database');
         $previousPublicRoot = config('filesystems.disks.public.root');
         $previousPrivateRoot = config('filesystems.disks.local.root');
@@ -29,6 +30,7 @@ class TenantScopedContext
             config()->set('filesystems.disks.local.root', storage_path('app/private/'.$root));
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
+            app(TenantPermissionCache::class)->useTenant($tenant);
             app('filesystem')->forgetDisk('public');
             app('filesystem')->forgetDisk('local');
 
@@ -41,6 +43,7 @@ class TenantScopedContext
             config()->set('filesystems.disks.local.root', $previousPrivateRoot);
             app('filesystem')->forgetDisk('public');
             app('filesystem')->forgetDisk('local');
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
         }
     }
 }

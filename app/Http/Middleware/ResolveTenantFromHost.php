@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantDomain;
 use App\Services\Landlord\TenantContext;
+use App\Services\Landlord\TenantPermissionCache;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,7 @@ class ResolveTenantFromHost
         }
 
         $previousConnection = DB::getDefaultConnection();
+        $previousPermissionKey = config('permission.cache.key');
         $previousDatabase = config('database.connections.tenant.database');
         $previousPublicRoot = config('filesystems.disks.public.root');
         $previousPrivateRoot = config('filesystems.disks.local.root');
@@ -72,6 +74,7 @@ class ResolveTenantFromHost
             app('filesystem')->forgetDisk('local');
             DB::setDefaultConnection('tenant');
             app(TenantContext::class)->set($domain->tenant);
+            app(TenantPermissionCache::class)->useTenant($domain->tenant);
 
             return $next($request);
         } finally {
@@ -85,6 +88,7 @@ class ResolveTenantFromHost
             DB::purge('tenant');
             app('filesystem')->forgetDisk('public');
             app('filesystem')->forgetDisk('local');
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
         }
     }
 }

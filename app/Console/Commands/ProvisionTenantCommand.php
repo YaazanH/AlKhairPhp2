@@ -8,6 +8,7 @@ use App\Models\Landlord\TenantDomain;
 use App\Models\Landlord\TenantProvisioningAttempt;
 use App\Services\Landlord\TenantAdministratorProvisioner;
 use App\Services\Landlord\TenantDatabaseName;
+use App\Services\Landlord\TenantPermissionCache;
 use App\Services\Landlord\TenantResources;
 use App\Services\Landlord\TenantSetupManager;
 use App\Services\Landlord\TenantStorage;
@@ -80,6 +81,8 @@ class ProvisionTenantCommand extends Command
             'started_at' => now(),
         ]);
         $previousConnection = DB::getDefaultConnection();
+        $previousPermissionKey = config('permission.cache.key');
+        $previousDatabase = config('database.connections.tenant.database');
         $previousPublicRoot = config('filesystems.disks.public.root');
         $previousPrivateRoot = config('filesystems.disks.local.root');
         $databaseCreated = false;
@@ -91,6 +94,7 @@ class ProvisionTenantCommand extends Command
             config()->set('database.connections.tenant.database', $database);
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
+            app(TenantPermissionCache::class)->useTenant($tenant);
             Artisan::call('migrate', ['--database' => 'tenant', '--force' => true]);
             $storageInitialised = true;
             $tenantRoot = $storage->initialise($tenant)['public'];
@@ -121,6 +125,8 @@ class ProvisionTenantCommand extends Command
         } catch (\Throwable $e) {
             DB::setDefaultConnection($previousConnection);
             DB::purge('tenant');
+            config()->set('database.connections.tenant.database', $previousDatabase);
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
             config()->set('filesystems.disks.public.root', $previousPublicRoot);
             config()->set('filesystems.disks.local.root', $previousPrivateRoot);
             app('filesystem')->forgetDisk('public');
@@ -160,6 +166,8 @@ class ProvisionTenantCommand extends Command
         } finally {
             DB::setDefaultConnection($previousConnection);
             DB::purge('tenant');
+            config()->set('database.connections.tenant.database', $previousDatabase);
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
             config()->set('filesystems.disks.public.root', $previousPublicRoot);
             config()->set('filesystems.disks.local.root', $previousPrivateRoot);
             app('filesystem')->forgetDisk('public');

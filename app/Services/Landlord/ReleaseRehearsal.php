@@ -130,11 +130,13 @@ class ReleaseRehearsal
         }
 
         $previousConnection = DB::getDefaultConnection();
+        $previousPermissionKey = config('permission.cache.key');
         $previousDatabase = config('database.connections.tenant.database');
         try {
             config()->set('database.connections.tenant.database', $tenant->database_name);
             DB::purge('tenant');
             DB::setDefaultConnection('tenant');
+            app(TenantPermissionCache::class)->useTenant($tenant);
             $connection = DB::connection('tenant');
             $connection->select('SELECT 1');
             $driver = $connection->getDriverName();
@@ -183,6 +185,7 @@ class ReleaseRehearsal
             DB::setDefaultConnection($previousConnection);
             config()->set('database.connections.tenant.database', $previousDatabase);
             DB::purge('tenant');
+            app(TenantPermissionCache::class)->useKey($previousPermissionKey);
         }
     }
 

@@ -7,6 +7,7 @@ use App\Models\Landlord\PlatformAdministrator;
 use App\Models\Landlord\Tenant;
 use App\Models\Landlord\TenantImport;
 use App\Models\SystemBackup;
+use App\Models\User;
 use App\Services\Landlord\TenantImportFiles;
 use App\Services\Landlord\TenantImportService;
 use App\Services\Landlord\TenantScopedContext;
@@ -259,6 +260,10 @@ class MySqlTenantImportTest extends TestCase
             $this->assertSame(0, DB::table('tenant_platform_administrator_links')->count());
             $this->assertSame('1234567890.25', DB::table('finance_transactions')->where('id', 901)->value('amount'));
             $this->assertSame(1, DB::table('role_has_permissions')->count());
+            // Imported role IDs must be evaluated using this tenant's permission cache.
+            $owner = User::findOrFail(41);
+            $this->assertTrue($owner->can('students.view'));
+            $this->assertFalse($owner->can('memorization.record'));
             $this->assertSame($sourceFileHash, hash_file('sha256', config('filesystems.disks.public.root').'/students/source-document.bin'));
         });
         $signature = $operation->preview_signature;
