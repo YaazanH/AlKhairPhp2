@@ -320,9 +320,7 @@ new class extends Component
         @can('report-designer.view')
             <a href="{{ route('reports.designer') }}" class="surface-panel report-panel report-nav-card flex min-w-0 items-center justify-between gap-4 p-4 lg:col-span-2">
                 <div>
-                    <div class="eyebrow">{{ __('report_designer.eyebrow') }}</div>
-                    <h2 class="font-display mt-2 text-xl text-white">{{ __('report_designer.title') }}</h2>
-                    <p class="mt-2 text-sm leading-6 text-neutral-400">{{ __('report_designer.subtitle') }}</p>
+                    <h2 class="font-display text-xl text-white">{{ __('report_designer.title') }}</h2>
                 </div>
                 <span class="admin-icon-button report-nav-card__cta shrink-0" title="{{ __('reports.navigation.open') }}" aria-hidden="true" data-report-nav-open-icon>
                     <x-admin-action-icon name="open" />

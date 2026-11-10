@@ -207,6 +207,11 @@ class StudentProgressPageTest extends TestCase
 
     public function test_quran_progress_summary_uses_the_tenant_configured_stages(): void
     {
+        $this->assertStringNotContainsString(
+            "route('settings.learning-progression')",
+            file_get_contents(resource_path('views/livewire/students/progress.blade.php')),
+        );
+
         $this->seed(RoleSeeder::class);
         [, $student] = $this->makeScopedProgressData();
 

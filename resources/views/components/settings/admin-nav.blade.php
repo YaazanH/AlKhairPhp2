@@ -15,6 +15,10 @@
     $moduleAccess = app(\App\Services\Landlord\CurrentModuleAccess::class);
     $showAttendanceSettings = $moduleAccess->enabled('student_attendance') || $moduleAccess->enabled('teacher_attendance');
     $showAssessmentSettings = $moduleAccess->enabled('assessments');
+    $showLearningPathSettings = auth()->user()?->can('learning-progression.manage')
+        || (auth()->user()?->can('settings.manage')
+            && ($showAttendanceSettings || $showAssessmentSettings || $showPointsSettings));
+    $showBackupSettings = auth()->user()?->can('backups.manage') || auth()->user()?->can('storage.view');
 @endphp
 
 <div class="surface-panel p-4">
@@ -32,28 +36,11 @@
                         <span class="settings-tab__title">{{ __('theme.navigation') }}</span>
                     </a>
                 @endif
-                @can('settings.manage')
-                    @if ($showAttendanceSettings)
-                        <a href="{{ route('settings.attendance-statuses') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.attendance-statuses' ? 'is-active' : '' }}">
-                            <span class="settings-tab__title">{{ __('settings.tracking.sections.attendance_status.table') }}</span>
-                        </a>
-                    @endif
-                    @if ($showAssessmentSettings)
-                        <a href="{{ route('settings.assessment-types') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.assessment-types' ? 'is-active' : '' }}">
-                            <span class="settings-tab__title">{{ __('settings.tracking.sections.assessment_type.table') }}</span>
-                        </a>
-                    @endif
-                    @if ($showPointsSettings)
-                        <a href="{{ route('settings.points') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.points' ? 'is-active' : '' }}">
-                            <span class="settings-tab__title">{{ __('settings.navigation.tracking.title') }}</span>
-                        </a>
-                    @endif
-                @endcan
-                @can('learning-progression.manage')
-                    <a href="{{ route('settings.learning-progression') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.learning-progression' ? 'is-active' : '' }}">
+                @if ($showLearningPathSettings)
+                    <a href="{{ route('settings.learning-progression') }}" wire:navigate class="settings-tab {{ in_array($resolvedCurrent, ['settings.learning-progression', 'settings.points', 'settings.attendance-statuses', 'settings.assessment-types'], true) ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('learning_progression.navigation') }}</span>
                     </a>
-                @endcan
+                @endif
                 @can('course-completion-rules.manage')
                     <a href="{{ route('settings.course-completion') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.course-completion' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
@@ -81,16 +68,11 @@
                         <span class="settings-tab__title">{{ __('settings.navigation.sidebar.title') }}</span>
                     </a>
                 @endcan
-                @can('backups.manage')
+                @if($showBackupSettings)
                     <a href="{{ route('settings.backups') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.backups' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('backups.navigation_title') }}</span>
                     </a>
-                @endcan
-                @can('storage.view')
-                    <a href="{{ route('settings.storage') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.storage' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('storage.navigation_title') }}</span>
-                    </a>
-                @endcan
+                @endif
             </div>
         </section>
         @endunless

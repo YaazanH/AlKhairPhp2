@@ -27,6 +27,15 @@ class TenantThemeTest extends TestCase
         $this->assertFalse(app(TenantTheme::class)->canProduceReadablePalette('green'));
     }
 
+    public function test_sixteen_presets_include_the_original_v1_theme_as_an_available_variant(): void
+    {
+        $presets = TenantTheme::presets();
+
+        $this->assertCount(16, $presets);
+        $this->assertSame(TenantTheme::DEFAULT_COLORS, $presets['original']);
+        $this->assertSame(array_keys(TenantTheme::DEFAULT_COLORS), array_keys($presets['blue']));
+    }
+
     public function test_css_variables_do_not_replace_semantic_success_colours(): void
     {
         $variables = app(TenantTheme::class)->cssVariables();

@@ -20,6 +20,38 @@ class TenantTheme
         'dark_text_color' => '#f3fff6',
     ];
 
+    public const PRESET_PRIMARY_COLORS = [
+        'original' => '#0b8f43',
+        'emerald' => '#047857',
+        'teal' => '#0f766e',
+        'cyan' => '#0e7490',
+        'sky' => '#0369a1',
+        'blue' => '#1d4ed8',
+        'indigo' => '#4338ca',
+        'violet' => '#6d28d9',
+        'purple' => '#7e22ce',
+        'rose' => '#be123c',
+        'crimson' => '#b91c1c',
+        'orange' => '#c2410c',
+        'amber' => '#a16207',
+        'olive' => '#4d7c0f',
+        'slate' => '#475569',
+        'sand' => '#8b5e34',
+    ];
+
+    /** @return array<string, array<string, string>> */
+    public static function presets(): array
+    {
+        return collect(self::PRESET_PRIMARY_COLORS)
+            ->mapWithKeys(fn (string $color, string $key): array => [
+                $key => array_replace(self::DEFAULT_COLORS, [
+                    'primary_color' => $color,
+                    'action_color' => $color,
+                ]),
+            ])
+            ->all();
+    }
+
     private ?array $palette = null;
 
     private ?string $primaryColor = null;

@@ -41,6 +41,10 @@ class TenantThemeSettingsTest extends TestCase
             ->get(route('settings.theme.edit'))
             ->assertOk()
             ->assertSee('data-tenant-theme', false)
+            ->assertSee('data-theme-preset="original"', false)
+            ->assertSee('data-theme-preset="sand"', false)
+            ->assertSee('data-theme-edit-action', false)
+            ->assertSee('data-theme-save-action', false)
             ->assertSee('--tenant-primary: #7452d6', false);
 
         $this->actingAs($administrator)
@@ -85,6 +89,39 @@ class TenantThemeSettingsTest extends TestCase
             ->assertSee('--app-panel: #ffffff', false)
             ->assertSee('--app-text: #252018', false)
             ->assertSee('name="dark_background_color"', false);
+    }
+
+    public function test_opening_the_new_theme_choices_does_not_change_an_existing_tenant_theme(): void
+    {
+        $administrator = User::factory()->create(['is_tenant_administrator' => true]);
+        $this->selectTenant();
+        $existingColors = [
+            'primary_color' => '#7452d6',
+            'action_color' => '#d97706',
+            'light_background_color' => '#f7f4ed',
+            'light_surface_color' => '#ffffff',
+            'light_text_color' => '#252018',
+            'dark_background_color' => '#10131a',
+            'dark_surface_color' => '#1b2130',
+            'dark_text_color' => '#f4f7ff',
+        ];
+
+        foreach ($existingColors as $key => $value) {
+            AppSetting::storeValue('theme', $key, $value);
+        }
+
+        $this->withoutMiddleware(RedirectToTenantSetup::class)
+            ->actingAs($administrator)
+            ->get(route('settings.theme.edit'))
+            ->assertOk()
+            ->assertSee('data-theme-preset="original"', false)
+            ->assertSee('--tenant-primary: #7452d6', false)
+            ->assertSee('--tenant-action: #d97706', false);
+
+        $storedColors = AppSetting::groupValues('theme');
+        foreach ($existingColors as $key => $value) {
+            $this->assertSame($value, $storedColors->get($key));
+        }
     }
 
     public function test_theme_rejects_text_without_enough_surface_contrast(): void

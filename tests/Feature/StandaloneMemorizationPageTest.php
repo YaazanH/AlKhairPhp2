@@ -154,6 +154,23 @@ class StandaloneMemorizationPageTest extends TestCase
         $this->assertDatabaseCount('memorization_sessions', 0);
     }
 
+    public function test_review_memorisation_setting_hides_and_blocks_only_the_workbench_add_action(): void
+    {
+        $this->teacherMemorizationContext();
+        AppSetting::storeValue('general', 'memorization_saber_entries_enabled', true, 'boolean');
+        AppSetting::storeValue('general', 'memorization_review_entries_enabled', false, 'boolean');
+
+        Volt::test('memorization.index')
+            ->assertDontSee('data-memorization-create-action', false)
+            ->call('openCreateModal')
+            ->assertHasErrors('feature')
+            ->assertSet('showFormModal', false);
+
+        Volt::test('memorization.quick-entry')
+            ->assertDontSee('data-quick-entry-disabled', false)
+            ->assertSee('wire:submit="save"', false);
+    }
+
     public function test_list_create_permission_allows_saving_without_quick_entry_access(): void
     {
         [$user, , $enrollment] = $this->teacherMemorizationContext();

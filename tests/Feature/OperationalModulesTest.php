@@ -342,9 +342,13 @@ class OperationalModulesTest extends TestCase
         session(['locale' => $locale]);
 
         $this->get(route('settings.organization'))->assertOk()
-            ->assertSee('href="'.route('settings.attendance-statuses').'"', false)
+            ->assertSee('href="'.route('settings.learning-progression').'"', false)
+            ->assertDontSee('href="'.route('settings.attendance-statuses').'"', false)
             ->assertDontSee('href="'.route('settings.assessment-types').'"', false)
             ->assertDontSee('href="'.route('settings.points').'"', false);
+        $this->get(route('settings.learning-progression'))->assertOk()
+            ->assertSee('data-learning-path-section="reference-types"', false)
+            ->assertDontSee('data-learning-path-section="points"', false);
         $this->get(route('settings.attendance-statuses'))->assertOk()
             ->assertSee(__('settings.tracking.sections.attendance_status.table'))
             ->assertDontSee(__('settings.tracking.table.default_points'))
@@ -390,9 +394,13 @@ class OperationalModulesTest extends TestCase
         $this->modules(['assessments']);
         $this->admin();
         $this->get(route('settings.organization'))->assertOk()
-            ->assertSee('href="'.route('settings.assessment-types').'"', false)
+            ->assertSee('href="'.route('settings.learning-progression').'"', false)
+            ->assertDontSee('href="'.route('settings.assessment-types').'"', false)
             ->assertDontSee('href="'.route('settings.attendance-statuses').'"', false)
             ->assertDontSee('href="'.route('settings.points').'"', false);
+        $this->get(route('settings.learning-progression'))->assertOk()
+            ->assertSee('data-learning-path-section="reference-types"', false)
+            ->assertDontSee('data-learning-path-section="points"', false);
         $this->get(route('settings.assessment-types'))->assertOk()
             ->assertSee(__('settings.tracking.sections.assessment_type.table'))
             ->assertDontSee('wire:model="point_policy_points"', false)

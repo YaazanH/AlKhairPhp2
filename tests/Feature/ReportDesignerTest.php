@@ -677,6 +677,13 @@ class ReportDesignerTest extends TestCase
         ]);
 
         $this->actingAs($administrator)
+            ->get(route('reports.index', absolute: false))
+            ->assertOk()
+            ->assertSee(__('report_designer.title'))
+            ->assertDontSee(__('report_designer.eyebrow'))
+            ->assertDontSee(__('report_designer.subtitle'));
+
+        $this->actingAs($administrator)
             ->get(route('reports.designer', absolute: false))
             ->assertOk()
             ->assertSee(__('report_designer.title'));

@@ -92,6 +92,8 @@ new class extends Component
 
     public bool $memorization_saber_entries_enabled = true;
 
+    public bool $memorization_review_entries_enabled = true;
+
     public bool $activity_entries_enabled = true;
 
     public ?int $academic_year_editing_id = null;
@@ -1026,6 +1028,7 @@ new class extends Component
             'default_student_gender_id' => ['required', 'exists:student_genders,id'],
             'barcode_scanner_enabled' => ['boolean'],
             'memorization_saber_entries_enabled' => ['boolean'],
+            'memorization_review_entries_enabled' => ['boolean'],
             'activity_entries_enabled' => ['boolean'],
         ]);
 
@@ -1068,6 +1071,7 @@ new class extends Component
 
         AppSetting::storeValue('dashboard', 'barcode_scanner_enabled', $validated['barcode_scanner_enabled'], 'boolean');
         AppSetting::storeValue('general', 'memorization_saber_entries_enabled', $validated['memorization_saber_entries_enabled'], 'boolean');
+        AppSetting::storeValue('general', 'memorization_review_entries_enabled', $validated['memorization_review_entries_enabled'], 'boolean');
         AppSetting::storeValue('general', 'activity_entries_enabled', $validated['activity_entries_enabled'], 'boolean');
 
         foreach ([
@@ -1422,6 +1426,9 @@ new class extends Component
         $this->tenant_mobile_logo_path = (string) ($settings->get('tenant_mobile_logo_path') ?? '');
         $this->barcode_scanner_enabled = (bool) (AppSetting::groupValues('dashboard')->get('barcode_scanner_enabled') ?? true);
         $this->memorization_saber_entries_enabled = (bool) ($settings->get('memorization_saber_entries_enabled') ?? true);
+        $this->memorization_review_entries_enabled = $settings->has('memorization_review_entries_enabled')
+            ? (bool) $settings->get('memorization_review_entries_enabled')
+            : $this->memorization_saber_entries_enabled;
         $this->activity_entries_enabled = (bool) ($settings->get('activity_entries_enabled') ?? true);
         $this->default_student_gender_id = StudentGender::query()->where('is_active', true)->where('is_default', true)->value('id')
             ?? StudentGender::query()->where('is_active', true)->orderBy('sort_order')->value('id');
@@ -2048,9 +2055,13 @@ new class extends Component
                     </div>
                 </div>
             </section>
-            <section class="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-3">
+            <section class="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-4">
                 <label class="flex items-center gap-3 text-sm"><input wire:model="barcode_scanner_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.barcode_scanner') }}</span></label>
-                <label class="flex items-center gap-3 text-sm"><input wire:model="memorization_saber_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.memorization_saber_entries') }}</span></label>
+                <label class="flex items-center gap-3 text-sm"><input wire:model.live="memorization_saber_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.memorization_saber_entries') }}</span></label>
+                <label class="flex items-center gap-3 text-sm {{ $memorization_saber_entries_enabled ? '' : 'opacity-50' }}">
+                    <input wire:model="memorization_review_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600" @disabled(! $memorization_saber_entries_enabled)>
+                    <span>{{ __('settings.organization.fields.memorization_review_entries') }}</span>
+                </label>
                 <label class="flex items-center gap-3 text-sm"><input wire:model="activity_entries_enabled" type="checkbox" class="rounded border-neutral-300 text-emerald-600"><span>{{ __('settings.organization.fields.activities') }}</span></label>
             </section>
             <section class="rounded-3xl border border-white/10 bg-white/5 p-4">

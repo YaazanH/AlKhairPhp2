@@ -100,6 +100,43 @@ class LearningProgressionTest extends TestCase
             ->assertSee(__('learning_progression.navigation'));
     }
 
+    public function test_learning_path_combines_progression_reference_types_and_points_into_exclusive_sections(): void
+    {
+        $this->signInAsAdministrator();
+
+        $response = $this->get(route('settings.learning-progression', absolute: false));
+
+        $response->assertOk()
+            ->assertSee('data-learning-path-accordion', false)
+            ->assertSee('data-learning-path-section="progression"', false)
+            ->assertSee('data-learning-path-section="reference-types"', false)
+            ->assertSee('data-learning-path-section="points"', false)
+            ->assertSee("openSection = openSection === 'progression' ? null : 'progression'", false)
+            ->assertSee("openSection = openSection === 'reference-types' ? null : 'reference-types'", false)
+            ->assertSee("openSection = openSection === 'points' ? null : 'points'", false);
+
+        $this->get(route('settings.organization', absolute: false))
+            ->assertOk()
+            ->assertSee('href="'.route('settings.learning-progression').'"', false)
+            ->assertDontSee('href="'.route('settings.points').'"', false)
+            ->assertDontSee('href="'.route('settings.attendance-statuses').'"', false)
+            ->assertDontSee('href="'.route('settings.assessment-types').'"', false);
+    }
+
+    public function test_general_settings_permission_can_open_available_learning_path_sections(): void
+    {
+        $this->seed();
+        $user = User::factory()->create(['username' => 'learning-path-settings-manager']);
+        $user->givePermissionTo('settings.manage');
+
+        $this->actingAs($user)
+            ->get(route('settings.learning-progression', absolute: false))
+            ->assertOk()
+            ->assertDontSee('data-learning-path-section="progression"', false)
+            ->assertSee('data-learning-path-section="reference-types"', false)
+            ->assertSee('data-learning-path-section="points"', false);
+    }
+
     public function test_authorized_tenant_user_can_build_an_ordered_lesson_level_progression(): void
     {
         $this->useLearningPath(Tenant::LEARNING_PATH_LESSON_LEVEL);

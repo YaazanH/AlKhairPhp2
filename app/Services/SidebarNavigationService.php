@@ -14,6 +14,8 @@ class SidebarNavigationService
 {
     protected const CUSTOM_GROUP_PREFIX = 'custom_';
 
+    protected const HIDDEN_SIDEBAR_ITEMS = ['report_library', 'student_billing'];
+
     public function defaultGroups(): array
     {
         return [
@@ -182,6 +184,10 @@ class SidebarNavigationService
         $items = [];
 
         foreach ($this->defaultItems() as $key => $definition) {
+            if (in_array($key, self::HIDDEN_SIDEBAR_ITEMS, true)) {
+                continue;
+            }
+
             $items[$key] = [
                 'key' => $key,
                 'label' => __($definition['label_key']),
@@ -266,6 +272,10 @@ class SidebarNavigationService
             $items = [];
 
             foreach ($this->defaultItems() as $itemKey => $itemDefinition) {
+                if (in_array($itemKey, self::HIDDEN_SIDEBAR_ITEMS, true)) {
+                    continue;
+                }
+
                 if ($tenantContext->hasTenant()
                     && collect($this->requiredTenantModules($itemKey))
                         ->contains(fn (string $module) => ! app(CurrentModuleAccess::class)->enabled($module))) {

@@ -29,9 +29,12 @@ new class extends Component {
     public array $groupIds = [];
     public array $lessonIds = [];
 
-    public function mount(): void
+    public bool $embedded = false;
+
+    public function mount(bool $embedded = false): void
     {
         $this->authorizePermission('learning-progression.manage');
+        $this->embedded = $embedded;
         $this->loadSettings();
     }
 
@@ -210,17 +213,21 @@ new class extends Component {
 };
 ?>
 
-<div class="page-stack">
+<div class="{{ $embedded ? 'space-y-6' : 'page-stack' }}">
+    @unless ($embedded)
     <x-settings.admin-nav section="dashboard" current="settings.learning-progression" />
+    @endunless
 
-    <section class="surface-panel overflow-hidden">
+    <section class="{{ $embedded ? '' : 'surface-panel overflow-hidden' }}">
+        @unless ($embedded)
         <div class="border-b border-neutral-200 p-5 dark:border-neutral-800 lg:p-6">
             <div class="eyebrow">{{ __('learning_progression.eyebrow') }}</div>
             <h1 class="font-display mt-2 text-2xl font-semibold text-neutral-950 dark:text-white">{{ __('learning_progression.title') }}</h1>
             <p class="mt-2 max-w-3xl text-sm leading-7 text-neutral-600 dark:text-neutral-300">{{ __('learning_progression.subtitle') }}</p>
         </div>
+        @endunless
 
-        <div class="space-y-6 p-5 lg:p-6">
+        <div class="space-y-6 {{ $embedded ? '' : 'p-5 lg:p-6' }}">
             @if (session('status'))
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{{ session('status') }}</div>
             @endif

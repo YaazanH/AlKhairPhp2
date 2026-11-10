@@ -18,11 +18,31 @@ class OperationalFeatureSettings
         return (bool) (AppSetting::groupValues('general')->get('activity_entries_enabled') ?? true);
     }
 
+    public static function memorizationReviewEntriesEnabled(): bool
+    {
+        if (! self::memorizationAndSabersEnabled()) {
+            return false;
+        }
+
+        return (bool) (AppSetting::groupValues('general')->get('memorization_review_entries_enabled') ?? true);
+    }
+
     public static function ensureMemorizationAndSabersEnabled(): void
     {
         if (! self::memorizationAndSabersEnabled()) {
             throw ValidationException::withMessages([
                 'feature' => __('settings.organization.features.memorization_disabled'),
+            ]);
+        }
+    }
+
+    public static function ensureMemorizationReviewEntriesEnabled(): void
+    {
+        self::ensureMemorizationAndSabersEnabled();
+
+        if (! self::memorizationReviewEntriesEnabled()) {
+            throw ValidationException::withMessages([
+                'feature' => __('settings.organization.features.memorization_review_disabled'),
             ]);
         }
     }

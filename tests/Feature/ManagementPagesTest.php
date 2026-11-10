@@ -47,6 +47,23 @@ class ManagementPagesTest extends TestCase
         $this->assertStringContainsString('.dark .platform-tenant-workspace', $styles);
     }
 
+    public function test_theme_and_tenant_backup_settings_use_icon_actions_and_merge_storage(): void
+    {
+        $theme = file_get_contents(resource_path('views/settings/theme.blade.php'));
+        $tenantBackups = file_get_contents(resource_path('views/tenant/backups/index.blade.php'));
+        $settingsNav = file_get_contents(resource_path('views/components/settings/admin-nav.blade.php'));
+
+        $this->assertStringContainsString('@foreach($presets as $presetKey => $presetColors)', $theme);
+        $this->assertStringContainsString('data-theme-edit-action', $theme);
+        $this->assertStringContainsString('data-theme-save-action', $theme);
+        $this->assertStringContainsString('data-theme-reset-action', $theme);
+        $this->assertStringContainsString('data-tenant-storage-summary', $tenantBackups);
+        $this->assertStringContainsString('<x-admin-action-icon name="backup-upload" />', $tenantBackups);
+        $this->assertStringContainsString('<x-admin-action-icon name="download" />', $tenantBackups);
+        $this->assertStringContainsString('<x-admin-action-icon name="restore-point" />', $tenantBackups);
+        $this->assertStringNotContainsString("route('settings.storage')", $settingsNav);
+    }
+
     public function test_assessment_result_statuses_are_kashida_balanced_to_the_absent_label(): void
     {
         $view = file_get_contents(resource_path('views/livewire/assessments/results.blade.php'));

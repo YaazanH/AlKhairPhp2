@@ -15,6 +15,7 @@ class ArabicMonthFormatterTest extends TestCase
         $this->assertSame('أيلول 2026', ArabicMonthFormatter::monthYear($date));
         $this->assertSame('ربيع الأول 1448', ArabicMonthFormatter::hijriMonthYear($date));
         $this->assertSame('ربيع الأول ١٤٤٨هـ', ArabicMonthFormatter::hijriMonthYearLabel($date));
+        $this->assertSame('١٤٤٨هـ', ArabicMonthFormatter::hijriYearLabel($date));
         $this->assertSame('ربيع الأول ١٤٤٨هـ - أيلول ٢٠٢٦ مـ', ArabicMonthFormatter::monthYearWithHijri($date));
     }
 }

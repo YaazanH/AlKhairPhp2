@@ -404,6 +404,22 @@ class SystemSettingsTest extends TestCase
         $this->assertStringContainsString('grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));', $styles);
     }
 
+    public function test_review_memorisation_setting_defaults_on_and_keeps_an_explicit_off_preference(): void
+    {
+        $this->signIn();
+
+        Volt::test('settings.organization')
+            ->assertSet('memorization_saber_entries_enabled', true)
+            ->assertSet('memorization_review_entries_enabled', true)
+            ->call('openOrganizationModal')
+            ->set('memorization_review_entries_enabled', false)
+            ->set('memorization_saber_entries_enabled', false)
+            ->assertSet('memorization_review_entries_enabled', false)
+            ->set('memorization_saber_entries_enabled', true)
+            ->assertSet('memorization_review_entries_enabled', false)
+            ->assertSee(__('settings.organization.fields.memorization_review_entries'));
+    }
+
     public function test_manager_can_manage_organization_settings(): void
     {
         $this->signIn();
@@ -458,10 +474,11 @@ class SystemSettingsTest extends TestCase
             ->set('school_currency', 'SYP')
             ->set('barcode_scanner_enabled', false)
             ->set('memorization_saber_entries_enabled', false)
+            ->set('memorization_review_entries_enabled', false)
             ->set('activity_entries_enabled', false)
             ->call('saveOrganizationSettings')
             ->assertHasNoErrors()
-            ->assertSee('دمشق (UTC+03:00)');
+            ->assertSet('school_timezone', 'Asia/Damascus');
 
         $this->assertDatabaseHas('app_settings', [
             'group' => 'general',
@@ -501,11 +518,19 @@ class SystemSettingsTest extends TestCase
 
         $this->assertDatabaseHas('app_settings', [
             'group' => 'general',
+            'key' => 'memorization_review_entries_enabled',
+            'value' => '0',
+        ]);
+
+        $this->assertDatabaseHas('app_settings', [
+            'group' => 'general',
             'key' => 'activity_entries_enabled',
             'value' => '0',
         ]);
 
         $this->assertFalse(OperationalFeatureSettings::memorizationAndSabersEnabled());
+        AppSetting::storeValue('general', 'memorization_saber_entries_enabled', true, 'boolean');
+        $this->assertFalse(OperationalFeatureSettings::memorizationReviewEntriesEnabled());
         $this->assertFalse(OperationalFeatureSettings::activitiesEnabled());
 
         $this->assertSame('S'.str_pad((string) $student->id, 6, '0', STR_PAD_LEFT), $student->fresh()->student_number);

@@ -5,6 +5,11 @@ return [
     'eyebrow' => 'Student journey',
     'title' => 'Learning progression',
     'subtitle' => 'Configure the learning path selected when this tenant was created and define the evidence students need before advancing.',
+    'sections' => [
+        'progression' => ['title' => 'Progression', 'copy' => 'Configure the stages and evidence students need to advance.'],
+        'reference_types' => ['title' => 'Attendance and assessment types', 'copy' => 'Manage the attendance statuses and assessment types used across the learning path.'],
+        'points' => ['title' => 'Points', 'copy' => 'Set point types, automatic policies, test rules, and temporary multipliers.'],
+    ],
     'profile_choice' => 'Progression profile',
     'profile_immutable' => 'This learning path was selected when the tenant was created and cannot be changed.',
     'profiles' => [

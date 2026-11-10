@@ -77,6 +77,11 @@ class ArabicMonthFormatter
         return self::easternArabicNumerals(self::hijriMonthYear($date).'هـ');
     }
 
+    public static function hijriYearLabel(CarbonInterface $date): string
+    {
+        return self::easternArabicNumerals(str(self::hijriMonthYear($date))->afterLast(' ')->toString().'هـ');
+    }
+
     private static function easternArabicNumerals(string $value): string
     {
         return strtr($value, [

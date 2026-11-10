@@ -8,7 +8,7 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
-    $monthLabel = \App\Support\ArabicMonthFormatter::hijriMonthYearLabel(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::hijriYearLabel(now());
     $brandName = app(\App\Support\BrandIdentity::class)->currentName();
 @endphp
 
@@ -45,7 +45,7 @@
                 <div class="app-sidebar-scroll-region">
                     <div class="px-1 pt-2">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                            <x-app-logo :title="$brandName" :subtitle="$monthLabel" :justify-subtitle-to-title="true" />
+                            <x-app-logo :title="$brandName" :subtitle="$monthLabel" />
                         </a>
                     </div>
 

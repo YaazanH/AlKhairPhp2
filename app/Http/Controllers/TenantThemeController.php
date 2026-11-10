@@ -18,6 +18,7 @@ class TenantThemeController extends Controller
         return view('settings.theme', [
             'primaryColor' => $theme->primaryColor(),
             'colors' => $theme->colors(),
+            'presets' => TenantTheme::presets(),
         ]);
     }
 

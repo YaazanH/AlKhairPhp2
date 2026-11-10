@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Landlord\TenantBackup;
 use App\Services\Landlord\TenantBackupCoordinator;
 use App\Services\Landlord\TenantContext;
+use App\Services\Landlord\TenantStorageUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -17,13 +18,20 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TenantBackupController extends Controller
 {
-    public function index(TenantContext $context): View
+    public function index(TenantContext $context, TenantStorageUsage $storageUsage): View
     {
         $tenant = $context->tenant();
+        $canManageBackups = (bool) auth()->user()?->can('backups.manage');
+        $canViewStorage = (bool) auth()->user()?->can('storage.view');
 
         return view('tenant.backups.index', [
             'tenant' => $tenant,
-            'backups' => TenantBackup::query()->where('tenant_id', $tenant->id)->latest()->paginate(25),
+            'backups' => $canManageBackups
+                ? TenantBackup::query()->where('tenant_id', $tenant->id)->latest()->paginate(25)
+                : null,
+            'canManageBackups' => $canManageBackups,
+            'canViewStorage' => $canViewStorage,
+            'usage' => $canViewStorage ? $storageUsage->for($tenant) : null,
         ]);
     }
 

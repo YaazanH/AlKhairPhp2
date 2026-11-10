@@ -1218,9 +1218,6 @@ new class extends Component
                             </div>
                         @endif
                     </div>
-                    @if (! $quranProgressionSummary['configured'] && auth()->user()->can('learning-progression.manage'))
-                        <a href="{{ route('settings.learning-progression') }}" wire:navigate class="pill-link pill-link--accent">{{ __('learning_progression.summary.configure') }}</a>
-                    @endif
                 </div>
             </div>
 

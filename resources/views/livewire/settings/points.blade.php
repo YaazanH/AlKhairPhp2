@@ -653,7 +653,9 @@ new class extends Component
         </section>
     </div>
 
-    <livewire:assessments.bands :embedded="true" />
+    @can('assessment-score-bands.view')
+        <livewire:assessments.bands :embedded="true" />
+    @endcan
 
     <x-admin.modal :show="$showPointTypeModal" :title="$point_type_editing_id ? __('settings.points.sections.point_type.edit') : __('settings.points.sections.point_type.create')" close-method="closePointTypeModal" max-width="3xl">
         <form wire:submit="savePointType" class="space-y-4">

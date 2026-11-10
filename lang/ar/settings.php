@@ -219,6 +219,7 @@ return [
             'barcode_scanner' => 'قارئ الباركود',
             'barcode_status' => 'حالة الباركود',
             'memorization_saber_entries' => 'إضافة الحفظ والسبر الجديدة',
+            'memorization_review_entries' => 'إضافة حفظ مراجعة',
             'memorization_saber_status' => 'حالة إضافة الصفحات والسبر',
             'activities' => 'الأنشطة وأنشطة الأسرة',
             'school_phone' => 'الهاتف',
@@ -331,6 +332,7 @@ return [
         ],
         'features' => [
             'memorization_disabled' => 'إضافة الحفظ والسبورة الجديدة متوقفة حالياً من الإعدادات العامة.',
+            'memorization_review_disabled' => 'إضافة حفظ مراجعة من جدول المحفوظات متوقفة حالياً من الإعدادات العامة.',
             'activities_disabled' => 'الأنشطة وأنشطة الأسرة متوقفة حالياً من الإعدادات العامة.',
         ],
         'messages' => [

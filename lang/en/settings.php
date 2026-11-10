@@ -219,6 +219,7 @@ return [
             'barcode_scanner' => 'Barcode scanner',
             'barcode_status' => 'Barcode status',
             'memorization_saber_entries' => 'New memorisation and saber entries',
+            'memorization_review_entries' => 'Add review memorisation',
             'memorization_saber_status' => 'Adding pages and Saber status',
             'activities' => 'Activities and family activities',
             'school_phone' => 'Phone',
@@ -331,6 +332,7 @@ return [
         ],
         'features' => [
             'memorization_disabled' => 'New memorisation and saber entries are currently disabled in general settings.',
+            'memorization_review_disabled' => 'Adding review memorisation from the memorisation table is currently disabled in general settings.',
             'activities_disabled' => 'Activities and family activities are currently disabled in general settings.',
         ],
         'messages' => [

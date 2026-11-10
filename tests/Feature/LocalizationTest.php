@@ -207,9 +207,8 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('protected const MOBILE_HIDDEN_ITEM_KEYS', $sidebarNavigationMenu);
         $this->assertStringContainsString("\$group['has_mobile_items'] ? '' : 'max-lg:hidden'", $sidebarNavigationMenu);
         $this->assertStringContainsString('data-app-sidebar-navigation-mobile-empty', $sidebarNavigationMenu);
-        $this->assertStringContainsString('ArabicMonthFormatter::hijriMonthYearLabel(now())', $sidebar);
-        $this->assertStringContainsString(':justify-subtitle-to-title="true"', $sidebar);
-        $this->assertStringContainsString(':subtitle-justification-target="__(\'ui.app.quran_course_short\')"', $sidebar);
+        $this->assertStringContainsString('ArabicMonthFormatter::hijriYearLabel(now())', $sidebar);
+        $this->assertStringNotContainsString(':justify-subtitle-to-title="true"', $sidebar);
         $this->assertStringContainsString("'app-logo-period-subtitle text-[0.7rem]'", file_get_contents(resource_path('views/components/app-logo.blade.php')));
         $this->assertArrayHasKey('finance_reports', app(SidebarNavigationService::class)->defaultItems());
         $this->assertStringNotContainsString('$desktopDropdownAlign', $sidebar);

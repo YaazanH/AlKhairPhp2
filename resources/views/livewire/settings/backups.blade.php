@@ -451,8 +451,8 @@ new class extends Component
                 <div class="admin-grid-meta__summary">{{ __('backups.history.summary', ['count' => number_format($backups->total())]) }}</div>
             </div>
             <div class="admin-toolbar__actions" data-backup-history-actions>
-                <button type="button" wire:click="createBackup('full')" wire:loading.attr="disabled" wire:target="createBackup" class="pill-link pill-link--compact pill-link--accent disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create_full_help') }}" data-backup-full-create-action>
-                    {{ __('backups.actions.create_full') }}
+                <button type="button" wire:click="createBackup('full')" wire:loading.attr="disabled" wire:target="createBackup" class="admin-icon-button admin-icon-button--accent disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create_full_help') }}" aria-label="{{ __('backups.actions.create_full') }}" data-backup-full-create-action>
+                    <x-admin-action-icon name="save-new" />
                 </button>
                 <button type="button" wire:click="createBackup" wire:loading.attr="disabled" wire:target="createBackup" class="admin-icon-button admin-icon-button--accent disabled:cursor-wait disabled:opacity-50" title="{{ __('backups.actions.create') }}" aria-label="{{ __('backups.actions.create') }}" data-backup-create-action>
                     <x-admin-action-icon name="backup-upload" />

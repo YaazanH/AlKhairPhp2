@@ -194,7 +194,7 @@ new class extends Component
     public function openCreateModal(): void
     {
         $this->authorizePermission('memorization.create');
-        OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+        OperationalFeatureSettings::ensureMemorizationReviewEntriesEnabled();
 
         $this->resetForm();
         $this->showFormModal = true;
@@ -235,7 +235,7 @@ new class extends Component
         $this->authorizePermission($this->editingSessionId ? 'memorization.record' : 'memorization.create');
 
         if (! $this->editingSessionId) {
-            OperationalFeatureSettings::ensureMemorizationAndSabersEnabled();
+            OperationalFeatureSettings::ensureMemorizationReviewEntriesEnabled();
         }
 
         $validated = $this->validate([
@@ -581,11 +581,11 @@ new class extends Component
                     </select>
                 </div>
 
-                @can('memorization.create')
+                @if (auth()->user()?->can('memorization.create') && \App\Support\OperationalFeatureSettings::memorizationReviewEntriesEnabled())
                     <div class="admin-toolbar__actions">
                         <x-add-action-button wire:click="openCreateModal" :label="__('workflow.memorization.workbench.create')" data-memorization-create-action />
                     </div>
-                @endcan
+                @endif
             </div>
         </div>
 

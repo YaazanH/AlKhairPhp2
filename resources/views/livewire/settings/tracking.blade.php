@@ -23,6 +23,8 @@ new class extends Component
     #[Locked]
     public string $section = 'all';
 
+    public bool $embedded = false;
+
     protected array $reservedQuranTestTypeCodes = ['partial'];
 
     public ?int $attendance_status_editing_id = null;
@@ -73,15 +75,18 @@ new class extends Component
 
     public string $final_test_passed_from = '60';
 
-    public function mount(string $section = 'all'): void
+    public function mount(string $section = 'all', bool $embedded = false): void
     {
         $this->authorizePermission('settings.manage');
-        abort_unless(in_array($section, ['all', 'attendance', 'assessments'], true), 404);
+        abort_unless(in_array($section, ['all', 'attendance', 'assessments', 'references'], true), 404);
         $this->section = $section;
+        $this->embedded = $embedded;
         if ($section === 'attendance') {
             $this->authorizeAttendanceSettings();
         } elseif ($section === 'assessments') {
             $this->authorizeAssessmentSettings();
+        } elseif ($section === 'references') {
+            $this->authorizeReferenceSettings();
         } else {
             app(CurrentModuleAccess::class)->ensure('points_rewards');
             $this->loadPartialTestRuleSettings();
@@ -95,6 +100,8 @@ new class extends Component
             $this->authorizeAttendanceSettings();
         } elseif ($this->section === 'assessments') {
             $this->authorizeAssessmentSettings();
+        } elseif ($this->section === 'references') {
+            $this->authorizeReferenceSettings();
         } else {
             $this->authorizePermission('settings.manage');
             app(CurrentModuleAccess::class)->ensure('points_rewards');
@@ -104,7 +111,7 @@ new class extends Component
     protected function authorizeAttendanceSettings(): void
     {
         $this->authorizePermission('settings.manage');
-        abort_unless(in_array($this->section, ['all', 'attendance'], true), 403);
+        abort_unless(in_array($this->section, ['all', 'attendance', 'references'], true), 403);
         $access = app(CurrentModuleAccess::class);
         abort_unless($access->enabled('student_attendance') || $access->enabled('teacher_attendance'), 403);
     }
@@ -112,8 +119,20 @@ new class extends Component
     protected function authorizeAssessmentSettings(): void
     {
         $this->authorizePermission('settings.manage');
-        abort_unless(in_array($this->section, ['all', 'assessments'], true), 403);
+        abort_unless(in_array($this->section, ['all', 'assessments', 'references'], true), 403);
         app(CurrentModuleAccess::class)->ensure('assessments');
+    }
+
+    protected function authorizeReferenceSettings(): void
+    {
+        $this->authorizePermission('settings.manage');
+        $access = app(CurrentModuleAccess::class);
+        abort_unless(
+            $access->enabled('student_attendance')
+            || $access->enabled('teacher_attendance')
+            || $access->enabled('assessments'),
+            403,
+        );
     }
 
     protected function authorizeQuranSettings(): void
@@ -492,9 +511,9 @@ new class extends Component
     public function with(): array
     {
         $access = app(CurrentModuleAccess::class);
-        $showAttendanceSettings = in_array($this->section, ['all', 'attendance'], true)
+        $showAttendanceSettings = in_array($this->section, ['all', 'attendance', 'references'], true)
             && ($access->enabled('student_attendance') || $access->enabled('teacher_attendance'));
-        $showAssessmentSettings = in_array($this->section, ['all', 'assessments'], true) && $access->enabled('assessments');
+        $showAssessmentSettings = in_array($this->section, ['all', 'assessments', 'references'], true) && $access->enabled('assessments');
 
         return [
             'showAttendanceSettings' => $showAttendanceSettings,
@@ -503,6 +522,7 @@ new class extends Component
             'pageTitle' => match ($this->section) {
                 'attendance' => __('settings.tracking.sections.attendance_status.table'),
                 'assessments' => __('settings.tracking.sections.assessment_type.table'),
+                'references' => __('learning_progression.sections.reference_types.title'),
                 default => __('ui.common.settings'),
             },
             'settingsRoute' => match ($this->section) {
@@ -578,12 +598,14 @@ new class extends Component
     }
 }; ?>
 
-<div class="page-stack settings-admin-page">
+<div class="{{ $embedded ? 'space-y-6' : 'page-stack settings-admin-page' }}">
+    @unless ($embedded)
     <section class="page-hero p-6 lg:p-8">
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ $pageTitle }}</h1>
     </section>
 
     <x-settings.admin-nav section="dashboard" :current="$settingsRoute" />
+    @endunless
 
     @if (session('status'))
         <div class="flash-success rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>

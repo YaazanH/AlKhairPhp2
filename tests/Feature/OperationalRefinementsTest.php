@@ -126,13 +126,14 @@ class OperationalRefinementsTest extends TestCase
             'tracking_quran' => ['memorization', 'quran_partial_tests', 'quran_final_tests', 'quran_tests'],
             'tracking_performance' => ['assessments', 'point_ledger'],
             'tracking_tools' => ['student_notes'],
-            'finance' => ['finance_dashboard', 'finance_expense_requests', 'finance_revenue_requests', 'finance_exchange', 'finance_reports', 'student_billing'],
+            'finance' => ['finance_dashboard', 'finance_expense_requests', 'finance_revenue_requests', 'finance_exchange', 'finance_reports'],
             'identity_tools' => ['id_card_print'],
             'designs' => ['public_website_settings', 'print_templates'],
             'academics' => ['courses', 'groups'],
             'people' => ['users', 'teachers', 'parents'],
             'activities' => ['community_contacts'],
             'database' => ['data_quality', 'data_audit'],
+            'support' => ['support'],
             'configuration' => ['dashboard_settings', 'finance_settings'],
         ];
         $service->save(['custom_test' => ['title' => 'Custom', 'sort_order' => 0]], ['reports' => ['group_key' => 'custom_test', 'sort_order' => 0]]);
@@ -141,6 +142,20 @@ class OperationalRefinementsTest extends TestCase
         $actual = collect($service->sidebarFor(auth()->user()))->mapWithKeys(fn (array $group) => [$group['key'] => array_column($group['items'], 'key')])->all();
         $this->assertSame($expected, $actual);
         $this->assertArrayNotHasKey('custom_test', $service->settings()['groups']);
+    }
+
+    public function test_reports_library_and_student_invoices_are_not_sidebar_items(): void
+    {
+        $this->signIn();
+        $service = app(SidebarNavigationService::class);
+        $sidebarKeys = collect($service->sidebarFor(auth()->user()))
+            ->flatMap(fn (array $group) => $group['items'])
+            ->pluck('key');
+
+        $this->assertFalse($sidebarKeys->contains('report_library'));
+        $this->assertFalse($sidebarKeys->contains('student_billing'));
+        $this->assertArrayNotHasKey('report_library', $service->editableItems());
+        $this->assertArrayNotHasKey('student_billing', $service->editableItems());
     }
 
     public function test_routine_audit_creations_and_edits_are_hidden_retroactively_but_deletions_remain(): void
