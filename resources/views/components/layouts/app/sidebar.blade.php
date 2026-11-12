@@ -8,8 +8,10 @@
     $sidebarBorderClass = $isRtl ? 'border-l' : 'border-r';
     $sidebarToggleInset = $isRtl ? 'right' : 'left';
     $mobileIdentitySpacingClass = $isRtl ? 'mr-3' : 'ml-3';
-    $monthLabel = \App\Support\ArabicMonthFormatter::hijriYearLabel(now());
+    $monthLabel = \App\Support\ArabicMonthFormatter::hijriMonthYearLabel(now());
     $brandName = app(\App\Support\BrandIdentity::class)->currentName();
+    $canManageTheme = app(\App\Services\Landlord\TenantContext::class)->hasTenant()
+        && (auth()->user()?->is_tenant_administrator || auth()->user()?->can('settings.manage'));
 @endphp
 
 <!DOCTYPE html>
@@ -19,6 +21,7 @@
     </head>
     <body
         class="app-body tenant-app-body"
+        data-custom-tenant-theme="{{ app(\App\Support\TenantTheme::class)->isCustom() ? 'true' : 'false' }}"
         data-current-user-id="{{ auth()->id() }}"
         data-attendance-sync-url="{{ route('attendance.offline-sync') }}"
         data-attendance-sync-conflict-label="{{ __('workflow.offline_attendance.conflict') }}"
@@ -45,7 +48,7 @@
                 <div class="app-sidebar-scroll-region">
                     <div class="px-1 pt-2">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3" wire:navigate>
-                            <x-app-logo :title="$brandName" :subtitle="$monthLabel" />
+                            <x-app-logo :title="$brandName" :subtitle="$monthLabel" :justify-subtitle-to-title="true" :subtitle-justification-target="__('ui.app.quran_course_short')" />
                         </a>
                     </div>
 
@@ -98,7 +101,11 @@
 
                             <div>
                                 <flux:menu.item href="{{ route('settings.profile') }}" icon="user-circle" wire:navigate>{{ __('ui.common.my_account') }}</flux:menu.item>
-                                <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
+                                @if ($canManageTheme)
+                                    <flux:menu.item href="{{ route('settings.theme.edit') }}" icon="swatch" wire:navigate data-theme-account-action>{{ __('theme.navigation') }}</flux:menu.item>
+                                @else
+                                    <flux:menu.item href="{{ route('home') }}" icon="globe-alt">{{ __('ui.common.visit_site') }}</flux:menu.item>
+                                @endif
                             </div>
 
                             <flux:menu.separator />

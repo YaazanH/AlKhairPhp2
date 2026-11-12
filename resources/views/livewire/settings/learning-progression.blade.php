@@ -244,56 +244,56 @@ new class extends Component {
             @error('progression') <div class="text-sm text-red-600">{{ $message }}</div> @enderror
 
             @php($profileLabel = $profile === \App\Services\LearningProgressionService::PROFILE_LESSON_LEVEL ? 'lesson_level' : 'quran')
-            <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30" data-learning-path-type>
-                <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{{ __('learning_progression.profile_choice') }}</div>
-                <div class="mt-2 font-semibold text-neutral-950 dark:text-white">{{ __('learning_progression.profiles.'.$profileLabel.'.title') }}</div>
-                <p class="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{{ __('learning_progression.profiles.'.$profileLabel.'.copy') }}</p>
-                <p class="mt-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">{{ __('learning_progression.profile_immutable') }}</p>
+            <section class="learning-path-profile" data-learning-path-type>
+                <div>
+                    <h3>{{ __('learning_progression.profiles.'.$profileLabel.'.title') }}</h3>
+                    <p>{{ __('learning_progression.profiles.'.$profileLabel.'.copy') }}</p>
+                </div>
+                <p class="learning-path-profile__note">{{ __('learning_progression.profile_immutable') }}</p>
             </section>
 
             @if ($profile === \App\Services\LearningProgressionService::PROFILE_QURAN)
-                <form wire:submit="saveQuran" class="space-y-6">
-                    <fieldset @disabled($locked) class="space-y-4">
-                        <legend class="mb-4 text-base font-semibold text-neutral-950 dark:text-white">{{ __('learning_progression.quran_profile') }}</legend>
-
-                        <div class="grid gap-4 lg:grid-cols-3">
-                    <article class="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
-                        <label class="flex items-start gap-3">
-                            <input wire:model.live="partial_test_enabled" type="checkbox" class="mt-1 rounded border-neutral-300 text-emerald-600">
-                            <span><span class="block font-semibold">{{ __('learning_progression.tests.partial') }}</span><span class="mt-1 block text-sm text-neutral-500">{{ __('learning_progression.partial_copy') }}</span></span>
-                        </label>
-                        <label class="mt-4 flex items-start gap-3 border-t border-neutral-200 pt-4 text-sm dark:border-neutral-800">
-                            <input wire:model="partial_test_required_for_final" type="checkbox" @disabled(! $partial_test_enabled || ! $final_test_enabled) class="mt-1 rounded border-neutral-300 text-emerald-600">
-                            <span>{{ __('learning_progression.require_partial') }}</span>
-                        </label>
-                        @error('partial_test_required_for_final') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </article>
-
-                    <article class="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
-                        <label class="flex items-start gap-3">
-                            <input wire:model.live="final_test_enabled" type="checkbox" class="mt-1 rounded border-neutral-300 text-emerald-600">
-                            <span><span class="block font-semibold">{{ __('learning_progression.tests.final') }}</span><span class="mt-1 block text-sm text-neutral-500">{{ __('learning_progression.final_copy') }}</span></span>
-                        </label>
-                        <label class="mt-4 flex items-start gap-3 border-t border-neutral-200 pt-4 text-sm dark:border-neutral-800">
-                            <input wire:model="final_test_required_for_awqaf" type="checkbox" @disabled(! $final_test_enabled || ! $awqaf_test_enabled) class="mt-1 rounded border-neutral-300 text-emerald-600">
-                            <span>{{ __('learning_progression.require_final') }}</span>
-                        </label>
-                        @error('final_test_required_for_awqaf') <div class="mt-2 text-sm text-red-600">{{ $message }}</div> @enderror
-                    </article>
-
-                    <article class="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
-                        <label class="flex items-start gap-3">
-                            <input wire:model.live="awqaf_test_enabled" type="checkbox" class="mt-1 rounded border-neutral-300 text-emerald-600">
-                            <span><span class="block font-semibold">{{ __('learning_progression.tests.awqaf') }}</span><span class="mt-1 block text-sm text-neutral-500">{{ __('learning_progression.awqaf_copy') }}</span></span>
-                        </label>
-                    </article>
-                        </div>
-
-                        @error('partial_test_enabled') <div class="text-sm text-red-600">{{ $message }}</div> @enderror
+                <form wire:submit="saveQuran" class="learning-path-setup" data-learning-path-setup>
+                    <div class="learning-path-route" aria-label="{{ __('learning_progression.summary.path') }}">
+                        <span>{{ __('learning_progression.stages.memorization') }}</span>
+                        @foreach (['partial' => $partial_test_enabled, 'final' => $final_test_enabled, 'awqaf' => $awqaf_test_enabled] as $stage => $enabled)
+                            @if ($enabled)
+                                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m8 4 6 6-6 6M14 10H2" /></svg>
+                                <span>{{ __('learning_progression.stages.'.$stage) }}</span>
+                            @endif
+                        @endforeach
+                    </div>
+                    <fieldset @disabled($locked)>
+                        <legend class="sr-only">{{ __('learning_progression.quran_profile') }}</legend>
+                        @foreach (['partial', 'final', 'awqaf'] as $stage)
+                            @php($enabledProperty = $stage.'_test_enabled')
+                            <article class="learning-stage-row" wire:key="learning-stage-{{ $stage }}">
+                                <label class="learning-stage-row__control">
+                                    <span>
+                                        <span class="learning-stage-row__title">{{ __('learning_progression.tests.'.$stage) }}</span>
+                                        <span class="learning-stage-row__copy">{{ __('learning_progression.'.$stage.'_copy') }}</span>
+                                    </span>
+                                    <input wire:model.live="{{ $enabledProperty }}" type="checkbox" role="switch" class="learning-stage-switch">
+                                </label>
+                                @if ($stage === 'final')
+                                    <label class="learning-stage-row__requirement">
+                                        <input wire:model="partial_test_required_for_final" type="checkbox" @disabled(! $partial_test_enabled || ! $final_test_enabled)>
+                                        <span>{{ __('learning_progression.require_partial') }}</span>
+                                    </label>
+                                    @error('partial_test_required_for_final')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                                @elseif ($stage === 'awqaf')
+                                    <label class="learning-stage-row__requirement">
+                                        <input wire:model="final_test_required_for_awqaf" type="checkbox" @disabled(! $final_test_enabled || ! $awqaf_test_enabled)>
+                                        <span>{{ __('learning_progression.require_final') }}</span>
+                                    </label>
+                                    @error('final_test_required_for_awqaf')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                                @endif
+                            </article>
+                        @endforeach
+                        @error('partial_test_enabled')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                     </fieldset>
-
                     @unless($locked)
-                        <div class="flex justify-end border-t border-neutral-200 pt-5 dark:border-neutral-800">
+                        <div class="learning-path-setup__footer">
                             <x-admin.save-button :label="__('learning_progression.save')" />
                         </div>
                     @endunless

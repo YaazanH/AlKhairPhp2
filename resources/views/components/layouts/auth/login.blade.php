@@ -1,33 +1,28 @@
 @php
-    $locale = app()->getLocale();
-    $direction = config('app.supported_locales.'.$locale.'.direction', 'ltr');
+    $currentLocale = app()->getLocale();
+    $currentLocaleConfig = config('app.supported_locales.'.$currentLocale, []);
+    $textDirection = $currentLocaleConfig['direction'] ?? 'ltr';
 @endphp
+
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', $locale) }}" dir="{{ $direction }}">
+<html lang="{{ str_replace('_', '-', $currentLocale) }}" dir="{{ $textDirection }}">
     <head>
-        @include('partials.head', ['title' => __('access.login.title')])
-        @vite('resources/css/auth-design.css')
+        @include('partials.head')
     </head>
-    <body class="auth-studio-body antialiased">
-        <main class="auth-studio auth-studio--tenant">
-            <section class="auth-studio__intro">
-                <a class="auth-studio__brand" href="{{ route('home') }}"><x-app-logo /></a>
-                <div class="auth-studio__story">
-                    <p class="auth-studio__eyebrow">{{ __('auth-design.welcome') }}</p>
-                    <h1>{{ __('auth-design.title') }}</h1>
-                    <p class="auth-studio__description">{{ __('auth-design.body') }}</p>
-                    <div class="auth-studio__illustration" aria-hidden="true"><div><span></span><span></span><span></span></div><section><i></i><div><b></b><b></b><b></b></div><footer><em></em><em></em><em></em><em></em><em></em></footer></section></div>
-                    <ul class="auth-studio__qualities">@foreach(['learning', 'people', 'operations'] as $quality)<li><span aria-hidden="true">✓</span>{{ __('auth-design.'.$quality) }}</li>@endforeach</ul>
+    <body class="min-h-screen bg-white antialiased dark:bg-linear-to-b dark:from-neutral-950 dark:to-neutral-900 tenant-app-body" data-custom-tenant-theme="{{ app(\App\Support\TenantTheme::class)->isCustom() ? 'true' : 'false' }}">
+        <div class="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+            <div class="flex w-full max-w-sm flex-col gap-2">
+                <div class="flex items-center justify-between gap-4">
+                    <a href="{{ route('home') }}" class="flex min-w-0 items-center gap-3 font-medium" wire:navigate>
+                        <x-app-logo />
+                    </a>
+                    <x-locale-switcher compact />
                 </div>
-                <p class="auth-studio__footnote">{{ __('auth-design.account_help') }}</p>
-            </section>
-            <section class="auth-studio__panel">
-                <div class="auth-studio__preferences"><x-account-menu-preferences /></div>
-                <div class="auth-studio__mobile-brand"><a href="{{ route('home') }}"><x-app-logo /></a></div>
-                <div class="auth-studio__card">{{ $slot }}</div>
-                <a class="auth-studio__back" href="{{ route('home') }}">{{ __('auth-design.back') }} <span aria-hidden="true">↗</span></a>
-            </section>
-        </main>
+                <div class="flex flex-col gap-6">
+                    {{ $slot }}
+                </div>
+            </div>
+        </div>
         @fluxScripts
     </body>
 </html>

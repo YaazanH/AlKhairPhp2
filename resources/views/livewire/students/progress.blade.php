@@ -833,23 +833,6 @@ new class extends Component
             })
             ->filter(fn ($row) => $row->memorized_externally || $row->memorized_pages > 0 || $row->passed_parts > 0 || $row->latest_final_score !== null)
             ->values();
-        $currentProgress = $studentRecord->quran_current_juz_id
-            ? $quranJuzProgress->first(fn ($row) => (int) $row->juz->id === (int) $studentRecord->quran_current_juz_id)
-            : null;
-        $currentProgress ??= $quranJuzProgress->first(fn ($row) => $row->next_stage !== 'complete') ?: $quranJuzProgress->last();
-        $configuredStages = collect(['memorization'])
-            ->when($learningProgression['partial_test_enabled'], fn ($stages) => $stages->push('partial'))
-            ->when($learningProgression['final_test_enabled'], fn ($stages) => $stages->push('final'))
-            ->when($learningProgression['awqaf_test_enabled'], fn ($stages) => $stages->push('awqaf'))
-            ->values();
-        $quranProgressionSummary = [
-            'configured' => $learningProgression['configured'],
-            'stages' => $configuredStages,
-            'current_stage' => $currentProgress?->next_stage,
-            'current_juz_number' => $currentProgress?->juz?->juz_number,
-            'completed_juz_count' => $quranJuzProgress->where('path_complete', true)->count(),
-            'active_juz_count' => $quranJuzProgress->where('path_complete', false)->count(),
-        ];
         $progressStats = collect([
             'attendance_days' => 'attendance_days',
             'memorized_pages' => 'memorized_pages',
@@ -919,7 +902,6 @@ new class extends Component
             'parentVisibleNotes' => $parentVisibleNotes,
             'quranJuzProgress' => $quranJuzProgress,
             'quranProgressionSettings' => $learningProgression,
-            'quranProgressionSummary' => $quranProgressionSummary,
             'lessonLevelSummary' => $lessonLevelSummary,
             'progressStats' => $progressStats,
             'finishedQuranJuzCount' => $finishedQuranJuzCount,
@@ -1203,47 +1185,6 @@ new class extends Component
                 @endif
             </section>
         @else
-        <section class="surface-panel overflow-hidden" data-learning-progression-summary>
-            <div class="border-b border-white/8 p-5 lg:p-6">
-                <div class="eyebrow">{{ __('learning_progression.summary.eyebrow') }}</div>
-                <div class="mt-2 flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h2 class="font-display text-2xl font-semibold text-white">{{ __('learning_progression.summary.title') }}</h2>
-                        @if ($quranProgressionSummary['configured'])
-                            <div class="mt-3 flex flex-wrap items-center gap-2" aria-label="{{ __('learning_progression.summary.path') }}">
-                                @foreach ($quranProgressionSummary['stages'] as $stage)
-                                    <span class="status-chip border-sky-300/20 bg-sky-300/10 text-sky-100">{{ __('learning_progression.stages.'.$stage) }}</span>
-                                    @unless($loop->last)<span class="text-neutral-600" aria-hidden="true">→</span>@endunless
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-
-            @if (! $quranProgressionSummary['configured'])
-                <div class="m-5 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-4 text-sm leading-7 text-amber-100 lg:m-6">{{ __('learning_progression.summary.not_configured') }}</div>
-            @else
-                <div class="grid gap-px bg-white/8 sm:grid-cols-3">
-                    <div class="bg-neutral-950/60 p-5">
-                        <div class="kpi-label">{{ __('learning_progression.summary.current_stage') }}</div>
-                        <div class="mt-2 text-base font-semibold text-white">
-                            @if ($quranProgressionSummary['current_stage'])
-                                {{ __('learning_progression.stages.'.$quranProgressionSummary['current_stage']) }}
-                                @if ($quranProgressionSummary['current_juz_number'])
-                                    <span class="text-neutral-400">· {{ __('workflow.common.labels.juz_number', ['number' => $quranProgressionSummary['current_juz_number']]) }}</span>
-                                @endif
-                            @else
-                                {{ __('learning_progression.summary.no_progress') }}
-                            @endif
-                        </div>
-                    </div>
-                    <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.summary.completed_juz') }}</div><div class="metric-value mt-2">{{ number_format($quranProgressionSummary['completed_juz_count']) }}</div></div>
-                    <div class="bg-neutral-950/60 p-5"><div class="kpi-label">{{ __('learning_progression.summary.active_juz') }}</div><div class="metric-value mt-2">{{ number_format($quranProgressionSummary['active_juz_count']) }}</div></div>
-                </div>
-            @endif
-        </section>
-
         <section class="surface-table student-juz-progress-table">
             <div class="admin-grid-meta">
                 <div><div class="admin-grid-meta__title">{{ __('workflow.student_progress.juz_progress.title') }}</div><div class="admin-grid-meta__summary">{{ __('workflow.student_progress.juz_progress.summary', ['count' => number_format($finishedQuranJuzCount)]) }}</div></div>

@@ -205,7 +205,7 @@ class StudentProgressPageTest extends TestCase
         $this->assertStringContainsString('contain: paint;', $css);
     }
 
-    public function test_quran_progress_summary_uses_the_tenant_configured_stages(): void
+    public function test_quran_progress_omits_the_summary_and_uses_the_tenant_configured_stages(): void
     {
         $this->assertStringNotContainsString(
             "route('settings.learning-progression')",
@@ -228,9 +228,8 @@ class StudentProgressPageTest extends TestCase
         $this->actingAs($manager);
 
         Volt::test('students.progress', ['student' => $student])
-            ->assertSee('data-learning-progression-summary', false)
-            ->assertViewHas('quranProgressionSummary', fn (array $summary): bool => $summary['configured']
-                && $summary['stages']->all() === ['memorization', 'final'])
+            ->assertDontSee('data-learning-progression-summary', false)
+            ->assertDontSee(__('learning_progression.summary.title'))
             ->assertDontSee('data-progression-stage-column="partial"', false)
             ->assertSee('data-progression-stage-column="final"', false);
     }

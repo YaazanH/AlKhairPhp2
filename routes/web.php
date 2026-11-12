@@ -304,7 +304,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/attendance-statuses', 'settings.attendance-statuses')->middleware('permission:settings.manage')->name('settings.attendance-statuses');
     Volt::route('settings/assessment-types', 'settings.assessment-types')->middleware('permission:settings.manage')->name('settings.assessment-types');
     Route::redirect('settings/tracking', '/settings/points')->middleware('permission:settings.manage')->name('settings.tracking');
-    Volt::route('settings/learning-progression', 'settings.learning-path')->middleware('permission:learning-progression.manage|settings.manage')->name('settings.learning-progression');
+    Volt::route('settings/learning-progression', 'settings.learning-path')->middleware('permission:learning-progression.manage|settings.manage|course-completion-rules.manage')->name('settings.learning-progression');
     Volt::route('settings/course-completion', 'settings.course-completion')->middleware('permission:course-completion-rules.manage')->name('settings.course-completion');
     Volt::route('settings/navigation', 'settings.sidebar-navigation')->middleware('permission:sidebar-navigation.manage')->name('settings.sidebar-navigation');
     Route::redirect('settings/sidebar-navigation', '/settings/navigation')->middleware('permission:sidebar-navigation.manage')->name('legacy.settings.sidebar-navigation');

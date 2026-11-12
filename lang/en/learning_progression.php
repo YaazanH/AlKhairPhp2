@@ -1,11 +1,13 @@
 <?php
 
 return [
-    'navigation' => 'Learning progression',
+    'navigation' => 'Learning path',
     'eyebrow' => 'Student journey',
-    'title' => 'Learning progression',
+    'title' => 'Learning path',
     'subtitle' => 'Configure the learning path selected when this tenant was created and define the evidence students need before advancing.',
     'sections' => [
+        'attendance' => ['title' => 'Attendance types', 'copy' => 'Manage attendance statuses and the records that count as present.'],
+        'assessments' => ['title' => 'Assessments', 'copy' => 'Manage assessment types, scoring, and availability.'],
         'progression' => ['title' => 'Progression', 'copy' => 'Configure the stages and evidence students need to advance.'],
         'reference_types' => ['title' => 'Attendance and assessment types', 'copy' => 'Manage the attendance statuses and assessment types used across the learning path.'],
         'points' => ['title' => 'Points', 'copy' => 'Set point types, automatic policies, test rules, and temporary multipliers.'],

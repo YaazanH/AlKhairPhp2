@@ -45,6 +45,10 @@ class TenantThemeSettingsTest extends TestCase
             ->assertSee('data-theme-preset="sand"', false)
             ->assertSee('data-theme-edit-action', false)
             ->assertSee('data-theme-save-action', false)
+            ->assertSeeInOrder(['data-theme-editor-reset-action', 'data-theme-editor-save-action'], false)
+            ->assertDontSee(__('theme.subtitle'))
+            ->assertDontSee(__('theme.readability_message'))
+            ->assertSee('data-update-uri', false)
             ->assertSee('--tenant-primary: #7452d6', false);
 
         $this->actingAs($administrator)
@@ -53,6 +57,9 @@ class TenantThemeSettingsTest extends TestCase
             ->assertSessionHas('status', __('theme.reset_done'));
 
         $this->assertSame(TenantTheme::DEFAULT_PRIMARY, app(TenantTheme::class)->primaryColor());
+        $this->assertFalse(app(TenantTheme::class)->isCustom());
+        $this->assertStringContainsString('--app-panel: rgba(7, 39, 20, 0.92)', app(TenantTheme::class)->cssVariables());
+        $this->assertStringContainsString('--app-control-background: #fffdf7', app(TenantTheme::class)->cssVariables());
         $this->assertDatabaseMissing('app_settings', ['group' => 'theme', 'key' => 'primary_color']);
     }
 
@@ -175,7 +182,10 @@ class TenantThemeSettingsTest extends TestCase
         $this->actingAs($manager)
             ->get(route('settings.organization'))
             ->assertOk()
-            ->assertSee(route('settings.theme.edit'), false);
+            ->assertSee('data-theme-account-action', false)
+            ->assertSee('href="'.route('settings.theme.edit').'"', false)
+            ->assertDontSee('data-tenant-theme-window', false)
+            ->assertDontSee(__('ui.common.visit_site'));
 
         $this->actingAs($manager)
             ->put(route('settings.theme.update'), ['primary_color' => '#7452d6'])

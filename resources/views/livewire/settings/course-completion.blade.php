@@ -10,6 +10,8 @@ new class extends Component
 {
     use AuthorizesPermissions;
 
+    public bool $embedded = false;
+
     public string $required_passed_final_tests = '1';
 
     public string $required_memorized_pages = '0';
@@ -467,12 +469,14 @@ new class extends Component
     }
 }; ?>
 
-<div class="page-stack settings-admin-page">
+<div class="{{ $embedded ? 'space-y-6' : 'page-stack settings-admin-page' }}">
+    @unless ($embedded)
     <section class="page-hero p-6 lg:p-8">
         <h1 class="font-display mt-4 text-4xl leading-none text-white md:text-5xl">{{ __('ui.common.settings') }}</h1>
     </section>
 
     <x-settings.admin-nav section="dashboard" current="settings.course-completion" />
+    @endunless
 
     @if (session('status'))
         <div class="flash-success rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ session('status') }}</div>
@@ -570,8 +574,8 @@ new class extends Component
 
                 <section class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div class="grid gap-4 md:grid-cols-2">
-                        <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.retain_percentage') }}</label><div class="flex"><input wire:model="retain_percentage" type="number" min="0" max="100" class="min-w-0 flex-1 rounded-s-xl px-4 py-3 text-sm"><span class="flex items-center rounded-e-xl border border-s-0 border-white/10 px-4">%</span></div></div>
-                        <div><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.minimum_points') }}</label><div class="flex"><input wire:model="minimum_points" type="number" min="0" class="min-w-0 flex-1 rounded-s-xl px-4 py-3 text-sm"><span class="flex items-center rounded-e-xl border border-s-0 border-white/10 px-4">{{ __('settings.course_completion.labels.point_unit') }}</span></div></div>
+                        <div class="min-w-0"><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.retain_percentage') }}</label><div class="flex"><input wire:model="retain_percentage" type="number" min="0" max="100" class="min-w-0 flex-1 rounded-s-xl px-4 py-3 text-sm"><span class="flex items-center rounded-e-xl border border-s-0 border-white/10 px-4">%</span></div></div>
+                        <div class="min-w-0"><label class="mb-1 block text-sm font-medium">{{ __('settings.course_completion.fields.minimum_points') }}</label><div class="flex"><input wire:model="minimum_points" type="number" min="0" class="min-w-0 flex-1 rounded-s-xl px-4 py-3 text-sm"><span class="flex items-center rounded-e-xl border border-s-0 border-white/10 px-4">{{ __('settings.course_completion.labels.point_unit') }}</span></div></div>
                     </div>
                 </section>
 

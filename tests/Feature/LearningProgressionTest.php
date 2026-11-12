@@ -100,7 +100,7 @@ class LearningProgressionTest extends TestCase
             ->assertSee(__('learning_progression.navigation'));
     }
 
-    public function test_learning_path_combines_progression_reference_types_and_points_into_exclusive_sections(): void
+    public function test_learning_path_shows_points_attendance_assessments_progression_then_completion_in_exclusive_sections(): void
     {
         $this->signInAsAdministrator();
 
@@ -109,18 +109,44 @@ class LearningProgressionTest extends TestCase
         $response->assertOk()
             ->assertSee('data-learning-path-accordion', false)
             ->assertSee('data-learning-path-section="progression"', false)
-            ->assertSee('data-learning-path-section="reference-types"', false)
+            ->assertSee('data-learning-path-section="attendance"', false)
+            ->assertSee('data-learning-path-section="assessments"', false)
             ->assertSee('data-learning-path-section="points"', false)
             ->assertSee("openSection = openSection === 'progression' ? null : 'progression'", false)
-            ->assertSee("openSection = openSection === 'reference-types' ? null : 'reference-types'", false)
+            ->assertSee("openSection = openSection === 'attendance' ? null : 'attendance'", false)
             ->assertSee("openSection = openSection === 'points' ? null : 'points'", false);
+
+        $response->assertSeeInOrder([
+            'data-learning-path-section="points"',
+            'data-learning-path-section="attendance"',
+            'data-learning-path-section="assessments"',
+            'data-learning-path-section="progression"',
+            'data-learning-path-section="completion"',
+        ], false);
 
         $this->get(route('settings.organization', absolute: false))
             ->assertOk()
             ->assertSee('href="'.route('settings.learning-progression').'"', false)
             ->assertDontSee('href="'.route('settings.points').'"', false)
             ->assertDontSee('href="'.route('settings.attendance-statuses').'"', false)
-            ->assertDontSee('href="'.route('settings.assessment-types').'"', false);
+            ->assertDontSee('href="'.route('settings.assessment-types').'"', false)
+            ->assertDontSee('href="'.route('settings.course-completion').'"', false);
+    }
+
+    public function test_completion_only_permission_opens_its_learning_path_section_without_other_editors(): void
+    {
+        $this->seed();
+        $user = User::factory()->create();
+        $user->givePermissionTo('course-completion-rules.manage');
+
+        $this->actingAs($user)->get(route('settings.learning-progression', ['section' => 'completion'], false))
+            ->assertOk()
+            ->assertSee('data-learning-path-section="completion"', false)
+            ->assertSee('data-settings-dark-surface="course-completion-rules"', false)
+            ->assertDontSee('data-learning-path-section="progression"', false)
+            ->assertDontSee('data-learning-path-section="points"', false)
+            ->assertDontSee('data-learning-path-section="attendance"', false)
+            ->assertDontSee('data-learning-path-section="assessments"', false);
     }
 
     public function test_general_settings_permission_can_open_available_learning_path_sections(): void
@@ -133,7 +159,9 @@ class LearningProgressionTest extends TestCase
             ->get(route('settings.learning-progression', absolute: false))
             ->assertOk()
             ->assertDontSee('data-learning-path-section="progression"', false)
-            ->assertSee('data-learning-path-section="reference-types"', false)
+            ->assertDontSee('data-learning-path-section="completion"', false)
+            ->assertSee('data-learning-path-section="attendance"', false)
+            ->assertSee('data-learning-path-section="assessments"', false)
             ->assertSee('data-learning-path-section="points"', false);
     }
 

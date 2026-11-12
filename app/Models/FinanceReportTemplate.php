@@ -6,6 +6,7 @@ use App\Services\FinanceReportService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class FinanceReportTemplate extends Model
 {
@@ -101,10 +102,17 @@ class FinanceReportTemplate extends Model
             return null;
         }
 
+        $urlPath = parse_url($path, PHP_URL_PATH) ?: $path;
+        if (str_starts_with($urlPath, '/storage/')) {
+            return Storage::disk('public')->url(substr($urlPath, strlen('/storage/')));
+        }
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:')) {
+            return $path;
+        }
         if (str_starts_with($path, '/')) {
             return $path;
         }
 
-        return '/storage/'.ltrim($path, '/');
+        return Storage::disk('public')->url(ltrim($path, '/'));
     }
 }

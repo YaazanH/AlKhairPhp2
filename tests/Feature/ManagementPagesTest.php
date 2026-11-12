@@ -35,12 +35,12 @@ class ManagementPagesTest extends TestCase
         $reportLibrary = file_get_contents(resource_path('views/reports/library.blade.php'));
         $platformWorkspace = file_get_contents(resource_path('views/components/platform/tenant-workspace.blade.php'));
 
-        $this->assertStringContainsString('color: var(--color-accent-foreground);', $styles);
-        $this->assertStringContainsString('.tenant-app-body :is(a, button, input[type=', $styles);
+        $this->assertStringContainsString('color: var(--theme-on-action-600)', $styles);
+        $this->assertStringContainsString('--mudeer-brand-', $styles);
         $this->assertStringContainsString('class="app-body tenant-app-body"', $sidebarLayout);
         $this->assertStringContainsString('class="app-body tenant-app-body"', $headerLayout);
         $this->assertStringNotContainsString('dir="{{ $textDirection }}" class="dark"', $headerLayout);
-        $this->assertStringContainsString('.theme-readability-note', $styles);
+        $this->assertStringContainsString('.theme-choices', $styles);
         $this->assertStringContainsString('foreground(hex)', $themeView);
         $this->assertStringContainsString('report-library-module', $reportLibrary);
         $this->assertStringContainsString('platform-tenant-workspace', $platformWorkspace);

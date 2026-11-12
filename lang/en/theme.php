@@ -1,14 +1,14 @@
 <?php
 
 return [
-    'navigation' => 'Theme',
+    'navigation' => 'Appearance',
     'eyebrow' => 'Tenant branding',
     'title' => 'Colour theme',
     'subtitle' => 'Choose the brand, action, page, surface, and text colours used across this tenant in light and dark appearance.',
     'presets_title' => 'Theme variants',
-    'presets_help' => 'Choose one of 16 variants built from the original v1 theme, then save it or fine-tune its colours.',
+    'presets_help' => 'Choose a theme, preview it in both appearances, then save or fine-tune its colours.',
     'edit_colors' => 'Edit theme colours',
-    'original_v1' => 'Original v1 theme',
+    'original_v1' => 'Default theme',
     'presets' => [
         'original' => 'Original green',
         'emerald' => 'Emerald',

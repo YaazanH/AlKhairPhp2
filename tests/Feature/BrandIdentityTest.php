@@ -8,6 +8,7 @@ use App\Models\WebsitePage;
 use App\Services\Landlord\TenantContext;
 use App\Services\WebsiteService;
 use App\Support\BrandIdentity;
+use App\Support\TenantTheme;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
@@ -96,5 +97,21 @@ class BrandIdentityTest extends TestCase
 
         $this->assertSame(app(BrandIdentity::class)->platformName(), $settings['site_name']);
         $this->assertNull($settings['logo_url']);
+    }
+
+    public function test_tenant_sign_in_uses_the_original_compact_layout_with_its_name_logo_and_theme(): void
+    {
+        app(TenantContext::class)->set(new Tenant(['name' => 'Al Noor Learning Centre', 'logo_path' => 'logo/al-noor.png']));
+        foreach (TenantTheme::variantColors('#1d4ed8') as $field => $value) {
+            AppSetting::storeValue('theme', $field, $value);
+        }
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('Al Noor Learning Centre')
+            ->assertSee(asset('storage/logo/al-noor.png'), false)
+            ->assertSee('max-w-sm', false)
+            ->assertSee('--tenant-primary: #1d4ed8', false)
+            ->assertDontSee('auth-studio', false);
     }
 }

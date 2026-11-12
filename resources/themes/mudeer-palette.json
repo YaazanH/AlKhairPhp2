@@ -1,0 +1,1988 @@
+{
+  "reference": "9debc5f8f89bde0dd9dd3681398f4a1b76f46617",
+  "colors": {
+    "102316": {
+      "hex": "#102316",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "102817": {
+      "hex": "#102817",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "105730": {
+      "hex": "#105730",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "123326": {
+      "hex": "#123326",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "143226": {
+      "hex": "#143226",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "143822": {
+      "hex": "#143822",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "158548": {
+      "hex": "#158548",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "163522": {
+      "hex": "#163522",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "163524": {
+      "hex": "#163524",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "164829": {
+      "hex": "#164829",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "166534": {
+      "hex": "#166534",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "166839": {
+      "hex": "#166839",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "174126": {
+      "hex": "#174126",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "183727": {
+      "hex": "#183727",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "186139": {
+      "hex": "#186139",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "188048": {
+      "hex": "#188048",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "195231": {
+      "hex": "#195231",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "228048": {
+      "hex": "#228048",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "233926": {
+      "hex": "#233926",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "238354": {
+      "hex": "#238354",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "238654": {
+      "hex": "#238654",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "242818": {
+      "hex": "#242818",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "269754": {
+      "hex": "#269754",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "423429": {
+      "hex": "#423429",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "536957": {
+      "hex": "#536957",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "547260": {
+      "hex": "#547260",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "562605": {
+      "hex": "#562605",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "566356": {
+      "hex": "#566356",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f8f3eb": {
+      "hex": "#f8f3eb",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "ebe2d5": {
+      "hex": "#ebe2d5",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d8ccb9": {
+      "hex": "#d8ccb9",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "bba88e": {
+      "hex": "#bba88e",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "9c8569": {
+      "hex": "#9c8569",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "7c674e": {
+      "hex": "#7c674e",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5f4d3b": {
+      "hex": "#5f4d3b",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "2a211a": {
+      "hex": "#2a211a",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "17120e": {
+      "hex": "#17120e",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "090705": {
+      "hex": "#090705",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0b8f43": {
+      "hex": "#0b8f43",
+      "neutral": false,
+      "roles": [
+        "brand",
+        "action"
+      ]
+    },
+    "f5fff7": {
+      "hex": "#f5fff7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "087a39": {
+      "hex": "#087a39",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e8ebdf": {
+      "hex": "#e8ebdf",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fbfaf4": {
+      "hex": "#fbfaf4",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e8eee2": {
+      "hex": "#e8eee2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "205b37": {
+      "hex": "#205b37",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "8aa891": {
+      "hex": "#8aa891",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "112b1c": {
+      "hex": "#112b1c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "48614f": {
+      "hex": "#48614f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5e765f": {
+      "hex": "#5e765f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "126d3b": {
+      "hex": "#126d3b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d4e6d8": {
+      "hex": "#d4e6d8",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e2ecdf": {
+      "hex": "#e2ecdf",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "23412a": {
+      "hex": "#23412a",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "04160b": {
+      "hex": "#04160b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "072714": {
+      "hex": "#072714",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0a3119": {
+      "hex": "#0a3119",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "051c0e": {
+      "hex": "#051c0e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "97dbae": {
+      "hex": "#97dbae",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f3fff6": {
+      "hex": "#f3fff6",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "accdb5": {
+      "hex": "#accdb5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "11512b": {
+      "hex": "#11512b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "2b3e2f": {
+      "hex": "#2b3e2f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "072112": {
+      "hex": "#072112",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "031009": {
+      "hex": "#031009",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "082112": {
+      "hex": "#082112",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0c1f12": {
+      "hex": "#0c1f12",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0f2414": {
+      "hex": "#0f2414",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f7fbf8": {
+      "hex": "#f7fbf8",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f0f5f2": {
+      "hex": "#f0f5f2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "38503e": {
+      "hex": "#38503e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "176b3d": {
+      "hex": "#176b3d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5f7564": {
+      "hex": "#5f7564",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "173b27": {
+      "hex": "#173b27",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dfe8dc": {
+      "hex": "#dfe8dc",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "edf2e7": {
+      "hex": "#edf2e7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "3c5b45": {
+      "hex": "#3c5b45",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "9cbea6": {
+      "hex": "#9cbea6",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e1ebdd": {
+      "hex": "#e1ebdd",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "7aaa8b": {
+      "hex": "#7aaa8b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "153d25": {
+      "hex": "#153d25",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "a4bda7": {
+      "hex": "#a4bda7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "14723e": {
+      "hex": "#14723e",
+      "neutral": false,
+      "roles": [
+        "action"
+      ]
+    },
+    "0b4f2a": {
+      "hex": "#0b4f2a",
+      "neutral": false,
+      "roles": [
+        "action"
+      ]
+    },
+    "e6eedf": {
+      "hex": "#e6eedf",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dce7d7": {
+      "hex": "#dce7d7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5f765f": {
+      "hex": "#5f765f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "88ac92": {
+      "hex": "#88ac92",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e0eedc": {
+      "hex": "#e0eedc",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "c7dfcd": {
+      "hex": "#c7dfcd",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e3eedf": {
+      "hex": "#e3eedf",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e7efdf": {
+      "hex": "#e7efdf",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "6a7f65": {
+      "hex": "#6a7f65",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "006b2d": {
+      "hex": "#006b2d",
+      "neutral": false,
+      "roles": [
+        "brand",
+        "action"
+      ]
+    },
+    "76a170": {
+      "hex": "#76a170",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e8f4eb": {
+      "hex": "#e8f4eb",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0f5c30": {
+      "hex": "#0f5c30",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "c4dfcd": {
+      "hex": "#c4dfcd",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "064c29": {
+      "hex": "#064c29",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d8f8df": {
+      "hex": "#d8f8df",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "185c35": {
+      "hex": "#185c35",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f4f9ef": {
+      "hex": "#f4f9ef",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "9dbca5": {
+      "hex": "#9dbca5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "cce1ce": {
+      "hex": "#cce1ce",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "93c5a5": {
+      "hex": "#93c5a5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d4ded3": {
+      "hex": "#d4ded3",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f5f7f2": {
+      "hex": "#f5f7f2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "6ee7b7": {
+      "hex": "#6ee7b7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "10b981": {
+      "hex": "#10b981",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "051f11": {
+      "hex": "#051f11",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d9f3e2": {
+      "hex": "#d9f3e2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f7faf4": {
+      "hex": "#f7faf4",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "173f28": {
+      "hex": "#173f28",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "526b57": {
+      "hex": "#526b57",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "14532d": {
+      "hex": "#14532d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dde9d9": {
+      "hex": "#dde9d9",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dce9dc": {
+      "hex": "#dce9dc",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d7f1df": {
+      "hex": "#d7f1df",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f4fff7": {
+      "hex": "#f4fff7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "071c10": {
+      "hex": "#071c10",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "020906": {
+      "hex": "#020906",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "73dc97": {
+      "hex": "#73dc97",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "40be68": {
+      "hex": "#40be68",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dff8e7": {
+      "hex": "#dff8e7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "80dba4": {
+      "hex": "#80dba4",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "49b875": {
+      "hex": "#49b875",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "ecfdf5": {
+      "hex": "#ecfdf5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "8aa493": {
+      "hex": "#8aa493",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "17351f": {
+      "hex": "#17351f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "4ade80": {
+      "hex": "#4ade80",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "16a34a": {
+      "hex": "#16a34a",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "bbf7d0": {
+      "hex": "#bbf7d0",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "15803d": {
+      "hex": "#15803d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dcfce7": {
+      "hex": "#dcfce7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "34d399": {
+      "hex": "#34d399",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d1fae5": {
+      "hex": "#d1fae5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "a7f3d0": {
+      "hex": "#a7f3d0",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "14462a": {
+      "hex": "#14462a",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "06160e": {
+      "hex": "#06160e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "182b18": {
+      "hex": "#182b18",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "172b24": {
+      "hex": "#172b24",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d5ddd8": {
+      "hex": "#d5ddd8",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "08140d": {
+      "hex": "#08140d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "b6c8ba": {
+      "hex": "#b6c8ba",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "1f492d": {
+      "hex": "#1f492d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f6f9f2": {
+      "hex": "#f6f9f2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f7fff9": {
+      "hex": "#f7fff9",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "080b09": {
+      "hex": "#080b09",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "1f2924": {
+      "hex": "#1f2924",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "90b09b": {
+      "hex": "#90b09b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "edf3e9": {
+      "hex": "#edf3e9",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "355d43": {
+      "hex": "#355d43",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "dff1e2": {
+      "hex": "#dff1e2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "164e2c": {
+      "hex": "#164e2c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "a7c3af": {
+      "hex": "#a7c3af",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "042f2e": {
+      "hex": "#042f2e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "2dd4bf": {
+      "hex": "#2dd4bf",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "99f6e4": {
+      "hex": "#99f6e4",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "eff9f2": {
+      "hex": "#eff9f2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "c7e1d0": {
+      "hex": "#c7e1d0",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "78a88a": {
+      "hex": "#78a88a",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f2fff5": {
+      "hex": "#f2fff5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "deedda": {
+      "hex": "#deedda",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "c4decc": {
+      "hex": "#c4decc",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "355a41": {
+      "hex": "#355a41",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "478d5c": {
+      "hex": "#478d5c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "155f2e": {
+      "hex": "#155f2e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "023016": {
+      "hex": "#023016",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "011f0f": {
+      "hex": "#011f0f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "001008": {
+      "hex": "#001008",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "c7dabb": {
+      "hex": "#c7dabb",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0e612b": {
+      "hex": "#0e612b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0a4923": {
+      "hex": "#0a4923",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e8f8e7": {
+      "hex": "#e8f8e7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f7fff5": {
+      "hex": "#f7fff5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "043e1d": {
+      "hex": "#043e1d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "065326": {
+      "hex": "#065326",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0b7a38": {
+      "hex": "#0b7a38",
+      "neutral": false,
+      "roles": [
+        "action"
+      ]
+    },
+    "064621": {
+      "hex": "#064621",
+      "neutral": false,
+      "roles": [
+        "action"
+      ]
+    },
+    "79d695": {
+      "hex": "#79d695",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "07160c": {
+      "hex": "#07160c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "106e36": {
+      "hex": "#106e36",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "68d697": {
+      "hex": "#68d697",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d8fbe5": {
+      "hex": "#d8fbe5",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "91b59b": {
+      "hex": "#91b59b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d5e6d3": {
+      "hex": "#d5e6d3",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "364a2d": {
+      "hex": "#364a2d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "1e7f48": {
+      "hex": "#1e7f48",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5c705f": {
+      "hex": "#5c705f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "40b06b": {
+      "hex": "#40b06b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "2b7e4c": {
+      "hex": "#2b7e4c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "17633b": {
+      "hex": "#17633b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "ecf6e6": {
+      "hex": "#ecf6e6",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0f7f44": {
+      "hex": "#0f7f44",
+      "neutral": false,
+      "roles": [
+        "action"
+      ]
+    },
+    "0b5a32": {
+      "hex": "#0b5a32",
+      "neutral": false,
+      "roles": [
+        "action"
+      ]
+    },
+    "112d1e": {
+      "hex": "#112d1e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "526d58": {
+      "hex": "#526d58",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "33563e": {
+      "hex": "#33563e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f0f7eb": {
+      "hex": "#f0f7eb",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "e4faeb": {
+      "hex": "#e4faeb",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "a7e2d0": {
+      "hex": "#a7e2d0",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "12351f": {
+      "hex": "#12351f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "132f22": {
+      "hex": "#132f22",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f7faf7": {
+      "hex": "#f7faf7",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "eef5ef": {
+      "hex": "#eef5ef",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "26352b": {
+      "hex": "#26352b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "46624e": {
+      "hex": "#46624e",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "2a4532": {
+      "hex": "#2a4532",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "24543a": {
+      "hex": "#24543a",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "17231a": {
+      "hex": "#17231a",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "6c756c": {
+      "hex": "#6c756c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0b1e12": {
+      "hex": "#0b1e12",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "074622": {
+      "hex": "#074622",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "082815": {
+      "hex": "#082815",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f4faf6": {
+      "hex": "#f4faf6",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "000804": {
+      "hex": "#000804",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "162a1d": {
+      "hex": "#162a1d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "19613f": {
+      "hex": "#19613f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "65b889": {
+      "hex": "#65b889",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "69a97d": {
+      "hex": "#69a97d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "579a70": {
+      "hex": "#579a70",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "48534b": {
+      "hex": "#48534b",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "24332d": {
+      "hex": "#24332d",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "91a596": {
+      "hex": "#91a596",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "d7f3df": {
+      "hex": "#d7f3df",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "28573f": {
+      "hex": "#28573f",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "14271c": {
+      "hex": "#14271c",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "263d31": {
+      "hex": "#263d31",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "91aaa1": {
+      "hex": "#91aaa1",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "9ab6b2": {
+      "hex": "#9ab6b2",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "73c7a0": {
+      "hex": "#73c7a0",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "8bcebd": {
+      "hex": "#8bcebd",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "c0ccc6": {
+      "hex": "#c0ccc6",
+      "neutral": false,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffdf7": {
+      "hex": "#fffdf7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "1f1813": {
+      "hex": "#1f1813",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fbf7ef": {
+      "hex": "#fbf7ef",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffaf1": {
+      "hex": "#fffaf1",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "edf0e4": {
+      "hex": "#edf0e4",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f5f3e9": {
+      "hex": "#f5f3e9",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f5f6eb": {
+      "hex": "#f5f6eb",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f3f1e5": {
+      "hex": "#f3f1e5",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffcf6": {
+      "hex": "#fffcf6",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffffa": {
+      "hex": "#fffffa",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fbfaf0": {
+      "hex": "#fbfaf0",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0f0c09": {
+      "hex": "#0f0c09",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffcf5": {
+      "hex": "#fffcf5",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "251d17": {
+      "hex": "#251d17",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "16120e": {
+      "hex": "#16120e",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "231c16": {
+      "hex": "#231c16",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "13100d": {
+      "hex": "#13100d",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffffc": {
+      "hex": "#fffffc",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "1c1611": {
+      "hex": "#1c1611",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "edf2e3": {
+      "hex": "#edf2e3",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f5f5f4": {
+      "hex": "#f5f5f4",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f5ead8": {
+      "hex": "#f5ead8",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff4db": {
+      "hex": "#fff4db",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff6e4": {
+      "hex": "#fff6e4",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff6df": {
+      "hex": "#fff6df",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f4efe4": {
+      "hex": "#f4efe4",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "4a3a08": {
+      "hex": "#4a3a08",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5b3b00": {
+      "hex": "#5b3b00",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "5a2d0a": {
+      "hex": "#5a2d0a",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff3b0": {
+      "hex": "#fff3b0",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "ffd0a3": {
+      "hex": "#ffd0a3",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "110f0c": {
+      "hex": "#110f0c",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fef3c7": {
+      "hex": "#fef3c7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "14100c": {
+      "hex": "#14100c",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff7e7": {
+      "hex": "#fff7e7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffaef": {
+      "hex": "#fffaef",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "14110c": {
+      "hex": "#14110c",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f0f4e7": {
+      "hex": "#f0f4e7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffef7": {
+      "hex": "#fffef7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "130e0b": {
+      "hex": "#130e0b",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0b0907": {
+      "hex": "#0b0907",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff7e9": {
+      "hex": "#fff7e9",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff3d7": {
+      "hex": "#fff3d7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "0e0b08": {
+      "hex": "#0e0b08",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "efe7d7": {
+      "hex": "#efe7d7",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff7ea": {
+      "hex": "#fff7ea",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff2d2": {
+      "hex": "#fff2d2",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff3df": {
+      "hex": "#fff3df",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fff8ec": {
+      "hex": "#fff8ec",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "f4f6ed": {
+      "hex": "#f4f6ed",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    },
+    "fffef9": {
+      "hex": "#fffef9",
+      "neutral": true,
+      "roles": [
+        "brand"
+      ]
+    }
+  }
+}

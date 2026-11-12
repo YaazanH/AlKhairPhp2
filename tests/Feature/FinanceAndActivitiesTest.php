@@ -1706,7 +1706,7 @@ class FinanceAndActivitiesTest extends TestCase
         $this->assertStringStartsWith('%PDF', (string) $savedPdfResponse->getContent());
         $this->assertGreaterThan(1000, strlen((string) $savedPdfResponse->getContent()));
         $this->assertNotSame('legacy-pdf', Storage::disk('local')->get($generatedReport->pdf_path));
-        $this->assertSame('mpdf-fixed-ledger-v32', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
+        $this->assertSame('mpdf-fixed-ledger-v33-tenant-images', FinanceGeneratedReport::query()->findOrFail($generatedReport->id)->report_data['pdf_renderer']);
 
         $this->get(route('finance.reports.generated.show', ['generatedReport' => $generatedReport, 'format' => 'xlsx']))
             ->assertOk()

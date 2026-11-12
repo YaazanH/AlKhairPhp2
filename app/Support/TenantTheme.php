@@ -42,14 +42,77 @@ class TenantTheme
     /** @return array<string, array<string, string>> */
     public static function presets(): array
     {
-        return collect(self::PRESET_PRIMARY_COLORS)
-            ->mapWithKeys(fn (string $color, string $key): array => [
-                $key => array_replace(self::DEFAULT_COLORS, [
-                    'primary_color' => $color,
-                    'action_color' => $color,
-                ]),
-            ])
-            ->all();
+        $primaries = self::PRESET_PRIMARY_COLORS;
+        [$startingHue] = self::hsl(self::DEFAULT_PRIMARY);
+        uasort($primaries, function (string $first, string $second) use ($startingHue): int {
+            [$firstHue, $firstSaturation] = self::hsl($first);
+            [$secondHue, $secondSaturation] = self::hsl($second);
+
+            return (($firstSaturation < 0.2 ? 360 : 0) + fmod($firstHue - $startingHue + 360, 360))
+                <=> (($secondSaturation < 0.2 ? 360 : 0) + fmod($secondHue - $startingHue + 360, 360));
+        });
+
+        return array_map(self::variantColors(...), $primaries);
+    }
+
+    /** @return array<string, string> */
+    public static function variantColors(string $primary): array
+    {
+        $colors = array_map(fn (string $color): string => self::variantColor($color, $primary), self::DEFAULT_COLORS);
+        $colors['primary_color'] = $primary;
+        $colors['action_color'] = $primary;
+
+        return $colors;
+    }
+
+    /** Preserve Mudeer's lightness, saturation relationships and supporting shades. */
+    private static function variantColor(string $source, string $primary, bool $neutral = false): string
+    {
+        if ($primary === self::DEFAULT_PRIMARY) {
+            return $source;
+        }
+        if ($source === self::DEFAULT_PRIMARY) {
+            return $primary;
+        }
+
+        [$hue, $saturation, $lightness] = self::hsl($source);
+        [$primaryHue, $primarySaturation] = self::hsl($primary);
+        [$defaultHue, $defaultSaturation] = self::hsl(self::DEFAULT_PRIMARY);
+        $hue = $neutral || $hue < 80 ? $primaryHue : fmod($hue + $primaryHue - $defaultHue + 360, 360);
+        $saturation = min(1, $saturation * $primarySaturation / $defaultSaturation);
+        $chroma = (1 - abs(2 * $lightness - 1)) * $saturation;
+        $intermediate = $chroma * (1 - abs(fmod($hue / 60, 2) - 1));
+        $offset = $lightness - $chroma / 2;
+        $channels = match (true) {
+            $hue < 60 => [$chroma, $intermediate, 0],
+            $hue < 120 => [$intermediate, $chroma, 0],
+            $hue < 180 => [0, $chroma, $intermediate],
+            $hue < 240 => [0, $intermediate, $chroma],
+            $hue < 300 => [$intermediate, 0, $chroma],
+            default => [$chroma, 0, $intermediate],
+        };
+
+        return '#'.implode('', array_map(fn ($channel): string => sprintf('%02x', (int) round(($channel + $offset) * 255)), $channels));
+    }
+
+    /** @return array{float, float, float} */
+    private static function hsl(string $hex): array
+    {
+        [$red, $green, $blue] = array_map(fn ($offset): float => hexdec(substr($hex, $offset, 2)) / 255, [1, 3, 5]);
+        $maximum = max($red, $green, $blue);
+        $minimum = min($red, $green, $blue);
+        $delta = $maximum - $minimum;
+        $lightness = ($maximum + $minimum) / 2;
+        if ($delta == 0) {
+            return [0.0, 0.0, $lightness];
+        }
+        $hue = match ($maximum) {
+            $red => fmod(($green - $blue) / $delta, 6),
+            $green => ($blue - $red) / $delta + 2,
+            default => ($red - $green) / $delta + 4,
+        };
+
+        return [fmod($hue * 60 + 360, 360), $delta / (1 - abs(2 * $lightness - 1)), $lightness];
     }
 
     private ?array $palette = null;
@@ -91,11 +154,25 @@ class TenantTheme
 
         $configured = AppSetting::groupValues('theme');
 
-        return $this->colors = collect(self::DEFAULT_COLORS)
+        $colors = collect(self::DEFAULT_COLORS)
             ->mapWithKeys(fn (string $default, string $key): array => [
                 $key => $this->normalize((string) $configured->get($key)) ?? $default,
             ])
             ->all();
+
+        // Older variants stored only an accent change over the green surfaces.
+        $legacyAccentOnly = $colors['primary_color'] !== self::DEFAULT_PRIMARY
+            && collect($colors)->except(['primary_color', 'action_color'])->all()
+                === collect(self::DEFAULT_COLORS)->except(['primary_color', 'action_color'])->all();
+        if ($legacyAccentOnly) {
+            $variant = self::variantColors($colors['primary_color']);
+            if ($colors['action_color'] !== self::DEFAULT_PRIMARY) {
+                $variant['action_color'] = $colors['action_color'];
+            }
+            $colors = $variant;
+        }
+
+        return $this->colors = $colors;
     }
 
     public function palette(?string $primary = null): array
@@ -184,80 +261,47 @@ class TenantTheme
         return $errors;
     }
 
+    public function isCustom(): bool
+    {
+        return $this->colors() !== self::DEFAULT_COLORS;
+    }
+
     public function cssVariables(): string
     {
+        if (! $this->isCustom()) {
+            // Keep the original Mudeer surfaces, opacity, controls and accents.
+            // Generating supporting shades from eight base colours changes them.
+            return <<<'CSS'
+:root { --tenant-primary: #0b8f43; --tenant-primary-rgb: 11 143 67; --tenant-primary-hover: #087a39; --tenant-on-primary: #f5fff7; --tenant-action: #0b8f43; --tenant-action-hover: #087a39; --tenant-on-action: #f5fff7; --tenant-accent-text: #126d3b; --tenant-accent-soft: #d4e6d8; --color-accent: #0b8f43; --color-accent-content: #0b8f43; --color-accent-foreground: #f5fff7; --app-bg: #e8ebdf; --app-panel: #fbfaf4; --app-panel-soft: #e8eee2; --app-panel-strong: #fffdf7; --app-border: rgba(32, 91, 55, 0.26); --app-control-border: #8aa891; --app-text: #112b1c; --app-muted: #48614f; --app-control-background: #fffdf7; --app-page-gradient-start: #fbf7ef; --app-accent: #126d3b; --app-accent-soft: #d4e6d8; }
+.dark { --tenant-accent-text: #0b8f43; --tenant-accent-soft: rgba(11, 143, 67, 0.16); --app-bg: #04160b; --app-panel: rgba(7, 39, 20, 0.92); --app-panel-soft: rgba(10, 49, 25, 0.86); --app-panel-strong: rgba(5, 28, 14, 0.98); --app-border: rgba(151, 219, 174, 0.14); --app-text: #f3fff6; --app-muted: #accdb5; --app-control-background: rgba(31, 24, 19, 0.88); --app-page-gradient-start: #072714; --app-accent: #0b8f43; --app-accent-soft: rgba(11, 143, 67, 0.16); }
+CSS;
+        }
+
         $colors = $this->colors();
-        $palette = $this->palette($colors['primary_color']);
-        $actionRgb = $this->toRgb($colors['action_color']);
-        $actionForeground = $this->toHex($this->readableForeground($actionRgb));
-        $actionHoverTarget = $actionForeground === '#000000' ? [255, 255, 255] : [0, 0, 0];
-        $actionHover = $this->toHex($this->mix($actionRgb, $actionHoverTarget, 0.14));
-        $light = $this->appearancePalette($colors, 'light');
-        $dark = $this->appearancePalette($colors, 'dark');
-
-        // Brand colour and semantic colours are deliberately separate. Replacing
-        // Tailwind's emerald scale made success/status text inherit arbitrary
-        // tenant shades that were not readable on their surrounding surfaces.
-        return ":root { --tenant-primary: {$palette['primary']}; --tenant-primary-rgb: {$palette['primary_rgb']}; --tenant-primary-hover: {$palette['light_hover']}; --tenant-on-primary: {$palette['foreground']}; --tenant-action: {$colors['action_color']}; --tenant-action-hover: {$actionHover}; --tenant-on-action: {$actionForeground}; --tenant-accent-text: {$light['accent']}; --tenant-accent-soft: {$light['accent_soft']}; --color-accent: {$colors['action_color']}; --color-accent-content: {$light['accent']}; --color-accent-foreground: {$actionForeground}; {$this->appearanceCss($light)} } .dark { --tenant-primary-hover: {$palette['dark_hover']}; --tenant-action-hover: {$actionHover}; --tenant-accent-text: {$dark['accent']}; --tenant-accent-soft: {$dark['accent_soft']}; --color-accent: {$colors['action_color']}; --color-accent-content: {$dark['accent']}; --color-accent-foreground: {$actionForeground}; {$this->appearanceCss($dark)} }";
-    }
-
-    /** @param array<string, string> $colors
-     * @return array<string, string>
-     */
-    private function appearancePalette(array $colors, string $appearance): array
-    {
-        $background = $this->toRgb($colors[$appearance.'_background_color']);
-        $surface = $this->toRgb($colors[$appearance.'_surface_color']);
-        $text = $this->toRgb($colors[$appearance.'_text_color']);
-        $primary = $this->toRgb($colors['primary_color']);
-        $muted = $this->mix($text, $background, 0.22);
-
-        if ($this->contrast($muted, $background) < 4.5 || $this->contrast($muted, $surface) < 4.5) {
-            $muted = $text;
-        }
-
-        return [
-            'background' => $this->toHex($background),
-            'surface' => $this->toHex($surface),
-            'surface_soft' => $this->toHex($this->mix($surface, $background, 0.34)),
-            'surface_strong' => $this->toHex($this->mix($surface, $text, 0.04)),
-            'border' => $this->toHex($this->mix($text, $surface, 0.72)),
-            'text' => $this->toHex($text),
-            'muted' => $this->toHex($muted),
-            'accent' => $this->toHex($this->ensureContrastOnSurfaces($primary, [$background, $surface], $text)),
-            'accent_soft' => $this->toHex($this->mix($primary, $surface, 0.86)),
-        ];
-    }
-
-    /** @param array<string, string> $palette */
-    private function appearanceCss(array $palette): string
-    {
-        return "--app-bg: {$palette['background']}; --app-panel: {$palette['surface']}; --app-panel-soft: {$palette['surface_soft']}; --app-panel-strong: {$palette['surface_strong']}; --app-border: {$palette['border']}; --app-control-border: {$palette['border']}; --app-text: {$palette['text']}; --app-muted: {$palette['muted']}; --app-control-background: {$palette['surface']}; --app-page-gradient-start: {$palette['surface']}; --app-accent: {$palette['accent']}; --app-accent-soft: {$palette['accent_soft']};";
-    }
-
-    /** @param array<int, array<int, int>> $surfaces
-     * @param  array<int, int>  $fallback
-     * @return array<int, int>
-     */
-    private function ensureContrastOnSurfaces(array $color, array $surfaces, array $fallback): array
-    {
-        $isReadable = fn (array $candidate): bool => collect($surfaces)
-            ->every(fn (array $surface): bool => $this->contrast($candidate, $surface) >= 4.5);
-
-        if ($isReadable($color)) {
-            return $color;
-        }
-
-        foreach ([[0, 0, 0], [255, 255, 255]] as $target) {
-            for ($amount = 0.05; $amount <= 1; $amount += 0.05) {
-                $candidate = $this->mix($color, $target, $amount);
-                if ($isReadable($candidate)) {
-                    return $candidate;
+        $declarations = [];
+        $source = json_decode(file_get_contents(resource_path('themes/mudeer-palette.json')), true, flags: JSON_THROW_ON_ERROR);
+        $bindings = array_flip(array_diff_key(self::DEFAULT_COLORS, array_flip(['primary_color', 'action_color'])));
+        foreach ($source['colors'] as $hex => $definition) {
+            foreach ($definition['roles'] as $role) {
+                $primary = $colors[$role === 'action' ? 'action_color' : 'primary_color'];
+                $value = self::variantColor($definition['hex'], $primary, $definition['neutral']);
+                if ($role === 'brand' && isset($bindings[$definition['hex']])) {
+                    $value = $colors[$bindings[$definition['hex']]];
                 }
+                $declarations[] = "--mudeer-{$role}-{$hex}: {$value};";
+                $declarations[] = "--mudeer-{$role}-rgb-{$hex}: ".implode(', ', $this->toRgb($value)).';';
             }
         }
+        $palette = $this->palette($colors['primary_color']);
+        foreach ($this->palette($colors['action_color'])['shades'] as $shade => $value) {
+            $declarations[] = "--theme-action-{$shade}: {$value};";
+            $declarations[] = "--theme-on-action-{$shade}: ".$this->toHex($this->readableForeground($this->toRgb($value))).';';
+        }
+        $foreground = $this->toHex($this->readableForeground($this->toRgb($colors['action_color'])));
+        $tokens = implode(' ', $declarations);
+        $darkSurface = implode(', ', $this->toRgb($colors['dark_surface_color']));
 
-        return $fallback;
+        return ":root { {$tokens} --tenant-primary: {$colors['primary_color']}; --tenant-primary-rgb: {$palette['primary_rgb']}; --tenant-primary-hover: {$palette['light_hover']}; --tenant-on-primary: {$palette['foreground']}; --tenant-action: {$colors['action_color']}; --tenant-on-action: {$foreground}; --tenant-action-hover: {$palette['light_hover']}; --tenant-accent-text: {$palette['light_accent']}; --app-bg: {$colors['light_background_color']}; --app-panel: {$colors['light_surface_color']}; --app-text: {$colors['light_text_color']}; } .dark { --tenant-primary-hover: {$palette['dark_hover']}; --tenant-accent-text: {$palette['dark_accent']}; --app-bg: {$colors['dark_background_color']}; --app-panel: rgba({$darkSurface}, 0.92); --app-text: {$colors['dark_text_color']}; }";
     }
 
     private function normalize(string $color): ?string

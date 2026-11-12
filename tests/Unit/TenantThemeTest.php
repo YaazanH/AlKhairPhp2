@@ -63,4 +63,21 @@ class TenantThemeTest extends TestCase
 
         $this->assertSame([], $theme->readabilityErrors($colors));
     }
+
+    public function test_colour_variants_recolour_both_appearances_and_remain_readable(): void
+    {
+        $theme = app(TenantTheme::class);
+        foreach (TenantTheme::presets() as $key => $colors) {
+            $this->assertSame([], $theme->readabilityErrors($colors), $key);
+            if ($key !== 'original') {
+                $this->assertNotSame(TenantTheme::DEFAULT_COLORS['light_background_color'], $colors['light_background_color'], $key);
+                $this->assertNotSame(TenantTheme::DEFAULT_COLORS['dark_surface_color'], $colors['dark_surface_color'], $key);
+            }
+        }
+        $keys = array_keys(TenantTheme::presets());
+        $this->assertSame('original', $keys[0]);
+        $this->assertSame('slate', $keys[array_key_last($keys)]);
+        $this->assertLessThan(array_search('blue', $keys), array_search('original', $keys));
+        $this->assertLessThan(array_search('rose', $keys), array_search('blue', $keys));
+    }
 }

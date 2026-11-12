@@ -504,6 +504,9 @@ class FinanceReportService
     {
         $report = $generatedReport->report_data ?: [];
         $template = $report['template'] ?? $this->templateSnapshot($this->defaultLedgerTemplate());
+        if (is_array($template) && ! array_key_exists('background_image_path', $template)) {
+            $template['background_image_path'] = $template['background_image_url'] ?? $template['background_image_pdf_src'] ?? null;
+        }
 
         $report['template'] = $this->normalizeLedgerTemplateSnapshot(
             array_merge($this->templateSnapshot($this->defaultLedgerTemplate()), is_array($template) ? $template : [])
@@ -522,9 +525,9 @@ class FinanceReportService
                 $fundReport['academic_year'] = $fundReport['academic_year'] ?? $report['academic_year'];
                 $fundReport['template'] = $this->normalizeLedgerTemplateSnapshot(array_merge($report['template'], $fundReport['template'] ?? []));
                 $fundReport['rows'] = is_array($fundReport['rows'] ?? null) ? $fundReport['rows'] : [];
-                $fundReport['issuer_signature_pdf_src'] = $fundReport['issuer_signature_pdf_src'] ?? $report['issuer_signature_pdf_src'];
+                $fundReport['issuer_signature_pdf_src'] = $report['issuer_signature_pdf_src'];
                 $fundReport['issuer_signature_url'] = $report['issuer_signature_url'];
-                $fundReport['report_stamp_pdf_src'] = $fundReport['report_stamp_pdf_src'] ?? $report['report_stamp_pdf_src'];
+                $fundReport['report_stamp_pdf_src'] = $report['report_stamp_pdf_src'];
                 $fundReport['report_stamp_url'] = $report['report_stamp_url'];
 
                 return $fundReport;
@@ -976,7 +979,8 @@ class FinanceReportService
         $logoImagePdfSource = $this->pdfAssetSource($logoImageUrl);
 
         return [
-            'background_image_pdf_src' => $this->pdfAssetSource($backgroundImageUrl),
+            'background_image_path' => $template->background_image,
+            'background_image_pdf_src' => $this->pdfAssetSource($template->background_image),
             'background_image_url' => $backgroundImageUrl,
             'columns' => FinanceReportTemplate::DEFAULT_COLUMNS,
             'custom_date' => $template->custom_date?->toDateString(),
@@ -991,6 +995,7 @@ class FinanceReportService
             'is_default' => (bool) $template->is_default,
             'language' => $template->language,
             'logo_image_pdf_src' => $logoImagePdfSource,
+            'logo_image_path' => $template->logo_image,
             'logo_image_url' => $logoImageUrl,
             'name' => $template->name,
             'shape_color' => $template->shape_color ?: '#0f7a3d',
@@ -1017,7 +1022,7 @@ class FinanceReportService
 
     protected function ledgerPdfRendererVersion(): string
     {
-        return 'mpdf-fixed-ledger-v32';
+        return 'mpdf-fixed-ledger-v33-tenant-images';
     }
 
     public function reportStampPdfSource(): ?string
@@ -1050,7 +1055,9 @@ class FinanceReportService
 
     protected function normalizeLedgerTemplateSnapshot(array $template): array
     {
-        $template['background_image_pdf_src'] = $template['background_image_pdf_src'] ?? $this->pdfAssetSource($template['background_image_url'] ?? null);
+        $background = $template['background_image_path'] ?? $template['background_image_url'] ?? $template['background_image_pdf_src'] ?? null;
+        $template['background_image_pdf_src'] = $this->pdfAssetSource($background);
+        $template['background_image_url'] = $this->publicAssetUrl($background);
         $template['logo_image_pdf_src'] = $this->defaultReportLogoPdfSource();
         $template['logo_image_url'] = $this->defaultReportLogoUrl();
 
@@ -1063,20 +1070,69 @@ class FinanceReportService
             return null;
         }
 
-        if (str_starts_with($path, 'data:') || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        if (str_starts_with($path, 'data:')) {
             return $path;
         }
 
-        if (str_starts_with($path, '/storage/')) {
-            $relativePath = ltrim(Str::after($path, '/storage/'), '/');
-            $storagePath = storage_path('app/public/'.$relativePath);
+        $relativePath = $this->publicStorageAssetPath($path);
+        if ($relativePath !== null) {
+            $disk = Storage::disk('public');
 
-            return is_file($storagePath)
-                ? $this->fileUri($storagePath)
-                : $this->fileUri(public_path('storage/'.$relativePath));
+            return $disk->exists($relativePath) ? $this->fileUri($disk->path($relativePath)) : null;
         }
 
-        return $this->fileUri(public_path(ltrim($path, '/')));
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+        if (str_starts_with($path, 'file:') || str_contains(str_replace('\\', '/', $path), '../')) {
+            return null;
+        }
+
+        $publicPath = public_path(ltrim($path, '/'));
+
+        return is_file($publicPath) ? $this->fileUri($publicPath) : null;
+    }
+
+    protected function publicAssetUrl(?string $source): ?string
+    {
+        if (blank($source)) {
+            return null;
+        }
+        $relativePath = $this->publicStorageAssetPath($source);
+        if ($relativePath !== null) {
+            return Storage::disk('public')->exists($relativePath)
+                ? Storage::disk('public')->url($relativePath)
+                : null;
+        }
+
+        return str_starts_with($source, 'file:') ? null : $source;
+    }
+
+    /** Resolve historical URLs and file references only within the active public disk. */
+    protected function publicStorageAssetPath(string $source): ?string
+    {
+        if (str_starts_with($source, 'data:')) {
+            return null;
+        }
+        $path = str_replace('\\', '/', rawurldecode(parse_url($source, PHP_URL_PATH) ?: $source));
+        if (str_contains($path, "\0") || in_array('..', explode('/', $path), true)) {
+            return null;
+        }
+        if (str_starts_with($path, '/storage/')) {
+            return ltrim(substr($path, strlen('/storage/')), '/');
+        }
+        if (str_contains($path, '/app/public/')) {
+            $relative = Str::after($path, '/app/public/');
+
+            // Imported snapshots may contain the source tenant's absolute root.
+            return preg_replace('~^tenants/[a-f0-9-]{36}/~i', '', $relative);
+        }
+        if (! str_starts_with($path, '/') && ! preg_match('~^[a-z]:/~i', $path)
+            && ! str_starts_with($source, 'http://') && ! str_starts_with($source, 'https://')) {
+            return ltrim(Str::startsWith($path, 'storage/') ? substr($path, strlen('storage/')) : $path, '/');
+        }
+
+        return null;
     }
 
     protected function fileUri(string $path): string

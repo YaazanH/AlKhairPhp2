@@ -16,6 +16,7 @@
     $showAttendanceSettings = $moduleAccess->enabled('student_attendance') || $moduleAccess->enabled('teacher_attendance');
     $showAssessmentSettings = $moduleAccess->enabled('assessments');
     $showLearningPathSettings = auth()->user()?->can('learning-progression.manage')
+        || auth()->user()?->can('course-completion-rules.manage')
         || (auth()->user()?->can('settings.manage')
             && ($showAttendanceSettings || $showAssessmentSettings || $showPointsSettings));
     $showBackupSettings = auth()->user()?->can('backups.manage') || auth()->user()?->can('storage.view');
@@ -31,21 +32,11 @@
                         <span class="settings-tab__title">{{ __('settings.navigation.organization.title') }}</span>
                     </a>
                 @endcan
-                @if(auth()->user()?->is_tenant_administrator || auth()->user()?->can('settings.manage'))
-                    <a href="{{ route('settings.theme.edit') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.theme.edit' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('theme.navigation') }}</span>
-                    </a>
-                @endif
                 @if ($showLearningPathSettings)
-                    <a href="{{ route('settings.learning-progression') }}" wire:navigate class="settings-tab {{ in_array($resolvedCurrent, ['settings.learning-progression', 'settings.points', 'settings.attendance-statuses', 'settings.assessment-types'], true) ? 'is-active' : '' }}">
+                    <a href="{{ route('settings.learning-progression') }}" wire:navigate class="settings-tab {{ in_array($resolvedCurrent, ['settings.learning-progression', 'settings.points', 'settings.attendance-statuses', 'settings.assessment-types', 'settings.course-completion'], true) ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('learning_progression.navigation') }}</span>
                     </a>
                 @endif
-                @can('course-completion-rules.manage')
-                    <a href="{{ route('settings.course-completion') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.course-completion' ? 'is-active' : '' }}">
-                        <span class="settings-tab__title">{{ __('settings.navigation.completion.title') }}</span>
-                    </a>
-                @endcan
                 @can('curricula.manage')
                     <a href="{{ route('settings.curriculum-subjects') }}" wire:navigate class="settings-tab {{ $resolvedCurrent === 'settings.curriculum-subjects' ? 'is-active' : '' }}">
                         <span class="settings-tab__title">{{ __('curricula.settings.title') }}</span>

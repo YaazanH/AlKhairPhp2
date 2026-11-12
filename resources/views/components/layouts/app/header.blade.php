@@ -16,7 +16,7 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="app-body tenant-app-body">
+    <body class="app-body tenant-app-body" data-custom-tenant-theme="{{ app(\App\Support\TenantTheme::class)->isCustom() ? 'true' : 'false' }}">
         <div class="app-backdrop">
             <div class="app-backdrop__orb app-backdrop__orb--gold"></div>
             <div class="app-backdrop__orb app-backdrop__orb--emerald"></div>

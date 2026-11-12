@@ -207,8 +207,8 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('protected const MOBILE_HIDDEN_ITEM_KEYS', $sidebarNavigationMenu);
         $this->assertStringContainsString("\$group['has_mobile_items'] ? '' : 'max-lg:hidden'", $sidebarNavigationMenu);
         $this->assertStringContainsString('data-app-sidebar-navigation-mobile-empty', $sidebarNavigationMenu);
-        $this->assertStringContainsString('ArabicMonthFormatter::hijriYearLabel(now())', $sidebar);
-        $this->assertStringNotContainsString(':justify-subtitle-to-title="true"', $sidebar);
+        $this->assertStringContainsString('ArabicMonthFormatter::hijriMonthYearLabel(now())', $sidebar);
+        $this->assertStringContainsString(':justify-subtitle-to-title="true"', $sidebar);
         $this->assertStringContainsString("'app-logo-period-subtitle text-[0.7rem]'", file_get_contents(resource_path('views/components/app-logo.blade.php')));
         $this->assertArrayHasKey('finance_reports', app(SidebarNavigationService::class)->defaultItems());
         $this->assertStringNotContainsString('$desktopDropdownAlign', $sidebar);
@@ -234,8 +234,7 @@ class LocalizationTest extends TestCase
         $this->assertStringContainsString('function synchronizeAppLogoPeriodTypography()', $script);
         $this->assertStringContainsString("const target = lockup.querySelector('[data-app-logo-period-target]') ?? title;", $script);
         $this->assertStringContainsString('subtitle.style.width = `${targetWidth}px`;', $script);
-        $this->assertStringContainsString('subtitle.style.width = `${sourceWidth}px`;', $script);
-        $this->assertStringNotContainsString('fittedFontSize', $script);
+        $this->assertStringContainsString('const fittedFontSize = naturalFontSize * (targetWidth / sourceWidth) * 0.965;', $script);
         $this->assertStringContainsString('document.fonts?.ready.then(scheduleAppLogoPeriodTypographySync);', $script);
 
         $mobileHeaderMark = file_get_contents(resource_path('views/components/mobile-header-mark.blade.php'));
